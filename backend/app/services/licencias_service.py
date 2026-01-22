@@ -1,0 +1,29 @@
+from sqlalchemy.orm import Session
+from typing import List, Dict, Any
+from app.repositories.licencias_repository import LicenciasRepository
+from app.schemas.licencias import LicenciaCreate, LicenciaResponse
+from app.core.exceptions import LicenciaNotFoundError
+from app.core.logging_config import logger
+
+class LicenciasService:
+    def __init__(self, db: Session):
+        self.repository = LicenciasRepository(db)
+
+    def get_licencias(self, skip: int = 0, limit: int = 100) -> List[LicenciaResponse]:
+        logger.info(f"Obteniendo licencias (skip={skip}, limit={limit})")
+        return self.repository.get_all(skip, limit)
+
+    def get_licencia(self, licencia_id: int) -> LicenciaResponse:
+        licencia = self.repository.get_by_id(licencia_id)
+        if not licencia:
+            raise LicenciaNotFoundError(licencia_id)
+        return licencia
+        
+    def create_licencia(self, licencia: LicenciaCreate) -> LicenciaResponse:
+        logger.info(f"Creando licencia para: {licencia.nombre_trabajador}")
+        return self.repository.create(licencia)
+
+    def get_licencias_vigentes(self) -> List[Dict[str, Any]]:
+        """Obtiene las licencias vigentes (fecha actual entre fecha_inicio y fecha_fin)"""
+        logger.info("Obteniendo licencias vigentes")
+        return self.repository.get_vigentes()

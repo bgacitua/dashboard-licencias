@@ -1,6 +1,7 @@
-from sqlalchemy.ext.declarative import declarative_base
-# Importamos todos los modelos aquí para que Alembic o el motor de DB los detecte
-from app.models.licencia import Licencia
+from sqlalchemy.orm import declarative_base
 
-# Todos los modelos de datos heredarán de esta clase
+# Base declarativa para todos los modelos
 Base = declarative_base()
+
+# Importar modelos aquí para que Alembic los detecte
+from app.models import licencias  # noqa: F401, E402

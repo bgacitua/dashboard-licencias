@@ -1,21 +1,27 @@
 from fastapi import FastAPI
-# CORS es vital para que React pueda comunicarse con FastAPI
 from fastapi.middleware.cors import CORSMiddleware 
 from app.core.config import settings
+from app.core.exceptions import generic_exception_handler
+from app.core.logging_config import logger
 from app.db.session import engine
 from app.db.base import Base
-from app.api.v1.api import api_router # Importamos el router
+from app.api.v1.api import api_router
 
-# Crea las tablas (cuando haya conexión)
+logger.info("Iniciando Dashboard Licencias API")
+
 try:
     Base.metadata.create_all(bind=engine)
+    logger.info("Conexión a BD establecida")
 except Exception as e:
-    print(f"Advertencia: No se pudo conectar a la BD ({e}). Continuando sin BD...")
+    logger.warning(f"No se pudo conectar a la BD: {e}")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0"
 )
+
+# Handler global de excepciones
+app.add_exception_handler(Exception, generic_exception_handler)
 
 # Configuración de CORS (Permitir que el frontend hable con el backend)
 origins = [

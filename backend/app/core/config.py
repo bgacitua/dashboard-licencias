@@ -9,8 +9,7 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
     DB_NAME: str
-    DB_PORT: str = "1433"
-    DB_DRIVER: str = "ODBC Driver 17 for SQL Server"
+    DB_DRIVER: str = "ODBC Driver 18 for SQL Server"
 
     class Config:
         # Indica dónde buscar el archivo .env
@@ -23,4 +22,5 @@ settings = Settings()
 # Función para construir la URL de conexión de SQLAlchemy
 def get_database_url():
     # Formato: mssql+pyodbc://usuario:password@servidor:puerto/nombre_db?driver=Nombre+Driver
-    return f"mssql+pyodbc://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_SERVER}:{settings.DB_PORT}/{settings.DB_NAME}?driver={settings.DB_DRIVER}"
+    # TrustServerCertificate=yes evita errores SSL con certificados auto-firmados (ODBC Driver 18+)
+    return f"mssql+pyodbc://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_SERVER}/{settings.DB_NAME}?driver={settings.DB_DRIVER}&TrustServerCertificate=yes"

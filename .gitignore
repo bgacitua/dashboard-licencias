@@ -1,0 +1,33 @@
+# --- GENERAL (Archivos del sistema y editor) ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# --- ARCHIVOS DE ENTORNO (¡Muy Importante!) ---
+# Bloquea los archivos con contraseñas en cualquier carpeta
+.env
+.env.local
+*.env
+
+# --- DEPENDENCIAS (Aplica a backend y frontend) ---
+# Al poner esto aquí, Git ignorará node_modules en CUALQUIER subcarpeta
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# --- FRONTEND SPECIFIC (ej. React/Vue/Angular) ---
+# Carpetas de compilación (build)
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/coverage/
+
+# --- BACKEND SPECIFIC (Ejemplo Python) ---
+backend/venv/
+backend/__pycache__/
+*.pyc
+
+# --- BACKEND SPECIFIC (Ejemplo Node.js) ---
+backend/dist/
