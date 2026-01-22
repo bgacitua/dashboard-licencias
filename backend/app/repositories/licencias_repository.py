@@ -24,7 +24,48 @@ class LicenciasRepository:
             ORDER BY fecha_fin DESC
         """)
         result = self.db.execute(query)
-        # Convertir los resultados a una lista de diccionarios
+        columns = result.keys()
+        return [dict(zip(columns, row)) for row in result.fetchall()]
+
+    def get_por_vencer(self, dias: int = 5) -> List[Dict[str, Any]]:
+        """Obtiene licencias que vencen en los próximos N días"""
+        query = text("""
+            SELECT 
+                rut_empleado,
+                nombre_completo,
+                fecha_inicio,
+                fecha_fin,
+                tipo_permiso,
+                dias_duracion,
+                status,
+                DATEDIFF(DAY, CAST(GETDATE() AS DATE), fecha_fin) as dias_restantes
+            FROM [IARRHH].[dbo].[consolidado_incidencias]
+            WHERE fecha_fin >= CAST(GETDATE() AS DATE)
+              AND fecha_fin <= DATEADD(DAY, :dias, CAST(GETDATE() AS DATE))
+            ORDER BY fecha_fin ASC
+        """)
+        result = self.db.execute(query, {"dias": dias})
+        columns = result.keys()
+        return [dict(zip(columns, row)) for row in result.fetchall()]
+
+    def get_vencidas_recientes(self, dias: int = 5) -> List[Dict[str, Any]]:
+        """Obtiene licencias que vencieron en los últimos N días"""
+        query = text("""
+            SELECT 
+                rut_empleado,
+                nombre_completo,
+                fecha_inicio,
+                fecha_fin,
+                tipo_permiso,
+                dias_duracion,
+                status,
+                DATEDIFF(DAY, fecha_fin, CAST(GETDATE() AS DATE)) as dias_vencida
+            FROM [IARRHH].[dbo].[consolidado_incidencias]
+            WHERE fecha_fin < CAST(GETDATE() AS DATE)
+              AND fecha_fin >= DATEADD(DAY, -:dias, CAST(GETDATE() AS DATE))
+            ORDER BY fecha_fin DESC
+        """)
+        result = self.db.execute(query, {"dias": dias})
         columns = result.keys()
         return [dict(zip(columns, row)) for row in result.fetchall()]
 

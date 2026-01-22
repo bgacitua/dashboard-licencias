@@ -20,6 +20,18 @@ def read_licencias_vigentes(db: Session = Depends(get_db)):
     service = LicenciasService(db)
     return service.get_licencias_vigentes()
 
+@router.get("/por-vencer", response_model=List[Dict[str, Any]])
+def read_licencias_por_vencer(dias: int = 5, db: Session = Depends(get_db)):
+    """Obtiene licencias que vencen en los próximos N días (default: 5)"""
+    service = LicenciasService(db)
+    return service.get_licencias_por_vencer(dias)
+
+@router.get("/vencidas-recientes", response_model=List[Dict[str, Any]])
+def read_licencias_vencidas_recientes(dias: int = 5, db: Session = Depends(get_db)):
+    """Obtiene licencias que vencieron en los últimos N días (default: 5)"""
+    service = LicenciasService(db)
+    return service.get_licencias_vencidas_recientes(dias)
+
 @router.get("/{licencia_id}", response_model=LicenciaResponse)
 def read_licencia(licencia_id: int, db: Session = Depends(get_db)):
     """Obtiene una licencia por su ID"""
