@@ -28,12 +28,12 @@ class LicenciasService:
         logger.info("Obteniendo licencias vigentes")
         return self.repository.get_vigentes()
 
-    def get_licencias_por_vencer(self, dias: int = 5) -> List[Dict[str, Any]]:
+    def get_licencias_por_vencer(self, dias: int = 7) -> List[Dict[str, Any]]:
         """Obtiene licencias que vencen en los próximos N días"""
         logger.info(f"Obteniendo licencias por vencer en los próximos {dias} días")
         return self.repository.get_por_vencer(dias)
 
-    def get_licencias_vencidas_recientes(self, dias: int = 5) -> List[Dict[str, Any]]:
+    def get_licencias_vencidas_recientes(self, dias: int = 7) -> List[Dict[str, Any]]:
         """Obtiene licencias que vencieron en los últimos N días"""
         logger.info(f"Obteniendo licencias vencidas en los últimos {dias} días")
         return self.repository.get_vencidas_recientes(dias)
