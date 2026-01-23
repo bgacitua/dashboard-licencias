@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     MARCAS_DB_PASSWORD: str
     MARCAS_DB_NAME: str
     MARCAS_DB_DRIVER: str = "ODBC Driver 18 for SQL Server"
+    
+    # Configuración JWT para autenticación
+    JWT_SECRET_KEY: str = "change-this-secret-key-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 480  # 8 horas
 
     class Config:
         # Indica dónde buscar el archivo .env
