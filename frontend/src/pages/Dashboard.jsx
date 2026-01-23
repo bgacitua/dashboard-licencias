@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLicencias } from '../hooks/useLicencias';
 import { useMarcas } from '../hooks/useMarcas';
@@ -44,6 +44,199 @@ const Card = ({ titulo, cantidad, color, subtitulo, to }) => (
     </Link>
 );
 
+// Estilos para inputs de filtro
+const inputStyle = {
+    padding: '8px 12px',
+    border: '1px solid #d1d5db',
+    borderRadius: '6px',
+    fontSize: '0.85rem',
+    outline: 'none',
+    transition: 'border-color 0.2s',
+    width: '100%',
+    boxSizing: 'border-box'
+};
+
+const labelStyle = {
+    display: 'block',
+    marginBottom: '4px',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    color: '#4b5563',
+    textTransform: 'uppercase'
+};
+
+// Componente de filtros mejorado
+const FiltrosMarcas = ({ filters, relojes, onApplyFilters, onClearFilters, loading }) => {
+    const [localFilters, setLocalFilters] = useState({
+        fechaInicio: filters.fechaInicio || '',
+        fechaFin: filters.fechaFin || '',
+        nombre: filters.nombre || '',
+        rut: filters.rut || '',
+        reloj: filters.reloj || '',
+        tipoMarca: filters.tipoMarca || ''
+    });
+
+    const handleChange = (field, value) => {
+        setLocalFilters(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onApplyFilters({
+            fechaInicio: localFilters.fechaInicio || '',
+            fechaFin: localFilters.fechaFin || '',
+            nombre: localFilters.nombre || '',
+            rut: localFilters.rut || '',
+            reloj: localFilters.reloj || '',
+            tipoMarca: localFilters.tipoMarca || ''
+        });
+    };
+
+    const handleClear = () => {
+        setLocalFilters({
+            fechaInicio: '',
+            fechaFin: '',
+            nombre: '',
+            rut: '',
+            reloj: '',
+            tipoMarca: ''
+        });
+        onClearFilters();
+    };
+
+    // Filtrar relojes para el datalist basado en el texto ingresado
+    const filteredRelojes = relojes.filter(r => 
+        r.toLowerCase().includes((localFilters.reloj || '').toLowerCase())
+    );
+
+    return (
+        <form onSubmit={handleSubmit} style={{ marginBottom: '16px' }}>
+            {/* Fila 1: Fechas */}
+            <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: '12px',
+                marginBottom: '12px'
+            }}>
+                <div>
+                    <label style={labelStyle}>📅 Fecha Inicio</label>
+                    <input
+                        type="date"
+                        value={localFilters.fechaInicio}
+                        onChange={(e) => handleChange('fechaInicio', e.target.value)}
+                        style={inputStyle}
+                    />
+                </div>
+                <div>
+                    <label style={labelStyle}>📅 Fecha Fin</label>
+                    <input
+                        type="date"
+                        value={localFilters.fechaFin}
+                        onChange={(e) => handleChange('fechaFin', e.target.value)}
+                        style={inputStyle}
+                    />
+                </div>
+                <div>
+                    <label style={labelStyle}>👤 Nombre</label>
+                    <input
+                        type="text"
+                        placeholder="Buscar nombre..."
+                        value={localFilters.nombre}
+                        onChange={(e) => handleChange('nombre', e.target.value)}
+                        style={inputStyle}
+                    />
+                    <small style={{ color: '#9ca3af', fontSize: '0.7rem' }}>Busca en todo el historial</small>
+                </div>
+                <div>
+                    <label style={labelStyle}>🆔 RUT</label>
+                    <input
+                        type="text"
+                        placeholder="Buscar RUT..."
+                        value={localFilters.rut}
+                        onChange={(e) => handleChange('rut', e.target.value)}
+                        style={inputStyle}
+                    />
+                    <small style={{ color: '#9ca3af', fontSize: '0.7rem' }}>Busca en todo el historial</small>
+                </div>
+            </div>
+            
+            {/* Fila 2: Reloj y Tipo */}
+            <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: '12px',
+                marginBottom: '12px'
+            }}>
+                <div>
+                    <label style={labelStyle}>⏰ Reloj</label>
+                    <input
+                        type="text"
+                        list="relojes-list"
+                        placeholder="Seleccionar o escribir..."
+                        value={localFilters.reloj}
+                        onChange={(e) => handleChange('reloj', e.target.value)}
+                        style={inputStyle}
+                    />
+                    <datalist id="relojes-list">
+                        {filteredRelojes.map((reloj, idx) => (
+                            <option key={idx} value={reloj} />
+                        ))}
+                    </datalist>
+                </div>
+                <div>
+                    <label style={labelStyle}>🔄 Tipo Marca</label>
+                    <select
+                        value={localFilters.tipoMarca}
+                        onChange={(e) => handleChange('tipoMarca', e.target.value)}
+                        style={inputStyle}
+                    >
+                        <option value="">Todos</option>
+                        <option value="IN">IN (Entrada)</option>
+                        <option value="OUT">OUT (Salida)</option>
+                    </select>
+                </div>
+            </div>
+            
+            {/* Botones */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                    type="submit"
+                    disabled={loading}
+                    style={{
+                        backgroundColor: '#6366f1',
+                        color: 'white',
+                        border: 'none',
+                        padding: '8px 20px',
+                        borderRadius: '6px',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontSize: '0.85rem',
+                        fontWeight: '500',
+                        opacity: loading ? 0.7 : 1
+                    }}
+                >
+                    🔍 Buscar
+                </button>
+                <button
+                    type="button"
+                    onClick={handleClear}
+                    disabled={loading}
+                    style={{
+                        backgroundColor: '#f3f4f6',
+                        color: '#374151',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontSize: '0.85rem'
+                    }}
+                >
+                    Limpiar filtros
+                </button>
+            </div>
+        </form>
+    );
+};
+
 // Componente de tabla de marcas
 const TablaMarcas = ({ marcas, total, loading, loadingMore, error, hasMore, onLoadMore }) => {
     if (loading) {
@@ -74,7 +267,7 @@ const TablaMarcas = ({ marcas, total, loading, loadingMore, error, hasMore, onLo
     if (marcas.length === 0) {
         return (
             <p style={{ color: '#999', textAlign: 'center', padding: '40px' }}>
-                No hay marcas registradas hoy
+                No se encontraron marcas con los filtros aplicados
             </p>
         );
     }
@@ -92,7 +285,7 @@ const TablaMarcas = ({ marcas, total, loading, loadingMore, error, hasMore, onLo
                 alignItems: 'center'
             }}>
                 <span style={{ color: '#374151', fontSize: '0.9rem' }}>
-                    Mostrando <strong>{marcas.length}</strong> de <strong>{total}</strong> marcas
+                    Mostrando <strong>{marcas.length}</strong> de <strong>{total.toLocaleString()}</strong> marcas
                 </span>
             </div>
             
@@ -103,6 +296,7 @@ const TablaMarcas = ({ marcas, total, loading, loadingMore, error, hasMore, onLo
                             <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>Reloj</th>
                             <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>Nombre</th>
                             <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>RUT</th>
+                            <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>Fecha</th>
                             <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>Hora</th>
                             <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>Tipo</th>
                         </tr>
@@ -116,6 +310,7 @@ const TablaMarcas = ({ marcas, total, loading, loadingMore, error, hasMore, onLo
                                 <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{marca.nombre_reloj}</td>
                                 <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{marca.nombre_completo}</td>
                                 <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{marca.rut}</td>
+                                <td style={{ padding: '12px', borderBottom: '1px solid #eee', textAlign: 'center', fontSize: '0.85rem' }}>{marca.fecha}</td>
                                 <td style={{ padding: '12px', borderBottom: '1px solid #eee', textAlign: 'center', fontWeight: '500' }}>{marca.hora_marca}</td>
                                 <td style={{ 
                                     padding: '12px', 
@@ -123,14 +318,14 @@ const TablaMarcas = ({ marcas, total, loading, loadingMore, error, hasMore, onLo
                                     textAlign: 'center'
                                 }}>
                                     <span style={{
-                                        backgroundColor: marca.tipo_marca_texto?.toLowerCase().includes('entrada') ? '#dcfce7' : '#fef3c7',
-                                        color: marca.tipo_marca_texto?.toLowerCase().includes('entrada') ? '#166534' : '#92400e',
+                                        backgroundColor: marca.tipo_marca === 'IN' ? '#dcfce7' : (marca.tipo_marca === 'OUT' ? '#fee2e2' : '#f3f4f6'),
+                                        color: marca.tipo_marca === 'IN' ? '#166534' : (marca.tipo_marca === 'OUT' ? '#dc2626' : '#6b7280'),
                                         padding: '4px 12px',
                                         borderRadius: '12px',
                                         fontSize: '0.8rem',
                                         fontWeight: '500'
                                     }}>
-                                        {marca.tipo_marca_texto || marca.tipo_marca}
+                                        {marca.tipo_marca}
                                     </span>
                                 </td>
                             </tr>
@@ -156,7 +351,7 @@ const TablaMarcas = ({ marcas, total, loading, loadingMore, error, hasMore, onLo
                             transition: 'background-color 0.2s'
                         }}
                     >
-                        {loadingMore ? 'Cargando...' : `Cargar más (${total - marcas.length} restantes)`}
+                        {loadingMore ? 'Cargando...' : `Cargar más (${(total - marcas.length).toLocaleString()} restantes)`}
                     </button>
                 </div>
             )}
@@ -166,7 +361,10 @@ const TablaMarcas = ({ marcas, total, loading, loadingMore, error, hasMore, onLo
 
 const Dashboard = () => {
     const { resumen, loading: loadingLicencias, error: errorLicencias, recargar: recargarLicencias } = useLicencias();
-    const { marcas, total, hasMore, loading: loadingMarcas, loadingMore, error: errorMarcas, recargar: recargarMarcas, cargarMas } = useMarcas();
+    const { 
+        marcas, total, hasMore, loading: loadingMarcas, loadingMore, error: errorMarcas, 
+        filters, relojes, recargar: recargarMarcas, cargarMas, aplicarFiltros, limpiarFiltros 
+    } = useMarcas();
 
     if (loadingLicencias) {
         return (
@@ -302,7 +500,7 @@ const Dashboard = () => {
                         borderLeft: '4px solid #6366f1',
                         paddingLeft: '12px'
                     }}>
-                        🕐 Marcas de Empleados - Hoy
+                        🕐 Marcas de Empleados
                     </h2>
                     <button
                         onClick={recargarMarcas}
@@ -322,6 +520,15 @@ const Dashboard = () => {
                         🔄 Actualizar
                     </button>
                 </div>
+
+                {/* Filtros */}
+                <FiltrosMarcas 
+                    filters={filters}
+                    relojes={relojes}
+                    onApplyFilters={aplicarFiltros}
+                    onClearFilters={limpiarFiltros}
+                    loading={loadingMarcas}
+                />
                 
                 <TablaMarcas 
                     marcas={marcas}
@@ -338,6 +545,10 @@ const Dashboard = () => {
                 @keyframes spin {
                     0% { transform: rotate(0deg); }
                     100% { transform: rotate(360deg); }
+                }
+                input:focus, select:focus {
+                    border-color: #6366f1;
+                    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
                 }
             `}</style>
         </div>

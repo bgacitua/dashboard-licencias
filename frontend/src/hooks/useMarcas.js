@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getMarcasHoy } from '../services/marcas';
+import { getMarcas, getRelojes } from '../services/marcas';
 
 export const useMarcas = (initialLimit = 100) => {
     const [marcas, setMarcas] = useState([]);
@@ -9,14 +9,45 @@ export const useMarcas = (initialLimit = 100) => {
     const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState(null);
     const [offset, setOffset] = useState(0);
+    const [relojes, setRelojes] = useState([]);
+    const [filters, setFilters] = useState({
+        fechaInicio: '',
+        fechaFin: '',
+        nombre: '',
+        rut: '',
+        reloj: '',
+        tipoMarca: ''
+    });
     const limit = initialLimit;
 
-    const cargarMarcas = useCallback(async () => {
+    // Cargar lista de relojes al iniciar
+    useEffect(() => {
+        const cargarRelojes = async () => {
+            try {
+                const data = await getRelojes();
+                setRelojes(data);
+            } catch (err) {
+                console.error('Error cargando relojes:', err);
+            }
+        };
+        cargarRelojes();
+    }, []);
+
+    const cargarMarcas = useCallback(async (newFilters = filters) => {
         try {
             setLoading(true);
             setError(null);
             setOffset(0);
-            const response = await getMarcasHoy(limit, 0);
+            const response = await getMarcas({ 
+                limit, 
+                offset: 0,
+                fechaInicio: newFilters.fechaInicio || undefined,
+                fechaFin: newFilters.fechaFin || undefined,
+                nombre: newFilters.nombre || undefined,
+                rut: newFilters.rut || undefined,
+                reloj: newFilters.reloj || undefined,
+                tipoMarca: newFilters.tipoMarca || undefined
+            });
             setMarcas(response.data);
             setTotal(response.total);
             setHasMore(response.has_more);
@@ -25,7 +56,7 @@ export const useMarcas = (initialLimit = 100) => {
         } finally {
             setLoading(false);
         }
-    }, [limit]);
+    }, [limit, filters]);
 
     const cargarMas = useCallback(async () => {
         if (loadingMore || !hasMore) return;
@@ -33,7 +64,16 @@ export const useMarcas = (initialLimit = 100) => {
         try {
             setLoadingMore(true);
             const newOffset = offset + limit;
-            const response = await getMarcasHoy(limit, newOffset);
+            const response = await getMarcas({ 
+                limit, 
+                offset: newOffset,
+                fechaInicio: filters.fechaInicio || undefined,
+                fechaFin: filters.fechaFin || undefined,
+                nombre: filters.nombre || undefined,
+                rut: filters.rut || undefined,
+                reloj: filters.reloj || undefined,
+                tipoMarca: filters.tipoMarca || undefined
+            });
             setMarcas(prev => [...prev, ...response.data]);
             setOffset(newOffset);
             setHasMore(response.has_more);
@@ -42,11 +82,29 @@ export const useMarcas = (initialLimit = 100) => {
         } finally {
             setLoadingMore(false);
         }
-    }, [offset, limit, hasMore, loadingMore]);
+    }, [offset, limit, hasMore, loadingMore, filters]);
+
+    const aplicarFiltros = useCallback((newFilters) => {
+        setFilters(newFilters);
+        cargarMarcas(newFilters);
+    }, [cargarMarcas]);
+
+    const limpiarFiltros = useCallback(() => {
+        const emptyFilters = {
+            fechaInicio: '',
+            fechaFin: '',
+            nombre: '',
+            rut: '',
+            reloj: '',
+            tipoMarca: ''
+        };
+        setFilters(emptyFilters);
+        cargarMarcas(emptyFilters);
+    }, [cargarMarcas]);
 
     useEffect(() => {
         cargarMarcas();
-    }, [cargarMarcas]);
+    }, []);
 
     return {
         marcas,
@@ -55,7 +113,11 @@ export const useMarcas = (initialLimit = 100) => {
         loading,
         loadingMore,
         error,
-        recargar: cargarMarcas,
-        cargarMas
+        filters,
+        relojes,
+        recargar: () => cargarMarcas(filters),
+        cargarMas,
+        aplicarFiltros,
+        limpiarFiltros
     };
 };
