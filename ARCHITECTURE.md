@@ -33,6 +33,7 @@ dashboard-licencias/
 │   │   │   └── security.py     # JWT, password hashing, decoradores
 │   │   │
 │   │   ├── db/                 # Conexiones a BD
+│   │   │   ├── base.py         # Base declarativa (Alembic)
 │   │   │   ├── session.py      # Engine BD Licencias
 │   │   │   ├── session_marcas.py # Engine BD Marcas
 │   │   │   └── deps.py         # Dependencias (get_db, get_marcas_db)
@@ -127,6 +128,7 @@ flowchart TD
 | `core/config.py`            | Variables de entorno, URLs de conexión  |
 | `core/security.py`          | JWT encoding/decoding, password hashing |
 | `api/v1/api.py`             | Router que agrupa todos los endpoints   |
+| `db/base.py`                | Base declarativa para modelos (Alembic) |
 | `db/deps.py`                | Dependencias para inyectar sesiones DB  |
 | `api/v1/endpoints/auth.py`  | Login, logout, verificación de token    |
 | `api/v1/endpoints/admin.py` | CRUD de usuarios, roles y módulos       |
@@ -297,6 +299,7 @@ flowchart TD
 | ------------------------------- | -------------------------------------------- |
 | `App.jsx`                       | Rutas con react-router-dom v6                |
 | `context/AuthContext.jsx`       | Estado global de auth (user, token, modulos) |
+| `components/Navbar.jsx`         | Barra de navegación con info usuario/logout  |
 | `components/ProtectedRoute.jsx` | HOC para validar auth y permisos de módulo   |
 | `pages/Login.jsx`               | Formulario de login                          |
 | `pages/MainMenu.jsx`            | Menú principal con cards de módulos          |
