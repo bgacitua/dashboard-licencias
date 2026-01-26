@@ -26,11 +26,11 @@ class AuthService:
         user = self.repository.get_user_by_username(username)
         
         if not user:
-            logger.warning(f"Intento de login con usuario inexistente: {username}")
+            logger.warning(f"Este usuario no existe: {username}")
             return None
         
         if not user.activo:
-            logger.warning(f"Intento de login con usuario desactivado: {username}")
+            logger.warning(f"Este usuario no está activo: {username}")
             return None
         
         if not verify_password(password, user.password_hash):
