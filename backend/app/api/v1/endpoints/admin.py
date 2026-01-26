@@ -50,6 +50,7 @@ async def create_user(
             detail=f"El usuario '{user_data.username}' ya existe"
         )
     
+    # Crea el usuario
     user = auth_service.create_user(
         username=user_data.username,
         password=user_data.password,

@@ -18,7 +18,8 @@ class LicenciasService:
         if not licencia:
             raise LicenciaNotFoundError(licencia_id)
         return licencia
-        
+
+    #! Evaluar eliminación de función 
     def create_licencia(self, licencia: LicenciaCreate) -> LicenciaResponse:
         logger.info(f"Creando licencia para: {licencia.nombre_trabajador}")
         return self.repository.create(licencia)
