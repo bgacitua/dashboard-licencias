@@ -8,7 +8,11 @@ class LicenciaNotFoundError(HTTPException):
 class DatabaseConnectionError(HTTPException):
     def __init__(self):
         super().__init__(status_code=503, detail="Error de conexión a base de datos")
-        
+
+class FiniquitoNotFoundError(HTTPException):
+    def __init__(self, finiquito_id: int):
+        super().__init__(status_code=404, detail=f"Finiquito {finiquito_id} no encontrado")
+
 async def generic_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,

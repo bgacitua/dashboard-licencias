@@ -12,7 +12,7 @@ import Dashboard from './pages/Dashboard';
 import LicenciasVencidas from './pages/LicenciasVencidas';
 import LicenciasPorVencer from './pages/LicenciasPorVencer';
 import LicenciasVigentes from './pages/LicenciasVigentes';
-import GeneradorFiniquitos from './pages/GeneradorFiniquitos';
+import FiniquitosPage from './pages/FiniquitosPage';
 import AdminPanel from './pages/admin/AdminPanel';
 
 function App() {
@@ -81,7 +81,7 @@ function App() {
               path="/finiquitos" 
               element={
                 <ProtectedRoute requiredModule="finiquitos">
-                  <GeneradorFiniquitos />
+                  <FiniquitosPage />
                 </ProtectedRoute>
               } 
             />
