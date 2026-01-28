@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* Aquí abajo puedes poner tus estilos personalizados si tienes */
+body {
+  margin: 0;
+  padding: 0;
+}

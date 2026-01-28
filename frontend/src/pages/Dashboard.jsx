@@ -2,761 +2,247 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useLicencias } from "../hooks/useLicencias";
 import { useMarcas } from "../hooks/useMarcas";
-import Navbar from "../components/Navbar";
+import Sidebar from "../components/Sidebar";
 
-// Componente de tarjeta de resumen clickeable
-const Card = ({ titulo, cantidad, color, subtitulo, to }) => (
-  <Link
-    to={to}
-    style={{
-      border: "none",
-      padding: "24px",
-      borderRadius: "12px",
-      textAlign: "center",
-      backgroundColor: "#ffffff",
-      flex: 1,
-      margin: "10px",
-      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-      transition: "transform 0.2s, box-shadow 0.2s",
-      cursor: "pointer",
-      textDecoration: "none",
-      display: "block",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = "translateY(-4px)";
-      e.currentTarget.style.boxShadow = "0 8px 25px rgba(0, 0, 0, 0.15)";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = "translateY(0)";
-      e.currentTarget.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
-    }}
-  >
-    <h3
-      style={{
-        margin: "0 0 8px 0",
-        color: "#666",
-        fontSize: "0.9rem",
-        fontWeight: "500",
-      }}
-    >
-      {titulo}
-    </h3>
-    <p
-      style={{
-        fontSize: "2.5rem",
-        fontWeight: "bold",
-        color: color,
-        margin: "0",
-      }}
-    >
-      {cantidad}
-    </p>
-    {subtitulo && (
-      <p style={{ margin: "8px 0 0 0", color: "#999", fontSize: "0.8rem" }}>
-        {subtitulo}
-      </p>
+// Stats Card Component
+const StatCard = ({ title, value, subtext, icon, color, trend, trendValue, to }) => (
+  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between h-full relative overflow-hidden">
+    <div className={`absolute top-0 right-0 p-4 opacity-10`}>
+        <span className="material-symbols-outlined text-6xl" style={{ color }}>{icon}</span>
+    </div>
+    
+    <div className="flex justify-between items-start mb-4">
+      <div>
+        <h3 className="text-gray-500 text-sm font-medium mb-1">{title}</h3>
+        <span className="text-4xl font-bold text-gray-900">{value}</span>
+      </div>
+      <div className={`p-2 rounded-lg bg-${color}-50`}>
+         {/* Icon placeholder if needed, or just use the background color */}
+         <span className="material-symbols-outlined" style={{ color }}>{icon}</span>
+      </div>
+    </div>
+
+    <div className="flex items-center gap-2 mt-auto">
+      {trend && (
+        <span className={`text-xs font-medium px-2 py-1 rounded-full ${trend === 'up' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+          {trend === 'up' ? '↗' : '↘'} {trendValue}
+        </span>
+      )}
+      <span className="text-xs text-gray-400">{subtext}</span>
+    </div>
+    
+    {to && (
+        <Link to={to} className="absolute inset-0" />
     )}
-    <p
-      style={{
-        margin: "12px 0 0 0",
-        color: "#4f46e5",
-        fontSize: "0.85rem",
-        fontWeight: "500",
-      }}
-    >
-      Ver detalles →
-    </p>
-  </Link>
+  </div>
 );
 
-// Estilos para inputs de filtro
-const inputStyle = {
-  padding: "8px 12px",
-  border: "1px solid #d1d5db",
-  borderRadius: "6px",
-  fontSize: "0.85rem",
-  outline: "none",
-  transition: "border-color 0.2s",
-  width: "100%",
-  boxSizing: "border-box",
-};
-
-const labelStyle = {
-  display: "block",
-  marginBottom: "4px",
-  fontSize: "0.75rem",
-  fontWeight: "600",
-  color: "#4b5563",
-  textTransform: "uppercase",
-};
-
-// Componente de filtros mejorado
-const FiltrosMarcas = ({
-  filters,
-  relojes,
-  onApplyFilters,
-  onClearFilters,
-  loading,
-}) => {
-  const [localFilters, setLocalFilters] = useState({
-    fechaInicio: filters.fechaInicio || "",
-    fechaFin: filters.fechaFin || "",
-    nombre: filters.nombre || "",
-    rut: filters.rut || "",
-    reloj: filters.reloj || "",
-    tipoMarca: filters.tipoMarca || "",
-  });
-
-  const handleChange = (field, value) => {
-    setLocalFilters((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onApplyFilters({
-      fechaInicio: localFilters.fechaInicio || "",
-      fechaFin: localFilters.fechaFin || "",
-      nombre: localFilters.nombre || "",
-      rut: localFilters.rut || "",
-      reloj: localFilters.reloj || "",
-      tipoMarca: localFilters.tipoMarca || "",
-    });
-  };
-
-  const handleClear = () => {
-    setLocalFilters({
-      fechaInicio: "",
-      fechaFin: "",
-      nombre: "",
-      rut: "",
-      reloj: "",
-      tipoMarca: "",
-    });
-    onClearFilters();
-  };
-
-  // Filtrar relojes para el datalist basado en el texto ingresado
-  const filteredRelojes = relojes.filter((r) =>
-    r.toLowerCase().includes((localFilters.reloj || "").toLowerCase()),
-  );
-
+// Table Component
+const AsistenciaTable = ({ marcas, loading, hasMore, onLoadMore, loadingMore }) => {
   return (
-    <form onSubmit={handleSubmit} style={{ marginBottom: "16px" }}>
-      {/* Fila 1: Fechas */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-          gap: "12px",
-          marginBottom: "12px",
-        }}
-      >
-        <div>
-          <label style={labelStyle}>📅 Fecha Inicio</label>
-          <input
-            type="date"
-            value={localFilters.fechaInicio}
-            onChange={(e) => handleChange("fechaInicio", e.target.value)}
-            style={inputStyle}
-          />
-        </div>
-        <div>
-          <label style={labelStyle}>📅 Fecha Fin</label>
-          <input
-            type="date"
-            value={localFilters.fechaFin}
-            onChange={(e) => handleChange("fechaFin", e.target.value)}
-            style={inputStyle}
-          />
-        </div>
-        <div>
-          <label style={labelStyle}>👤 Nombre</label>
-          <input
-            type="text"
-            placeholder="Buscar nombre..."
-            value={localFilters.nombre}
-            onChange={(e) => handleChange("nombre", e.target.value)}
-            style={inputStyle}
-          />
-          <small style={{ color: "#9ca3af", fontSize: "0.7rem" }}>
-            Busca en todo el historial
-          </small>
-        </div>
-        <div>
-          <label style={labelStyle}>🆔 RUT</label>
-          <input
-            type="text"
-            placeholder="Buscar RUT..."
-            value={localFilters.rut}
-            onChange={(e) => handleChange("rut", e.target.value)}
-            style={inputStyle}
-          />
-          <small style={{ color: "#9ca3af", fontSize: "0.7rem" }}>
-            Busca en todo el historial
-          </small>
-        </div>
-      </div>
-
-      {/* Fila 2: Reloj y Tipo */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-          gap: "12px",
-          marginBottom: "12px",
-        }}
-      >
-        <div>
-          <label style={labelStyle}>⏰ Reloj</label>
-          <input
-            type="text"
-            list="relojes-list"
-            placeholder="Seleccionar o escribir..."
-            value={localFilters.reloj}
-            onChange={(e) => handleChange("reloj", e.target.value)}
-            style={inputStyle}
-          />
-          <datalist id="relojes-list">
-            {filteredRelojes.map((reloj, idx) => (
-              <option key={idx} value={reloj} />
-            ))}
-          </datalist>
-        </div>
-        <div>
-          <label style={labelStyle}>🔄 Tipo Marca</label>
-          <select
-            value={localFilters.tipoMarca}
-            onChange={(e) => handleChange("tipoMarca", e.target.value)}
-            style={inputStyle}
-          >
-            <option value="">Todos</option>
-            <option value="IN">IN (Entrada)</option>
-            <option value="OUT">OUT (Salida)</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Botones */}
-      <div style={{ display: "flex", gap: "8px" }}>
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            backgroundColor: "#6366f1",
-            color: "white",
-            border: "none",
-            padding: "8px 20px",
-            borderRadius: "6px",
-            cursor: loading ? "not-allowed" : "pointer",
-            fontSize: "0.85rem",
-            fontWeight: "500",
-            opacity: loading ? 0.7 : 1,
-          }}
-        >
-          🔍 Buscar
-        </button>
-        <button
-          type="button"
-          onClick={handleClear}
-          disabled={loading}
-          style={{
-            backgroundColor: "#f3f4f6",
-            color: "#374151",
-            border: "none",
-            padding: "8px 16px",
-            borderRadius: "6px",
-            cursor: loading ? "not-allowed" : "pointer",
-            fontSize: "0.85rem",
-          }}
-        >
-          Limpiar filtros
-        </button>
-      </div>
-    </form>
-  );
-};
-
-// Componente de tabla de marcas
-const TablaMarcas = ({
-  marcas,
-  total,
-  loading,
-  loadingMore,
-  error,
-  hasMore,
-  onLoadMore,
-}) => {
-  if (loading) {
-    return (
-      <div style={{ textAlign: "center", padding: "40px" }}>
-        <div
-          style={{
-            width: "30px",
-            height: "30px",
-            border: "3px solid #e0e0e0",
-            borderTop: "3px solid #6366f1",
-            borderRadius: "50%",
-            animation: "spin 1s linear infinite",
-            margin: "0 auto 12px",
-          }}
-        ></div>
-        <p style={{ color: "#666", fontSize: "0.9rem" }}>Cargando marcas...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ textAlign: "center", padding: "40px", color: "#ef4444" }}>
-        <p>⚠️ Error al cargar marcas: {error}</p>
-      </div>
-    );
-  }
-
-  if (marcas.length === 0) {
-    return (
-      <p style={{ color: "#999", textAlign: "center", padding: "40px" }}>
-        No se encontraron marcas con los filtros aplicados
-      </p>
-    );
-  }
-
-  return (
-    <>
-      {/* Contador */}
-      <div
-        style={{
-          marginBottom: "12px",
-          padding: "8px 12px",
-          backgroundColor: "#f3f4f6",
-          borderRadius: "8px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span style={{ color: "#374151", fontSize: "0.9rem" }}>
-          Mostrando <strong>{marcas.length}</strong> de{" "}
-          <strong>{total.toLocaleString()}</strong> marcas
-        </span>
-      </div>
-
-      <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead
-            style={{ position: "sticky", top: 0, backgroundColor: "#f8f9fa" }}
-          >
-            <tr>
-              <th
-                style={{
-                  padding: "12px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#555",
-                  borderBottom: "2px solid #eee",
-                }}
-              >
-                Reloj
-              </th>
-              <th
-                style={{
-                  padding: "12px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#555",
-                  borderBottom: "2px solid #eee",
-                }}
-              >
-                Nombre
-              </th>
-              <th
-                style={{
-                  padding: "12px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#555",
-                  borderBottom: "2px solid #eee",
-                }}
-              >
-                RUT
-              </th>
-              <th
-                style={{
-                  padding: "12px",
-                  textAlign: "center",
-                  fontWeight: "600",
-                  color: "#555",
-                  borderBottom: "2px solid #eee",
-                }}
-              >
-                Fecha
-              </th>
-              <th
-                style={{
-                  padding: "12px",
-                  textAlign: "center",
-                  fontWeight: "600",
-                  color: "#555",
-                  borderBottom: "2px solid #eee",
-                }}
-              >
-                Hora
-              </th>
-              <th
-                style={{
-                  padding: "12px",
-                  textAlign: "center",
-                  fontWeight: "600",
-                  color: "#555",
-                  borderBottom: "2px solid #eee",
-                }}
-              >
-                Tipo
-              </th>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold">
+              <th className="px-6 py-4">Reloj</th>
+              <th className="px-6 py-4">Nombre</th>
+              <th className="px-6 py-4">RUT</th>
+              <th className="px-6 py-4">Hora Marca</th>
+              <th className="px-6 py-4">Tipo de Marca</th>
+              <th className="px-6 py-4 text-right">Acciones</th>
             </tr>
           </thead>
-          <tbody>
-            {marcas.map((marca, index) => (
-              <tr
-                key={index}
-                style={{
-                  backgroundColor: index % 2 === 0 ? "#fff" : "#fafafa",
-                  transition: "background-color 0.2s",
-                }}
-              >
-                <td style={{ padding: "12px", borderBottom: "1px solid #eee" }}>
-                  {marca.nombre_reloj}
-                </td>
-                <td style={{ padding: "12px", borderBottom: "1px solid #eee" }}>
-                  {marca.nombre_completo}
-                </td>
-                <td style={{ padding: "12px", borderBottom: "1px solid #eee" }}>
-                  {marca.rut}
-                </td>
-                <td
-                  style={{
-                    padding: "12px",
-                    borderBottom: "1px solid #eee",
-                    textAlign: "center",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  {marca.fecha}
-                </td>
-                <td
-                  style={{
-                    padding: "12px",
-                    borderBottom: "1px solid #eee",
-                    textAlign: "center",
-                    fontWeight: "500",
-                  }}
-                >
-                  {marca.hora_marca}
-                </td>
-                <td
-                  style={{
-                    padding: "12px",
-                    borderBottom: "1px solid #eee",
-                    textAlign: "center",
-                  }}
-                >
-                  <span
-                    style={{
-                      backgroundColor:
-                        marca.tipo_marca === "IN"
-                          ? "#dcfce7"
-                          : marca.tipo_marca === "OUT"
-                            ? "#fee2e2"
-                            : "#f3f4f6",
-                      color:
-                        marca.tipo_marca === "IN"
-                          ? "#166534"
-                          : marca.tipo_marca === "OUT"
-                            ? "#dc2626"
-                            : "#6b7280",
-                      padding: "4px 12px",
-                      borderRadius: "12px",
-                      fontSize: "0.8rem",
-                      fontWeight: "500",
-                    }}
-                  >
-                    {marca.tipo_marca}
-                  </span>
-                </td>
-              </tr>
-            ))}
+          <tbody className="divide-y divide-gray-50">
+            {loading ? (
+               <tr>
+                 <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                   <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
+                   Cargando datos...
+                 </td>
+               </tr>
+            ) : marcas.length === 0 ? (
+                <tr>
+                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">No se encontraron registros.</td>
+                </tr>
+            ) : (
+              marcas.map((marca, idx) => (
+                <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 text-sm text-gray-600 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-gray-400 text-lg">watch</span>
+                    {marca.nombre_reloj}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
+                        {marca.nombre_completo.charAt(0)}
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">{marca.nombre_completo}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">{marca.rut}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">{marca.hora_marca}</td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      marca.tipo_marca === 'IN' ? 'bg-green-50 text-green-700' : 
+                      marca.tipo_marca === 'OUT' ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-700'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                         marca.tipo_marca === 'IN' ? 'bg-green-500' : 
+                         marca.tipo_marca === 'OUT' ? 'bg-gray-500' : 'bg-blue-500'
+                      }`}></span>
+                      {marca.tipo_marca === 'IN' ? 'Entrada' : marca.tipo_marca === 'OUT' ? 'Salida' : marca.tipo_marca}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button className="text-gray-400 hover:text-gray-600">
+                      <span className="material-symbols-outlined">more_vert</span>
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
-
-      {/* Botón Cargar Más */}
-      {hasMore && (
-        <div style={{ textAlign: "center", marginTop: "16px" }}>
-          <button
-            onClick={onLoadMore}
-            disabled={loadingMore}
-            style={{
-              backgroundColor: loadingMore ? "#d1d5db" : "#6366f1",
-              color: "white",
-              border: "none",
-              padding: "10px 24px",
-              borderRadius: "8px",
-              cursor: loadingMore ? "not-allowed" : "pointer",
-              fontSize: "0.9rem",
-              transition: "background-color 0.2s",
-            }}
-          >
-            {loadingMore
-              ? "Cargando..."
-              : `Cargar más (${(total - marcas.length).toLocaleString()} restantes)`}
-          </button>
+      
+      {/* Pagination / Load More */}
+      <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+        <span className="text-sm text-gray-500">
+            Mostrando {marcas.length} resultados
+        </span>
+        <div className="flex gap-2">
+            {hasMore && (
+                <button 
+                    onClick={onLoadMore}
+                    disabled={loadingMore}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                    {loadingMore ? 'Cargando...' : 'Cargar más'}
+                </button>
+            )}
         </div>
-      )}
-    </>
+      </div>
+    </div>
   );
 };
 
 const Dashboard = () => {
-  const {
-    resumen,
-    loading: loadingLicencias,
-    error: errorLicencias,
-    recargar: recargarLicencias,
-  } = useLicencias();
+  const { resumen, loading: loadingLicencias } = useLicencias();
   const {
     marcas,
-    total,
-    hasMore,
     loading: loadingMarcas,
     loadingMore,
-    error: errorMarcas,
-    filters,
-    relojes,
-    recargar: recargarMarcas,
+    hasMore,
     cargarMas,
-    aplicarFiltros,
-    limpiarFiltros,
+    filters,
+    aplicarFiltros
   } = useMarcas();
 
-  if (loadingLicencias) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          backgroundColor: "#f5f7fa",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <div
-            style={{
-              width: "40px",
-              height: "40px",
-              border: "4px solid #e0e0e0",
-              borderTop: "4px solid #4f46e5",
-              borderRadius: "50%",
-              animation: "spin 1s linear infinite",
-              margin: "0 auto 16px",
-            }}
-          ></div>
-          <p style={{ color: "#666" }}>Cargando datos...</p>
-        </div>
-        <style>{`
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                `}</style>
-      </div>
-    );
-  }
+  const [searchTerm, setSearchTerm] = useState("");
 
-  if (errorLicencias) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          backgroundColor: "#f5f7fa",
-        }}
-      >
-        <div
-          style={{
-            textAlign: "center",
-            backgroundColor: "#fff",
-            padding: "40px",
-            borderRadius: "12px",
-            boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <p
-            style={{
-              color: "#ef4444",
-              fontSize: "1.2rem",
-              marginBottom: "16px",
-            }}
-          >
-            ⚠️ {errorLicencias}
-          </p>
-          <button
-            onClick={recargarLicencias}
-            style={{
-              backgroundColor: "#4f46e5",
-              color: "white",
-              border: "none",
-              padding: "12px 24px",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontSize: "1rem",
-            }}
-          >
-            Reintentar
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleSearch = (e) => {
+      e.preventDefault();
+      aplicarFiltros({ ...filters, nombre: searchTerm }); // Simple search by name for now
+  };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#f5f7fa",
-        fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
-      }}
-    >
-      <Navbar />
-      <div style={{ padding: "30px" }}>
-        {/* Header */}
-        <div style={{ marginBottom: "30px" }}>
-          <h1
-            style={{
-              margin: "0 0 8px 0",
-              color: "#1a1a2e",
-              fontSize: "1.8rem",
-              fontWeight: "600",
-            }}
-          >
-            📋 Dashboard de Licencias Médicas
-          </h1>
-          <p style={{ margin: 0, color: "#666" }}>
-            Resumen de licencias vigentes y próximas a vencer
-          </p>
+    <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
+      <Sidebar />
+      
+      <main className="flex-1 ml-64 p-8">
+        {/* Top Header */}
+        <header className="flex justify-between items-center mb-8">
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+                <span className="material-symbols-outlined text-lg">home</span>
+                <span>/</span>
+                <span className="text-gray-900 font-medium">Dashboard</span>
+            </div>
+            <div className="flex items-center gap-4">
+                <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                    <span className="material-symbols-outlined">notifications</span>
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                </button>
+                <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                    <span className="material-symbols-outlined">help</span>
+                </button>
+            </div>
+        </header>
+
+        {/* Title Section */}
+        <div className="flex justify-between items-end mb-8">
+            <div>
+                <h1 className="text-2xl font-bold text-gray-900 mb-1">Gestión de Licencias y Asistencia</h1>
+                <p className="text-gray-500">Monitoreo en tiempo real de licencias médicas y control de asistencia.</p>
+            </div>
+            <div className="flex gap-3">
+                <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700">
+                    <span className="material-symbols-outlined text-gray-500">calendar_today</span>
+                    <span>Octubre 2023</span> {/* Placeholder date */}
+                </div>
+                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200">
+                    <span className="material-symbols-outlined text-lg">download</span>
+                    Exportar Reporte
+                </button>
+            </div>
         </div>
 
-        {/* Sección de Resumen (Tarjetas Clickeables) */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: "30px",
-          }}
-        >
-          <Card
-            titulo="Vencidas (últimos 5 días)"
-            cantidad={resumen.vencidasRecientes}
-            color="#ef4444"
-            subtitulo="Requieren seguimiento"
-            to="/vencidas"
-          />
-          <Card
-            titulo="Por Vencer (próximos 5 días)"
-            cantidad={resumen.porVencer}
-            color="#f59e0b"
-            subtitulo="Próximos a terminar"
-            to="/por-vencer"
-          />
-          <Card
-            titulo="Vigentes Hoy"
-            cantidad={resumen.vigentes}
-            color="#10b981"
-            subtitulo="Activas actualmente"
-            to="/vigentes"
-          />
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <StatCard 
+                title="Licencias vencidas (7 días)"
+                value={resumen.vencidasRecientes}
+                subtext="Requiere revisión"
+                icon="warning"
+                color="red" // Tailwind color name
+                trend="up"
+                trendValue="+2 desde ayer"
+                to="/dashboard/vencidas"
+            />
+            <StatCard 
+                title="Licencias activas"
+                value={resumen.vigentes}
+                subtext="Total del mes en curso"
+                icon="check_circle"
+                color="green"
+                to="/dashboard/vigentes"
+            />
+            <StatCard 
+                title="Por vencer (próximos 7 días)"
+                value={resumen.porVencer}
+                subtext="Requiere revisión"
+                icon="hourglass_top"
+                color="amber"
+                to="/dashboard/por-vencer"
+            />
         </div>
 
-        {/* Recuadro de Marcas de Empleados */}
-        <div
-          style={{
-            backgroundColor: "#ffffff",
-            borderRadius: "12px",
-            padding: "20px",
-            boxShadow: "0 2px 4px rgba(0, 0, 0, 0.05)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "16px",
-            }}
-          >
-            <h2
-              style={{
-                margin: 0,
-                color: "#333",
-                fontSize: "1.1rem",
-                borderLeft: "4px solid #6366f1",
-                paddingLeft: "12px",
-              }}
-            >
-              🕐 Marcas de Empleados
-            </h2>
-            <button
-              onClick={recargarMarcas}
-              style={{
-                backgroundColor: "#f3f4f6",
-                color: "#374151",
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontSize: "0.85rem",
-                transition: "background-color 0.2s",
-              }}
-              onMouseEnter={(e) => (e.target.style.backgroundColor = "#e5e7eb")}
-              onMouseLeave={(e) => (e.target.style.backgroundColor = "#f3f4f6")}
-            >
-              🔄 Actualizar
-            </button>
-          </div>
+        {/* Assistance Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-bold text-gray-900">Registro de Asistencia</h2>
+                <form onSubmit={handleSearch} className="relative w-96">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined text-xl">search</span>
+                    <input 
+                        type="text" 
+                        placeholder="Buscar por Nombre o RUT..." 
+                        className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </form>
+            </div>
 
-          {/* Filtros */}
-          <FiltrosMarcas
-            filters={filters}
-            relojes={relojes}
-            onApplyFilters={aplicarFiltros}
-            onClearFilters={limpiarFiltros}
-            loading={loadingMarcas}
-          />
-
-          <TablaMarcas
-            marcas={marcas}
-            total={total}
-            loading={loadingMarcas}
-            loadingMore={loadingMore}
-            error={errorMarcas}
-            hasMore={hasMore}
-            onLoadMore={cargarMas}
-          />
+            <AsistenciaTable 
+                marcas={marcas} 
+                loading={loadingMarcas} 
+                hasMore={hasMore} 
+                onLoadMore={cargarMas}
+                loadingMore={loadingMore}
+            />
         </div>
 
-        <style>{`
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-                input:focus, select:focus {
-                    border-color: #6366f1;
-                    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
-                }
-            `}</style>
-      </div>
+      </main>
     </div>
   );
 };
