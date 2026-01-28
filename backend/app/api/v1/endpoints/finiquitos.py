@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 
 from app.db.deps import get_db
 from app.services.finiquitos_service import FiniquitosService
-from app.schemas.finiquitos import FiniquitoCreate, FiniquitoResponse
+from app.schemas.finiquitos import FiniquitoCreate, FiniquitoResponse, FiniquitoItemResponse
 
 router = APIRouter()
 
@@ -14,20 +14,41 @@ def read_general_finiquitos(db: Session = Depends(get_db)):
     service = FiniquitosService(db)
     return service.get_trabajadores_general()
 
-@router.get("/items", response_model=List[Dict[str, Any]])
-def read_items_finiquitos(db: Session = Depends(get_db)):
-    """Obtiene los items de los trabajadores."""
+#? Este endpoint servirá también para rescatar las bonificaciones mensuales, 
+#? rescatar sueldo base, duración en la empresa para cálculo de años de 
+#? indemnización.
+@router.get("/{rut}", response_model=List[FiniquitoItemResponse]) 
+def read_rut_finiquitos(rut: str, db: Session = Depends(get_db)):
+    """Obtiene la información de los trabajadores."""
     service = FiniquitosService(db)
-    return service.get_trabajadores_items()
+    return service.get_item_by_rut(rut)
 
-@router.get("/meses-anteriores", response_model=List[Dict[str, Any]])
+@router.get("/{rut}/variable", response_model=List[FiniquitoItemResponse])
+def read_rut_finiquitos_variable(rut: str, variable: str, db: Session = Depends(get_db)):
+    """Obtiene la información de remuneración variable de los trabajadores."""
+    service = FiniquitosService(db)
+    return service.get_item_variable_by_rut(rut, variable)
+
+@router.post("/fecha-desvinculacion", response_model=FiniquitoResponse)
+def send_fecha_termino_finiquito(finiquito: FiniquitoCreate, db: Session = Depends(get_db)):
+    """Envia la fecha de desvinculación."""
+    service = FiniquitosService(db)
+    return service.send_fecha_termino_finiquito(finiquito)
+
+@router.post("/causal-despidos", response_model=FiniquitoResponse)
+def send_causal_despidos(finiquito: FiniquitoCreate, db: Session = Depends(get_db)):
+    """Envia la causal de despidos."""
+    service = FiniquitosService(db)
+    return service.send_causal_despidos(finiquito)
+
+@router.post("/vacaciones-pendientes", response_model=FiniquitoResponse)
+def send_vacaciones_pendientes(finiquito: FiniquitoCreate, db: Session = Depends(get_db)):
+    """Envia las vacaciones pendientes."""
+    service = FiniquitosService(db)
+    return service.send_vacaciones_pendientes(finiquito)
+
+@router.get("/meses-anteriores", response_model=List[FiniquitoItemResponse])
 def read_tres_meses_finiquitos(db: Session = Depends(get_db)):
-    """Obtiene los items de los trabajadores de los últimos 3 meses."""
+    """Obtiene los items de los trabajadores de los últimos 5 meses."""
     service = FiniquitosService(db)
-    return service.get_items_tres_meses()
-
-@router.get("/{rut}", response_model=List[FiniquitoResponse])
-def read_items_finiquitos_rut(rut: str, db: Session = Depends(get_db)):
-    """Obtiene los items de los trabajadores por rut."""
-    service = FiniquitosService(db)
-    return service.get_items_by_rut(rut)
+    return service.get_items_cinco_meses()

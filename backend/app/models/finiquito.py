@@ -21,3 +21,5 @@ class Finiquito(Base):
     movilizacion = Column(Integer, nullable=False)
     bono_sala_cuna = Column(Integer, nullable=False)
     desgaste_vehiculo = Column(Integer, nullable=False)
+    causal = Column(String(255), nullable=True)
+    vacaciones_pendientes = Column(Float, nullable=True)
