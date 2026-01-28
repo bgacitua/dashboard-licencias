@@ -117,7 +117,7 @@ const VisualizadorFiniquito = () => {
           {/* Employee Details */}
           <div className="mb-8 text-sm leading-relaxed text-justify">
             <p className="mb-4">
-              En Santiago, a <strong>{new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>, entre <strong>[NOMBRE EMPRESA]</strong>, RUT <strong>[RUT EMPRESA]</strong>, representada por don(a) <strong>[NOMBRE REPRESENTANTE]</strong>, en adelante el "Empleador", y don(a) <strong>{employeeData.nombre_trabajador}</strong>, RUT <strong>{employeeData.rut_trabajador}</strong>, en adelante el "Trabajador", se ha acordado el siguiente finiquito:
+              En Santiago, a <strong>{new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>, entre <strong>CARLOS CRAMER PRODUCTOS AROMÁTICOS S.A. C.I</strong>, RUT <strong>92.845.000-7</strong>, representada por don(a) <strong>MIGUEL ANDRES BERNDT BRICEÑO</strong>, cédula nacional de identidad <strong>7.811.480-0</strong>, ambos con domicilio para estos efectos en esta ciudad, en calle LUCERNA N°4925, en adelante el "EX EMPLEADOR", y don(a) <strong>{employeeData.nombre_trabajador}</strong>, RUT <strong>{employeeData.rut_trabajador}</strong> en adelante el "EX TRABAJADOR", se ha acordado y deja testimonio del siguiente finiquito y transacción:
             </p>
             
             <div className="grid grid-cols-2 gap-4 mb-4 bg-gray-50 p-4 rounded border border-gray-200">
