@@ -1,9 +1,20 @@
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+import httpx
+
 from app.repositories.finiquitos_repository import FiniquitosRepository
-from app.schemas.finiquitos import FiniquitoCreate, FiniquitoResponse, FiniquitoItemResponse
+from app.schemas.finiquitos import (
+    FiniquitoCreate, 
+    FiniquitoResponse, 
+    FiniquitoItemResponse,
+    EmployeeVacationsResponse,
+    VacacionesDisponiblesResponse,
+    VacationItem
+)
 from app.core.exceptions import FiniquitoNotFoundError
 from app.core.logging_config import logger
+from app.core.config import settings
+
 
 class FiniquitosService:
     def __init__(self, db: Session):
@@ -38,3 +49,63 @@ class FiniquitosService:
         logger.info(f"Actualizando vacaciones pendientes para rut: {finiquito.rut_trabajador}")
         # TODO: Agregar campo vacaciones a FiniquitoCreate
         return self.repository.update_vacaciones(finiquito.rut_trabajador, 0.0) # Placeholder
+
+    async def get_vacaciones_disponibles(self, rut: str) -> VacacionesDisponiblesResponse:
+        """
+        Obtiene las vacaciones disponibles de un trabajador desde la API externa de BUK.
+        
+        Args:
+            rut: RUT del trabajador (también funciona con employee_id)
+            
+        Returns:
+            VacacionesDisponiblesResponse con la información de vacaciones disponibles
+            
+        Raises:
+            HTTPException: Si hay error en la comunicación con la API externa
+        """
+        logger.info(f"Consultando vacaciones disponibles para rut: {rut}")
+        
+        # Debug: Verificar si la API Key se está cargando
+        if not settings.BUK_API_KEY:
+            logger.error("CRITICAL: BUK_API_KEY no está configurada o está vacía.")
+        else:
+            masked_key = f"{settings.BUK_API_KEY[:4]}...{settings.BUK_API_KEY[-4:]}" if len(settings.BUK_API_KEY) > 8 else "***"
+            logger.info(f"Usando API Key: {masked_key}")
+
+        url = f"{settings.BUK_API_BASE_URL}/employees/{rut}/vacations_available"
+        headers = {
+            "auth_token": settings.BUK_API_KEY,
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, headers=headers)
+                response.raise_for_status()
+                
+                data = response.json()
+                logger.info(f"Respuesta exitosa de API BUK para rut: {rut}")
+                
+                # Parsear respuesta de la API externa
+                employee_response = EmployeeVacationsResponse(**data)
+                
+                # Calcular total de días disponibles sumando todas las vacaciones
+                total_dias = sum(vacation.stock for vacation in employee_response.vacations)
+                
+                # Retornar respuesta simplificada para el frontend
+                return VacacionesDisponiblesResponse(
+                    employee_id=employee_response.employee_id,
+                    full_name=employee_response.full_name,
+                    vacations=employee_response.vacations,
+                    total_dias_disponibles=total_dias
+                )
+                
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Error HTTP al consultar vacaciones para rut {rut}: {e.response.status_code}")
+            raise Exception(f"Error al consultar API de vacaciones: {e.response.status_code}")
+        except httpx.RequestError as e:
+            logger.error(f"Error de conexión al consultar vacaciones para rut {rut}: {str(e)}")
+            raise Exception(f"Error de conexión con API de vacaciones: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error inesperado al consultar vacaciones para rut {rut}: {str(e)}")
+            raise Exception(f"Error inesperado: {str(e)}")

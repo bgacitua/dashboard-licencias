@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "change-this-secret-key-in-production"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 480  # 8 horas
+    
+    # Configuración API BUK (Vacaciones)
+    BUK_API_BASE_URL: str 
+    BUK_API_KEY: str 
 
     class Config:
         # Indica dónde buscar el archivo .env
