@@ -49,7 +49,7 @@ class FiniquitosRepository:
                     s.Liquidacion_ID AS liquidacion_id,
                     si.name AS concepto,
                     si.income_type,
-                    0.0 AS monto, -- TODO: si.amount está encriptado
+                    si.amount AS monto, -- TODO: si.amount está encriptado
 
                 DENSE_RANK() OVER (
                         PARTITION BY e.rut 

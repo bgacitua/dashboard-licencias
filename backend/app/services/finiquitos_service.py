@@ -8,6 +8,7 @@ from app.schemas.finiquitos import (
     FiniquitoResponse, 
     FiniquitoItemResponse,
     EmployeeVacationsResponse,
+    EmployeeSueldoResponse,
     VacacionesDisponiblesResponse,
     VacationItem
 )
@@ -68,9 +69,6 @@ class FiniquitosService:
         # Debug: Verificar si la API Key se está cargando
         if not settings.BUK_API_KEY:
             logger.error("CRITICAL: BUK_API_KEY no está configurada o está vacía.")
-        else:
-            masked_key = f"{settings.BUK_API_KEY[:4]}...{settings.BUK_API_KEY[-4:]}" if len(settings.BUK_API_KEY) > 8 else "***"
-            logger.info(f"Usando API Key: {masked_key}")
 
         url = f"{settings.BUK_API_BASE_URL}/employees/{rut}/vacations_available"
         headers = {
@@ -108,4 +106,65 @@ class FiniquitosService:
             raise Exception(f"Error de conexión con API de vacaciones: {str(e)}")
         except Exception as e:
             logger.error(f"Error inesperado al consultar vacaciones para rut {rut}: {str(e)}")
+            raise Exception(f"Error inesperado: {str(e)}")
+    
+    async def get_sueldo_base(self, rut: str) -> EmployeeSueldoResponse:
+        """
+        Obtiene el sueldo base de un trabajador desde la API externa de BUK.
+        
+        Args:
+            rut: RUT del trabajador (también funciona con employee_id)
+            
+        Returns:
+            EmployeeSueldoResponse con la información de sueldo base
+            
+        Raises:
+            HTTPException: Si hay error en la comunicación con la API externa
+        """
+        logger.info(f"Consultando sueldo base para rut: {rut}")
+        
+        # Debug: Verificar si la API Key se está cargando
+        if not settings.BUK_API_KEY:
+            logger.error("CRITICAL: BUK_API_KEY no está configurada o está vacía.")
+
+        url = f"{settings.BUK_API_BASE_URL}/employees/{rut}"
+        headers = {
+            "auth_token": settings.BUK_API_KEY,
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, headers=headers)
+                response.raise_for_status()
+                
+                data = response.json()
+                logger.info(f"Respuesta exitosa de API BUK para rut: {rut}")
+                
+                # Parsear respuesta de la API externa
+                # La API de empleados devuelve los datos envueltos en "data"
+                employee_data = data.get("data", data)
+                
+                employee_response = EmployeeSueldoResponse(**employee_data)
+                
+                # Extraer sueldo base desde current_job si existe
+                base_wage = None
+                if "current_job" in employee_data and employee_data["current_job"]:
+                    base_wage = employee_data["current_job"].get("base_wage")
+                
+                # Retornar respuesta simplificada para el frontend
+                return EmployeeSueldoResponse(
+                    person_id=employee_response.person_id,
+                    full_name=employee_response.full_name,
+                    base_wage=base_wage
+                )
+                
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Error HTTP al consultar sueldo base para rut {rut}: {e.response.status_code}")
+            raise Exception(f"Error al consultar API de sueldo base: {e.response.status_code}")
+        except httpx.RequestError as e:
+            logger.error(f"Error de conexión al consultar sueldo base para rut {rut}: {str(e)}")
+            raise Exception(f"Error de conexión con API de sueldo base: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error inesperado al consultar sueldo base para rut {rut}: {str(e)}")
             raise Exception(f"Error inesperado: {str(e)}")

@@ -93,3 +93,12 @@ class VacacionesDisponiblesResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class EmployeeSueldoResponse(BaseModel):
+    """Respuesta de la API externa de BUK con sueldo base."""
+    person_id: int
+    full_name: Optional[str] = None
+    base_wage: Optional[int] = None
+
+    class Config:
+        from_attributes = True
