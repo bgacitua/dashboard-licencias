@@ -13,10 +13,10 @@ class LicenciasService:
         logger.info(f"Obteniendo licencias (skip={skip}, limit={limit})")
         return self.repository.get_all(skip, limit)
 
-    def get_licencia(self, licencia_id: int) -> LicenciaResponse:
-        licencia = self.repository.get_by_id(licencia_id)
+    def get_licencia_by_rut(self, rut: str) -> List[LicenciaResponse]:
+        licencia = self.repository.get_licencia_by_rut(rut)
         if not licencia:
-            raise LicenciaNotFoundError(licencia_id)
+            raise LicenciaNotFoundError(rut)
         return licencia
 
     #! Evaluar eliminación de función 

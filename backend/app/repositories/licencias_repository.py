@@ -69,19 +69,20 @@ class LicenciasRepository:
         columns = result.keys()
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
-    def get_all(self, skip: int = 0, limit: int = 100) -> List[Licencia]:
-        # MSSQL requiere ORDER BY cuando se usa OFFSET/LIMIT
-        return self.db.query(Licencia).order_by(Licencia.id).offset(skip).limit(limit).all()
-
-    def get_by_id(self, licencia_id: int) -> Optional[Licencia]:
-        return self.db.query(Licencia).filter(Licencia.id == licencia_id).first()
-
-    def get_by_rut(self, rut: str) -> List[Licencia]:
+    def get_licencia_by_rut(self, rut: str) -> List[Licencia]:
         return self.db.query(Licencia).filter(Licencia.rut_trabajador == rut).all()
+
+    # def get_all(self, skip: int = 0, limit: int = 100) -> List[Licencia]:
+    #     # MSSQL requiere ORDER BY cuando se usa OFFSET/LIMIT
+    #     return self.db.query(Licencia).order_by(Licencia.id).offset(skip).limit(limit).all()
+
+    # def get_by_id(self, licencia_id: int) -> Optional[Licencia]:
+    #     return self.db.query(Licencia).filter(Licencia.id == licencia_id).first()
+
         
-    def create(self, licencia: LicenciaCreate) -> Licencia:
-        db_licencia = Licencia(**licencia.model_dump())
-        self.db.add(db_licencia)
-        self.db.commit()
-        self.db.refresh(db_licencia)
-        return db_licencia
+    # def create(self, licencia: LicenciaCreate) -> Licencia:
+    #     db_licencia = Licencia(**licencia.model_dump())
+    #     self.db.add(db_licencia)
+    #     self.db.commit()
+    #     self.db.refresh(db_licencia)
+    #     return db_licencia
