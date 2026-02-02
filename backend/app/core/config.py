@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "change-this-secret-key-in-production"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 480  # 8 horas
+    
+    # Configuración API BUK
+    BUK_API_BASE_URL: str 
+    BUK_API_KEY: str 
 
     class Config:
         # Indica dónde buscar el archivo .env
@@ -38,7 +42,7 @@ def get_database_url():
     # TrustServerCertificate=yes evita errores SSL con certificados auto-firmados (ODBC Driver 18+)
     # quote_plus codifica caracteres especiales en el password (como @, #, etc.)
     password_encoded = quote_plus(settings.DB_PASSWORD)
-    return f"mssql+pyodbc://{settings.DB_USER}:{password_encoded}@{settings.DB_SERVER}/{settings.DB_NAME}?driver={settings.DB_DRIVER}&TrustServerCertificate=yes"
+    return f"mssql+pyodbc://{settings.DB_USER}:{password_encoded}@{settings.DB_SERVER}/{settings.DB_NAME}?driver={settings.DB_DRIVER}&TrustServerCertificate=yes&ColumnEncryption=Enabled"
 
 # Función para construir la URL de conexión de SQLAlchemy (Marcas)
 def get_marcas_database_url():

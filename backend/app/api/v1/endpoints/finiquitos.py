@@ -4,7 +4,11 @@ from typing import List, Dict, Any
 
 from app.db.deps import get_db
 from app.services.finiquitos_service import FiniquitosService
-from app.schemas.finiquitos import FiniquitoCreate, FiniquitoResponse, FiniquitoItemResponse
+from app.schemas.finiquitos import (
+    FiniquitoCreate, 
+    FiniquitoResponse, 
+    FiniquitoItemResponse
+)
 
 router = APIRouter()
 
