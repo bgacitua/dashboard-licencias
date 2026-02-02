@@ -45,11 +45,12 @@ def send_causal_despidos(finiquito: FiniquitoCreate, db: Session = Depends(get_d
     service = FiniquitosService(db)
     return service.send_causal_despidos(finiquito)
 
-@router.post("/vacaciones-pendientes", response_model=FiniquitoResponse)
-def send_vacaciones_pendientes(finiquito: FiniquitoCreate, db: Session = Depends(get_db)):
-    """Envia las vacaciones pendientes."""
-    service = FiniquitosService(db)
-    return service.send_vacaciones_pendientes(finiquito)
+#? Se está utilizando la API de Buk para extraer esta información.
+# @router.post("/vacaciones-pendientes", response_model=FiniquitoResponse)
+# def send_vacaciones_pendientes(finiquito: FiniquitoCreate, db: Session = Depends(get_db)):
+#     """Envia las vacaciones pendientes."""
+#     service = FiniquitosService(db)
+#     return service.send_vacaciones_pendientes(finiquito)
 
 @router.get("/meses-anteriores", response_model=List[FiniquitoItemResponse])
 def read_tres_meses_finiquitos(db: Session = Depends(get_db)):

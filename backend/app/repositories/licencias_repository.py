@@ -70,7 +70,23 @@ class LicenciasRepository:
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
     def get_licencia_by_rut(self, rut: str) -> List[Licencia]:
-        return self.db.query(Licencia).filter(Licencia.rut_trabajador == rut).all()
+        """Obtiene las últimas 5 licencias con filtro de rut"""
+        query = text("""
+            SELECT TOP 5 
+                rut_empleado AS rut_trabajador,
+                nombre_completo AS nombre_trabajador,
+                fecha_inicio,
+                fecha_fin,
+                tipo_permiso,
+                dias_duracion,
+                status
+            FROM [IARRHH].[dbo].[consolidado_incidencias]
+            WHERE rut_empleado = :rut
+            ORDER BY fecha_fin DESC
+                    """)
+        result = self.db.execute(query, {"rut": rut})
+        columns = result.keys()
+        return [dict(zip(columns, row)) for row in result.fetchall()]
 
     # def get_all(self, skip: int = 0, limit: int = 100) -> List[Licencia]:
     #     # MSSQL requiere ORDER BY cuando se usa OFFSET/LIMIT

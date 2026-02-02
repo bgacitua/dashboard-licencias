@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 
 from app.db.deps import get_db
 from app.services.licencias_service import LicenciasService
-from app.schemas.licencias import LicenciaCreate, LicenciaResponse
+from app.schemas.licencias import LicenciaCreate, LicenciaResponse, LicenciaByRut
 
 router = APIRouter()
 
@@ -32,9 +32,9 @@ def read_licencias_vencidas_recientes(dias: int = 5, db: Session = Depends(get_d
     service = LicenciasService(db)
     return service.get_licencias_vencidas_recientes(dias)
 
-@router.get("/rut/{rut}", response_model=List[LicenciaResponse])
+@router.get("/rut/{rut}", response_model=List[LicenciaByRut])
 def read_licencias_by_rut(rut: str, db: Session = Depends(get_db)):
-    """Obtiene todas las licencias de un trabajador por su RUT"""
+    """Obtiene las últimas 5 licencias de un trabajador por su RUT"""
     service = LicenciasService(db)
     try:
         return service.get_licencia_by_rut(rut)

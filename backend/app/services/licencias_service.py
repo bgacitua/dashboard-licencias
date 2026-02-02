@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from app.repositories.licencias_repository import LicenciasRepository
-from app.schemas.licencias import LicenciaCreate, LicenciaResponse
+from app.schemas.licencias import LicenciaCreate, LicenciaResponse, LicenciaByRut
 from app.core.exceptions import LicenciaNotFoundError
 from app.core.logging_config import logger
 
@@ -13,7 +13,7 @@ class LicenciasService:
         logger.info(f"Obteniendo licencias (skip={skip}, limit={limit})")
         return self.repository.get_all(skip, limit)
 
-    def get_licencia_by_rut(self, rut: str) -> List[LicenciaResponse]:
+    def get_licencia_by_rut(self, rut: str) -> List[LicenciaByRut]:
         licencia = self.repository.get_licencia_by_rut(rut)
         if not licencia:
             raise LicenciaNotFoundError(rut)
