@@ -22,7 +22,7 @@ const CrearFiniquito = () => {
   const [yearsOfService, setYearsOfService] = useState(0);
   const [yearsForIndemnity, setYearsForIndemnity] = useState(0);
   const [movilizacion, setMovilizacion] = useState(40000);
-  const [descuentos, setDescuentos] = useState(0);
+  const [descuentos, setDescuentos] = useState('');
   
   // Items for calculation
   const [items, setItems] = useState([]);
@@ -127,6 +127,13 @@ const CrearFiniquito = () => {
     }
   }, [rut]);
 
+  // Helper function: Parse date string as local date (avoids UTC timezone issues)
+  // When parsing "2026-02-02", JS interprets as UTC midnight, which becomes previous day in local time
+  const parseLocalDate = (dateString) => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day); // month is 0-indexed
+  };
+
   // Helper function: Check if a date is a business day (Monday-Friday)
   const isBusinessDay = (date) => {
     const day = date.getDay();
@@ -144,9 +151,11 @@ const CrearFiniquito = () => {
   };
 
   // Helper function: Calculate "días corridos" (calendar days) from available vacation days
-  // Starting from the day after lastDayWork, count business days until we reach vacationDays,
-  // then return total calendar days (including weekends within the period)
-  // IMPORTANT: Preserves decimal portion of vacation days (e.g., 13.75 → 19.75 días corridos)
+  // Rules:
+  // 1. Count pending vacation business days
+  // 2. Count non-business days between first and last business day
+  // 3. If decimal > 0.2 AND last day is Friday or next day is non-business,
+  //    extend to next business day and add those non-business days
   const calculateDiasCorridos = (startDate, availableDays) => {
     if (!startDate || availableDays <= 0) return 0;
     
@@ -161,6 +170,11 @@ const CrearFiniquito = () => {
     let currentDate = new Date(startDate);
     currentDate.setDate(currentDate.getDate() + 1); // Fecha de salida + 1
     
+    // Move to first business day if starting on weekend
+    while (!isBusinessDay(currentDate)) {
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
     const periodStartDate = new Date(currentDate);
     let businessDaysCount = 0;
     
@@ -174,13 +188,51 @@ const CrearFiniquito = () => {
       }
     }
     
-    // Calculate total calendar days (días corridos) for integer portion
-    const timeDiff = currentDate.getTime() - periodStartDate.getTime();
-    const diasCorridosEnteros = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
+    // currentDate is now the last business day of the integer portion
+    const lastBusinessDate = new Date(currentDate);
     
-    // Always add the decimal days directly to the calendar days
-    // Example: 13 business days → 19 calendar days, + 0.75 = 19.75 días corridos
-    return diasCorridosEnteros + decimalDays;
+    // Calculate calendar days from start to last business day (integer portion)
+    const timeDiff = lastBusinessDate.getTime() - periodStartDate.getTime();
+    let diasCorridosEnteros = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
+    
+    // Extra weekend days to add when decimal > 0.2 falls on Friday or before weekend
+    let diasInhabilesExtra = 0;
+    
+    // Rule: If decimal > 0.2 AND (last day is Friday OR next day is non-business)
+    // Add the weekend days to the total (without moving the end date)
+    if (decimalDays > 0.2) {
+      const dayOfWeek = lastBusinessDate.getDay(); // 5 = Friday
+      const nextDay = new Date(lastBusinessDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      
+      // Check if it's Friday (5) or if next day is non-business
+      if (dayOfWeek === 5 || !isBusinessDay(nextDay)) {
+        // Count non-business days until next business day
+        let tempDate = new Date(lastBusinessDate);
+        tempDate.setDate(tempDate.getDate() + 1);
+        while (!isBusinessDay(tempDate)) {
+          diasInhabilesExtra++;
+          tempDate.setDate(tempDate.getDate() + 1);
+        }
+      }
+    }
+    
+    // Total días corridos = calendar days to last business day + weekend extension + decimal
+    const diasCorridos = diasCorridosEnteros + diasInhabilesExtra + decimalDays;
+    
+    console.log('=== CÁLCULO DÍAS CORRIDOS ===');
+    console.log('Fecha de término (último día trabajo):', startDate.toLocaleDateString('es-CL'), '(' + ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][startDate.getDay()] + ')');
+    console.log('Días pendientes vacaciones:', availableDays);
+    console.log('Parte entera:', integerDays, '| Decimal:', decimalDays.toFixed(2));
+    console.log('Fecha INICIO conteo (día hábil siguiente):', periodStartDate.toLocaleDateString('es-CL'), '(' + ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][periodStartDate.getDay()] + ')');
+    console.log('Fecha FIN días hábiles:', lastBusinessDate.toLocaleDateString('es-CL'), '(' + ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][lastBusinessDate.getDay()] + ')');
+    console.log('Días corridos enteros:', diasCorridosEnteros);
+    console.log('Días inhábiles extra (decimal > 0.2):', diasInhabilesExtra);
+    console.log('Decimal:', decimalDays.toFixed(2));
+    console.log('DÍAS CORRIDOS TOTAL:', diasCorridos.toFixed(2));
+    console.log('=============================');
+    
+    return diasCorridos;
   };
 
   // Auto-calculate Vacation Value
@@ -194,7 +246,7 @@ const CrearFiniquito = () => {
       let diasCorridos = vacationDays; // Default to vacation days if no date selected
       
       if (lastDayWork) {
-        diasCorridos = calculateDiasCorridos(new Date(lastDayWork), vacationDays);
+        diasCorridos = calculateDiasCorridos(parseLocalDate(lastDayWork), vacationDays);
       }
       
       setVacationValue(Math.round(dailyRate * diasCorridos));
@@ -214,12 +266,22 @@ const CrearFiniquito = () => {
         const years = diffTime / (1000 * 60 * 60 * 24 * 365.25);
         setYearsOfService(years);
 
-        // Calculate Indemnity Years (Chilean Law: > 6 months rounds up)
-        // We can use a more precise month diff if needed, but this is a good approximation
-        // Logic: Full years + (remainder >= 0.5 ? 1 : 0)
-        const fullYears = Math.floor(years);
-        const remainder = years - fullYears;
-        const indemnityYears = remainder >= 0.5 ? fullYears + 1 : fullYears;
+        // Calculate Indemnity Years (Chilean Law Rules):
+        // 1. Si < 1 año: No hay indemnización (0)
+        // 2. Si >= 1 año y < 1.5 años: Usar duración real
+        // 3. Si >= 1.5 años: Aplica regla de 6 meses + 1 día (>= 0.5 redondea hacia arriba)
+        let indemnityYears = 0;
+        if (years < 1) {
+          indemnityYears = 0;
+        } else if (years >= 1 && years < 1.5) {
+          // Usar la duración real (ej: 1.3 años)
+          indemnityYears = years;
+        } else {
+          // >= 1.5 años: aplicar regla de redondeo 6 meses + 1 día
+          const fullYears = Math.floor(years);
+          const remainder = years - fullYears;
+          indemnityYears = remainder >= 0.5 ? fullYears + 1 : fullYears;
+        }
         setYearsForIndemnity(indemnityYears);
       }
     } else if (employee?.duracion_empresa) {
@@ -255,21 +317,32 @@ const CrearFiniquito = () => {
 
   // Calculations
   // yearsOfService and yearsForIndemnity are now state variables
-  const dailySalary = (salary / 30).toFixed(0);
+  // Daily Salary Base = (Sueldo Base + Promedio Bonificaciones) / 30
+  const dailySalary = ((salary + variableBonus) / 30).toFixed(0);
   
-  // Gratificación Legal = (Sueldo Base + Promedio Bonificaciones) * 25% (tope $213.000)
-  const topeGratificacion = 213000;
+  // Gratificación Legal = (Sueldo Base + Promedio Bonificaciones) * 25%
+  // Tope = ((4.75/12) * Sueldo Mínimo) * 25%
+  const sueldoMinimo = 539000;
+  const topeGratificacion = ((4.75 / 12) * sueldoMinimo);
   const gratificacionLegal = Math.min((salary + variableBonus) * 0.25, topeGratificacion);
   
   // Total Haberes = Sueldo Base + Promedio Bonificaciones + Gratificación Legal + Movilización
   const totalHaberes = salary + variableBonus + gratificacionLegal + movilizacion;
   
+  // 1. Vacation Indemnity = (Sueldo Base + Total Bonificaciones / 30) * días corridos
+  // vacationValue ya está calculado en el useEffect con la fórmula de días corridos
   const vacationIndemnity = vacationValue;
-  const yearsIndemnity = yearsForIndemnity * salary; // Simplified
-  const noticeIndemnity = noticeGiven ? 0 : salary; // If notice not given, pay 1 month
   
-  // Total Settlement = Vacation + Years Indemnity + Notice + Variable Bonus + Gratificación + Movilización - Descuentos
-  const totalSettlement = vacationIndemnity + yearsIndemnity + noticeIndemnity + variableBonus + gratificacionLegal + movilizacion - descuentos;
+  // 2. Years of Service Indemnity = Total Haberes * años de indemnización
+  // Si tiene menos de 1 año (antigüedad real), no tiene indemnización por años de servicio
+  const yearsIndemnity = yearsOfService >= 1 ? yearsForIndemnity * totalHaberes : 0;
+  
+  // 3. Notice Month = Total Haberes (si no se dio aviso de 30 días)
+  const noticeIndemnity = noticeGiven ? 0 : totalHaberes;
+  
+  // Total Settlement = (Mes de Aviso + Indemnización por Años de Servicio + Vacaciones Proporcionales) - Descuentos
+  const descuentosNum = parseFloat(descuentos) || 0;
+  const totalSettlement = noticeIndemnity + yearsIndemnity + vacationIndemnity - descuentosNum;
 
   return (
     <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
@@ -595,7 +668,7 @@ const CrearFiniquito = () => {
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">YEARS FOR INDEMNITY</p>
-                    <p className="text-xl font-bold text-gray-900">{yearsForIndemnity}</p>
+                    <p className="text-xl font-bold text-gray-900">{yearsOfService >= 1 ? yearsForIndemnity : 0}</p>
                     <p className="text-xs text-gray-400 mt-1">Rounded up &gt; 6 months</p>
                 </div>
                  <div className="bg-gray-50 p-4 rounded-lg">
@@ -607,7 +680,7 @@ const CrearFiniquito = () => {
             <div className="space-y-3 border-t border-gray-100 pt-6">
                 <div className="flex justify-between text-sm">
                     <span className="text-gray-600 font-medium">Total Haberes</span>
-                    <span className="font-mono font-medium">$ {totalHaberes.toLocaleString('es-CL')}</span>
+                    <span className="font-mono font-medium">$ {Math.round(totalHaberes).toLocaleString('es-CL')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Gratificación Legal</span>
@@ -628,19 +701,19 @@ const CrearFiniquito = () => {
                 <div className="border-t border-gray-100 my-2"></div>
                 <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Vacation Indemnity</span>
-                    <span className="font-mono font-medium">$ {vacationIndemnity.toLocaleString('es-CL')}</span>
+                    <span className="font-mono font-medium">$ {Math.round(vacationIndemnity).toLocaleString('es-CL')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Years of Service Indemnity ({yearsForIndemnity} years)</span>
-                    <span className="font-mono font-medium">$ {yearsIndemnity.toLocaleString('es-CL')}</span>
+                    <span className="font-mono font-medium">$ {Math.round(yearsIndemnity).toLocaleString('es-CL')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Notice Month (Mes de Aviso)</span>
-                    <span className="font-mono font-medium">$ {noticeIndemnity.toLocaleString('es-CL')}</span>
+                    <span className="font-mono font-medium">$ {Math.round(noticeIndemnity).toLocaleString('es-CL')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                     <span className="text-blue-600 font-medium">Variable Bonus Average Adjustment</span>
-                    <span className="font-mono font-bold text-blue-600">$ {variableBonus.toLocaleString('es-CL')}</span>
+                    <span className="font-mono font-bold text-blue-600">$ {Math.round(variableBonus).toLocaleString('es-CL')}</span>
                 </div>
                 <div className="border-t border-gray-100 my-2"></div>
                 <div className="flex justify-between text-sm items-center">
@@ -648,10 +721,15 @@ const CrearFiniquito = () => {
                     <div className="flex items-center gap-2">
                         <span className="text-red-400">- $</span>
                         <input 
-                            type="number" 
+                            type="text" 
+                            inputMode="numeric"
                             className="w-28 p-1 text-right bg-red-50 border border-red-200 rounded focus:ring-2 focus:ring-red-500 outline-none font-mono text-red-700"
                             value={descuentos}
-                            onChange={(e) => setDescuentos(parseFloat(e.target.value) || 0)}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/[^0-9]/g, '');
+                              setDescuentos(value);
+                            }}
+                            placeholder="0"
                         />
                     </div>
                 </div>
@@ -662,7 +740,7 @@ const CrearFiniquito = () => {
                     <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">TOTAL SETTLEMENT</p>
                     <p className="text-xs text-gray-500">Subject to final review and deductions</p>
                 </div>
-                <p className="text-3xl font-bold font-mono">$ {totalSettlement.toLocaleString('es-CL')}</p>
+                <p className="text-3xl font-bold font-mono">$ {Math.round(totalSettlement).toLocaleString('es-CL')}</p>
             </div>
         </div>
 
