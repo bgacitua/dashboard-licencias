@@ -13,6 +13,8 @@ import LicenciasVencidas from './pages/LicenciasVencidas';
 import LicenciasPorVencer from './pages/LicenciasPorVencer';
 import LicenciasVigentes from './pages/LicenciasVigentes';
 import GeneradorFiniquitos from './pages/GeneradorFiniquitos';
+import VisualizadorFiniquito from './pages/VisualizadorFiniquito';
+import CrearFiniquito from './pages/CrearFiniquito';
 import AdminPanel from './pages/admin/AdminPanel';
 
 function App() {
@@ -76,12 +78,30 @@ function App() {
             <Route path="/por-vencer" element={<Navigate to="/dashboard/por-vencer" replace />} />
             <Route path="/vigentes" element={<Navigate to="/dashboard/vigentes" replace />} />
             
+
+
             {/* Módulo Finiquitos - solo RRHH y Admin */}
             <Route 
               path="/finiquitos" 
               element={
                 <ProtectedRoute requiredModule="finiquitos">
                   <GeneradorFiniquitos />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/finiquitos/crear/:rut" 
+              element={
+                <ProtectedRoute requiredModule="finiquitos">
+                  <CrearFiniquito />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/finiquitos/visualizar/:rut" 
+              element={
+                <ProtectedRoute requiredModule="finiquitos">
+                  <VisualizadorFiniquito />
                 </ProtectedRoute>
               } 
             />

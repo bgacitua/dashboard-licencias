@@ -1,229 +1,120 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
+import { useAuth } from '../context/AuthContext';
 
-/**
- * Tarjeta de módulo para el menú principal.
- */
-const ModuleCard = ({ modulo }) => {
-    // Mapeo de iconos por código de módulo
-    const iconMap = {
-        'dashboard': '📋',
-        'finiquitos': '📄',
-        'admin': '⚙️'
-    };
-
-    // Mapeo de colores por código de módulo
-    const colorMap = {
-        'dashboard': { bg: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', shadow: 'rgba(99, 102, 241, 0.3)' },
-        'finiquitos': { bg: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', shadow: 'rgba(16, 185, 129, 0.3)' },
-        'admin': { bg: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', shadow: 'rgba(245, 158, 11, 0.3)' }
-    };
-
-    const colors = colorMap[modulo.codigo] || { bg: 'linear-gradient(135deg, #64748b 0%, #475569 100%)', shadow: 'rgba(100, 116, 139, 0.3)' };
-    const icon = iconMap[modulo.codigo] || modulo.icono || '📦';
-
-    return (
-        <Link
-            to={modulo.ruta}
-            style={{
-                textDecoration: 'none',
-                display: 'block'
-            }}
-        >
-            <div
-                style={{
-                    background: colors.bg,
-                    borderRadius: '16px',
-                    padding: '32px',
-                    color: 'white',
-                    transition: 'all 0.3s ease',
-                    boxShadow: `0 10px 30px ${colors.shadow}`,
-                    cursor: 'pointer',
-                    position: 'relative',
-                    overflow: 'hidden'
-                }}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-8px)';
-                    e.currentTarget.style.boxShadow = `0 20px 40px ${colors.shadow}`;
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = `0 10px 30px ${colors.shadow}`;
-                }}
-            >
-                {/* Círculo decorativo de fondo */}
-                <div style={{
-                    position: 'absolute',
-                    top: '-30px',
-                    right: '-30px',
-                    width: '120px',
-                    height: '120px',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                }}></div>
-
-                {/* Icono */}
-                <div style={{
-                    fontSize: '3rem',
-                    marginBottom: '16px'
-                }}>
-                    {icon}
-                </div>
-
-                {/* Nombre */}
-                <h3 style={{
-                    margin: '0 0 8px 0',
-                    fontSize: '1.4rem',
-                    fontWeight: '700'
-                }}>
-                    {modulo.nombre}
-                </h3>
-
-                {/* Descripción */}
-                <p style={{
-                    margin: 0,
-                    fontSize: '0.9rem',
-                    opacity: 0.9,
-                    lineHeight: 1.5
-                }}>
-                    {modulo.descripcion}
-                </p>
-
-                {/* Flecha */}
-                <div style={{
-                    marginTop: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '0.9rem',
-                    fontWeight: '500'
-                }}>
-                    Acceder <span style={{ fontSize: '1.1rem' }}>→</span>
-                </div>
-            </div>
-        </Link>
-    );
-};
-
-/**
- * Menú principal con los módulos disponibles para el usuario.
- */
 const MainMenu = () => {
-    const { user, modules } = useAuth();
+  const { user } = useAuth();
 
-    // Ordenar módulos por orden
-    const sortedModules = [...modules].sort((a, b) => a.orden - b.orden);
+  return (
+    <div className="flex h-screen bg-[#f6f6f8] dark:bg-[#101622] font-['Public_Sans']">
+      {/* Navbar (reusing existing component but it seems the design implies a top navbar which is already there) */}
+      {/* The design shows a clean page with a top bar. The current Navbar component seems to be a top bar based on its code. */}
+      
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <Navbar />
 
-    return (
-        <div style={{
-            minHeight: '100vh',
-            backgroundColor: '#f5f7fa',
-            fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif"
-        }}>
-            <Navbar />
-
-            <div style={{
-                padding: '40px',
-                maxWidth: '1200px',
-                margin: '0 auto'
-            }}>
-                {/* Header de bienvenida */}
-                <div style={{
-                    marginBottom: '40px',
-                    animation: 'fadeIn 0.5s ease-out'
-                }}>
-                    <h1 style={{
-                        margin: '0 0 8px 0',
-                        color: '#1a1a2e',
-                        fontSize: '2rem',
-                        fontWeight: '700'
-                    }}>
-                        👋 ¡Hola, {user?.nombre_completo?.split(' ')[0] || user?.username}!
-                    </h1>
-                    <p style={{
-                        margin: 0,
-                        color: '#64748b',
-                        fontSize: '1.1rem'
-                    }}>
-                        Selecciona un módulo para comenzar
-                    </p>
-                </div>
-
-                {/* Grid de módulos */}
-                {sortedModules.length > 0 ? (
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                        gap: '24px',
-                        animation: 'fadeIn 0.6s ease-out'
-                    }}>
-                        {sortedModules.map((modulo) => (
-                            <ModuleCard key={modulo.id} modulo={modulo} />
-                        ))}
-                    </div>
-                ) : (
-                    <div style={{
-                        textAlign: 'center',
-                        padding: '60px',
-                        backgroundColor: 'white',
-                        borderRadius: '16px',
-                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)'
-                    }}>
-                        <span style={{ fontSize: '3rem' }}>📭</span>
-                        <h2 style={{ color: '#374151', marginTop: '16px' }}>
-                            Sin módulos asignados
-                        </h2>
-                        <p style={{ color: '#64748b' }}>
-                            Contacta al administrador para obtener acceso a los módulos.
-                        </p>
-                    </div>
-                )}
-
-                {/* Info de rol */}
-                <div style={{
-                    marginTop: '40px',
-                    padding: '16px 24px',
-                    backgroundColor: 'white',
-                    borderRadius: '12px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
-                }}>
-                    <span style={{
-                        backgroundColor: '#e0e7ff',
-                        color: '#4338ca',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '0.85rem',
-                        fontWeight: '600',
-                        textTransform: 'capitalize'
-                    }}>
-                        {user?.rol?.nombre || 'Sin rol'}
-                    </span>
-                    <span style={{ color: '#64748b', fontSize: '0.9rem' }}>
-                        Tienes acceso a <strong>{modules.length}</strong> módulo{modules.length !== 1 ? 's' : ''}
-                    </span>
-                </div>
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="max-w-7xl mx-auto">
+            
+            {/* Header Section */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-[#111318] dark:text-white mb-2">
+                Bienvenido, {user?.nombre_completo || user?.username || 'Usuario'}
+              </h1>
+              <p className="text-[#616f89] dark:text-gray-400 text-lg">
+                Selecciona un módulo para comenzar tus tareas de hoy.
+              </p>
             </div>
 
-            {/* Animaciones CSS */}
-            <style>{`
-                @keyframes fadeIn {
-                    from {
-                        opacity: 0;
-                        transform: translateY(-10px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
-                }
-            `}</style>
-        </div>
-    );
+            {/* Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              
+              {/* 1. Dashboard licencias médicas */}
+              <Link to="/dashboard" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-blue-100">
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-full mb-2">
+                  <span className="material-symbols-outlined text-[#135bec] text-3xl">medical_services</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
+                    Dashboard licencias médicas
+                  </h2>
+                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
+                    Gestiona y visualiza el estado de las licencias médicas de todos los empleados.
+                  </p>
+                </div>
+              </Link>
+
+              {/* 2. Generador de finiquitos */}
+              <Link to="/finiquitos" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-purple-100">
+                <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-full mb-2">
+                  <span className="material-symbols-outlined text-purple-600 text-3xl">description</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
+                    Generador de finiquitos
+                  </h2>
+                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
+                    Crea, valida y descarga documentos de término de contrato legales.
+                  </p>
+                </div>
+              </Link>
+
+              {/* 3. Selección de personal */}
+              <Link to="#" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-emerald-100 cursor-default">
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-full mb-2">
+                  <span className="material-symbols-outlined text-emerald-600 text-3xl">person_search</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
+                    Selección de personal
+                  </h2>
+                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
+                    Administra candidatos, programa entrevistas y sigue los procesos de reclutamiento.
+                  </p>
+                </div>
+              </Link>
+
+              {/* 4. Calculadora de sueldos */}
+              <Link to="#" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-orange-100 cursor-default">
+                <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-full mb-2">
+                  <span className="material-symbols-outlined text-orange-600 text-3xl">calculate</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
+                    Calculadora de sueldos
+                  </h2>
+                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
+                    Simula sueldos líquidos, brutos y costos empresa con parámetros actualizados.
+                  </p>
+                </div>
+              </Link>
+
+              {/* 5. Gestión de desempeño (Próximamente) */}
+              <div className="group bg-[#f6f6f8] dark:bg-[#1a202c] p-8 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 flex flex-col items-start gap-4 h-full relative overflow-hidden">
+                <div className="absolute top-4 right-4 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold px-3 py-1 rounded-full">
+                  Próximamente
+                </div>
+                <div className="p-3 bg-gray-200 dark:bg-gray-700 rounded-full mb-2">
+                  <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-3xl">lock_clock</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-500 dark:text-gray-400 mb-2">
+                    Gestión de desempeño
+                  </h2>
+                  <p className="text-gray-400 dark:text-gray-500 leading-relaxed">
+                    Nuevo módulo de evaluación y seguimiento de objetivos en construcción.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
 };
 
 export default MainMenu;

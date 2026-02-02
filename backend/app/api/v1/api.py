@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import licencias, marcas, auth, admin
+from app.api.v1.endpoints import licencias, marcas, auth, admin, finiquitos, employees
 
 api_router = APIRouter()
 
@@ -16,3 +16,11 @@ api_router.include_router(licencias.router, prefix="/licencias", tags=["licencia
 # Incluimos el router de marcas con el prefijo /marcas
 # Las rutas finales serán: /api/v1/marcas
 api_router.include_router(marcas.router, prefix="/marcas", tags=["marcas"])
+
+# Incluimos el router de finiquitos con el prefijo /finiquitos
+# Las rutas finales serán: /api/v1/finiquitos
+api_router.include_router(finiquitos.router, prefix="/finiquitos", tags=["finiquitos"])
+
+# Incluimos el router de employees con el prefijo /employees
+# Las rutas finales serán: /api/v1/employees
+api_router.include_router(employees.router, prefix="/employees", tags=["employees"])
