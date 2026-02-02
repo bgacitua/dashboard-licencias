@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import FiniquitosService from '../services/finiquitos.service';
 import EmployeesService from '../services/employees.service';
+import { getLicenciasByRut } from '../services/licencias';
 
 const CrearFiniquito = () => {
   const { rut } = useParams();
@@ -25,6 +26,7 @@ const CrearFiniquito = () => {
   
   // Items for calculation
   const [items, setItems] = useState([]);
+  const [licencias, setLicencias] = useState([]);
   const [variableItems, setVariableItems] = useState([]);
 
   useEffect(() => {
@@ -67,7 +69,13 @@ const CrearFiniquito = () => {
           setVacationValue(850000); 
           
           // Filter variable bonuses from the same dataset
-          const varData = data.filter(item => item.income_type === 'remuneracion_variable');
+          // Include both 'remuneracion_variable' and 'remuneracion_ocasional'
+          // But exclude specific occasional bonuses that should not be averaged
+          const excludedConceptos = ['Bono Empresa', 'Bono Navidad', 'Bono Fiestas Patrias'];
+          const varData = data.filter(item => 
+            item.income_type === 'remuneracion_variable' || 
+            (item.income_type === 'remuneracion_ocasional' && !excludedConceptos.includes(item.concepto))
+          );
           
           if (varData.length > 0) {
              const mappedVarData = varData.map(item => ({
@@ -95,6 +103,18 @@ const CrearFiniquito = () => {
               setVariableBonus(0);
           }
         }
+        // Fetch licenses for this employee (directly filtered by RUT in backend)
+          try {
+            const employeeLicencias = await getLicenciasByRut(rut);
+            // Sort by fecha_fin descending (most recent first) and take last 5
+            const sortedLicencias = employeeLicencias.sort(
+              (a, b) => new Date(b.fecha_fin) - new Date(a.fecha_fin)
+            ).slice(0, 5);
+            setLicencias(sortedLicencias);
+          } catch (err) {
+            console.error("Error fetching licenses:", err);
+            setLicencias([]);
+          }
       } catch (error) {
         console.error("Error fetching employee data:", error);
       } finally {
@@ -358,6 +378,78 @@ const CrearFiniquito = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Recent Licenses Table */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <span className="material-symbols-outlined">medical_information</span>
+            </div>
+            <h3 className="text-lg font-bold text-gray-900">Recent Licenses</h3>
+            <span className="ml-auto px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
+              Last 5 records
+            </span>
+          </div>
+          
+          {licencias.length === 0 ? (
+            <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
+              <span className="material-symbols-outlined text-gray-300 text-4xl mb-2">event_busy</span>
+              <p className="text-gray-500 font-medium">No licenses found</p>
+              <p className="text-xs text-gray-400">This employee has no recorded medical leaves.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Reason</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Start Date</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">End Date</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Days</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {licencias.map((lic, idx) => {
+                    const startDate = new Date(lic.fecha_inicio);
+                    const endDate = new Date(lic.fecha_fin);
+                    const today = new Date();
+                    const diffDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+                    const isActive = today >= startDate && today <= endDate;
+                    const isPast = today > endDate;
+                    
+                    return (
+                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td className="py-3 px-4">
+                          <span className="font-medium text-gray-900">{lic.motivo || 'Sin especificar'}</span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-gray-600">
+                          {startDate.toLocaleDateString('es-CL')}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-gray-600">
+                          {endDate.toLocaleDateString('es-CL')}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-gray-900">{diffDays}</span>
+                          <span className="text-gray-400 ml-1">days</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          {isActive ? (
+                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold uppercase rounded-full">Active</span>
+                          ) : isPast ? (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-bold uppercase rounded-full">Completed</span>
+                          ) : (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold uppercase rounded-full">Scheduled</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Review Variable Bonuses (Collapsed for now or simplified) */}
