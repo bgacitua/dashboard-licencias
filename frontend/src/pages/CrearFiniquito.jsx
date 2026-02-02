@@ -422,7 +422,7 @@ const CrearFiniquito = () => {
                     return (
                       <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                         <td className="py-3 px-4">
-                          <span className="font-medium text-gray-900">{lic.motivo || 'Sin especificar'}</span>
+                          <span className="font-medium text-gray-900">{lic.tipo_permiso || 'Sin especificar'}</span>
                         </td>
                         <td className="py-3 px-4 font-mono text-gray-600">
                           {startDate.toLocaleDateString('es-CL')}
