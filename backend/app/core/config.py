@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 480  # 8 horas
     
-    # Configuración API BUK (Vacaciones)
+    # Configuración API BUK
     BUK_API_BASE_URL: str 
     BUK_API_KEY: str 
 
