@@ -28,6 +28,7 @@ const CrearFiniquito = () => {
   const [items, setItems] = useState([]);
   const [licencias, setLicencias] = useState([]);
   const [variableItems, setVariableItems] = useState([]);
+  const [descuentosItems, setDescuentosItems] = useState([]); // Automatic deductions from backend
 
   useEffect(() => {
     const fetchData = async () => {
@@ -103,7 +104,6 @@ const CrearFiniquito = () => {
               setVariableBonus(0);
           }
         }
-        // Fetch licenses for this employee (directly filtered by RUT in backend)
           try {
             const employeeLicencias = await getLicenciasByRut(rut);
             // Sort by fecha_fin descending (most recent first) and take last 5
@@ -114,6 +114,15 @@ const CrearFiniquito = () => {
           } catch (err) {
             console.error("Error fetching licenses:", err);
             setLicencias([]);
+          }
+          
+          // Fetch automatic deductions for this employee (Prestamo Interno, Descuento Por Planilla)
+          try {
+            const descuentosData = await FiniquitosService.getDescuentosByRut(rut);
+            setDescuentosItems(descuentosData || []);
+          } catch (err) {
+            console.error("Error fetching deductions:", err);
+            setDescuentosItems([]);
           }
       } catch (error) {
         console.error("Error fetching employee data:", error);
@@ -340,9 +349,11 @@ const CrearFiniquito = () => {
   // 3. Notice Month = Total Haberes (si no se dio aviso de 30 días)
   const noticeIndemnity = noticeGiven ? 0 : totalHaberes;
   
-  // Total Settlement = (Mes de Aviso + Indemnización por Años de Servicio + Vacaciones Proporcionales) - Descuentos
+  // Total Settlement = (Mes de Aviso + Indemnización por Años de Servicio + Vacaciones Proporcionales) - Todos los Descuentos
   const descuentosNum = parseFloat(descuentos) || 0;
-  const totalSettlement = noticeIndemnity + yearsIndemnity + vacationIndemnity - descuentosNum;
+  const descuentosAutomaticos = descuentosItems.reduce((sum, d) => sum + (d.monto || 0), 0);
+  const totalDescuentos = descuentosNum + descuentosAutomaticos;
+  const totalSettlement = noticeIndemnity + yearsIndemnity + vacationIndemnity - totalDescuentos;
 
   return (
     <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
@@ -716,8 +727,31 @@ const CrearFiniquito = () => {
                     <span className="font-mono font-bold text-blue-600">$ {Math.round(variableBonus).toLocaleString('es-CL')}</span>
                 </div>
                 <div className="border-t border-gray-100 my-2"></div>
+                
+                {/* Automatic Deductions Section */}
+                {descuentosItems.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    <p className="text-xs text-red-500 uppercase font-bold tracking-wider">Descuentos Automáticos</p>
+                    {descuentosItems.map((desc, idx) => (
+                      <div key={idx} className="flex justify-between text-sm items-center bg-red-50 px-3 py-2 rounded-lg">
+                        <div className="flex flex-col">
+                          <span className="text-red-700 font-medium">{desc.concepto}</span>
+                          <span className="text-red-400 text-xs">Período: {desc.periodo}</span>
+                        </div>
+                        <span className="font-mono font-medium text-red-600">- $ {(desc.monto || 0).toLocaleString('es-CL')}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-sm pt-2 border-t border-red-100">
+                      <span className="text-red-600 font-bold">Total Descuentos Automáticos</span>
+                      <span className="font-mono font-bold text-red-600">
+                        - $ {descuentosItems.reduce((sum, d) => sum + (d.monto || 0), 0).toLocaleString('es-CL')}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-between text-sm items-center">
-                    <span className="text-red-600 font-medium">Descuentos</span>
+                    <span className="text-red-600 font-medium">Otros Descuentos</span>
                     <div className="flex items-center gap-2">
                         <span className="text-red-400">- $</span>
                         <input 

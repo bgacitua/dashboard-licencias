@@ -37,6 +37,11 @@ class FiniquitosService:
         logger.info(f"Obteniendo items variables por rut: {rut}, variable: {variable}")
         return self.repository.get_item_variable_by_rut(rut, variable)
 
+    def get_descuentos_finiquitos_by_rut(self, rut: str) -> List[FiniquitoItemResponse]:
+        """Obtiene los descuentos de finiquito por RUT, filtrando por conceptos específicos"""
+        logger.info(f"Obteniendo descuentos de finiquito por rut: {rut}")
+        return self.repository.get_descuentos_by_rut(rut)
+
     def send_fecha_termino_finiquito(self, finiquito: FiniquitoCreate) -> FiniquitoResponse:
         logger.info(f"Actualizando fecha termino finiquito para rut: {finiquito.rut_trabajador}")
         return self.repository.update_fecha_termino(finiquito.rut_trabajador, finiquito.fecha_salida)
