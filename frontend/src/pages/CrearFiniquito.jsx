@@ -93,7 +93,8 @@ const CrearFiniquito = () => {
           const excludedConceptos = ['Bono Empresa', 'Bono Navidad', 'Bono Fiestas Patrias'];
           const varData = data.filter(item => 
             item.income_type === 'remuneracion_variable' || 
-            (item.income_type === 'remuneracion_ocasional' && !excludedConceptos.includes(item.concepto))
+            (item.income_type === 'remuneracion_ocasional' && !excludedConceptos.includes(item.concepto)) ||
+            (item.income_type === 'remuneracion_fija' && item.concepto === 'Bono Supervisores Noche')
           );
           
           if (varData.length > 0) {
@@ -399,7 +400,7 @@ const CrearFiniquito = () => {
   }
 
   if (!employee) {
-    return <div className="p-8">Employee not found</div>;
+    return <div className="p-8">Empleado no encontrado</div>;
   }
 
   // Calculations
@@ -521,21 +522,21 @@ const CrearFiniquito = () => {
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <span className="cursor-pointer hover:text-blue-600" onClick={() => navigate('/finiquitos')}>Home</span>
             <span className="material-symbols-outlined text-xs">chevron_right</span>
-            <span>Employees</span>
+            <span>Empleados</span>
             <span className="material-symbols-outlined text-xs">chevron_right</span>
             <span>{employee.nombre_trabajador}</span>
             <span className="material-symbols-outlined text-xs">chevron_right</span>
-            <span className="font-semibold text-gray-900">Generate Severance</span>
+            <span className="font-semibold text-gray-900">Generador finiquito</span>
           </div>
           
           <div className="flex justify-between items-end">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Generate Severance Document</h1>
-              <p className="text-gray-500 mt-1">Draft a new finiquito for review and legal processing.</p>
+              <h1 className="text-3xl font-bold text-gray-900">Generador finiquito</h1>
+              <p className="text-gray-500 mt-1">Formulario de generación de finiquito</p>
             </div>
             <div className="bg-orange-50 text-orange-700 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 border border-orange-100">
               <span className="material-symbols-outlined text-lg">warning</span>
-              Pending Approval
+              Aprobación pendiente
             </div>
           </div>
         </div>
@@ -558,8 +559,8 @@ const CrearFiniquito = () => {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">START DATE</p>
-            <p className="font-semibold text-gray-900">{new Date(employee.fecha_ingreso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+            <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">FECHA INICIO</p>
+            <p className="font-semibold text-gray-900">{new Date(employee.fecha_ingreso).toLocaleDateString('es-CL', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
           </div>
         </div>
 
@@ -569,13 +570,13 @@ const CrearFiniquito = () => {
             <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
               <span className="material-symbols-outlined">gavel</span>
             </div>
-            <h3 className="text-lg font-bold text-gray-900">Termination Details</h3>
+            <h3 className="text-lg font-bold text-gray-900">Detalles de término</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Reason for Termination <span className="text-red-500">*</span>
+                Razón de término <span className="text-red-500">*</span>
               </label>
               <select 
                 className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
@@ -588,13 +589,13 @@ const CrearFiniquito = () => {
                 <option value="no_concurrencia">Art. 160 N°3 - No concurrencia injustificada</option>
                 <option value="renuncia">Art. 159 N°2 - Renuncia voluntaria</option>
               </select>
-              <p className="text-xs text-gray-400 mt-2">This selection determines the calculation basis for indemnity.</p>
+              <p className="text-xs text-gray-400 mt-2">Esta selección determina la base de cálculo de la indemnización.</p>
             </div>
 
             <div className="flex gap-6">
               <div className="flex-1">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Last Day of Work <span className="text-red-500">*</span>
+                  Fecha de salida <span className="text-red-500">*</span>
                 </label>
                 <input 
                   type="date" 
@@ -612,8 +613,8 @@ const CrearFiniquito = () => {
                     onChange={(e) => setNoticeGiven(e.target.checked)}
                   />
                   <div>
-                    <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">30-Day Notice Given</p>
-                    <p className="text-xs text-gray-400">If unchecked, "Mes de Aviso" indemnity will be added.</p>
+                    <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">30 días de aviso</p>
+                    <p className="text-xs text-gray-400">Si no se marca, se agregará el mes de aviso.</p>
                   </div>
                 </label>
               </div>
@@ -622,7 +623,7 @@ const CrearFiniquito = () => {
             {/* Manager Selection */}
             <div className="mt-6">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Gerente Firmante <span className="text-red-500">*</span>
+                Gerente firmante <span className="text-red-500">*</span>
               </label>
               <select 
                 className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
@@ -647,28 +648,28 @@ const CrearFiniquito = () => {
             <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
               <span className="material-symbols-outlined">medical_information</span>
             </div>
-            <h3 className="text-lg font-bold text-gray-900">Recent Licenses</h3>
+            <h3 className="text-lg font-bold text-gray-900">Licencias recientes</h3>
             <span className="ml-auto px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-              Last 5 records
+              Últimos 5 registros
             </span>
           </div>
           
           {licencias.length === 0 ? (
             <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
               <span className="material-symbols-outlined text-gray-300 text-4xl mb-2">event_busy</span>
-              <p className="text-gray-500 font-medium">No licenses found</p>
-              <p className="text-xs text-gray-400">This employee has no recorded medical leaves.</p>
+              <p className="text-gray-500 font-medium">No se encontraron licencias</p>
+              <p className="text-xs text-gray-400">Este empleado no tiene licencias registradas.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Reason</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Start Date</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">End Date</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Days</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Status</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Razón</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Fecha de inicio</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Fecha de fin</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Días</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -716,11 +717,11 @@ const CrearFiniquito = () => {
         {/* Review Variable Bonuses (Collapsed for now or simplified) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
             <div className="flex justify-between items-center cursor-pointer">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2"> 
                     <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
                         <span className="material-symbols-outlined">payments</span>
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900">Review Variable Bonuses</h3>
+                    <h3 className="text-lg font-bold text-gray-900">Resumen remuneración variable</h3>
                 </div>
                 <span className="material-symbols-outlined text-gray-400">expand_less</span>
             </div>

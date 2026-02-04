@@ -199,6 +199,63 @@ const VisualizadorFiniquito = () => {
   const prestamoInterno = finiquitoData.prestamoInterno || 0;
   const totalDescuentos = aporteCesantia + prestamoInterno;
 
+  // Determine Company Details based on "nombre_empresa"
+  const getCompanyDetails = (empresaRaw) => {
+    const normalized = empresaRaw?.toLowerCase() || '';
+    
+    if (normalized.includes('sabores')) {
+      return {
+        legalName: 'Sabores y Fragancias.CL Comercial Ltda.',
+        rut: '76.165.072-6',
+        logoType: 'sabores', // Special background treatment
+        backgroundImage: '/membrete-sabores.jpg'
+      };
+    } else if (normalized.includes('servicios') || normalized.includes('logística')) {
+      return {
+        legalName: 'SERVICIOS DE PRODUCCIÓN Y LOGÍSTICA CCPA LTDA',
+        rut: '76.479.573-3',
+        logoType: 'ccpa', // Uses CCPA logo aligned right
+        backgroundImage: '/ccpa-logo.png'
+      };
+    } else {
+      // Default to Carlos Cramer
+      return {
+        legalName: 'Carlos Cramer Productos Aromáticos S.A.C.I.',
+        rut: '92.845.000-7',
+        logoType: 'cramer', // Full page letterhead
+        backgroundImage: '/membrete-cramer.png'
+      };
+    }
+  };
+
+  const companyDetails = getCompanyDetails(employeeData.nombre_empresa);
+  const isSabores = companyDetails.logoType === 'sabores';
+  const isCCPA = companyDetails.logoType === 'ccpa';
+  const isCramer = companyDetails.logoType === 'cramer';
+
+  // Helper for background styles
+  const getBackgroundStyles = () => {
+    if (isSabores) {
+       return {
+         backgroundSize: '95% 100%',
+         backgroundPosition: 'center 20px' // Full Page
+       };
+    } else if (isCCPA) {
+       return {
+         backgroundSize: '20% auto',
+         backgroundPosition: 'right 25mm top 15mm' // Top Right
+       };
+    } else {
+       // Cramer (Default)
+       return {
+         backgroundSize: '100% 100%',
+         backgroundPosition: 'center -25px' // Full Page
+       };
+    }
+  };
+
+  const bgStyles = getBackgroundStyles();
+
   return (
     <div className="flex min-h-screen bg-[#525659] font-['Times_New_Roman',_serif] print:bg-white">
       <div className="print:hidden fixed left-0 top-0 h-full z-10">
@@ -208,16 +265,22 @@ const VisualizadorFiniquito = () => {
       <main className="flex-1 ml-64 p-8 print:ml-0 print:p-0 flex justify-center">
         <div 
           ref={printRef} 
-          className="w-full max-w-[215.9mm] bg-white shadow-lg min-h-[279.4mm] print:shadow-none print:w-full text-[10pt] leading-normal tracking-tighter relative"
-          style={{
-            backgroundImage: 'url(/membrete-cramer.png)',
-            backgroundSize: '100% 100%',
-            backgroundPosition: 'center -25px',
-            backgroundRepeat: 'no-repeat',
-          }}
+          className="w-full max-w-[215.9mm] bg-white shadow-lg min-h-[279.4mm] print:shadow-none print:w-full text-[10pt] leading-normal tracking-tighter relative overflow-hidden"
         >
+          {/* Background Image Layer - Conditional Styling for Sabores vs Cramer/Global */}
+          <div 
+            className="absolute inset-0 z-0"
+            style={{
+              backgroundImage: `url(${companyDetails.backgroundImage})`,
+              backgroundSize: bgStyles.backgroundSize,
+              backgroundPosition: bgStyles.backgroundPosition,
+              backgroundRepeat: 'no-repeat',
+              opacity: 1 
+            }}
+          />
+
           {/* Content container with padding for the text area - Adjusted for letterhead */}
-          <div className="px-[25mm] pt-[30mm] pb-[25mm]">
+          <div className="px-[25mm] pt-[30mm] pb-[25mm] relative z-10">
           
             {/* Actions Bar (Hidden on Print) */}
             <div className="flex justify-between items-center mb-8 print:hidden border-b pb-4 bg-white/90 -mx-[25mm] px-[25mm] -mt-[30mm] pt-[15mm]">
@@ -276,7 +339,7 @@ const VisualizadorFiniquito = () => {
             suppressContentEditableWarning={true}
           >
             <p>
-              <strong>Carlos Cramer Productos Aromáticos S.A.C.I.</strong>, Rut: <strong>92.845.000-7</strong>, le 
+              <strong>{companyDetails.legalName}</strong>, Rut: <strong>{companyDetails.rut}</strong>, le 
               comunica a usted que se procederá a poner término a su Contrato de Trabajo, con fecha {formatDate(terminationDate)}, 
               en virtud de lo dispuesto en el {(() => {
                 switch(finiquitoData.terminationReason) {
@@ -438,7 +501,7 @@ const VisualizadorFiniquito = () => {
           <div className="mb-8 mt-8 text-center">
             <p className="font-bold">{selectedManager.name}</p>
             <p>{selectedManager.title}</p>
-            <p>{selectedManager.company}</p>
+            <p>{companyDetails.legalName}</p>
           </div>
 
           {/* Worker and Inspection Signatures */}
