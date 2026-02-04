@@ -5,3 +5,17 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* Print Styles - Remove browser header/footer (page title and URL) */
+@page {
+  margin: 15mm 10mm;
+}
+
+@media print {
+  /* Hide browser default header and footer by setting appropriate margins */
+  html,
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

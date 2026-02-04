@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import FiniquitosService from '../services/finiquitos.service';
 import Sidebar from '../components/Sidebar';
+import { useReactToPrint } from 'react-to-print';
 
 const VisualizadorFiniquito = () => {
   const { rut } = useParams();
@@ -10,9 +11,30 @@ const VisualizadorFiniquito = () => {
   const [loading, setLoading] = useState(true);
   const [employeeData, setEmployeeData] = useState(null);
   const [items, setItems] = useState([]);
+  const printRef = useRef(null);
 
-  // Get data passed from CrearFiniquito via navigation state
-  const finiquitoData = location.state || {};
+  // Decodificar RUT en caso de que venga URL-encoded
+  const decodedRut = decodeURIComponent(rut);
+
+  // Get data passed from CrearFiniquito via navigation state or sessionStorage (for new tab)
+  const getFiniquitoData = () => {
+    // First try location.state (when navigated from same tab)
+    if (location.state && Object.keys(location.state).length > 0) {
+      return location.state;
+    }
+    // Fallback to sessionStorage (when opened in new tab)
+    // Try both encoded and decoded RUT
+    let storedData = sessionStorage.getItem(`finiquito_${decodedRut}`);
+    if (!storedData) {
+      storedData = sessionStorage.getItem(`finiquito_${rut}`);
+    }
+    if (storedData) {
+      return JSON.parse(storedData);
+    }
+    return {};
+  };
+  
+  const finiquitoData = getFiniquitoData();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -38,9 +60,25 @@ const VisualizadorFiniquito = () => {
     }
   }, [rut]);
 
-  const handlePrint = () => {
-    window.print();
-  };
+  // Handler para generar PDF e imprimir
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Finiquito_${employeeData?.rut_trabajador || rut}`,
+    pageStyle: `
+      @page {
+        size: letter;
+        margin: 0mm !important;
+      }
+      @media print {
+        html, body {
+          width: 216mm;
+          height: 279mm;        
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+      }
+    `,
+  });
 
   // Get the second paragraph based on cargo
   const getSecondParagraph = (cargo) => {
@@ -57,6 +95,21 @@ const VisualizadorFiniquito = () => {
   // Format date in Spanish
   const formatDate = (dateString) => {
     if (!dateString) return '';
+    
+    // Handle YYYY-MM-DD (or ISO with T) manually to create local date and avoid timezone offsets
+    // new Date("2026-02-05") creates UTC 00:00, which in local time (e.g. UTC-3) is 21:00 prev day
+    const cleanDate = dateString.includes('T') ? dateString.split('T')[0] : dateString;
+    const parts = cleanDate.split('-');
+    
+    if (parts.length === 3) {
+      const [year, month, day] = parts.map(Number);
+      // Create local date using constructor (year, monthIndex, day)
+      const date = new Date(year, month - 1, day);
+      const options = { year: 'numeric', month: 'long', day: 'numeric' };
+      return date.toLocaleDateString('es-CL', options);
+    }
+    
+    // Fallback
     const date = new Date(dateString);
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return date.toLocaleDateString('es-CL', options);
@@ -65,6 +118,22 @@ const VisualizadorFiniquito = () => {
   // Format currency
   const formatCurrency = (amount) => {
     return `$ ${Math.round(amount || 0).toLocaleString('es-CL')}.-`;
+  };
+
+  const [isEditable, setIsEditable] = useState(false);
+
+  // Helper to add business days (Mon-Fri)
+  const addBusinessDays = (date, days) => {
+    let result = new Date(date);
+    let count = 0;
+    while (count < days) {
+      result.setDate(result.getDate() + 1);
+      // 0 = Sunday, 6 = Saturday
+      if (result.getDay() !== 0 && result.getDay() !== 6) {
+        count++;
+      }
+    }
+    return result;
   };
 
   if (loading) {
@@ -97,7 +166,18 @@ const VisualizadorFiniquito = () => {
 
   // Get data from navigation state or employeeData
   const terminationDate = finiquitoData.lastDayWork || employeeData.fecha_salida || new Date().toISOString().split('T')[0];
-  const notaryDate = finiquitoData.notaryDate || new Date(new Date(terminationDate).getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  
+  // Calculate Notary Date: 10th business day from termination
+  // Parsing locally to ensure correct start date
+  const terminationDateObj = new Date(terminationDate.includes('T') ? terminationDate.split('T')[0] : terminationDate);
+  // Fix: The parsed date might be UTC 00:00, leading to previous day in local if simply used. 
+  // We prefer using the split components as done in formatDate or ensuring the date object is correct.
+  // Actually, let's use the explicit constructor used in formatDate for safety.
+  const tParts = (terminationDate.includes('T') ? terminationDate.split('T')[0] : terminationDate).split('-');
+  const localTerminationDate = new Date(tParts[0], tParts[1] - 1, tParts[2]);
+  
+  const notaryDateObj = addBusinessDays(localTerminationDate, 10);
+  const notaryDate = notaryDateObj.toISOString().split('T')[0];
   
   // Get manager info
   const selectedManager = finiquitoData.selectedManager || {
@@ -110,6 +190,9 @@ const VisualizadorFiniquito = () => {
   const mesDeAviso = finiquitoData.noticeIndemnity || 0;
   const anosServicio = finiquitoData.yearsIndemnity || 0;
   const vacaciones = finiquitoData.vacationIndemnity || 0;
+  const liquidacionMesActual = finiquitoData.liquidacionMesActual || 0;
+  
+  // Calculate Gross Haberes (Sum of all income items)
   const totalHaberes = mesDeAviso + anosServicio + vacaciones;
   
   const aporteCesantia = finiquitoData.aporteCesantia || 0;
@@ -123,37 +206,63 @@ const VisualizadorFiniquito = () => {
       </div>
 
       <main className="flex-1 ml-64 p-8 print:ml-0 print:p-0 flex justify-center">
-        <div className="w-full max-w-[210mm] bg-white shadow-lg px-[25mm] py-[15mm] min-h-[297mm] print:shadow-none print:w-full text-[11pt] leading-relaxed">
+        <div 
+          ref={printRef} 
+          className="w-full max-w-[215.9mm] bg-white shadow-lg min-h-[279.4mm] print:shadow-none print:w-full text-[10pt] leading-normal tracking-tighter relative"
+          style={{
+            backgroundImage: 'url(/membrete-cramer.png)',
+            backgroundSize: '100% 100%',
+            backgroundPosition: 'center -25px',
+            backgroundRepeat: 'no-repeat',
+          }}
+        >
+          {/* Content container with padding for the text area - Adjusted for letterhead */}
+          <div className="px-[25mm] pt-[30mm] pb-[25mm]">
           
-          {/* Actions Bar (Hidden on Print) */}
-          <div className="flex justify-between items-center mb-8 print:hidden border-b pb-4">
-            <button 
-              onClick={() => navigate(-1)}
-              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <span className="material-symbols-outlined mr-2">arrow_back</span>
-              Volver
-            </button>
-            <button 
-              onClick={handlePrint}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-            >
-              <span className="material-symbols-outlined">print</span>
-              Imprimir
-            </button>
-          </div>
+            {/* Actions Bar (Hidden on Print) */}
+            <div className="flex justify-between items-center mb-8 print:hidden border-b pb-4 bg-white/90 -mx-[25mm] px-[25mm] -mt-[30mm] pt-[15mm]">
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => navigate(`/finiquitos/crear/${decodedRut}`, { state: { preserveData: true } })}
+                  className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <span className="material-symbols-outlined mr-2">arrow_back</span>
+                  Volver a editar
+                </button>
+              </div>
+              <div className="flex gap-3">
+                 <button 
+                  onClick={() => setIsEditable(!isEditable)}
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${isEditable ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                >
+                  <span className="material-symbols-outlined">edit_document</span>
+                  {isEditable ? 'Modo Edición (Activo)' : 'Habilitar Edición'}
+                </button>
+                <button 
+                  onClick={handlePrint}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined">print</span>
+                  Imprimir / Descargar PDF
+                </button>
+              </div>
+            </div>
 
-          {/* Logo and Date */}
-          <div className="flex justify-between items-start mb-8">
-            <div></div>
-            <div className="text-right">
-              <img src="/logo-cramer.png" alt="Carlos Cramer" className="h-12 mb-2 ml-auto" onError={(e) => e.target.style.display='none'} />
+            {/* Date - positioned to align with letterhead */}
+            <div 
+              className={`flex justify-end mb-1 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+              contentEditable={isEditable}
+              suppressContentEditableWarning={true}
+            >
               <p className="text-[10pt]">Santiago, {formatDate(terminationDate)}</p>
             </div>
-          </div>
 
           {/* Addressee */}
-          <div className="mb-6">
+          <div 
+            className={`mb-2 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            contentEditable={isEditable}
+            suppressContentEditableWarning={true}
+          >
             <p>Señor</p>
             <p className="font-bold">{employeeData.nombre_trabajador}</p>
             <p>{employeeData.direccion || 'Dirección no especificada'}</p>
@@ -161,29 +270,52 @@ const VisualizadorFiniquito = () => {
           </div>
 
           {/* First Paragraph - Termination Notice */}
-          <div className="mb-4 text-justify indent-8">
+          <div 
+            className={`mb-1 text-justify indent-8 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            contentEditable={isEditable}
+            suppressContentEditableWarning={true}
+          >
             <p>
               <strong>Carlos Cramer Productos Aromáticos S.A.C.I.</strong>, Rut: <strong>92.845.000-7</strong>, le 
               comunica a usted que se procederá a poner término a su Contrato de Trabajo, con fecha {formatDate(terminationDate)}, 
-              en virtud de lo dispuesto en el Art. 161 inciso 1° del Código del Trabajo, esto es, 
-              "Necesidades de la Empresa, Establecimiento o Servicio".
+              en virtud de lo dispuesto en el {(() => {
+                switch(finiquitoData.terminationReason) {
+                  case 'mutuo_acuerdo':
+                    return 'Art. 159 N° 1 del Código del Trabajo, esto es, "Mutuo Acuerdo de las Partes".';
+                  case 'renuncia':
+                    return 'Art. 159 N° 2 del Código del Trabajo, esto es, "Renuncia Voluntaria".';
+                  case 'no_concurrencia':
+                    return 'Art. 160 N° 3 del Código del Trabajo, esto es, "No concurrencia del trabajador a sus labores sin causa justificada".';
+                  case 'necesidades_empresa':
+                  default:
+                    return 'Art. 161 inciso 1° del Código del Trabajo, esto es, "Necesidades de la Empresa, Establecimiento o Servicio".';
+                }
+              })()}
             </p>
           </div>
 
           {/* Second Paragraph - Conditional based on cargo */}
-          <div className="mb-4 text-justify indent-8">
+          <div 
+            className={`mb-1 text-justify indent-8 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            contentEditable={isEditable}
+            suppressContentEditableWarning={true}
+          >
             <p>{getSecondParagraph(employeeData.cargo)}</p>
           </div>
 
           {/* Third Paragraph - Payment Details */}
-          <div className="mb-4 text-justify indent-8">
+          <div 
+            className={`mb-1 text-justify indent-8 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            contentEditable={isEditable}
+            suppressContentEditableWarning={true}
+          >
             <p>A consecuencia del término de sus labores en la empresa, se le pagarán los siguientes valores:</p>
           </div>
 
           {/* HABERES Table */}
-          <div className="mb-4 ml-8">
-            <p className="font-bold underline mb-2">HABERES</p>
-            <div className="space-y-1">
+          <div className="mb-1 ml-8 text-[9pt]">
+            <p className="font-bold underline mb-1 text-[10pt]">HABERES</p>
+            <div className="space-y-0.5">
               {mesDeAviso > 0 && (
                 <div className="flex justify-between">
                   <span>Indemnización mes de aviso</span>
@@ -199,21 +331,22 @@ const VisualizadorFiniquito = () => {
               {vacaciones > 0 && (
                 <div className="flex justify-between">
                   <span>Vacaciones Proporcionales ({(finiquitoData.vacationDays || 0).toFixed(1)} días)</span>
-                  <span className="border-b border-black">{formatCurrency(vacaciones)}</span>
+                  <span>{formatCurrency(vacaciones)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold">
+
+              <div className="flex justify-between font-bold text-[9pt]">
                 <span>TOTAL HABERES</span>
-                <span>{formatCurrency(finiquitoData.totalSettlement || totalHaberes)}</span>
+                <span>{formatCurrency(totalHaberes)}</span>
               </div>
             </div>
           </div>
 
           {/* DESCUENTOS Table - Only show if there are actual deductions */}
           {(finiquitoData.totalDescuentos || totalDescuentos) > 0 && (
-            <div className="mb-4 ml-8">
-              <p className="font-bold underline mb-2">DESCUENTOS</p>
-              <div className="space-y-1">
+            <div className="mb-1 ml-8 text-[9pt]">
+              <p className="font-bold underline mb-1 text-[10pt]">DESCUENTOS</p>
+              <div className="space-y-0.5">
                 {aporteCesantia > 0 && (
                   <div className="flex justify-between">
                     <span>Aporte Empleador Seguro de Cesantía</span>
@@ -239,29 +372,53 @@ const VisualizadorFiniquito = () => {
                     <span>{formatCurrency(parseFloat(d.monto))}</span>
                   </div>
                 ))}
-                <div className="flex justify-between font-bold">
-                  <span className="underline">TOTAL</span>
-                  <span> DESCUENTOS</span>
+                <div className="flex justify-between font-bold text-[9pt]">
+                  <span className="underline">TOTAL DESCUENTOS</span>
                   <span>{formatCurrency(finiquitoData.totalDescuentos || totalDescuentos)}</span>
                 </div>
               </div>
             </div>
           )}
 
+
+          {/* LIQUIDACION MES ACTUAL - Separate section if exists */}
+          {liquidacionMesActual > 0 && (
+            <div className="mb-1 ml-8 flex justify-between text-[9pt]">
+              <span>Remuneración adeudada</span>
+              <span>{formatCurrency(liquidacionMesActual)}</span>
+            </div>
+          )}
+
+          {/* TOTAL A PAGAR - Final net amount: (Haberes - Descuentos) + Liquidacion */}
+          <div className="mb-1 ml-8 flex justify-between font-bold border-t border-black pt-1 text-[9pt]">
+            <span>TOTAL A PAGAR</span>
+            <span>{formatCurrency(finiquitoData.totalSettlement || ((totalHaberes - totalDescuentos) + liquidacionMesActual))}</span>
+          </div>
+
           {/* Legal Notes */}
-          <div className="mb-4 text-justify text-[10pt]">
-            <p className="mb-2">
+          <div 
+            className={`mb-0 text-justify text-[10pt] ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            contentEditable={isEditable}
+            suppressContentEditableWarning={true}
+          >
+            <p className="mb-0">
               A estos valores se le deducirán los descuentos legales que pudieran corresponder.
             </p>
-            <p>
+            <p className="mb-0">
               Comunicamos a Ud., que sus cotizaciones previsionales se encuentran al día.
             </p>
           </div>
 
           {/* Payment Information */}
-          <div className="mb-4 text-justify">
+          <div 
+            className={`mb-1 text-justify ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            contentEditable={isEditable}
+            suppressContentEditableWarning={true}
+          >
             <p>
-              El monto por concepto de remuneración fue cancelado el penúltimo día hábil del mes en curso.
+              {liquidacionMesActual > 0 
+                ? "El monto adeudado por concepto de remuneración será pagado en el finiquito." 
+                : "El monto por concepto de remuneración fue cancelado el penúltimo día hábil del mes en curso."}
             </p>
             <p>
               Finalmente, le informamos que su finiquito se encontrará disponible para su firma y pago desde el 
@@ -273,19 +430,19 @@ const VisualizadorFiniquito = () => {
           </div>
 
           {/* Closing */}
-          <div className="mb-8">
+          <div className="mb-4">
             <p>Sin otro particular, le saluda atentamente</p>
           </div>
 
           {/* Manager Signature */}
-          <div className="mb-12 mt-16 text-center">
+          <div className="mb-8 mt-8 text-center">
             <p className="font-bold">{selectedManager.name}</p>
             <p>{selectedManager.title}</p>
             <p>{selectedManager.company}</p>
           </div>
 
           {/* Worker and Inspection Signatures */}
-          <div className="flex justify-between mt-16">
+          <div className="flex justify-between mt-8">
             <div>
               <p>------------------------</p>
               <p><strong>Firma del trabajador</strong></p>
@@ -296,32 +453,12 @@ const VisualizadorFiniquito = () => {
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="mt-16 pt-4 border-t border-gray-300 flex justify-between text-[8pt] text-gray-600">
-            <div>
-              <p className="font-bold text-red-800">Carlos Cramer</p>
-              <p>Productos</p>
-              <p>Aromáticos</p>
-              <p>S.A.C.I.</p>
-            </div>
-            <div>
-              <p>Lucerna 4925</p>
-              <p>Cerrillos</p>
-              <p>Santiago,</p>
-              <p>Chile</p>
-            </div>
-            <div className="text-right">
-              <p>Tel.: 56-2-2757 3700</p>
-              <p>Fax: 56-2-2557 1977</p>
-              <p>www.cramer.cl</p>
-              <p>contacto@cramer.cl</p>
-            </div>
-          </div>
 
-          <div className="text-center mt-8 text-xs text-gray-400 print:hidden">
+          <div className="text-center mt-2 text-xs text-gray-400 print:hidden">
             <p>Este documento es un borrador generado automáticamente.</p>
           </div>
 
+          </div> {/* End content container */}
         </div>
       </main>
     </div>

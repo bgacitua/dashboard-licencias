@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import FiniquitosService from '../services/finiquitos.service';
 import EmployeesService from '../services/employees.service';
@@ -8,6 +8,7 @@ import { getLicenciasByRut } from '../services/licencias';
 const CrearFiniquito = () => {
   const { rut } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState(null);
   
@@ -33,6 +34,7 @@ const CrearFiniquito = () => {
     { id: 'jcarcamo', name: 'Juan Heriberto Cárcamo Catalan', title: 'Gerente de Producción y Logística', company: 'Carlos Cramer Productos Aromáticos S.A.C.I.' },
     { id: 'mberndt', name: 'Miguel Andres Berndt Briceño', title: 'Gerente General', company: 'Carlos Cramer Productos Aromáticos S.A.C.I.' },
     { id: 'dmisraji', name: 'Deborah Lissete Misraji Vaizer', title: 'Gerente de Personas y SSGG', company: 'Carlos Cramer Productos Aromáticos S.A.C.I.' },
+    { id: 'ccisternas', name: 'Claudia Cisternas Flores', title: 'Líder de Administración de Personal', company: 'Carlos Cramer Productos Aromáticos S.A.C.I.' },
   ];
   
   // Items for calculation
@@ -151,6 +153,26 @@ const CrearFiniquito = () => {
       fetchData();
     }
   }, [rut]);
+
+  // Restaurar datos del formulario cuando se navega de vuelta desde el visualizador
+  useEffect(() => {
+    if (location.state?.preserveData) {
+      const savedData = sessionStorage.getItem(`finiquito_${rut}`);
+      if (savedData) {
+        const data = JSON.parse(savedData);
+        // Restaurar valores del formulario
+        if (data.lastDayWork) setLastDayWork(data.lastDayWork);
+        if (data.terminationReason) setTerminationReason(data.terminationReason);
+        if (data.noticeGiven !== undefined) setNoticeGiven(data.noticeGiven);
+        if (data.selectedManager?.id) setSelectedManager(data.selectedManager.id);
+        if (data.vacationDays) setVacationDays(data.vacationDays);
+        if (data.yearsForIndemnity) setYearsForIndemnity(data.yearsForIndemnity);
+        // Restaurar descuentos personalizados si existen
+        if (data.descuentosPersonalizados) setDescuentosPersonalizados(data.descuentosPersonalizados);
+        console.log('Datos del formulario restaurados desde sessionStorage');
+      }
+    }
+  }, [location.state, rut]);
 
   // Helper function: Parse date string as local date (avoids UTC timezone issues)
   // When parsing "2026-02-02", JS interprets as UTC midnight, which becomes previous day in local time
@@ -423,10 +445,23 @@ const CrearFiniquito = () => {
   const descuentosAutomaticos = descuentosItems.reduce((sum, d) => sum + (d.monto || 0), 0);
   const descuentosCustom = descuentosPersonalizados.reduce((sum, d) => sum + (parseFloat(d.monto) || 0), 0);
   const totalDescuentos = descuentosNum + descuentosAutomaticos + descuentosCustom;
-  const totalSettlement = noticeIndemnity + yearsIndemnity + vacationIndemnity - totalDescuentos;
+  const liquidacionMesActualNum = parseFloat(liquidacionMesActual) || 0;
+  const totalSettlement = noticeIndemnity + yearsIndemnity + vacationIndemnity + liquidacionMesActualNum - totalDescuentos;
 
   // Handle generate document - navigate to visualizer with all data
   const handleGenerate = () => {
+    console.log('handleGenerate called');
+    
+    // Validar que se hayan completado los campos requeridos
+    if (!lastDayWork) {
+      alert('Por favor seleccione la fecha de término del contrato');
+      return;
+    }
+    if (!terminationReason) {
+      alert('Por favor seleccione la causal de término');
+      return;
+    }
+    
     // Find selected manager object
     const managerObj = managers.find(m => m.id === selectedManager) || managers[0];
     
@@ -434,6 +469,10 @@ const CrearFiniquito = () => {
     const finiquitoData = {
       // Employee info
       employeeData: employee,
+      
+      // Form state to preserve on back navigation
+      terminationReason,
+      noticeGiven,
       
       // Dates
       lastDayWork,
@@ -449,6 +488,7 @@ const CrearFiniquito = () => {
       totalHaberes: Math.round(totalHaberes),
       yearsForIndemnity,
       vacationDays,
+      liquidacionMesActual: parseFloat(liquidacionMesActual) || 0,
       
       // Descuentos - find specific types
       aporteCesantia: descuentosItems.find(d => d.descripcion?.toLowerCase().includes('cesant'))?.monto || 0,
@@ -464,6 +504,10 @@ const CrearFiniquito = () => {
       totalSettlement: Math.round(totalSettlement),
     };
     
+    // Guardar datos en sessionStorage para preservarlos al volver
+    sessionStorage.setItem(`finiquito_${rut}`, JSON.stringify(finiquitoData));
+    
+    // Navegar al visualizador en la misma pestaña
     navigate(`/finiquitos/visualizar/${rut}`, { state: finiquitoData });
   };
 
@@ -953,14 +997,18 @@ const CrearFiniquito = () => {
                 </div>
 
                 <div className="flex justify-between text-sm items-center">
-                    <span className="text-gray-600">Liquidación Mes Actual</span>
+                    <span className="text-gray-600">Remuneración adeudada</span>
                     <div className="flex items-center gap-2">
                         <span className="text-gray-400">$</span>
                         <input 
-                            type="number" 
+                            type="text" 
+                            inputMode="numeric"
                             className="w-28 p-1 text-right bg-white border border-gray-200 rounded focus:ring-2 focus:ring-blue-500 outline-none font-mono"
                             value={liquidacionMesActual}
-                            onChange={(e) => setLiquidacionMesActual(parseFloat(e.target.value) || 0)}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, '');
+                              setLiquidacionMesActual(val ? parseFloat(val) : '');
+                            }}
                             placeholder="0"
                         />
                     </div>
