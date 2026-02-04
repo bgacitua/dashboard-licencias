@@ -1,36 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import FiniquitosService from '../services/finiquitos.service';
 import Sidebar from '../components/Sidebar';
 
 const VisualizadorFiniquito = () => {
   const { rut } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [employeeData, setEmployeeData] = useState(null);
   const [items, setItems] = useState([]);
 
+  // Get data passed from CrearFiniquito via navigation state
+  const finiquitoData = location.state || {};
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch employee details and settlement items
-        // Assuming getItemsByRut returns an array of items or an object with details
         const data = await FiniquitosService.getItemsByRut(rut);
         
-        // Based on the service check, it returns a list. 
-        // We might need to process this if it returns multiple rows for one employee
-        // or if it returns a single object.
-        // Let's assume for now it returns an array where the first item has the employee details
-        // or it's a list of items.
-        
         if (Array.isArray(data) && data.length > 0) {
-            // If it's a list of items, we extract common employee data from the first one
-            // and use the list for the breakdown
-            setEmployeeData(data[0]); 
-            setItems(data);
+          setEmployeeData(data[0]); 
+          setItems(data);
         } else if (data && !Array.isArray(data)) {
-            setEmployeeData(data);
-            setItems([data]); // Treat as single item if object
+          setEmployeeData(data);
+          setItems([data]);
         }
       } catch (error) {
         console.error("Error fetching settlement details:", error);
@@ -46,6 +40,31 @@ const VisualizadorFiniquito = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // Get the second paragraph based on cargo
+  const getSecondParagraph = (cargo) => {
+    const cargoLower = (cargo || '').toLowerCase();
+    
+    if (cargoLower.includes('operario')) {
+      return 'La causal invocada se basa en la necesidad de reestructurar el área de producción, ya que la empresa ha decidido modernizar la planta donde se desempeña, para lo cual ha adquirido una máquina que permitirá automatizar algunas funciones que se realizan en el área. Por lo anterior, se producirá una sobre dotación del área lo que hace necesaria su desvinculación.';
+    }
+    
+    // Default paragraph with dynamic cargo
+    return `La causal invocada se basa en que se ha determinado reestructurar el área donde usted se desempeñaba, reduciendo la dotación de ${cargo || 'su cargo'}, redistribuyendo las funciones que usted desempeñaba entre los demás trabajadores del área.`;
+  };
+
+  // Format date in Spanish
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+    return date.toLocaleDateString('es-CL', options);
+  };
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return `$ ${Math.round(amount || 0).toLocaleString('es-CL')}.-`;
   };
 
   if (loading) {
@@ -76,24 +95,40 @@ const VisualizadorFiniquito = () => {
     );
   }
 
-  // Calculate totals
-  const totalHaberes = items.reduce((sum, item) => sum + (item.monto_haber || 0), 0);
-  const totalDescuentos = items.reduce((sum, item) => sum + (item.monto_descuento || 0), 0);
-  const saldoLiquido = totalHaberes - totalDescuentos;
+  // Get data from navigation state or employeeData
+  const terminationDate = finiquitoData.lastDayWork || employeeData.fecha_salida || new Date().toISOString().split('T')[0];
+  const notaryDate = finiquitoData.notaryDate || new Date(new Date(terminationDate).getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  
+  // Get manager info
+  const selectedManager = finiquitoData.selectedManager || {
+    name: 'Juan Heriberto Cárcamo Catalan',
+    title: 'Gerente de Producción y Logística',
+    company: 'Carlos Cramer Productos Aromáticos S.A.C.I.'
+  };
+
+  // Calculate values
+  const mesDeAviso = finiquitoData.noticeIndemnity || 0;
+  const anosServicio = finiquitoData.yearsIndemnity || 0;
+  const vacaciones = finiquitoData.vacationIndemnity || 0;
+  const totalHaberes = mesDeAviso + anosServicio + vacaciones;
+  
+  const aporteCesantia = finiquitoData.aporteCesantia || 0;
+  const prestamoInterno = finiquitoData.prestamoInterno || 0;
+  const totalDescuentos = aporteCesantia + prestamoInterno;
 
   return (
-    <div className="flex min-h-screen bg-[#525659] font-['Public_Sans'] print:bg-white">
+    <div className="flex min-h-screen bg-[#525659] font-['Times_New_Roman',_serif] print:bg-white">
       <div className="print:hidden fixed left-0 top-0 h-full z-10">
         <Sidebar />
       </div>
 
       <main className="flex-1 ml-64 p-8 print:ml-0 print:p-0 flex justify-center">
-        <div className="w-full max-w-[210mm] bg-white shadow-lg p-[20mm] min-h-[297mm] print:shadow-none print:w-full">
+        <div className="w-full max-w-[210mm] bg-white shadow-lg px-[25mm] py-[15mm] min-h-[297mm] print:shadow-none print:w-full text-[11pt] leading-relaxed">
           
           {/* Actions Bar (Hidden on Print) */}
           <div className="flex justify-between items-center mb-8 print:hidden border-b pb-4">
             <button 
-              onClick={() => navigate('/finiquitos')}
+              onClick={() => navigate(-1)}
               className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
             >
               <span className="material-symbols-outlined mr-2">arrow_back</span>
@@ -108,108 +143,182 @@ const VisualizadorFiniquito = () => {
             </button>
           </div>
 
-          {/* Document Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold uppercase underline mb-2">Finiquito de Contrato de Trabajo</h1>
-            <p className="text-sm text-gray-500">Documento Legal</p>
+          {/* Logo and Date */}
+          <div className="flex justify-between items-start mb-8">
+            <div></div>
+            <div className="text-right">
+              <img src="/logo-cramer.png" alt="Carlos Cramer" className="h-12 mb-2 ml-auto" onError={(e) => e.target.style.display='none'} />
+              <p className="text-[10pt]">Santiago, {formatDate(terminationDate)}</p>
+            </div>
           </div>
 
-          {/* Employee Details */}
-          <div className="mb-8 text-sm leading-relaxed text-justify">
-            <p className="mb-4">
-              En Santiago, a <strong>{new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>, entre <strong>CARLOS CRAMER PRODUCTOS AROMÁTICOS S.A. C.I</strong>, RUT <strong>92.845.000-7</strong>, representada por don(a) <strong>MIGUEL ANDRES BERNDT BRICEÑO</strong>, cédula nacional de identidad <strong>7.811.480-0</strong>, ambos con domicilio para estos efectos en esta ciudad, en calle LUCERNA N°4925, en adelante el "EX EMPLEADOR", y don(a) <strong>{employeeData.nombre_trabajador}</strong>, RUT <strong>{employeeData.rut_trabajador}</strong> en adelante el "EX TRABAJADOR", se ha acordado y deja testimonio del siguiente finiquito y transacción:
+          {/* Addressee */}
+          <div className="mb-6">
+            <p>Señor</p>
+            <p className="font-bold">{employeeData.nombre_trabajador}</p>
+            <p>{employeeData.direccion || 'Dirección no especificada'}</p>
+            <p>De nuestra consideración,</p>
+          </div>
+
+          {/* First Paragraph - Termination Notice */}
+          <div className="mb-4 text-justify indent-8">
+            <p>
+              <strong>Carlos Cramer Productos Aromáticos S.A.C.I.</strong>, Rut: <strong>92.845.000-7</strong>, le 
+              comunica a usted que se procederá a poner término a su Contrato de Trabajo, con fecha {formatDate(terminationDate)}, 
+              en virtud de lo dispuesto en el Art. 161 inciso 1° del Código del Trabajo, esto es, 
+              "Necesidades de la Empresa, Establecimiento o Servicio".
             </p>
-            
-            <div className="grid grid-cols-2 gap-4 mb-4 bg-gray-50 p-4 rounded border border-gray-200">
-              <div>
-                <span className="font-bold block text-xs text-gray-500 uppercase">Cargo</span>
-                <span>{employeeData.cargo}</span>
-              </div>
-              <div>
-                <span className="font-bold block text-xs text-gray-500 uppercase">Fecha Ingreso</span>
-                <span>{employeeData.fecha_ingreso}</span>
-              </div>
-              <div>
-                <span className="font-bold block text-xs text-gray-500 uppercase">Fecha Salida</span>
-                <span>{employeeData.fecha_salida || new Date().toISOString().split('T')[0]}</span>
-              </div>
-              <div>
-                <span className="font-bold block text-xs text-gray-500 uppercase">Causal</span>
-                <span>{employeeData.causal || 'Art. 161 Necesidades de la empresa'}</span>
+          </div>
+
+          {/* Second Paragraph - Conditional based on cargo */}
+          <div className="mb-4 text-justify indent-8">
+            <p>{getSecondParagraph(employeeData.cargo)}</p>
+          </div>
+
+          {/* Third Paragraph - Payment Details */}
+          <div className="mb-4 text-justify indent-8">
+            <p>A consecuencia del término de sus labores en la empresa, se le pagarán los siguientes valores:</p>
+          </div>
+
+          {/* HABERES Table */}
+          <div className="mb-4 ml-8">
+            <p className="font-bold underline mb-2">HABERES</p>
+            <div className="space-y-1">
+              {mesDeAviso > 0 && (
+                <div className="flex justify-between">
+                  <span>Indemnización mes de aviso</span>
+                  <span>{formatCurrency(mesDeAviso)}</span>
+                </div>
+              )}
+              {anosServicio > 0 && (
+                <div className="flex justify-between">
+                  <span>Indemnización años de Servicios ({finiquitoData.yearsForIndemnity || 0} años)</span>
+                  <span>{formatCurrency(anosServicio)}</span>
+                </div>
+              )}
+              {vacaciones > 0 && (
+                <div className="flex justify-between">
+                  <span>Vacaciones Proporcionales ({(finiquitoData.vacationDays || 0).toFixed(1)} días)</span>
+                  <span className="border-b border-black">{formatCurrency(vacaciones)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold">
+                <span>TOTAL HABERES</span>
+                <span>{formatCurrency(finiquitoData.totalSettlement || totalHaberes)}</span>
               </div>
             </div>
           </div>
 
-          {/* Settlement Details Table */}
-          <div className="mb-8">
-            <h2 className="font-bold text-lg mb-4 border-b pb-2">Detalle de Haberes e Indemnizaciones</h2>
-            <table className="w-full text-sm border-collapse border border-gray-300">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-300 p-2 text-left">Concepto</th>
-                  <th className="border border-gray-300 p-2 text-right w-32">Monto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Example Items - Replace with actual items from API if available individually */}
-                <tr>
-                  <td className="border border-gray-300 p-2">Indemnización por años de servicio</td>
-                  <td className="border border-gray-300 p-2 text-right">$ {employeeData.indemnizacion_anos_servicio?.toLocaleString('es-CL') || '0'}</td>
-                </tr>
-                <tr>
-                  <td className="border border-gray-300 p-2">Indemnización sustitutiva del aviso previo</td>
-                  <td className="border border-gray-300 p-2 text-right">$ {employeeData.indemnizacion_aviso_previo?.toLocaleString('es-CL') || '0'}</td>
-                </tr>
-                <tr>
-                  <td className="border border-gray-300 p-2">Feriado proporcional</td>
-                  <td className="border border-gray-300 p-2 text-right">$ {employeeData.feriado_proporcional?.toLocaleString('es-CL') || '0'}</td>
-                </tr>
-                {/* Dynamic items if any */}
-                {items.filter(i => i.tipo === 'haber').map((item, idx) => (
-                   <tr key={idx}>
-                    <td className="border border-gray-300 p-2">{item.descripcion}</td>
-                    <td className="border border-gray-300 p-2 text-right">$ {item.monto?.toLocaleString('es-CL')}</td>
-                  </tr>
+          {/* DESCUENTOS Table - Only show if there are actual deductions */}
+          {(finiquitoData.totalDescuentos || totalDescuentos) > 0 && (
+            <div className="mb-4 ml-8">
+              <p className="font-bold underline mb-2">DESCUENTOS</p>
+              <div className="space-y-1">
+                {aporteCesantia > 0 && (
+                  <div className="flex justify-between">
+                    <span>Aporte Empleador Seguro de Cesantía</span>
+                    <span>{formatCurrency(aporteCesantia)}</span>
+                  </div>
+                )}
+                {prestamoInterno > 0 && (
+                  <div className="flex justify-between">
+                    <span>Préstamo interno</span>
+                    <span className="border-b border-black">{formatCurrency(prestamoInterno)}</span>
+                  </div>
+                )}
+                {/* Show other descuentos from arrays */}
+                {finiquitoData.descuentosItems?.filter(d => d.monto > 0 && !d.descripcion?.toLowerCase().includes('cesant') && !d.descripcion?.toLowerCase().includes('préstamo')).map((d, idx) => (
+                  <div key={`auto-${idx}`} className="flex justify-between">
+                    <span>{d.descripcion}</span>
+                    <span>{formatCurrency(d.monto)}</span>
+                  </div>
                 ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-gray-50 font-bold">
-                  <td className="border border-gray-300 p-2 text-right">TOTAL A PAGAR</td>
-                  <td className="border border-gray-300 p-2 text-right">$ {(
-                    (employeeData.indemnizacion_anos_servicio || 0) + 
-                    (employeeData.indemnizacion_aviso_previo || 0) + 
-                    (employeeData.feriado_proporcional || 0)
-                  ).toLocaleString('es-CL')}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                {finiquitoData.descuentosPersonalizados?.filter(d => parseFloat(d.monto) > 0 && !d.descripcion?.toLowerCase().includes('préstamo')).map((d, idx) => (
+                  <div key={`custom-${idx}`} className="flex justify-between">
+                    <span>{d.descripcion}</span>
+                    <span>{formatCurrency(parseFloat(d.monto))}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between font-bold">
+                  <span className="underline">TOTAL</span>
+                  <span> DESCUENTOS</span>
+                  <span>{formatCurrency(finiquitoData.totalDescuentos || totalDescuentos)}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
-          {/* Legal Text */}
-          <div className="mb-12 text-sm text-justify leading-relaxed">
-            <p className="mb-4">
-              El trabajador declara recibir en este acto, a su entera satisfacción, la suma total indicada anteriormente.
+          {/* Legal Notes */}
+          <div className="mb-4 text-justify text-[10pt]">
+            <p className="mb-2">
+              A estos valores se le deducirán los descuentos legales que pudieran corresponder.
             </p>
             <p>
-              El trabajador otorga al empleador el más amplio y completo finiquito, declarando no tener cargo ni cobro alguno que formular por concepto de remuneraciones, horas extraordinarias, feriado legal, indemnizaciones, cotizaciones previsionales o cualquier otro concepto derivado de la prestación de sus servicios o de la terminación de los mismos.
+              Comunicamos a Ud., que sus cotizaciones previsionales se encuentran al día.
             </p>
           </div>
 
-          {/* Signatures */}
-          <div className="grid grid-cols-2 gap-16 mt-24">
-            <div className="text-center">
-              <div className="border-t border-black w-4/5 mx-auto mb-2"></div>
-              <p className="font-bold">P.P. EMPLEADOR</p>
-              <p className="text-xs">RUT: [RUT EMPRESA]</p>
+          {/* Payment Information */}
+          <div className="mb-4 text-justify">
+            <p>
+              El monto por concepto de remuneración fue cancelado el penúltimo día hábil del mes en curso.
+            </p>
+            <p>
+              Finalmente, le informamos que su finiquito se encontrará disponible para su firma y pago desde el 
+              viernes {formatDate(notaryDate)}, en la Notaría Alvaro González Salinas, ubicada en Avenida 
+              Apoquindo #3001, piso 2, donde podrá efectuar reserva de derechos, si lo estima necesario. El 
+              horario de atención es de lunes a jueves de 9:00 a 14:00 hrs. y de 15:00 a 17:00 hrs. Viernes de 9:00 
+              a 16:00 hrs. Cualquier duda, le solicitamos contactar a Claudia Cisternas Flores al número 09-99996703.
+            </p>
+          </div>
+
+          {/* Closing */}
+          <div className="mb-8">
+            <p>Sin otro particular, le saluda atentamente</p>
+          </div>
+
+          {/* Manager Signature */}
+          <div className="mb-12 mt-16 text-center">
+            <p className="font-bold">{selectedManager.name}</p>
+            <p>{selectedManager.title}</p>
+            <p>{selectedManager.company}</p>
+          </div>
+
+          {/* Worker and Inspection Signatures */}
+          <div className="flex justify-between mt-16">
+            <div>
+              <p>------------------------</p>
+              <p><strong>Firma del trabajador</strong></p>
+              <p>Rut: {employeeData.rut_trabajador}</p>
             </div>
-            <div className="text-center">
-              <div className="border-t border-black w-4/5 mx-auto mb-2"></div>
-              <p className="font-bold">{employeeData.nombre_trabajador}</p>
-              <p className="text-xs">RUT: {employeeData.rut_trabajador}</p>
+            <div className="text-right">
+              <p><strong>C.C.: Inspección del Trabajo</strong></p>
             </div>
           </div>
 
-          <div className="text-center mt-12 text-xs text-gray-400 print:hidden">
+          {/* Footer */}
+          <div className="mt-16 pt-4 border-t border-gray-300 flex justify-between text-[8pt] text-gray-600">
+            <div>
+              <p className="font-bold text-red-800">Carlos Cramer</p>
+              <p>Productos</p>
+              <p>Aromáticos</p>
+              <p>S.A.C.I.</p>
+            </div>
+            <div>
+              <p>Lucerna 4925</p>
+              <p>Cerrillos</p>
+              <p>Santiago,</p>
+              <p>Chile</p>
+            </div>
+            <div className="text-right">
+              <p>Tel.: 56-2-2757 3700</p>
+              <p>Fax: 56-2-2557 1977</p>
+              <p>www.cramer.cl</p>
+              <p>contacto@cramer.cl</p>
+            </div>
+          </div>
+
+          <div className="text-center mt-8 text-xs text-gray-400 print:hidden">
             <p>Este documento es un borrador generado automáticamente.</p>
           </div>
 

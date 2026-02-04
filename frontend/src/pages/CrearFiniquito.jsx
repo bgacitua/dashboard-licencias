@@ -16,19 +16,31 @@ const CrearFiniquito = () => {
   const [lastDayWork, setLastDayWork] = useState("");
   const [noticeGiven, setNoticeGiven] = useState(false);
   const [vacationDays, setVacationDays] = useState(0);
+  const [vacationDaysStock, setVacationDaysStock] = useState(0); // Original API value
+  const [vacationDaysManuallyEdited, setVacationDaysManuallyEdited] = useState(false);
   const [vacationValue, setVacationValue] = useState(0);
   const [salary, setSalary] = useState(0);
   const [variableBonus, setVariableBonus] = useState(0);
   const [yearsOfService, setYearsOfService] = useState(0);
   const [yearsForIndemnity, setYearsForIndemnity] = useState(0);
   const [movilizacion, setMovilizacion] = useState(40000);
+  const [liquidacionMesActual, setLiquidacionMesActual] = useState(0);
   const [descuentos, setDescuentos] = useState('');
+  const [selectedManager, setSelectedManager] = useState('');
+  
+  // Manager options
+  const managers = [
+    { id: 'jcarcamo', name: 'Juan Heriberto Cárcamo Catalan', title: 'Gerente de Producción y Logística', company: 'Carlos Cramer Productos Aromáticos S.A.C.I.' },
+    { id: 'mberndt', name: 'Miguel Andres Berndt Briceño', title: 'Gerente General', company: 'Carlos Cramer Productos Aromáticos S.A.C.I.' },
+    { id: 'dmisraji', name: 'Deborah Lissete Misraji Vaizer', title: 'Gerente de Personas y SSGG', company: 'Carlos Cramer Productos Aromáticos S.A.C.I.' },
+  ];
   
   // Items for calculation
   const [items, setItems] = useState([]);
   const [licencias, setLicencias] = useState([]);
   const [variableItems, setVariableItems] = useState([]);
   const [descuentosItems, setDescuentosItems] = useState([]); // Automatic deductions from backend
+  const [descuentosPersonalizados, setDescuentosPersonalizados] = useState([]); // Custom added discounts
 
   useEffect(() => {
     const fetchData = async () => {
@@ -44,9 +56,13 @@ const CrearFiniquito = () => {
           // Fetch vacation days from external API
           try {
             const vacationData = await EmployeesService.getVacationsAvailable(rut);
-            setVacationDays(vacationData.total_dias_disponibles);
+            const rawDays = vacationData.total_dias_disponibles || 0;
+            // Store raw value without rounding - rounding only for display
+            setVacationDaysStock(rawDays);
+            setVacationDays(rawDays);
           } catch (err) {
             console.error("Error fetching vacation days:", err);
+            setVacationDaysStock(0);
             setVacationDays(0);
           }
 
@@ -141,6 +157,21 @@ const CrearFiniquito = () => {
   const parseLocalDate = (dateString) => {
     const [year, month, day] = dateString.split('-').map(Number);
     return new Date(year, month - 1, day); // month is 0-indexed
+  };
+
+  // Helper function: Custom rounding for vacation days
+  // Rounds up from 0.45 decimal (instead of standard 0.5)
+  // Returns value with 1 decimal place
+  const customRoundVacation = (value) => {
+    const integerPart = Math.floor(value);
+    const decimalPart = value - integerPart;
+    
+    // If decimal >= 0.45, round up to next integer
+    if (decimalPart >= 0.45) {
+      return integerPart + 1;
+    }
+    // Otherwise, keep 1 decimal place
+    return Math.round(value * 10) / 10;
   };
 
   // Helper function: Check if a date is a business day (Monday-Friday)
@@ -244,19 +275,56 @@ const CrearFiniquito = () => {
     return diasCorridos;
   };
 
+  // Fetch vacation days from backend when termination date changes
+  // The backend calculates the projection using the BUK API with the date parameter
+  useEffect(() => {
+    if (vacationDaysManuallyEdited) return; // Skip if manually edited
+    
+    const fetchVacationDays = async () => {
+      if (!rut) return;
+      
+      try {
+        // Pass the termination date to the API if selected
+        const vacationData = await EmployeesService.getVacationsAvailable(
+          rut, 
+          lastDayWork || null
+        );
+        const rawDays = vacationData.total_dias_disponibles || 0;
+        
+        // Update both stock (initial value without date) and current value
+        if (!lastDayWork) {
+          setVacationDaysStock(rawDays);
+        }
+        setVacationDays(rawDays);
+        
+        console.log('=== VACACIONES DESDE API ===');
+        console.log('Fecha de término:', lastDayWork || 'Sin fecha');
+        console.log('Días disponibles:', rawDays);
+        console.log('============================');
+        
+      } catch (err) {
+        console.error("Error fetching vacation days:", err);
+      }
+    };
+    
+    fetchVacationDays();
+  }, [rut, lastDayWork, vacationDaysManuallyEdited]);
+
   // Auto-calculate Vacation Value
   // Formula: (Sueldo Base + Promedio Bonos / 30) * Días corridos
   useEffect(() => {
+    // Only calculate when we have a termination date selected
+    if (!lastDayWork) {
+      setVacationValue(0);
+      return;
+    }
+    
     if (salary > 0 && vacationDays >= 0) {
       // Calculate daily rate: (Base Salary + Average Bonus) / 30
       const dailyRate = (salary + variableBonus) / 30;
       
       // Calculate días corridos based on lastDayWork and vacation days
-      let diasCorridos = vacationDays; // Default to vacation days if no date selected
-      
-      if (lastDayWork) {
-        diasCorridos = calculateDiasCorridos(parseLocalDate(lastDayWork), vacationDays);
-      }
+      const diasCorridos = calculateDiasCorridos(parseLocalDate(lastDayWork), vacationDays);
       
       setVacationValue(Math.round(dailyRate * diasCorridos));
     }
@@ -300,18 +368,6 @@ const CrearFiniquito = () => {
     }
   }, [lastDayWork, employee]);
 
-  const handleGenerate = async () => {
-    try {
-        // Here we would send the data to the backend to save/update the finiquito
-        // For now, we just navigate to the visualizer
-        // await FiniquitosService.updateFiniquito(rut, { ...data });
-        
-        navigate(`/finiquitos/visualizar/${rut}`);
-    } catch (error) {
-        console.error("Error generating document:", error);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex min-h-screen bg-[#f8f9fa] items-center justify-center">
@@ -340,20 +396,76 @@ const CrearFiniquito = () => {
   
   // 1. Vacation Indemnity = (Sueldo Base + Total Bonificaciones / 30) * días corridos
   // vacationValue ya está calculado en el useEffect con la fórmula de días corridos
-  const vacationIndemnity = vacationValue;
+  // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso), no_concurrencia (Sí), renuncia (Sí)
+  const vacationApplies = terminationReason === 'necesidades_empresa' || 
+                          terminationReason === 'mutuo_acuerdo' ||
+                          terminationReason === 'no_concurrencia' || 
+                          terminationReason === 'renuncia';
+  const vacationIndemnity = vacationApplies ? vacationValue : 0;
   
   // 2. Years of Service Indemnity = Total Haberes * años de indemnización
   // Si tiene menos de 1 año (antigüedad real), no tiene indemnización por años de servicio
-  const yearsIndemnity = yearsOfService >= 1 ? yearsForIndemnity * totalHaberes : 0;
+  // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso)
+  // NO aplica para: no_concurrencia (No), renuncia (No)
+  const yearsIndemnityApplies = terminationReason === 'necesidades_empresa' || 
+                                 terminationReason === 'mutuo_acuerdo';
+  const yearsIndemnity = (yearsIndemnityApplies && yearsOfService >= 1) ? yearsForIndemnity * totalHaberes : 0;
   
   // 3. Notice Month = Total Haberes (si no se dio aviso de 30 días)
-  const noticeIndemnity = noticeGiven ? 0 : totalHaberes;
+  // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso)
+  // NO aplica para: no_concurrencia (No), renuncia (No)
+  const noticeIndemnityApplies = terminationReason === 'necesidades_empresa' || 
+                                  terminationReason === 'mutuo_acuerdo';
+  const noticeIndemnity = (noticeIndemnityApplies && !noticeGiven) ? totalHaberes : 0;
   
   // Total Settlement = (Mes de Aviso + Indemnización por Años de Servicio + Vacaciones Proporcionales) - Todos los Descuentos
   const descuentosNum = parseFloat(descuentos) || 0;
   const descuentosAutomaticos = descuentosItems.reduce((sum, d) => sum + (d.monto || 0), 0);
-  const totalDescuentos = descuentosNum + descuentosAutomaticos;
+  const descuentosCustom = descuentosPersonalizados.reduce((sum, d) => sum + (parseFloat(d.monto) || 0), 0);
+  const totalDescuentos = descuentosNum + descuentosAutomaticos + descuentosCustom;
   const totalSettlement = noticeIndemnity + yearsIndemnity + vacationIndemnity - totalDescuentos;
+
+  // Handle generate document - navigate to visualizer with all data
+  const handleGenerate = () => {
+    // Find selected manager object
+    const managerObj = managers.find(m => m.id === selectedManager) || managers[0];
+    
+    // Prepare finiquito data to pass to visualizer
+    const finiquitoData = {
+      // Employee info
+      employeeData: employee,
+      
+      // Dates
+      lastDayWork,
+      notaryDate: new Date(new Date(lastDayWork).getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      
+      // Manager
+      selectedManager: managerObj,
+      
+      // Haberes
+      noticeIndemnity: Math.round(noticeIndemnity),
+      yearsIndemnity: Math.round(yearsIndemnity),
+      vacationIndemnity: Math.round(vacationIndemnity),
+      totalHaberes: Math.round(totalHaberes),
+      yearsForIndemnity,
+      vacationDays,
+      
+      // Descuentos - find specific types
+      aporteCesantia: descuentosItems.find(d => d.descripcion?.toLowerCase().includes('cesant'))?.monto || 0,
+      prestamoInterno: descuentosPersonalizados.find(d => d.descripcion?.toLowerCase().includes('préstamo'))?.monto || 
+                       descuentosItems.find(d => d.descripcion?.toLowerCase().includes('préstamo'))?.monto || 0,
+      totalDescuentos: Math.round(totalDescuentos),
+      
+      // All deductions for flexibility
+      descuentosItems,
+      descuentosPersonalizados,
+      
+      // Total
+      totalSettlement: Math.round(totalSettlement),
+    };
+    
+    navigate(`/finiquitos/visualizar/${rut}`, { state: finiquitoData });
+  };
 
   return (
     <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
@@ -426,10 +538,11 @@ const CrearFiniquito = () => {
                 value={terminationReason}
                 onChange={(e) => setTerminationReason(e.target.value)}
               >
-                <option value="">Select a legal cause...</option>
-                <option value="Art. 161">Art. 161 - Necesidades de la empresa</option>
-                <option value="Art. 159">Art. 159 - Renuncia voluntaria</option>
-                <option value="Art. 160">Art. 160 - Despido disciplinario</option>
+                <option value="">Seleccione una causal...</option>
+                <option value="necesidades_empresa">Art. 161 - Necesidades de la empresa</option>
+                <option value="mutuo_acuerdo">Art. 159 N°1 - Mutuo acuerdo</option>
+                <option value="no_concurrencia">Art. 160 N°3 - No concurrencia injustificada</option>
+                <option value="renuncia">Art. 159 N°2 - Renuncia voluntaria</option>
               </select>
               <p className="text-xs text-gray-400 mt-2">This selection determines the calculation basis for indemnity.</p>
             </div>
@@ -460,6 +573,26 @@ const CrearFiniquito = () => {
                   </div>
                 </label>
               </div>
+            </div>
+
+            {/* Manager Selection */}
+            <div className="mt-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Gerente Firmante <span className="text-red-500">*</span>
+              </label>
+              <select 
+                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                value={selectedManager}
+                onChange={(e) => setSelectedManager(e.target.value)}
+              >
+                <option value="">Seleccione un gerente...</option>
+                {managers.map((manager) => (
+                  <option key={manager.id} value={manager.id}>
+                    {manager.name} - {manager.title}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-2">Este gerente aparecerá como firmante en el documento de finiquito.</p>
             </div>
           </div>
         </div>
@@ -556,43 +689,104 @@ const CrearFiniquito = () => {
                         <p className="text-xs text-gray-400">This employee does not have variable bonuses in the records.</p>
                     </div>
                 ) : (
-                    variableItems.map((bonus, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                        <div>
-                            <p className="font-bold text-gray-900">{bonus.periodo}</p>
-                            <p className="text-xs text-gray-500">{bonus.concepto}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <span className="font-mono font-medium">$ {(bonus.monto || 0).toLocaleString('es-CL')}</span>
-                            <div 
-                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${bonus.active ? 'bg-blue-600' : 'bg-gray-300'}`}
+                    // Group items by concepto
+                    Object.entries(
+                      variableItems.reduce((acc, item, idx) => {
+                        const key = item.concepto || 'Sin Concepto';
+                        if (!acc[key]) acc[key] = [];
+                        acc[key].push({ ...item, originalIndex: idx });
+                        return acc;
+                      }, {})
+                    ).map(([concepto, items]) => {
+                      const allActive = items.every(item => item.active);
+                      const groupTotal = items.reduce((sum, item) => sum + (item.active ? (item.monto || 0) : 0), 0);
+                      const activeCount = items.filter(item => item.active).length;
+                      const groupAverage = activeCount > 0 ? groupTotal / activeCount : 0;
+                      
+                      return (
+                        <div key={concepto} className="border border-gray-200 rounded-lg overflow-hidden mb-3">
+                          {/* Header del grupo */}
+                          <div className="flex items-center justify-between p-4 bg-gray-100 border-b border-gray-200">
+                            <div className="flex items-center gap-3">
+                              <div 
+                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${allActive ? 'bg-blue-600' : 'bg-gray-300'}`}
                                 onClick={() => {
-                                    const newItems = [...variableItems];
-                                    newItems[idx].active = !newItems[idx].active;
-                                    setVariableItems(newItems);
-                                    
-                                    // Recalculate: group by concepto, average each group, sum averages
-                                    const activeItems = newItems.filter(i => i.active);
-                                    const grouped = activeItems.reduce((acc, item) => {
-                                      const key = item.concepto || 'Sin Concepto';
-                                      if (!acc[key]) acc[key] = [];
-                                      acc[key].push(item.monto || 0);
-                                      return acc;
-                                    }, {});
-                                    
-                                    const sumOfAverages = Object.values(grouped).reduce((total, values) => {
-                                      const avg = values.reduce((a, b) => a + b, 0) / values.length;
-                                      return total + avg;
-                                    }, 0);
-                                    
-                                    setVariableBonus(Math.round(sumOfAverages));
+                                  const newItems = [...variableItems];
+                                  const newState = !allActive;
+                                  items.forEach(item => {
+                                    newItems[item.originalIndex].active = newState;
+                                  });
+                                  setVariableItems(newItems);
+                                  
+                                  // Recalculate
+                                  const activeItems = newItems.filter(i => i.active);
+                                  const grouped = activeItems.reduce((acc, item) => {
+                                    const key = item.concepto || 'Sin Concepto';
+                                    if (!acc[key]) acc[key] = [];
+                                    acc[key].push(item.monto || 0);
+                                    return acc;
+                                  }, {});
+                                  
+                                  const sumOfAverages = Object.values(grouped).reduce((total, values) => {
+                                    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+                                    return total + avg;
+                                  }, 0);
+                                  
+                                  setVariableBonus(Math.round(sumOfAverages));
                                 }}
-                            >
-                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${bonus.active ? 'translate-x-6' : ''}`}></div>
+                              >
+                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${allActive ? 'translate-x-6' : ''}`}></div>
+                              </div>
+                              <div>
+                                <p className="font-bold text-gray-900">{concepto}</p>
+                                <p className="text-xs text-gray-500">{items.length} registro(s) • Promedio: $ {Math.round(groupAverage).toLocaleString('es-CL')}</p>
+                              </div>
                             </div>
+                          </div>
+                          
+                          {/* Items del grupo */}
+                          <div className="divide-y divide-gray-100">
+                            {items.map((bonus) => (
+                              <div key={bonus.originalIndex} className="flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors">
+                                <div>
+                                  <p className="font-medium text-gray-700">{bonus.periodo}</p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <span className={`font-mono font-medium ${bonus.active ? 'text-gray-900' : 'text-gray-400'}`}>$ {(bonus.monto || 0).toLocaleString('es-CL')}</span>
+                                  <div 
+                                    className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${bonus.active ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                    onClick={() => {
+                                      const newItems = [...variableItems];
+                                      newItems[bonus.originalIndex].active = !newItems[bonus.originalIndex].active;
+                                      setVariableItems(newItems);
+                                      
+                                      // Recalculate
+                                      const activeItems = newItems.filter(i => i.active);
+                                      const grouped = activeItems.reduce((acc, item) => {
+                                        const key = item.concepto || 'Sin Concepto';
+                                        if (!acc[key]) acc[key] = [];
+                                        acc[key].push(item.monto || 0);
+                                        return acc;
+                                      }, {});
+                                      
+                                      const sumOfAverages = Object.values(grouped).reduce((total, values) => {
+                                        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+                                        return total + avg;
+                                      }, 0);
+                                      
+                                      setVariableBonus(Math.round(sumOfAverages));
+                                    }}
+                                  >
+                                    <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${bonus.active ? 'translate-x-5' : ''}`}></div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                    </div>
-                )))}
+                      );
+                    })
+                )}
             </div>
         </div>
 
@@ -614,16 +808,42 @@ const CrearFiniquito = () => {
                     <div className="relative">
                         <input 
                             type="number" 
-                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-500 cursor-not-allowed"
-                            value={vacationDays}
-                            readOnly
+                            step="0.01"
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900"
+                            value={vacationDays.toFixed(2)}
+                            onChange={(e) => {
+                              setVacationDays(parseFloat(e.target.value) || 0);
+                              setVacationDaysManuallyEdited(true);
+                            }}
                         />
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">Days</span>
                     </div>
-                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                    <div className="mt-1 space-y-0.5">
+                      <p className="text-xs text-green-600 flex items-center gap-1">
                         <span className="material-symbols-outlined text-[10px]">check_circle</span>
-                        Auto-fetched from Buk
-                    </p>
+                        Stock Buk: {vacationDaysStock.toFixed(2)} días
+                      </p>
+                      {lastDayWork && vacationDays !== vacationDaysStock && !vacationDaysManuallyEdited && (
+                        <p className="text-xs text-blue-600 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[10px]">trending_up</span>
+                          Proyectado al {parseLocalDate(lastDayWork).toLocaleDateString('es-CL')}: +{(vacationDays - vacationDaysStock).toFixed(2)} días
+                        </p>
+                      )}
+                      {vacationDaysManuallyEdited && (
+                        <p className="text-xs text-orange-600 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[10px]">edit</span>
+                          Editado manualmente
+                          <button 
+                            className="ml-1 underline hover:no-underline"
+                            onClick={() => {
+                              setVacationDaysManuallyEdited(false);
+                            }}
+                          >
+                            Restaurar
+                          </button>
+                        </p>
+                      )}
+                    </div>
                 </div>
                 <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Vacation Value (Estimated)</label>
@@ -679,7 +899,7 @@ const CrearFiniquito = () => {
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">YEARS FOR INDEMNITY</p>
-                    <p className="text-xl font-bold text-gray-900">{yearsOfService >= 1 ? yearsForIndemnity : 0}</p>
+                    <p className="text-xl font-bold text-gray-900">{yearsOfService >= 1 ? (typeof yearsForIndemnity === 'number' ? yearsForIndemnity.toFixed(2) : yearsForIndemnity) : 0}</p>
                     <p className="text-xs text-gray-400 mt-1">Rounded up &gt; 6 months</p>
                 </div>
                  <div className="bg-gray-50 p-4 rounded-lg">
@@ -689,13 +909,14 @@ const CrearFiniquito = () => {
             </div>
 
             <div className="space-y-3 border-t border-gray-100 pt-6">
-                <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 font-medium">Total Haberes</span>
-                    <span className="font-mono font-medium">$ {Math.round(totalHaberes).toLocaleString('es-CL')}</span>
-                </div>
+                {/* Sección 1: Haberes */}
                 <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Gratificación Legal</span>
                     <span className="font-mono font-medium">$ {Math.round(gratificacionLegal).toLocaleString('es-CL')}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Promedio de Bonificaciones Mensuales</span>
+                    <span className="font-mono font-medium">$ {Math.round(variableBonus).toLocaleString('es-CL')}</span>
                 </div>
                 <div className="flex justify-between text-sm items-center">
                     <span className="text-gray-600">Movilización</span>
@@ -709,47 +930,45 @@ const CrearFiniquito = () => {
                         />
                     </div>
                 </div>
-                <div className="border-t border-gray-100 my-2"></div>
+                
                 <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Vacation Indemnity</span>
-                    <span className="font-mono font-medium">$ {Math.round(vacationIndemnity).toLocaleString('es-CL')}</span>
+                    <span className="text-gray-900 font-bold">Total Haberes</span>
+                    <span className="font-mono font-bold">$ {Math.round(totalHaberes).toLocaleString('es-CL')}</span>
                 </div>
+                
+                <div className="border-t border-gray-100 my-2"></div>
+                
+                {/* Sección 2: Indemnizaciones */}
                 <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Years of Service Indemnity ({yearsForIndemnity} years)</span>
+                    <span className="text-gray-600">Indemnización por Años de Servicio ({typeof yearsForIndemnity === 'number' ? yearsForIndemnity.toFixed(2) : yearsForIndemnity} años)</span>
                     <span className="font-mono font-medium">$ {Math.round(yearsIndemnity).toLocaleString('es-CL')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Notice Month (Mes de Aviso)</span>
-                    <span className="font-mono font-medium">$ {Math.round(noticeIndemnity).toLocaleString('es-CL')}</span>
+                    <span className="text-gray-600">Vacaciones Pendientes</span>
+                    <span className="font-mono font-medium">$ {Math.round(vacationIndemnity).toLocaleString('es-CL')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                    <span className="text-blue-600 font-medium">Variable Bonus Average Adjustment</span>
-                    <span className="font-mono font-bold text-blue-600">$ {Math.round(variableBonus).toLocaleString('es-CL')}</span>
+                    <span className="text-gray-600">Mes de Aviso</span>
+                    <span className="font-mono font-medium">$ {Math.round(noticeIndemnity).toLocaleString('es-CL')}</span>
                 </div>
+
+                <div className="flex justify-between text-sm items-center">
+                    <span className="text-gray-600">Liquidación Mes Actual</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-gray-400">$</span>
+                        <input 
+                            type="number" 
+                            className="w-28 p-1 text-right bg-white border border-gray-200 rounded focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                            value={liquidacionMesActual}
+                            onChange={(e) => setLiquidacionMesActual(parseFloat(e.target.value) || 0)}
+                            placeholder="0"
+                        />
+                    </div>
+                </div>
+                
                 <div className="border-t border-gray-100 my-2"></div>
                 
-                {/* Automatic Deductions Section */}
-                {descuentosItems.length > 0 && (
-                  <div className="space-y-2 mb-4">
-                    <p className="text-xs text-red-500 uppercase font-bold tracking-wider">Descuentos Automáticos</p>
-                    {descuentosItems.map((desc, idx) => (
-                      <div key={idx} className="flex justify-between text-sm items-center bg-red-50 px-3 py-2 rounded-lg">
-                        <div className="flex flex-col">
-                          <span className="text-red-700 font-medium">{desc.concepto}</span>
-                          <span className="text-red-400 text-xs">Período: {desc.periodo}</span>
-                        </div>
-                        <span className="font-mono font-medium text-red-600">- $ {(desc.monto || 0).toLocaleString('es-CL')}</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between text-sm pt-2 border-t border-red-100">
-                      <span className="text-red-600 font-bold">Total Descuentos Automáticos</span>
-                      <span className="font-mono font-bold text-red-600">
-                        - $ {descuentosItems.reduce((sum, d) => sum + (d.monto || 0), 0).toLocaleString('es-CL')}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
+                {/* Sección 3: Descuentos */}
                 <div className="flex justify-between text-sm items-center">
                     <span className="text-red-600 font-medium">Otros Descuentos</span>
                     <div className="flex items-center gap-2">
@@ -767,6 +986,62 @@ const CrearFiniquito = () => {
                         />
                     </div>
                 </div>
+                
+                {/* Descuentos personalizados agregados */}
+                {descuentosPersonalizados.map((desc, idx) => (
+                  <div key={idx} className="flex justify-between text-sm items-center">
+                    <select
+                      className="text-red-600 font-medium bg-transparent border-none outline-none cursor-pointer"
+                      value={desc.descripcion}
+                      onChange={(e) => {
+                        const newDescuentos = [...descuentosPersonalizados];
+                        newDescuentos[idx].descripcion = e.target.value;
+                        setDescuentosPersonalizados(newDescuentos);
+                      }}
+                    >
+                      <option value="">Seleccionar tipo...</option>
+                      <option value="Préstamo Interno">Préstamo Interno</option>
+                      <option value="Descuento por planilla">Descuento por planilla</option>
+                    </select>
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-400">- $</span>
+                      <input 
+                        type="text"
+                        inputMode="numeric"
+                        className="w-28 p-1 text-right bg-red-50 border border-red-200 rounded focus:ring-2 focus:ring-red-500 outline-none font-mono text-red-700"
+                        value={desc.monto}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^0-9]/g, '');
+                          const newDescuentos = [...descuentosPersonalizados];
+                          newDescuentos[idx].monto = value;
+                          setDescuentosPersonalizados(newDescuentos);
+                        }}
+                        placeholder="0"
+                      />
+                      <button
+                        onClick={() => {
+                          const newDescuentos = descuentosPersonalizados.filter((_, i) => i !== idx);
+                          setDescuentosPersonalizados(newDescuentos);
+                        }}
+                        className="text-red-400 hover:text-red-600 transition-colors p-1"
+                        title="Eliminar descuento"
+                      >
+                        <span className="material-symbols-outlined text-lg">close</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Botón para agregar descuento */}
+                <button
+                  onClick={() => {
+                    setDescuentosPersonalizados([...descuentosPersonalizados, { descripcion: '', monto: '' }]);
+                  }}
+                  className="mt-2 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border border-red-200"
+                >
+                  <span className="material-symbols-outlined text-lg">add_circle</span>
+                  Agregar descuento
+                </button>
             </div>
 
             <div className="mt-6 bg-gray-900 text-white p-6 rounded-xl flex justify-between items-center shadow-lg">
