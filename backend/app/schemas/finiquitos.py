@@ -45,6 +45,7 @@ class FiniquitoItemResponse(BaseModel):
     status: Optional[str] = None
     direccion: Optional[str] = None
     cod_area: Optional[int] = None
+    nombre_empresa: Optional[str] = None
     nombre_area: Optional[str] = None
     liquidacion_id: Optional[int] = None
     concepto: Optional[str] = None
