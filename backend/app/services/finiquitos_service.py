@@ -56,12 +56,13 @@ class FiniquitosService:
         # TODO: Agregar campo vacaciones a FiniquitoCreate
         return self.repository.update_vacaciones(finiquito.rut_trabajador, 0.0) # Placeholder
 
-    async def get_vacaciones_disponibles(self, rut: str) -> VacacionesDisponiblesResponse:
+    async def get_vacaciones_disponibles(self, rut: str, date: Optional[str] = None) -> VacacionesDisponiblesResponse:
         """
         Obtiene las vacaciones disponibles de un trabajador desde la API externa de BUK.
         
         Args:
             rut: RUT del trabajador (también funciona con employee_id)
+            date: Fecha opcional para proyección de vacaciones (formato YYYY-MM-DD)
             
         Returns:
             VacacionesDisponiblesResponse con la información de vacaciones disponibles
@@ -69,13 +70,17 @@ class FiniquitosService:
         Raises:
             HTTPException: Si hay error en la comunicación con la API externa
         """
-        logger.info(f"Consultando vacaciones disponibles para rut: {rut}")
+        logger.info(f"Consultando vacaciones disponibles para rut: {rut}, fecha: {date}")
         
         # Debug: Verificar si la API Key se está cargando
         if not settings.BUK_API_KEY:
             logger.error("CRITICAL: BUK_API_KEY no está configurada o está vacía.")
 
+        # Construir URL con parámetro de fecha si está disponible
         url = f"{settings.BUK_API_BASE_URL}/employees/{rut}/vacations_available"
+        if date:
+            url += f"?date={date}"
+            
         headers = {
             "auth_token": settings.BUK_API_KEY,
             "Content-Type": "application/json"

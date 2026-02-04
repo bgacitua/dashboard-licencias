@@ -43,6 +43,7 @@ class FiniquitoItemResponse(BaseModel):
     fecha_ingreso: Optional[date] = None
     periodo: Optional[str] = None
     status: Optional[str] = None
+    direccion: Optional[str] = None
     cod_area: Optional[int] = None
     nombre_area: Optional[str] = None
     liquidacion_id: Optional[int] = None
