@@ -16,6 +16,7 @@ import GeneradorFiniquitos from './pages/GeneradorFiniquitos';
 import VisualizadorFiniquito from './pages/VisualizadorFiniquito';
 import CrearFiniquito from './pages/CrearFiniquito';
 import AdminPanel from './pages/admin/AdminPanel';
+import Calculadora from './pages/Calculadora';
 
 function App() {
   return (
@@ -116,6 +117,15 @@ function App() {
               } 
             />
             
+            <Route 
+              path="/calculadora" 
+              element={
+                <ProtectedRoute> {/*requiredModule="calculadora">*/}
+                  <Calculadora />
+                </ProtectedRoute>
+              } 
+            />
+
             {/* Ruta 404 - redirigir al menú */}
             <Route path="*" element={<Navigate to="/menu" replace />} />
           </Routes>

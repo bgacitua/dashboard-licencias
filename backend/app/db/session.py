@@ -2,6 +2,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.core.config import get_database_url
 
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)
+
+
 # Obtenemos la URL construida en config.py
 SQLALCHEMY_DATABASE_URL = get_database_url()
 
