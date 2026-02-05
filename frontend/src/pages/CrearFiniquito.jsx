@@ -43,6 +43,54 @@ const CrearFiniquito = () => {
   const [variableItems, setVariableItems] = useState([]);
   const [descuentosItems, setDescuentosItems] = useState([]); // Automatic deductions from backend
   const [descuentosPersonalizados, setDescuentosPersonalizados] = useState([]); // Custom added discounts
+  const [variableCustomAdditions, setVariableCustomAdditions] = useState({}); // Custom manual additions for variable bonus: { [concepto]: [{ id, descripcion, amount, active }] }
+  const [newCustomItems, setNewCustomItems] = useState({}); // Temporary state for new manual item inputs per concept: { [concepto]: { description: '', amount: '' } }
+  const [ufValue, setUfValue] = useState(0); // Valor UF del día
+  const [isLoadingUf, setIsLoadingUf] = useState(false);
+  const [isLoadingVacation, setIsLoadingVacation] = useState(false); // Loading state for vacation days API
+
+  // Helper to recalculate total variable bonus based on current items and custom additions
+  const calculateTotalVariableBonus = (currentItems, currentCustomAdditions) => {
+    // 1. Group fetched items by concept
+    const groups = currentItems.reduce((acc, item, idx) => {
+      const key = item.concepto || 'Sin Concepto';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({ ...item, type: 'fetched', originalIndex: idx });
+      return acc;
+    }, {});
+
+    // 2. Merge with custom additions
+    if (currentCustomAdditions) {
+      Object.keys(currentCustomAdditions).forEach(key => {
+        if (!groups[key]) groups[key] = [];
+        const additions = currentCustomAdditions[key] || [];
+        // Add custom items to the group
+        additions.forEach((item, idx) => {
+            groups[key].push({ 
+                ...item, 
+                concepto: key, 
+                type: 'custom', 
+                originalIndex: idx 
+            });
+        });
+      });
+    }
+
+    // 3. Calculate average for each group and sum them up
+    // Rule: Average = Sum of ACTIVE items / Count of ACTIVE items
+    // If no active items in a group, average is 0.
+    const sumOfAverages = Object.values(groups).reduce((total, groupItems) => {
+      const activeItems = groupItems.filter(i => i.active !== false); // Default true if undefined
+      if (activeItems.length === 0) return total;
+      
+      const groupSum = activeItems.reduce((sum, item) => sum + (parseFloat(item.monto) || 0), 0);
+      const groupAvg = groupSum / activeItems.length;
+      
+      return total + groupAvg;
+    }, 0);
+
+    return Math.round(sumOfAverages);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -85,7 +133,7 @@ const CrearFiniquito = () => {
              setSalary(baseSalaryItem > 0 ? baseSalaryItem : 2050000); 
           }
 
-          setVacationValue(850000); 
+          setVacationValue(0); 
           
           // Filter variable bonuses from the same dataset
           // Include both 'remuneracion_variable' and 'remuneracion_ocasional'
@@ -98,26 +146,16 @@ const CrearFiniquito = () => {
           );
           
           if (varData.length > 0) {
-             const mappedVarData = varData.map(item => ({
+             const mappedVarData = varData.map((item, idx) => ({
                ...item,
-               active: true 
+               active: true,
+               originalIndex: idx
              }));
              setVariableItems(mappedVarData);
              
-             // Group by concepto, average each group, then sum the averages
-             const grouped = mappedVarData.reduce((acc, item) => {
-               const key = item.concepto || 'Sin Concepto';
-               if (!acc[key]) acc[key] = [];
-               acc[key].push(item.monto || 0);
-               return acc;
-             }, {});
-             
-             const sumOfAverages = Object.values(grouped).reduce((total, values) => {
-               const avg = values.reduce((a, b) => a + b, 0) / values.length;
-               return total + avg;
-             }, 0);
-             
-             setVariableBonus(Math.round(sumOfAverages));
+             // Initial calculation using the helper
+             const total = calculateTotalVariableBonus(mappedVarData, {});
+             setVariableBonus(total);
           } else {
               setVariableItems([]);
               setVariableBonus(0);
@@ -137,11 +175,44 @@ const CrearFiniquito = () => {
           
           // Fetch automatic deductions for this employee (Prestamo Interno, Descuento Por Planilla)
           try {
+            // First fetch UF in parallel or before
+            let currentUF = 0;
+            try {
+                currentUF = await FiniquitosService.getIndicatorUF();
+                setUfValue(currentUF);
+            } catch (ufErr) {
+                console.error("Error fetching UF:", ufErr);
+            }
+
             const descuentosData = await FiniquitosService.getDescuentosByRut(rut);
-            setDescuentosItems(descuentosData || []);
+            
+            // Map backend data (concepto) to frontend format (descripcion)
+            // Normalize strings to match frontend dropdown options
+            if (!location.state?.preserveData) {
+              const mappedDescuentos = (descuentosData || []).map(item => {
+                let desc = item.concepto || '';
+                // Normalize backend strings to match frontend options exact spelling/casing
+                if (desc === 'Prestamo Interno') desc = 'Préstamo Interno'; // Add accent
+                if (desc === 'Descuento Por Planilla') desc = 'Descuento por planilla'; // Lowercase 'p'
+                
+                
+                return {
+                  descripcion: desc, 
+                  detalle: item.detalle || '', // Map detailed description
+                  monto: item.monto || 0,
+                  cuotas: 1 // Default cuotas
+                };
+              });
+              setDescuentosPersonalizados(mappedDescuentos);
+            }
+            
+            // Keep legacy state empty as we moved to normalized list
+            setDescuentosItems([]);
           } catch (err) {
             console.error("Error fetching deductions:", err);
-            setDescuentosItems([]);
+            if (!location.state?.preserveData) {
+               setDescuentosPersonalizados([]);
+            }
           }
       } catch (error) {
         console.error("Error fetching employee data:", error);
@@ -170,6 +241,7 @@ const CrearFiniquito = () => {
         if (data.yearsForIndemnity) setYearsForIndemnity(data.yearsForIndemnity);
         // Restaurar descuentos personalizados si existen
         if (data.descuentosPersonalizados) setDescuentosPersonalizados(data.descuentosPersonalizados);
+        if (data.ufValue) setUfValue(data.ufValue); // Restore stored UF
         console.log('Datos del formulario restaurados desde sessionStorage');
       }
     }
@@ -215,9 +287,10 @@ const CrearFiniquito = () => {
 
   // Helper function: Calculate "días corridos" (calendar days) from available vacation days
   // Rules:
-  // 1. Count pending vacation business days
-  // 2. Count non-business days between first and last business day
-  // 3. If decimal > 0.2 AND last day is Friday or next day is non-business,
+  // 1. Start counting from termination date + 1 (regardless of weekend)
+  // 2. Vacation days are counted as business days
+  // 3. Weekend days between termination and first business day are included in total
+  // 4. If decimal > 0.2 AND last day is Friday or next day is non-business,
   //    extend to next business day and add those non-business days
   const calculateDiasCorridos = (startDate, availableDays) => {
     if (!startDate || availableDays <= 0) return 0;
@@ -233,12 +306,18 @@ const CrearFiniquito = () => {
     let currentDate = new Date(startDate);
     currentDate.setDate(currentDate.getDate() + 1); // Fecha de salida + 1
     
-    // Move to first business day if starting on weekend
+    // This is the TRUE start date (could be a weekend day)
+    const trueStartDate = new Date(currentDate);
+    
+    // Count non-business days BEFORE the first business day (these will be added to total)
+    let diasInhabilesInicio = 0;
     while (!isBusinessDay(currentDate)) {
+      diasInhabilesInicio++;
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    const periodStartDate = new Date(currentDate);
+    // Now currentDate is the first business day where we start counting vacation days
+    const firstBusinessDate = new Date(currentDate);
     let businessDaysCount = 0;
     
     // Count business days until we reach the integer target
@@ -254,8 +333,8 @@ const CrearFiniquito = () => {
     // currentDate is now the last business day of the integer portion
     const lastBusinessDate = new Date(currentDate);
     
-    // Calculate calendar days from start to last business day (integer portion)
-    const timeDiff = lastBusinessDate.getTime() - periodStartDate.getTime();
+    // Calculate calendar days from first business day to last business day
+    const timeDiff = lastBusinessDate.getTime() - firstBusinessDate.getTime();
     let diasCorridosEnteros = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
     
     // Extra weekend days to add when decimal > 0.2 falls on Friday or before weekend
@@ -280,19 +359,21 @@ const CrearFiniquito = () => {
       }
     }
     
-    // Total días corridos = calendar days to last business day + weekend extension + decimal
-    const diasCorridos = diasCorridosEnteros + diasInhabilesExtra + decimalDays;
+    // Total días corridos = weekend before first business day + calendar days for vacation + weekend extension + decimal
+    const diasCorridos = diasInhabilesInicio + diasCorridosEnteros + diasInhabilesExtra + decimalDays;
     
     console.log('=== CÁLCULO DÍAS CORRIDOS ===');
     console.log('Fecha de término (último día trabajo):', startDate.toLocaleDateString('es-CL'), '(' + ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][startDate.getDay()] + ')');
     console.log('Días pendientes vacaciones:', availableDays);
     console.log('Parte entera:', integerDays, '| Decimal:', decimalDays.toFixed(2));
-    console.log('Fecha INICIO conteo (día hábil siguiente):', periodStartDate.toLocaleDateString('es-CL'), '(' + ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][periodStartDate.getDay()] + ')');
+    console.log('Fecha día siguiente término:', trueStartDate.toLocaleDateString('es-CL'), '(' + ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][trueStartDate.getDay()] + ')');
+    console.log('Días inhábiles ANTES del primer día hábil:', diasInhabilesInicio);
+    console.log('Fecha INICIO conteo vacaciones (primer día hábil):', firstBusinessDate.toLocaleDateString('es-CL'), '(' + ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][firstBusinessDate.getDay()] + ')');
     console.log('Fecha FIN días hábiles:', lastBusinessDate.toLocaleDateString('es-CL'), '(' + ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][lastBusinessDate.getDay()] + ')');
-    console.log('Días corridos enteros:', diasCorridosEnteros);
+    console.log('Días corridos enteros (calendario hábil):', diasCorridosEnteros);
     console.log('Días inhábiles extra (decimal > 0.2):', diasInhabilesExtra);
     console.log('Decimal:', decimalDays.toFixed(2));
-    console.log('DÍAS CORRIDOS TOTAL:', diasCorridos.toFixed(2));
+    console.log('DÍAS CORRIDOS TOTAL:', diasCorridos.toFixed(2), '= ', diasInhabilesInicio, '+', diasCorridosEnteros, '+', diasInhabilesExtra, '+', decimalDays.toFixed(2));
     console.log('=============================');
     
     return diasCorridos;
@@ -300,12 +381,14 @@ const CrearFiniquito = () => {
 
   // Fetch vacation days from backend when termination date changes
   // The backend calculates the projection using the BUK API with the date parameter
+  // Uses debounce to avoid excessive API calls when user changes date rapidly
   useEffect(() => {
     if (vacationDaysManuallyEdited) return; // Skip if manually edited
     
     const fetchVacationDays = async () => {
       if (!rut) return;
       
+      setIsLoadingVacation(true);
       try {
         // Pass the termination date to the API if selected
         const vacationData = await EmployeesService.getVacationsAvailable(
@@ -327,10 +410,15 @@ const CrearFiniquito = () => {
         
       } catch (err) {
         console.error("Error fetching vacation days:", err);
+      } finally {
+        setIsLoadingVacation(false);
       }
     };
     
-    fetchVacationDays();
+    // Debounce the API call by 300ms
+    const debounceTimer = setTimeout(fetchVacationDays, 300);
+    
+    return () => clearTimeout(debounceTimer);
   }, [rut, lastDayWork, vacationDaysManuallyEdited]);
 
   // Auto-calculate Vacation Value
@@ -444,7 +532,26 @@ const CrearFiniquito = () => {
   // Total Settlement = (Mes de Aviso + Indemnización por Años de Servicio + Vacaciones Proporcionales) - Todos los Descuentos
   const descuentosNum = parseFloat(descuentos) || 0;
   const descuentosAutomaticos = descuentosItems.reduce((sum, d) => sum + (d.monto || 0), 0);
-  const descuentosCustom = descuentosPersonalizados.reduce((sum, d) => sum + (parseFloat(d.monto) || 0), 0);
+  
+  // Custom discount calculation with UF support for "Préstamo Interno"
+  const descuentosCustom = descuentosPersonalizados.reduce((sum, d) => {
+    let monto = parseFloat(d.monto) || 0;
+    const cuotas = parseInt(d.cuotas) || 1;
+    
+    // If it's a loan, backend usually sends UF value. We need to convert it to CLP for the monthly deduction if desired.
+    // However, usually the 'monto' received is the quota in UF.
+    // User request: "el valor de la UF del día y que se multiplique por el valor del concepto 'Préstamo interno'?"
+    if (d.descripcion === 'Préstamo Interno' && ufValue > 0) {
+        // Assume 'monto' is in UF
+        // Calculate Total Debt in CLP = Monto(UF) * UF_Value * Cuotas
+        // Note: We use Math.round just once at the end if preferred, or per item.
+        monto = Math.round(monto * ufValue);
+    }
+    
+    // Multiply by installments (Total Debt)
+    return sum + (monto * cuotas);
+  }, 0);
+
   const totalDescuentos = descuentosNum + descuentosAutomaticos + descuentosCustom;
   const liquidacionMesActualNum = parseFloat(liquidacionMesActual) || 0;
   const totalSettlement = noticeIndemnity + yearsIndemnity + vacationIndemnity + liquidacionMesActualNum - totalDescuentos;
@@ -492,10 +599,22 @@ const CrearFiniquito = () => {
       liquidacionMesActual: parseFloat(liquidacionMesActual) || 0,
       
       // Descuentos - find specific types
-      aporteCesantia: descuentosItems.find(d => d.descripcion?.toLowerCase().includes('cesant'))?.monto || 0,
-      prestamoInterno: descuentosPersonalizados.find(d => d.descripcion?.toLowerCase().includes('préstamo'))?.monto || 
-                       descuentosItems.find(d => d.descripcion?.toLowerCase().includes('préstamo'))?.monto || 0,
+      aporteCesantia: descuentosPersonalizados.find(d => d.descripcion?.toLowerCase().includes('cesant'))?.monto || 0,
+      // For loan, check if we need to send CLP or UF. Usually visualizer expects CLP.
+      prestamoInterno: (() => {
+          const loanItem = descuentosPersonalizados.find(d => d.descripcion?.toLowerCase().includes('préstamo'));
+          if (!loanItem) return 0;
+          let val = parseFloat(loanItem.monto) || 0;
+          const cuotas = parseInt(loanItem.cuotas) || 1;
+          
+          if (ufValue > 0) val = Math.round(val * ufValue);
+          
+          // Return Total Debt: Monthly * Cuotas
+          return val * cuotas;
+      })(),
       totalDescuentos: Math.round(totalDescuentos),
+      
+      ufValue, // Pass UF to visualizer if needed
       
       // All deductions for flexibility
       descuentosItems,
@@ -726,111 +845,302 @@ const CrearFiniquito = () => {
                 <span className="material-symbols-outlined text-gray-400">expand_less</span>
             </div>
             <div className="mt-6 space-y-4">
-                <p className="text-sm text-gray-500 mb-4">Select the bonuses from the last months to be included in the average calculation.</p>
+                <p className="text-sm text-gray-500 mb-4">Selecciona los bonos de los últimos meses que serán incluídos en el promedio de cálculo.</p>
                 {variableItems.length === 0 ? (
                     <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
                         <span className="material-symbols-outlined text-gray-300 text-4xl mb-2">money_off</span>
-                        <p className="text-gray-500 font-medium">No variable remuneration found</p>
-                        <p className="text-xs text-gray-400">This employee does not have variable bonuses in the records.</p>
+                        <p className="text-gray-500 font-medium">No se encontraron bonos</p>
+                        <p className="text-xs text-gray-400">Este empleado no tiene bonos registrados.</p>
                     </div>
                 ) : (
-                    // Group items by concepto
-                    Object.entries(
-                      variableItems.reduce((acc, item, idx) => {
-                        const key = item.concepto || 'Sin Concepto';
-                        if (!acc[key]) acc[key] = [];
-                        acc[key].push({ ...item, originalIndex: idx });
-                        return acc;
-                      }, {})
-                    ).map(([concepto, items]) => {
-                      const allActive = items.every(item => item.active);
-                      const groupTotal = items.reduce((sum, item) => sum + (item.active ? (item.monto || 0) : 0), 0);
-                      const activeCount = items.filter(item => item.active).length;
-                      const groupAverage = activeCount > 0 ? groupTotal / activeCount : 0;
-                      
-                      return (
-                        <div key={concepto} className="border border-gray-200 rounded-lg overflow-hidden mb-3">
-                          {/* Header del grupo */}
-                          <div className="flex items-center justify-between p-4 bg-gray-100 border-b border-gray-200">
-                            <div className="flex items-center gap-3">
-                              <div 
-                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${allActive ? 'bg-blue-600' : 'bg-gray-300'}`}
-                                onClick={() => {
-                                  const newItems = [...variableItems];
-                                  const newState = !allActive;
-                                  items.forEach(item => {
-                                    newItems[item.originalIndex].active = newState;
-                                  });
-                                  setVariableItems(newItems);
+                    // Group iterarion logic updated to handle custom additions
+                    (() => {
+                        // 1. Prepare groups uniting fetched and custom items
+                        const allGroups = variableItems.reduce((acc, item, idx) => {
+                            const key = item.concepto || 'Sin Concepto';
+                            if (!acc[key]) acc[key] = [];
+                            acc[key].push({ ...item, type: 'fetched', originalIndex: idx });
+                            return acc;
+                        }, {});
+
+                        // Merge custom additions into groups
+                        Object.keys(variableCustomAdditions).forEach(key => {
+                            if (!allGroups[key]) allGroups[key] = []; // Should usually exist, but just in case
+                            
+                            variableCustomAdditions[key].forEach((item, idx) => {
+                                allGroups[key].push({ 
+                                    ...item, 
+                                    concepto: key,
+                                    type: 'custom', 
+                                    originalIndex: idx 
+                                });
+                            });
+                        });
+
+                        return Object.entries(allGroups).map(([concepto, items]) => {
+                             // Calculate stats for this group
+                             const activeItems = items.filter(item => item.active !== false);
+                             const allActive = items.every(item => item.active !== false);
+                             const groupSum = activeItems.reduce((sum, item) => sum + (parseFloat(item.monto) || 0), 0);
+                             const groupAverage = activeItems.length > 0 ? groupSum / activeItems.length : 0;
+                             
+                             return (
+                                <div key={concepto} className="border border-gray-200 rounded-lg overflow-hidden mb-3">
+                                  {/* Header del grupo */}
+                                  <div className="flex items-center justify-between p-4 bg-gray-100 border-b border-gray-200">
+                                    <div className="flex items-center gap-3">
+                                      {/* Group Toggle */}
+                                      <div 
+                                        className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${allActive ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                        onClick={() => {
+                                          const newState = !allActive;
+                                          
+                                          // Update fetched items
+                                          const newVariableItems = [...variableItems];
+                                          items.forEach(item => {
+                                              if (item.type === 'fetched') {
+                                                  newVariableItems[item.originalIndex].active = newState;
+                                              }
+                                          });
+                                          setVariableItems(newVariableItems);
+
+                                          // Update custom items
+                                          const newCustomAdditions = { ...variableCustomAdditions };
+                                          if (newCustomAdditions[concepto]) {
+                                              newCustomAdditions[concepto] = newCustomAdditions[concepto].map(i => ({ ...i, active: newState }));
+                                              setVariableCustomAdditions(newCustomAdditions);
+                                          }
+                                          
+                                          // Recalculate Total
+                                          const newTotal = calculateTotalVariableBonus(newVariableItems, newCustomAdditions[concepto] ? newCustomAdditions : variableCustomAdditions);
+                                          setVariableBonus(newTotal);
+                                        }}
+                                      >
+                                        <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${allActive ? 'translate-x-6' : ''}`}></div>
+                                      </div>
+                                      <div>
+                                        <p className="font-bold text-gray-900">{concepto}</p>
+                                        <p className="text-xs text-gray-500">{items.length} registro(s) • Promedio: $ {Math.round(groupAverage).toLocaleString('es-CL')}</p>
+                                      </div>
+                                    </div>
+                                    
+
+                                    {/* Action to add manual item */}
+                                    <div className="flex items-center gap-2">
+                                        {newCustomItems[concepto]?.isAdding ? (
+                                            <>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Descripción"
+                                                    className="w-32 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                                                    value={newCustomItems[concepto]?.description || ''}
+                                                    onChange={(e) => {
+                                                        const newState = { ...newCustomItems };
+                                                        if (!newState[concepto]) newState[concepto] = {};
+                                                        newState[concepto].description = e.target.value;
+                                                        setNewCustomItems(newState);
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            // Trigger add logic
+                                                            const state = newCustomItems[concepto] || {};
+                                                            if (state.description && state.amount) {
+                                                                const amount = parseFloat(state.amount);
+                                                                if (!isNaN(amount)) {
+                                                                    const newCustomAdditions = { ...variableCustomAdditions };
+                                                                    if (!newCustomAdditions[concepto]) newCustomAdditions[concepto] = [];
+                                                                    
+                                                                    newCustomAdditions[concepto].push({
+                                                                        id: Date.now(),
+                                                                        descripcion: state.description,
+                                                                        monto: amount,
+                                                                        active: true,
+                                                                        periodo: 'Manual'
+                                                                    });
+                                                                    
+                                                                    setVariableCustomAdditions(newCustomAdditions);
+                                                                    const total = calculateTotalVariableBonus(variableItems, newCustomAdditions);
+                                                                    setVariableBonus(total);
+                                                                    
+                                                                    // Reset input
+                                                                    setNewCustomItems({
+                                                                        ...newCustomItems,
+                                                                        [concepto]: { isAdding: false, description: '', amount: '' }
+                                                                    });
+                                                                }
+                                                            }
+                                                        }
+                                                    }}
+                                                />
+                                                <div className="relative">
+                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs">$</span>
+                                                    <input 
+                                                        type="number" 
+                                                        placeholder="Monto"
+                                                        className="w-24 pl-5 pr-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                                                        value={newCustomItems[concepto]?.amount || ''}
+                                                        onChange={(e) => {
+                                                            const newState = { ...newCustomItems };
+                                                            if (!newState[concepto]) newState[concepto] = {};
+                                                            newState[concepto].amount = e.target.value;
+                                                            setNewCustomItems(newState);
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                // Trigger add logic (same as above)
+                                                                 const state = newCustomItems[concepto] || {};
+                                                                if (state.description && state.amount) {
+                                                                    const amount = parseFloat(state.amount);
+                                                                    if (!isNaN(amount)) {
+                                                                        const newCustomAdditions = { ...variableCustomAdditions };
+                                                                        if (!newCustomAdditions[concepto]) newCustomAdditions[concepto] = [];
+                                                                        
+                                                                        newCustomAdditions[concepto].push({
+                                                                            id: Date.now(),
+                                                                            descripcion: state.description,
+                                                                            monto: amount,
+                                                                            active: true,
+                                                                            periodo: 'Manual'
+                                                                        });
+                                                                        
+                                                                        setVariableCustomAdditions(newCustomAdditions);
+                                                                        const total = calculateTotalVariableBonus(variableItems, newCustomAdditions);
+                                                                        setVariableBonus(total);
+                                                                        
+                                                                        setNewCustomItems({
+                                                                            ...newCustomItems,
+                                                                            [concepto]: { isAdding: false, description: '', amount: '' }
+                                                                        });
+                                                                    }
+                                                                }
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                                <button 
+                                                    className="p-1 px-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-medium"
+                                                    onClick={() => {
+                                                        const state = newCustomItems[concepto] || {};
+                                                        if (state.description && state.amount) {
+                                                            const amount = parseFloat(state.amount);
+                                                            if (!isNaN(amount)) {
+                                                                const newCustomAdditions = { ...variableCustomAdditions };
+                                                                if (!newCustomAdditions[concepto]) newCustomAdditions[concepto] = [];
+                                                                
+                                                                newCustomAdditions[concepto].push({
+                                                                    id: Date.now(),
+                                                                    descripcion: state.description,
+                                                                    monto: amount,
+                                                                    active: true,
+                                                                    periodo: 'Manual'
+                                                                });
+                                                                
+                                                                setVariableCustomAdditions(newCustomAdditions);
+                                                                const total = calculateTotalVariableBonus(variableItems, newCustomAdditions);
+                                                                setVariableBonus(total);
+                                                                
+                                                                setNewCustomItems({
+                                                                    ...newCustomItems,
+                                                                    [concepto]: { isAdding: false, description: '', amount: '' }
+                                                                });
+                                                            }
+                                                        }
+                                                    }}
+                                                >
+                                                    Agregar
+                                                </button>
+                                                <button 
+                                                    className="p-1 text-gray-500 hover:text-gray-700"
+                                                    onClick={() => {
+                                                        const newState = { ...newCustomItems };
+                                                        newState[concepto] = { isAdding: false, description: '', amount: '' };
+                                                        setNewCustomItems(newState);
+                                                    }}
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">close</span>
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <button 
+                                                className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium px-2 py-1 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                                                onClick={() => {
+                                                    const newState = { ...newCustomItems };
+                                                    newState[concepto] = { isAdding: true, description: '', amount: '' };
+                                                    setNewCustomItems(newState);
+                                                }}
+                                            >
+                                                <span className="material-symbols-outlined text-sm">add</span>
+                                                Agregar Item
+                                            </button>
+                                        )}
+                                    </div>
+                                  </div>
                                   
-                                  // Recalculate
-                                  const activeItems = newItems.filter(i => i.active);
-                                  const grouped = activeItems.reduce((acc, item) => {
-                                    const key = item.concepto || 'Sin Concepto';
-                                    if (!acc[key]) acc[key] = [];
-                                    acc[key].push(item.monto || 0);
-                                    return acc;
-                                  }, {});
-                                  
-                                  const sumOfAverages = Object.values(grouped).reduce((total, values) => {
-                                    const avg = values.reduce((a, b) => a + b, 0) / values.length;
-                                    return total + avg;
-                                  }, 0);
-                                  
-                                  setVariableBonus(Math.round(sumOfAverages));
-                                }}
-                              >
-                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${allActive ? 'translate-x-6' : ''}`}></div>
-                              </div>
-                              <div>
-                                <p className="font-bold text-gray-900">{concepto}</p>
-                                <p className="text-xs text-gray-500">{items.length} registro(s) • Promedio: $ {Math.round(groupAverage).toLocaleString('es-CL')}</p>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Items del grupo */}
-                          <div className="divide-y divide-gray-100">
-                            {items.map((bonus) => (
-                              <div key={bonus.originalIndex} className="flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors">
-                                <div>
-                                  <p className="font-medium text-gray-700">{bonus.periodo}</p>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                  <span className={`font-mono font-medium ${bonus.active ? 'text-gray-900' : 'text-gray-400'}`}>$ {(bonus.monto || 0).toLocaleString('es-CL')}</span>
-                                  <div 
-                                    className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${bonus.active ? 'bg-blue-600' : 'bg-gray-300'}`}
-                                    onClick={() => {
-                                      const newItems = [...variableItems];
-                                      newItems[bonus.originalIndex].active = !newItems[bonus.originalIndex].active;
-                                      setVariableItems(newItems);
-                                      
-                                      // Recalculate
-                                      const activeItems = newItems.filter(i => i.active);
-                                      const grouped = activeItems.reduce((acc, item) => {
-                                        const key = item.concepto || 'Sin Concepto';
-                                        if (!acc[key]) acc[key] = [];
-                                        acc[key].push(item.monto || 0);
-                                        return acc;
-                                      }, {});
-                                      
-                                      const sumOfAverages = Object.values(grouped).reduce((total, values) => {
-                                        const avg = values.reduce((a, b) => a + b, 0) / values.length;
-                                        return total + avg;
-                                      }, 0);
-                                      
-                                      setVariableBonus(Math.round(sumOfAverages));
-                                    }}
-                                  >
-                                    <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${bonus.active ? 'translate-x-5' : ''}`}></div>
+                                  {/* Items del grupo */}
+                                  <div className="divide-y divide-gray-100">
+                                    {items.map((bonus, idx) => (
+                                      <div key={idx} className={`flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors ${bonus.type === 'custom' ? 'bg-blue-50/30' : ''}`}>
+                                        <div className="flex items-center gap-2">
+                                            {bonus.type === 'custom' && <span className="material-symbols-outlined text-xs text-blue-500" title="Item Manual">edit_note</span>}
+                                            <div>
+                                                <p className="font-medium text-gray-700">{bonus.type === 'custom' ? bonus.descripcion : bonus.periodo}</p>
+                                                {bonus.type === 'custom' && <p className="text-xs text-gray-400">Manual</p>}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                          <span className={`font-mono font-medium ${bonus.active !== false ? 'text-gray-900' : 'text-gray-400'}`}>$ {(bonus.monto || 0).toLocaleString('es-CL')}</span>
+                                          
+                                          {/* Item Toggle */}
+                                          <div 
+                                            className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${bonus.active !== false ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                            onClick={() => {
+                                              // Handle toggle based on type
+                                              if (bonus.type === 'fetched') {
+                                                  const newItems = [...variableItems];
+                                                  newItems[bonus.originalIndex].active = !newItems[bonus.originalIndex].active;
+                                                  setVariableItems(newItems);
+                                                  const total = calculateTotalVariableBonus(newItems, variableCustomAdditions);
+                                                  setVariableBonus(total);
+                                              } else {
+                                                  // Custom item
+                                                  const newCustomAdditions = { ...variableCustomAdditions };
+                                                  const groupAdditions = [...newCustomAdditions[concepto]];
+                                                  groupAdditions[bonus.originalIndex].active = !groupAdditions[bonus.originalIndex].active;
+                                                  newCustomAdditions[concepto] = groupAdditions;
+                                                  setVariableCustomAdditions(newCustomAdditions);
+                                                  const total = calculateTotalVariableBonus(variableItems, newCustomAdditions);
+                                                  setVariableBonus(total);
+                                              }
+                                            }}
+                                          >
+                                            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${bonus.active !== false ? 'translate-x-5' : ''}`}></div>
+                                          </div>
+                                          
+                                          {/* Delete button for custom items */}
+                                          {bonus.type === 'custom' && (
+                                              <button 
+                                                  className="text-gray-400 hover:text-red-500 transition-colors"
+                                                  onClick={() => {
+                                                      if (confirm('¿Eliminar este item manual?')) {
+                                                          const newCustomAdditions = { ...variableCustomAdditions };
+                                                          newCustomAdditions[concepto] = newCustomAdditions[concepto].filter((_, i) => i !== bonus.originalIndex);
+                                                          setVariableCustomAdditions(newCustomAdditions);
+                                                          const total = calculateTotalVariableBonus(variableItems, newCustomAdditions);
+                                                          setVariableBonus(total);
+                                                      }
+                                                  }}
+                                              >
+                                                  <span className="material-symbols-outlined text-lg">delete</span>
+                                              </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })
+                              );
+                        });
+                    })()
                 )}
             </div>
         </div>
@@ -841,14 +1151,13 @@ const CrearFiniquito = () => {
                 <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
                     <span className="material-symbols-outlined">beach_access</span>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900">Compensation & Vacation</h3>
+                <h3 className="text-lg font-bold text-gray-900">Compensación y Vacaciones</h3>
             </div>
             
             <div className="grid grid-cols-2 gap-6 mb-6">
                 <div>
                     <div className="flex justify-between mb-2">
-                        <label className="text-sm font-semibold text-gray-700">Pending Vacation Days</label>
-                        <button className="text-xs text-blue-600 font-medium hover:underline">View balance history</button>
+                        <label className="text-sm font-semibold text-gray-700">Días de Vacaciones Pendientes</label>
                     </div>
                     <div className="relative">
                         <input 
@@ -861,7 +1170,12 @@ const CrearFiniquito = () => {
                               setVacationDaysManuallyEdited(true);
                             }}
                         />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">Days</span>
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm flex items-center gap-2">
+                            {isLoadingVacation && (
+                                <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></span>
+                            )}
+                            Días
+                        </span>
                     </div>
                     <div className="mt-1 space-y-0.5">
                       <p className="text-xs text-green-600 flex items-center gap-1">
@@ -891,7 +1205,7 @@ const CrearFiniquito = () => {
                     </div>
                 </div>
                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Vacation Value (Estimated)</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Valor Vacaciones (Calculado)</label>
                     <div className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-600 font-mono">
                         $ {vacationValue.toLocaleString('es-CL')}
                     </div>
@@ -900,7 +1214,7 @@ const CrearFiniquito = () => {
 
             <div className="grid grid-cols-2 gap-6">
                  <div>
-                    <label className="block text-sm font-semibold text-blue-600 mb-2">Outstanding Salary (Editable)</label>
+                    <label className="block text-sm font-semibold text-blue-600 mb-2">Sueldo Base (Editable)</label>
                     <div className="relative">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-600 font-bold">$</span>
                         <input 
@@ -912,19 +1226,19 @@ const CrearFiniquito = () => {
                     </div>
                 </div>
                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Calculated Variable Bonuses (Avg.)</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Bonos Variables (Calculado)</label>
                     <div className="flex items-center gap-2">
                         <div className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-600 font-mono">
                             $ {variableBonus.toLocaleString('es-CL')}
                         </div>
-                        <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase rounded tracking-wider">Auto-Calculated</span>
+                        <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase rounded tracking-wider">Calculado</span>
                     </div>
                 </div>
             </div>
             
             <button className="mt-6 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
                 <span className="material-symbols-outlined text-lg">add_circle</span>
-                Add Other Adjustments
+                Agregar items (en desarrollo)
             </button>
         </div>
 
@@ -934,21 +1248,21 @@ const CrearFiniquito = () => {
                 <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
                     <span className="material-symbols-outlined">calculate</span>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900">Indemnity Calculations</h3>
+                <h3 className="text-lg font-bold text-gray-900">Cálculo indemnización</h3>
             </div>
 
             <div className="grid grid-cols-3 gap-4 mb-8">
                 <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">YEARS OF SERVICE</p>
-                    <p className="text-xl font-bold text-gray-900">{yearsOfService.toFixed(1)} Years</p>
+                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Años de servicio</p>
+                    <p className="text-xl font-bold text-gray-900">{yearsOfService.toFixed(1)} Años</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">YEARS FOR INDEMNITY</p>
+                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Años para indemnización</p>
                     <p className="text-xl font-bold text-gray-900">{yearsOfService >= 1 ? (typeof yearsForIndemnity === 'number' ? yearsForIndemnity.toFixed(2) : yearsForIndemnity) : 0}</p>
-                    <p className="text-xs text-gray-400 mt-1">Rounded up &gt; 6 months</p>
+                    <p className="text-xs text-gray-400 mt-1">Redondeado hacia arriba &gt; 6 meses</p>
                 </div>
                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">DAILY SALARY BASE</p>
+                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">(Sueldo base + Bonificaciones) / 30</p>
                     <p className="text-xl font-bold text-gray-900">$ {dailySalary}</p>
                 </div>
             </div>
@@ -1018,7 +1332,7 @@ const CrearFiniquito = () => {
                 <div className="border-t border-gray-100 my-2"></div>
                 
                 {/* Sección 3: Descuentos */}
-                <div className="flex justify-between text-sm items-center">
+                <div className="flex justify-between text-sm items-center mb-2">
                     <span className="text-red-600 font-medium">Otros Descuentos</span>
                     <div className="flex items-center gap-2">
                         <span className="text-red-400">- $</span>
@@ -1028,63 +1342,136 @@ const CrearFiniquito = () => {
                             className="w-28 p-1 text-right bg-red-50 border border-red-200 rounded focus:ring-2 focus:ring-red-500 outline-none font-mono text-red-700"
                             value={descuentos}
                             onChange={(e) => {
-                              const value = e.target.value.replace(/[^0-9]/g, '');
-                              setDescuentos(value);
+                                const value = e.target.value.replace(/[^0-9]/g, '');
+                                setDescuentos(value);
                             }}
                             placeholder="0"
                         />
                     </div>
                 </div>
                 
-                {/* Descuentos personalizados agregados */}
-                {descuentosPersonalizados.map((desc, idx) => (
-                  <div key={idx} className="flex justify-between text-sm items-center">
-                    <select
-                      className="text-red-600 font-medium bg-transparent border-none outline-none cursor-pointer"
-                      value={desc.descripcion}
-                      onChange={(e) => {
-                        const newDescuentos = [...descuentosPersonalizados];
-                        newDescuentos[idx].descripcion = e.target.value;
-                        setDescuentosPersonalizados(newDescuentos);
-                      }}
-                    >
-                      <option value="">Seleccionar tipo...</option>
-                      <option value="Préstamo Interno">Préstamo Interno</option>
-                      <option value="Descuento por planilla">Descuento por planilla</option>
-                    </select>
-                    <div className="flex items-center gap-2">
-                      <span className="text-red-400">- $</span>
-                      <input 
-                        type="text"
-                        inputMode="numeric"
-                        className="w-28 p-1 text-right bg-red-50 border border-red-200 rounded focus:ring-2 focus:ring-red-500 outline-none font-mono text-red-700"
-                        value={desc.monto}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/[^0-9]/g, '');
-                          const newDescuentos = [...descuentosPersonalizados];
-                          newDescuentos[idx].monto = value;
-                          setDescuentosPersonalizados(newDescuentos);
-                        }}
-                        placeholder="0"
-                      />
-                      <button
-                        onClick={() => {
-                          const newDescuentos = descuentosPersonalizados.filter((_, i) => i !== idx);
-                          setDescuentosPersonalizados(newDescuentos);
-                        }}
-                        className="text-red-400 hover:text-red-600 transition-colors p-1"
-                        title="Eliminar descuento"
-                      >
-                        <span className="material-symbols-outlined text-lg">close</span>
-                      </button>
+                {/* Descuentos personalizados agregados - Table Header */}
+                {descuentosPersonalizados.length > 0 && (
+                    <div className="grid grid-cols-12 gap-2 text-xs text-gray-500 font-medium mb-1 px-1">
+                        <div className="col-span-4">Concepto</div>
+                        <div className="col-span-3 text-right">Valor</div>
+                        <div className="col-span-2 text-center">Cuotas</div>
+                        <div className="col-span-3 text-right">Deuda Total</div>
+                    </div>
+                )}
+                
+                {descuentosPersonalizados.map((desc, idx) => {
+                    // Calculate Total Debt
+                    const isLoan = desc.descripcion === 'Préstamo Interno';
+                    const montoVal = parseFloat(desc.monto) || 0;
+                    const cuotasVal = parseInt(desc.cuotas) || 1;
+                    
+                    let totalDebt = 0;
+                    let displayMonto = montoVal;
+                    
+                    if (isLoan && ufValue > 0) {
+                        // Loan: Monto is in UF. Total Debt = Monto(UF) * UF * Cuotas
+                        totalDebt = Math.round(montoVal * ufValue * cuotasVal);
+                        displayMonto = Math.round(montoVal * ufValue); // Monthly deduction in CLP
+                    } else {
+                        // Planilla: Monto is in CLP. Total Debt = Monto * Cuotas
+                        totalDebt = montoVal * cuotasVal;
+                    }
+
+                    return (
+                  <div key={idx} className="grid grid-cols-12 gap-2 text-sm items-center mb-2 bg-white p-2 rounded border border-gray-100 shadow-sm">
+                    {/* Concepto Selector */}
+                    <div className="col-span-4 flex flex-col">
+                        <select
+                          className="text-red-600 font-medium bg-transparent border-none outline-none cursor-pointer w-full text-xs"
+                          value={desc.descripcion}
+                          onChange={(e) => {
+                            const newDescuentos = [...descuentosPersonalizados];
+                            newDescuentos[idx].descripcion = e.target.value;
+                            setDescuentosPersonalizados(newDescuentos);
+                          }}
+                        >
+                          <option value="">Tipo...</option>
+                          <option value="Préstamo Interno">Préstamo Interno</option>
+                          <option value="Descuento por planilla">Descuento por planilla</option>
+                        </select>
+                        {desc.detalle && (
+                            <span className="text-[10px] text-gray-400 pl-1 truncate" title={desc.detalle}>{desc.detalle}</span>
+                        )}
+                    </div>
+                    
+                    {/* Monto Input */}
+                    <div className="col-span-3">
+                        <div className="flex items-center gap-1 justify-end">
+                            {isLoan && <span className="text-[9px] text-blue-600 font-bold">UF</span>}
+                            <input 
+                                type="text"
+                                className="w-full text-right bg-red-50 border border-red-200 rounded px-1 py-0.5 text-xs font-mono text-red-700 outline-none focus:ring-1 focus:ring-red-500"
+                                value={desc.monto}
+                                onChange={(e) => {
+                                    // Allow decimals for UF
+                                    const val = e.target.value.replace(/[^0-9.]/g, ''); 
+                                    const newDescuentos = [...descuentosPersonalizados];
+                                    newDescuentos[idx].monto = val;
+                                    setDescuentosPersonalizados(newDescuentos);
+                                }}
+                                placeholder="0"
+                            />
+                        </div>
+                         {isLoan && ufValue > 0 && (
+                            <div className="text-[9px] text-gray-400 text-right mt-0.5">
+                                ~ ${displayMonto.toLocaleString('es-CL')}
+                            </div>
+                         )}
+                    </div>
+                    
+                    {/* Cuotas Input */}
+                    <div className="col-span-2">
+                        <input 
+                            type="text" 
+                            inputMode="numeric"
+                            className="w-full text-center bg-white border border-gray-200 rounded px-1 py-0.5 text-xs text-gray-700 outline-none focus:ring-1 focus:ring-blue-500"
+                            value={desc.cuotas}
+                            onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9]/g, '');
+                                const newDescuentos = [...descuentosPersonalizados];
+                                newDescuentos[idx].cuotas = val; // Save as string to allow empty
+                                setDescuentosPersonalizados(newDescuentos);
+                            }}
+                            onBlur={() => {
+                                const newDescuentos = [...descuentosPersonalizados];
+                                let val = parseInt(newDescuentos[idx].cuotas) || 1;
+                                if (val < 1) val = 1;
+                                if (val > 60) val = 60;
+                                newDescuentos[idx].cuotas = val;
+                                setDescuentosPersonalizados(newDescuentos);
+                            }}
+                        />
+                    </div>
+                    
+                    {/* Deuda Total & Delete */}
+                    <div className="col-span-3 flex items-center justify-between pl-2">
+                         <span className="text-xs font-mono font-medium text-gray-700" title="Deuda Total Estimada">
+                            $ {totalDebt.toLocaleString('es-CL')}
+                         </span>
+                         <button
+                            onClick={() => {
+                              const newDescuentos = descuentosPersonalizados.filter((_, i) => i !== idx);
+                              setDescuentosPersonalizados(newDescuentos);
+                            }}
+                            className="text-gray-400 hover:text-red-500 transition-colors ml-1"
+                        >
+                            <span className="material-symbols-outlined text-base">close</span>
+                        </button>
                     </div>
                   </div>
-                ))}
+                );
+            })}
                 
                 {/* Botón para agregar descuento */}
                 <button
                   onClick={() => {
-                    setDescuentosPersonalizados([...descuentosPersonalizados, { descripcion: '', monto: '' }]);
+                    setDescuentosPersonalizados([...descuentosPersonalizados, { descripcion: '', monto: '', cuotas: 1 }]);
                   }}
                   className="mt-2 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border border-red-200"
                 >
@@ -1093,10 +1480,19 @@ const CrearFiniquito = () => {
                 </button>
             </div>
 
-            <div className="mt-6 bg-gray-900 text-white p-6 rounded-xl flex justify-between items-center shadow-lg">
+            {ufValue > 0 && (
+                <div className="mt-4 flex justify-end">
+                    <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg text-xs text-blue-700 border border-blue-100 shadow-sm">
+                        <span className="font-bold">Valor UF Hoy:</span>
+                        <span className="font-mono">$ {ufValue.toLocaleString('es-CL')}</span>
+                    </div>
+                </div>
+            )}
+
+            <div className="mt-2 bg-gray-900 text-white p-6 rounded-xl flex justify-between items-center shadow-lg">
                 <div>
-                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">TOTAL SETTLEMENT</p>
-                    <p className="text-xs text-gray-500">Subject to final review and deductions</p>
+                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Total finiquito</p>
+                    <p className="text-xs text-gray-500">Sujeto a revisión final y deducciones</p>
                 </div>
                 <p className="text-3xl font-bold font-mono">$ {Math.round(totalSettlement).toLocaleString('es-CL')}</p>
             </div>
@@ -1115,7 +1511,7 @@ const CrearFiniquito = () => {
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2"
             >
                 <span className="material-symbols-outlined">description</span>
-                GENERATE DOCUMENT
+                GENERAR DOCUMENTO
             </button>
         </div>
 

@@ -193,7 +193,7 @@ const VisualizadorFiniquito = () => {
   const liquidacionMesActual = finiquitoData.liquidacionMesActual || 0;
   
   // Calculate Gross Haberes (Sum of all income items)
-  const totalHaberes = mesDeAviso + anosServicio + vacaciones;
+  const totalHaberes = mesDeAviso + anosServicio + vacaciones + liquidacionMesActual;
   
   const aporteCesantia = finiquitoData.aporteCesantia || 0;
   const prestamoInterno = finiquitoData.prestamoInterno || 0;
@@ -397,11 +397,20 @@ const VisualizadorFiniquito = () => {
                   <span>{formatCurrency(vacaciones)}</span>
                 </div>
               )}
+              {liquidacionMesActual > 0 && (
+                <div className="flex justify-between">
+                  <span>Remuneración adeudada</span>
+                  <span>{formatCurrency(liquidacionMesActual)}</span>
+                </div>
+              )}
 
-              <div className="flex justify-between font-bold text-[9pt]">
-                <span>TOTAL HABERES</span>
-                <span>{formatCurrency(totalHaberes)}</span>
-              </div>
+              {/* Show Total Haberes unless we have remuneration and no discounts (redundant with Total Payment) */}
+              {!(liquidacionMesActual > 0 && totalDescuentos === 0) && (
+                <div className="flex justify-between font-bold text-[9pt]">
+                  <span>TOTAL HABERES</span>
+                  <span>{formatCurrency(totalHaberes)}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -416,23 +425,34 @@ const VisualizadorFiniquito = () => {
                     <span>{formatCurrency(aporteCesantia)}</span>
                   </div>
                 )}
-                {prestamoInterno > 0 && (
-                  <div className="flex justify-between">
-                    <span>Préstamo interno</span>
-                    <span className="border-b border-black">{formatCurrency(prestamoInterno)}</span>
-                  </div>
-                )}
+                {prestamoInterno > 0 && (() => {
+                    // Find the loan item to get the detail
+                    const loanItem = finiquitoData.descuentosPersonalizados?.find(d => d.descripcion?.toLowerCase().includes('préstamo'));
+                    return (
+                      <div className="flex justify-between">
+                        <span>Préstamo interno {loanItem?.detalle ? `(${loanItem.detalle})` : ''}</span>
+                        <span>{formatCurrency(prestamoInterno)}</span>
+                      </div>
+                    );
+                })()}
                 {/* Show other descuentos from arrays */}
-                {finiquitoData.descuentosItems?.filter(d => d.monto > 0 && !d.descripcion?.toLowerCase().includes('cesant') && !d.descripcion?.toLowerCase().includes('préstamo')).map((d, idx) => (
+                {/* Show other descuentos from arrays - Filter out duplicates handled in personalizados */}
+                {finiquitoData.descuentosItems?.filter(d => 
+                    d.monto > 0 && 
+                    !(d.descripcion || d.concepto)?.toLowerCase().includes('cesant') && 
+                    !(d.descripcion || d.concepto)?.toLowerCase().includes('préstamo') &&
+                    !(d.descripcion || d.concepto)?.toLowerCase().includes('prestamo') &&
+                    !(d.descripcion || d.concepto)?.toLowerCase().includes('planilla')
+                ).map((d, idx) => (
                   <div key={`auto-${idx}`} className="flex justify-between">
-                    <span>{d.descripcion}</span>
+                    <span>{(d.descripcion || d.concepto)} {d.detalle ? `(${d.detalle})` : ''}</span>
                     <span>{formatCurrency(d.monto)}</span>
                   </div>
                 ))}
                 {finiquitoData.descuentosPersonalizados?.filter(d => parseFloat(d.monto) > 0 && !d.descripcion?.toLowerCase().includes('préstamo')).map((d, idx) => (
                   <div key={`custom-${idx}`} className="flex justify-between">
-                    <span>{d.descripcion}</span>
-                    <span>{formatCurrency(parseFloat(d.monto))}</span>
+                    <span>{d.descripcion} {d.detalle ? `${d.detalle}` : ''}</span>
+                    <span>{formatCurrency(parseFloat(d.monto) * (parseInt(d.cuotas) || 1))}</span>
                   </div>
                 ))}
                 <div className="flex justify-between font-bold text-[9pt]">
@@ -444,18 +464,12 @@ const VisualizadorFiniquito = () => {
           )}
 
 
-          {/* LIQUIDACION MES ACTUAL - Separate section if exists */}
-          {liquidacionMesActual > 0 && (
-            <div className="mb-1 ml-8 flex justify-between text-[9pt]">
-              <span>Remuneración adeudada</span>
-              <span>{formatCurrency(liquidacionMesActual)}</span>
-            </div>
-          )}
+
 
           {/* TOTAL A PAGAR - Final net amount: (Haberes - Descuentos) + Liquidacion */}
           <div className="mb-1 ml-8 flex justify-between font-bold border-t border-black pt-1 text-[9pt]">
             <span>TOTAL A PAGAR</span>
-            <span>{formatCurrency(finiquitoData.totalSettlement || ((totalHaberes - totalDescuentos) + liquidacionMesActual))}</span>
+            <span>{formatCurrency(finiquitoData.totalSettlement || (totalHaberes - totalDescuentos))}</span>
           </div>
 
           {/* Legal Notes */}
@@ -485,7 +499,7 @@ const VisualizadorFiniquito = () => {
             </p>
             <p>
               Finalmente, le informamos que su finiquito se encontrará disponible para su firma y pago desde el 
-              viernes {formatDate(notaryDate)}, en la Notaría Alvaro González Salinas, ubicada en Avenida 
+              día {formatDate(notaryDate)}, en la Notaría Alvaro González Salinas, ubicada en Avenida 
               Apoquindo #3001, piso 2, donde podrá efectuar reserva de derechos, si lo estima necesario. El 
               horario de atención es de lunes a jueves de 9:00 a 14:00 hrs. y de 15:00 a 17:00 hrs. Viernes de 9:00 
               a 16:00 hrs. Cualquier duda, le solicitamos contactar a Claudia Cisternas Flores al número 09-99996703.
@@ -498,14 +512,14 @@ const VisualizadorFiniquito = () => {
           </div>
 
           {/* Manager Signature */}
-          <div className="mb-8 mt-8 text-center">
+          <div className="mb-6 mt-6 text-center">
             <p className="font-bold">{selectedManager.name}</p>
             <p>{selectedManager.title}</p>
             <p>{companyDetails.legalName}</p>
           </div>
 
           {/* Worker and Inspection Signatures */}
-          <div className="flex justify-between mt-8">
+          <div className="flex justify-between mt-6">
             <div>
               <p>------------------------</p>
               <p><strong>Firma del trabajador</strong></p>

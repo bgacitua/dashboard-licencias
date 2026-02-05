@@ -16,6 +16,11 @@ const EmployeesService = {
     const response = await axios.get(`${API_URL}/${rut}`);
     return response.data;
   },
+
+  getDescuentos: async (rut) => {
+    const response = await axios.get(`${API_URL}/${rut}/payroll_detail`);
+    return response.data;
+  },
 };
 
 export default EmployeesService;
