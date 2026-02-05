@@ -37,7 +37,7 @@ def read_tres_meses_finiquitos(db: Session = Depends(get_db)):
     return service.get_items_cinco_meses()
 
 @router.get("/{rut}/descuentos", response_model=List[FiniquitoItemResponse])
-def read_descuentos_finiquitos(rut: str, db: Session = Depends(get_db)):
+async def read_descuentos_finiquitos(rut: str, db: Session = Depends(get_db)):
     """Obtiene los descuentos de los trabajadores."""
     service = FiniquitosService(db)
-    return service.get_descuentos_finiquitos_by_rut(rut)
+    return await service.get_descuentos_by_rut_finiquito(rut)

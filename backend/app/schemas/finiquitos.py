@@ -50,6 +50,7 @@ class FiniquitoItemResponse(BaseModel):
     liquidacion_id: Optional[int] = None
     concepto: Optional[str] = None
     income_type: Optional[str] = None
+    detalle: Optional[str] = None
     monto: Optional[float] = 0
 
     class Config:
@@ -59,6 +60,11 @@ class FiniquitoItemResponse(BaseModel):
 # ============================================
 # Schemas para API externa BUK (Vacaciones)
 # ============================================
+
+class DescuentosResponse(BaseModel):
+    name: Optional[str] = None
+    amount: Optional[float] = 0
+    description: Optional[str] = None
 
 class VacationItem(BaseModel):
     """Representa un tipo de vacación con su stock disponible."""
