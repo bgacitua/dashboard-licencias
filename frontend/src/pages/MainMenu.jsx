@@ -77,7 +77,7 @@ const MainMenu = () => {
               </Link>
 
               {/* 4. Calculadora de sueldos */}
-              <Link to="#" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-orange-100 cursor-default">
+              <Link to="/calculadora" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-orange-100 cursor-default">
                 <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-full mb-2">
                   <span className="material-symbols-outlined text-orange-600 text-3xl">calculate</span>
                 </div>
@@ -90,6 +90,8 @@ const MainMenu = () => {
                   </p>
                 </div>
               </Link>
+
+
 
               {/* 5. Gestión de desempeño (Próximamente) */}
               <div className="group bg-[#f6f6f8] dark:bg-[#1a202c] p-8 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 flex flex-col items-start gap-4 h-full relative overflow-hidden">

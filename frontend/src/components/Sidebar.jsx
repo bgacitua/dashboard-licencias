@@ -52,6 +52,13 @@ const Sidebar = () => {
       path: '#', 
       module: 'admin' 
     },
+
+    { 
+      icon: 'calculate', 
+      label: 'Calculadora', 
+      path: '/calculadora', 
+      module: 'calculadora' 
+    },
   ];
 
   // Filter items based on user access
