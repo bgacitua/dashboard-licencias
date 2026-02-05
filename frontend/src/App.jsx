@@ -13,6 +13,7 @@ import LicenciasVencidas from './pages/LicenciasVencidas';
 import LicenciasPorVencer from './pages/LicenciasPorVencer';
 import LicenciasVigentes from './pages/LicenciasVigentes';
 import LicenciasPage from './pages/LicenciasPage';
+import VacacionesPage from './pages/VacacionesPage';
 import GeneradorFiniquitos from './pages/GeneradorFiniquitos';
 import VisualizadorFiniquito from './pages/VisualizadorFiniquito';
 import CrearFiniquito from './pages/CrearFiniquito';
@@ -80,6 +81,15 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="dashboard">
                   <LicenciasPage />
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/dashboard/vacaciones" 
+              element={
+                <ProtectedRoute requiredModule="dashboard">
+                  <VacacionesPage />
                 </ProtectedRoute>
               } 
             />
