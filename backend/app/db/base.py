@@ -7,3 +7,4 @@ Base = declarative_base()
 from app.models import licencias  # noqa: F401, E402
 from app.models import auth  # noqa: F401, E402
 from app.models import finiquito  # noqa: F401, E402
+from app.models import vacaciones  # noqa: F401, E402

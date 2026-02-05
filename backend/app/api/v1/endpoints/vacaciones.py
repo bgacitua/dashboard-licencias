@@ -8,7 +8,7 @@ from app.schemas.vacaciones import VacacionBase
 
 router = APIRouter()
 
-@router.get("/vacaciones", response_model=List[VacacionBase])
+@router.get("/", response_model=List[VacacionBase])
 def get_vacaciones(db: Session = Depends(get_db)):
     return VacacionesService(db).get_vacaciones()
     
