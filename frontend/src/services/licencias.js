@@ -14,6 +14,16 @@ export const getLicencias = async () => {
   }
 };
 
+export const getLicenciasByRut = async (rut) => {
+  try {
+    const response = await axios.get(`${API_URL}/licencias/rut/${rut}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error al obtener licencias por RUT:", error);
+    throw error;
+  }
+};
+
 export const getLicenciasVigentes = async () => {
   try {
     const response = await axios.get(`${API_URL}/licencias/vigentes`);

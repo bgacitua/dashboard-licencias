@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useLicencias } from "../hooks/useLicencias";
+import { useVacaciones } from "../hooks/useVacaciones";
 import { useMarcas } from "../hooks/useMarcas";
 import Sidebar from "../components/Sidebar";
 
@@ -38,19 +39,70 @@ const StatCard = ({ title, value, subtext, icon, color, trend, trendValue, to })
 );
 
 // Table Component
-const AsistenciaTable = ({ marcas, loading, hasMore, onLoadMore, loadingMore }) => {
+const AsistenciaTable = ({ marcas, loading, hasMore, onLoadMore, loadingMore, filters, onFilterChange, relojes }) => {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
+            {/* Column Headers */}
             <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold">
-              <th className="px-6 py-4">Reloj</th>
-              <th className="px-6 py-4">Nombre</th>
-              <th className="px-6 py-4">RUT</th>
-              <th className="px-6 py-4">Hora Marca</th>
-              <th className="px-6 py-4">Tipo de Marca</th>
-              <th className="px-6 py-4 text-right">Acciones</th>
+              <th className="px-6 py-3">Reloj</th>
+              <th className="px-6 py-3">Nombre</th>
+              <th className="px-6 py-3">RUT</th>
+              <th className="px-6 py-3">Fecha</th>
+              <th className="px-6 py-3">Hora Marca</th>
+              <th className="px-6 py-3">Tipo de Marca</th>
+            </tr>
+            {/* Filters Row */}
+            <tr className="bg-white border-b border-gray-100">
+                <td className="px-6 py-2">
+                    <select 
+                        className="w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={filters.reloj || ''}
+                        onChange={(e) => onFilterChange('reloj', e.target.value)}
+                    >
+                        <option value="">Todos</option>
+                        {relojes && relojes.map((r, idx) => (
+                            <option key={idx} value={r}>{r}</option>
+                        ))}
+                    </select>
+                </td>
+                <td className="px-6 py-2">
+                    <input 
+                        type="text" 
+                        placeholder="Filtrar nombre..."
+                        className="w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={filters.nombre || ''}
+                        onChange={(e) => onFilterChange('nombre', e.target.value)}
+                    />
+                </td>
+                <td className="px-6 py-2">
+                    <input 
+                        type="text" 
+                        placeholder="Filtrar RUT..."
+                        className="w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={filters.rut || ''}
+                        onChange={(e) => onFilterChange('rut', e.target.value)}
+                    />
+                </td>
+                <td className="px-6 py-2">
+                    {/* Date filter placeholder (handled globally) */}
+                </td>
+                <td className="px-6 py-2">
+                    {/* Time filter not requested, placeholder or empty */}
+                </td>
+                <td className="px-6 py-2">
+                    <select 
+                        className="w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={filters.tipoMarca || ''}
+                        onChange={(e) => onFilterChange('tipoMarca', e.target.value)}
+                    >
+                        <option value="">Todos</option>
+                        <option value="IN">Entrada (IN)</option>
+                        <option value="OUT">Salida (OUT)</option>
+                    </select>
+                </td>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -80,7 +132,13 @@ const AsistenciaTable = ({ marcas, loading, hasMore, onLoadMore, loadingMore }) 
                       <span className="text-sm font-medium text-gray-900">{marca.nombre_completo}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">{marca.rut}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">
+                    {/* Clean RUT: split by '-' and keep first part */}
+                    {(marca.rut || '').split('-')[0]}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                    {(marca.fecha || '').split('-').reverse().join('/')}
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-900 font-medium">{marca.hora_marca}</td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -93,11 +151,6 @@ const AsistenciaTable = ({ marcas, loading, hasMore, onLoadMore, loadingMore }) 
                       }`}></span>
                       {marca.tipo_marca === 'IN' ? 'Entrada' : marca.tipo_marca === 'OUT' ? 'Salida' : marca.tipo_marca}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="text-gray-400 hover:text-gray-600">
-                      <span className="material-symbols-outlined">more_vert</span>
-                    </button>
                   </td>
                 </tr>
               ))
@@ -127,8 +180,22 @@ const AsistenciaTable = ({ marcas, loading, hasMore, onLoadMore, loadingMore }) 
   );
 };
 
+
+
 const Dashboard = () => {
-  const { resumen, loading: loadingLicencias } = useLicencias();
+  const { 
+    resumen, 
+    vigentes, 
+    porVencer, 
+    vencidasRecientes,
+    loading: loadingLicencias 
+  } = useLicencias();
+  
+  const {
+    resumen: resumenVacaciones,
+    loading: loadingVacaciones
+  } = useVacaciones();
+  
   const {
     marcas,
     loading: loadingMarcas,
@@ -136,14 +203,18 @@ const Dashboard = () => {
     hasMore,
     cargarMas,
     filters,
-    aplicarFiltros
+    aplicarFiltros,
+    relojes,
+    recargar
   } = useMarcas();
 
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const handleSearch = (e) => {
-      e.preventDefault();
-      aplicarFiltros({ ...filters, nombre: searchTerm }); // Simple search by name for now
+  /* Removed handleSearch and searchTerm state */
+  
+  const handleFilterChange = (key, value) => {
+    aplicarFiltros({
+        ...filters,
+        [key]: value
+    });
   };
 
   return (
@@ -173,64 +244,75 @@ const Dashboard = () => {
         <div className="flex justify-between items-end mb-8">
             <div>
                 <h1 className="text-2xl font-bold text-gray-900 mb-1">Gestión de Licencias y Asistencia</h1>
-                <p className="text-gray-500">Monitoreo en tiempo real de licencias médicas y control de asistencia.</p>
+                <p className="text-gray-500">Monitoreo en tiempo real de licencias médicas, vacaciones y control de asistencia.</p>
             </div>
             <div className="flex gap-3">
-                <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700">
-                    <span className="material-symbols-outlined text-gray-500">calendar_today</span>
-                    <span>Octubre 2023</span> {/* Placeholder date */}
+                <div className="flex items-center gap-2">
+                    <div className="flex flex-col">
+                        <label className="text-[10px] text-gray-500 font-bold uppercase">Desde</label>
+                        <input 
+                            type="date" 
+                            className="bg-white border border-gray-200 rounded px-2 py-1 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            value={filters.fechaInicio || ''}
+                            onChange={(e) => handleFilterChange('fechaInicio', e.target.value)}
+                        />
+                    </div>
+                    <div className="flex flex-col">
+                        <label className="text-[10px] text-gray-500 font-bold uppercase">Hasta</label>
+                        <input 
+                            type="date" 
+                            className="bg-white border border-gray-200 rounded px-2 py-1 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            value={filters.fechaFin || ''}
+                            onChange={(e) => handleFilterChange('fechaFin', e.target.value)}
+                        />
+                    </div>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200">
-                    <span className="material-symbols-outlined text-lg">download</span>
-                    Exportar Reporte
-                </button>
+                <div className="flex items-end">
+                    <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 h-[38px]">
+                        <span className="material-symbols-outlined text-lg">download</span>
+                        Exportar Reporte
+                    </button>
+                </div>
             </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <StatCard 
-                title="Licencias vencidas (7 días)"
-                value={resumen.vencidasRecientes}
-                subtext="Requiere revisión"
-                icon="warning"
-                color="red" // Tailwind color name
-                trend="up"
-                trendValue="+2 desde ayer"
-                to="/dashboard/vencidas"
-            />
-            <StatCard 
-                title="Licencias activas"
-                value={resumen.vigentes}
-                subtext="Total del mes en curso"
-                icon="check_circle"
-                color="green"
-                to="/dashboard/vigentes"
-            />
-            <StatCard 
-                title="Por vencer (próximos 7 días)"
-                value={resumen.porVencer}
-                subtext="Requiere revisión"
-                icon="hourglass_top"
-                color="amber"
-                to="/dashboard/por-vencer"
-            />
+        {/* Tarjetas de licencias médicas y vacaciones */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <Link to="/dashboard/licencias" target="_blank" className="cursor-pointer transition-transform hover:scale-[1.02]">
+                <StatCard 
+                    title="Licencias activas"
+                    value={resumen.vigentes}
+                    subtext="Ver detalle completo"
+                    icon="check_circle"
+                    color="green"
+                    trend="up"
+                    trendValue={`${resumen.porVencer} por vencer`}
+                />
+            </Link>
+            <Link to="/dashboard/vacaciones" target="_blank" className="cursor-pointer transition-transform hover:scale-[1.02]">
+                <StatCard 
+                    title="Vacaciones activas"
+                    value={resumenVacaciones.total}
+                    subtext="Ver detalle completo"
+                    icon="beach_access"
+                    color="#0ea5e9"
+                />
+            </Link>
         </div>
+
+
 
         {/* Assistance Section */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-lg font-bold text-gray-900">Registro de Asistencia</h2>
-                <form onSubmit={handleSearch} className="relative w-96">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined text-xl">search</span>
-                    <input 
-                        type="text" 
-                        placeholder="Buscar por Nombre o RUT..." 
-                        className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </form>
+                <button 
+                    onClick={recargar}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                    title="Actualizar tabla"
+                >
+                    <span className="material-symbols-outlined">refresh</span>
+                </button>
             </div>
 
             <AsistenciaTable 
@@ -239,6 +321,9 @@ const Dashboard = () => {
                 hasMore={hasMore} 
                 onLoadMore={cargarMas}
                 loadingMore={loadingMore}
+                filters={filters}
+                onFilterChange={handleFilterChange}
+                relojes={relojes}
             />
         </div>
 
