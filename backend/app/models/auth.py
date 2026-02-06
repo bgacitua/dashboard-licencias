@@ -16,6 +16,15 @@ rol_modulos = Table(
     schema='App'
 )
 
+# Tabla de relación muchos-a-muchos entre Usuarios y Módulos (permisos individuales)
+usuario_modulos = Table(
+    'UsuarioModulos',
+    Base.metadata,
+    Column('usuario_id', Integer, ForeignKey('App.Usuarios.id'), primary_key=True),
+    Column('modulo_id', Integer, ForeignKey('App.Modulos.id'), primary_key=True),
+    schema='App'
+)
+
 
 class Role(Base):
     """Modelo para roles del sistema (admin, rrhh, usuario)"""
@@ -50,6 +59,8 @@ class Usuario(Base):
     
     # Relación con rol
     rol = relationship("Role", back_populates="usuarios")
+    # Relación directa con módulos (permisos individuales)
+    modulos = relationship("Modulo", secondary=usuario_modulos, back_populates="usuarios")
 
 
 class Modulo(Base):
@@ -68,3 +79,5 @@ class Modulo(Base):
     
     # Relación con roles que tienen acceso
     roles = relationship("Role", secondary=rol_modulos, back_populates="modulos")
+    # Relación con usuarios que tienen acceso directo
+    usuarios = relationship("Usuario", secondary=usuario_modulos, back_populates="modulos")

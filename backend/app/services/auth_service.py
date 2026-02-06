@@ -73,7 +73,8 @@ class AuthService:
         password: str,
         rol_id: int,
         email: Optional[str] = None,
-        nombre_completo: Optional[str] = None
+        nombre_completo: Optional[str] = None,
+        modulo_ids: Optional[List[int]] = None
     ) -> Usuario:
         """Crea un nuevo usuario con password hasheado."""
         password_hash = get_password_hash(password)
@@ -86,6 +87,10 @@ class AuthService:
             nombre_completo=nombre_completo
         )
         
+        # Asignar módulos específicos si se proporcionan
+        if modulo_ids:
+            self.repository.set_user_modules(user, modulo_ids)
+        
         logger.info(f"Usuario creado: {username}")
         return user
     
@@ -96,7 +101,8 @@ class AuthService:
         nombre_completo: Optional[str] = None,
         rol_id: Optional[int] = None,
         activo: Optional[bool] = None,
-        password: Optional[str] = None
+        password: Optional[str] = None,
+        modulo_ids: Optional[List[int]] = None
     ) -> Optional[Usuario]:
         """Actualiza un usuario existente."""
         user = self.repository.get_user_by_id(user_id)
@@ -116,6 +122,11 @@ class AuthService:
             update_data["password_hash"] = get_password_hash(password)
         
         updated_user = self.repository.update_user(user, **update_data)
+        
+        # Actualizar módulos específicos si se proporcionan
+        if modulo_ids is not None:
+            self.repository.set_user_modules(updated_user, modulo_ids)
+        
         logger.info(f"Usuario actualizado: {user.username}")
         
         return updated_user
