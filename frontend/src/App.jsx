@@ -16,18 +16,6 @@ const LoadingSpinner = () => (
 // Páginas públicas (carga inmediata - críticas para el primer render)
 import Login from './pages/Login';
 import MainMenu from './pages/MainMenu';
-<<<<<<< HEAD
-import Dashboard from './pages/Dashboard';
-import LicenciasVencidas from './pages/LicenciasVencidas';
-import LicenciasPorVencer from './pages/LicenciasPorVencer';
-import LicenciasVigentes from './pages/LicenciasVigentes';
-import LicenciasPage from './pages/LicenciasPage';
-import GeneradorFiniquitos from './pages/GeneradorFiniquitos';
-import VisualizadorFiniquito from './pages/VisualizadorFiniquito';
-import CrearFiniquito from './pages/CrearFiniquito';
-import AdminPanel from './pages/admin/AdminPanel';
-import Calculadora from './pages/Calculadora';
-=======
 
 // Páginas protegidas con lazy loading (carga bajo demanda)
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -41,7 +29,6 @@ const VisualizadorFiniquito = lazy(() => import('./pages/VisualizadorFiniquito')
 const CrearFiniquito = lazy(() => import('./pages/CrearFiniquito'));
 const AdminPanel = lazy(() => import('./pages/admin/AdminPanel'));
 const Calculadora = lazy(() => import('./pages/Calculadora'));
->>>>>>> 02f6e93 (Se implementó en visualizador de finiquito el número de días corridos en las vacaciones pendientes)
 
 function App() {
   return (
