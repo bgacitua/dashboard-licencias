@@ -4,13 +4,84 @@ import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
 
 const MainMenu = () => {
-  const { user } = useAuth();
+  const { user, hasModuleAccess, hasRole } = useAuth();
+
+  // Definir los módulos del menú con sus códigos de acceso
+  const menuItems = [
+    {
+      id: 'dashboard',
+      title: 'Dashboard licencias médicas',
+      description: 'Gestiona y visualiza el estado de las licencias médicas de todos los empleados.',
+      path: '/dashboard',
+      icon: 'medical_services',
+      iconColor: 'text-[#135bec]',
+      bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+      borderHover: 'hover:border-blue-100',
+      moduleCode: 'dashboard', // Código del módulo requerido
+      requiredRole: ['rrhh', 'admin'],
+    },
+    {
+      id: 'finiquitos',
+      title: 'Generador de finiquitos',
+      description: 'Crea, valida y descarga documentos de término de contrato legales.',
+      path: '/finiquitos',
+      icon: 'description',
+      iconColor: 'text-purple-600',
+      bgColor: 'bg-purple-50 dark:bg-purple-900/20',
+      borderHover: 'hover:border-purple-100',
+      moduleCode: 'finiquitos',
+      requiredRole: ['rrhh', 'admin'],
+    },
+    {
+      id: 'calculadora',
+      title: 'Calculadora de sueldos',
+      description: 'Simula sueldos líquidos, brutos y costos empresa con parámetros actualizados.',
+      path: '/calculadora',
+      icon: 'calculate',
+      iconColor: 'text-orange-600',
+      bgColor: 'bg-orange-50 dark:bg-orange-900/20',
+      borderHover: 'hover:border-orange-100',
+      moduleCode: 'calculadora',
+      requiredRole: ['rrhh', 'admin'],
+    },
+    {
+      id: 'seleccion',
+      title: 'Selección de personal',
+      description: 'Administra candidatos, programa entrevistas y sigue los procesos de reclutamiento.',
+      path: '#',
+      icon: 'person_search',
+      iconColor: 'text-emerald-600',
+      bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
+      borderHover: 'hover:border-emerald-100',
+      moduleCode: 'seleccion',
+      requiredRole: ['rrhh', 'admin'],
+    },
+    {
+      id: 'admin',
+      title: 'Configuración de administrador',
+      description: 'Configura los parámetros del sistema.',
+      path: '/admin',
+      icon: 'settings',
+      iconColor: 'text-gray-600',
+      bgColor: 'bg-gray-100 dark:bg-gray-700',
+      borderHover: 'hover:border-gray-200',
+      moduleCode: 'admin',
+      requiredRole: ['admin'],
+    },
+  ];
+
+  // Filtrar módulos según permisos del usuario
+  const visibleItems = menuItems.filter(item => {
+    // Si requiere un rol específico, verificar
+    if (item.requiredRole && !hasRole(item.requiredRole)) {
+      return false;
+    }
+    // Verificar acceso al módulo
+    return hasModuleAccess(item.moduleCode);
+  });
 
   return (
     <div className="flex h-screen bg-[#f6f6f8] dark:bg-[#101622] font-['Public_Sans']">
-      {/* Navbar (reusing existing component but it seems the design implies a top navbar which is already there) */}
-      {/* The design shows a clean page with a top bar. The current Navbar component seems to be a top bar based on its code. */}
-      
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar />
 
@@ -31,82 +102,36 @@ const MainMenu = () => {
             {/* Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               
-              {/* 1. Dashboard licencias médicas */}
-              <Link to="/dashboard" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-blue-100">
-                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-full mb-2">
-                  <span className="material-symbols-outlined text-[#135bec] text-3xl">medical_services</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
-                    Dashboard licencias médicas
-                  </h2>
-                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
-                    Gestiona y visualiza el estado de las licencias médicas de todos los empleados.
-                  </p>
-                </div>
-              </Link>
+              {/* Renderizar módulos visibles */}
+              {visibleItems.map(item => (
+                <Link 
+                  key={item.id}
+                  to={item.path} 
+                  className={`group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent ${item.borderHover}`}
+                >
+                  <div className={`p-3 ${item.bgColor} rounded-full mb-2`}>
+                    <span className={`material-symbols-outlined ${item.iconColor} text-3xl`}>{item.icon}</span>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
+                      {item.title}
+                    </h2>
+                    <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+                </Link>
+              ))}
 
-              {/* 2. Generador de finiquitos */}
-              <Link to="/finiquitos" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-purple-100">
-                <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-full mb-2">
-                  <span className="material-symbols-outlined text-purple-600 text-3xl">description</span>
+              {/* Mensaje si no hay módulos disponibles */}
+              {visibleItems.length === 0 && (
+                <div className="col-span-full text-center py-12">
+                  <span className="material-symbols-outlined text-gray-400 text-5xl mb-4">lock</span>
+                  <p className="text-gray-500">No tienes módulos asignados. Contacta al administrador.</p>
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
-                    Generador de finiquitos
-                  </h2>
-                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
-                    Crea, valida y descarga documentos de término de contrato legales.
-                  </p>
-                </div>
-              </Link>
+              )}
 
-              {/* 3. Calculadora de sueldos */}
-              <Link to="/calculadora" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-orange-100 cursor-default">
-                <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-full mb-2">
-                  <span className="material-symbols-outlined text-orange-600 text-3xl">calculate</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
-                    Calculadora de sueldos
-                  </h2>
-                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
-                    Simula sueldos líquidos, brutos y costos empresa con parámetros actualizados.
-                  </p>
-                </div>
-              </Link>
-
-              {/* 4. Selección de personal */}    
-              <Link to="#" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-emerald-100 cursor-default">
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-full mb-2">
-                  <span className="material-symbols-outlined text-emerald-600 text-3xl">person_search</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
-                    Selección de personal
-                  </h2>
-                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
-                    Administra candidatos, programa entrevistas y sigue los procesos de reclutamiento.
-                  </p>
-                </div>
-              </Link>
-
-              {/* 5. Selección de administrador */}    
-              <Link to="/admin" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-emerald-100 cursor-default">
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-full mb-2">
-                  <span className="material-symbols-outlined text-emerald-600 text-3xl">settings</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
-                    Configuración de administrador
-                  </h2>
-                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
-                    Configura los parámetros del sistema.
-                  </p>
-                </div>
-              </Link>
-
-              {/* 6. Gestión de desempeño (Próximamente) */}
+              {/* Gestión de desempeño (Próximamente) - Siempre visible */}
               <div className="group bg-[#f6f6f8] dark:bg-[#1a202c] p-8 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 flex flex-col items-start gap-4 h-full relative overflow-hidden">
                 <div className="absolute top-4 right-4 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold px-3 py-1 rounded-full">
                   Próximamente

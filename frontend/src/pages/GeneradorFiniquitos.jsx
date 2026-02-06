@@ -10,6 +10,7 @@ const GeneradorFiniquitos = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEmployees, setSelectedEmployees] = useState([]);
+  const [selectedDepartamento, setSelectedDepartamento] = useState("");
 
   useEffect(() => {
     fetchEmployees();
@@ -44,10 +45,34 @@ const GeneradorFiniquitos = () => {
     }
   };
 
-  const filteredEmployees = employees.filter(emp => 
-    emp.nombre_trabajador.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.rut_trabajador.includes(searchTerm)
-  );
+  // Normalize search term for flexible matching
+  const normalizeText = (text) => {
+    if (!text) return '';
+    return text.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+      .replace(/[^a-z0-9]/g, ''); // Remove special chars
+  };
+
+  // Get unique departments from employees
+  const departments = [...new Set(employees.map(emp => emp.departamento).filter(Boolean))].sort();
+
+  const filteredEmployees = employees.filter(emp => {
+    // Departamento filter
+    if (selectedDepartamento && emp.departamento !== selectedDepartamento) {
+      return false;
+    }
+    
+    // Flexible search (name, RUT, cargo)
+    if (searchTerm) {
+      const searchNormalized = normalizeText(searchTerm);
+      const nameMatch = normalizeText(emp.nombre_trabajador).includes(searchNormalized);
+      const rutMatch = emp.rut_trabajador?.replace(/[.-]/g, '').includes(searchTerm.replace(/[.-]/g, ''));
+      const cargoMatch = normalizeText(emp.cargo).includes(searchNormalized);
+      return nameMatch || rutMatch || cargoMatch;
+    }
+    
+    return true;
+  });
 
   return (
     <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
@@ -68,24 +93,22 @@ const GeneradorFiniquitos = () => {
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
             <input 
               type="text" 
-              placeholder="Search by name, RUT, or position..." 
+              placeholder="Buscar por nombre, RUT o cargo..." 
               className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
               value={searchTerm}
               onChange={handleSearch}
             />
           </div>
           <div className="flex gap-3">
-            <select className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer">
-              <option>Departamento</option>
-              {/* Add dynamic departments if available */}
-            </select>
-            <select className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer">
-              <option>Estado</option>
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-            <select className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer">
-              <option>Ubicación</option>
+            <select 
+              className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer"
+              value={selectedDepartamento}
+              onChange={(e) => setSelectedDepartamento(e.target.value)}
+            >
+              <option value="">Todos los departamentos</option>
+              {departments.map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
             </select>
           </div>
         </div>

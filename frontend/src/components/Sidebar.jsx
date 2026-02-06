@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Sidebar = () => {
-  const { user, logout, hasModuleAccess } = useAuth();
+  const { user, logout, hasModuleAccess, hasRole } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -14,7 +14,7 @@ const Sidebar = () => {
     navigate('/login');
   };
 
-  // Define menu items with required module access
+  // Define menu items with required module access and optional role
   const allMenuItems = [
     { 
       icon: 'dashboard', 
@@ -44,12 +44,33 @@ const Sidebar = () => {
       icon: 'calculate', 
       label: 'Calculadora Sueldos', 
       path: '/calculadora', 
-      module: 'dashboard' 
+      module: 'calculadora' 
+    },
+    { 
+      icon: 'person_search', 
+      label: 'Selección de Personal', 
+      path: '/seleccion', 
+      module: 'seleccion',
+      requiredRole: ['admin']
+    },
+    { 
+      icon: 'settings', 
+      label: 'Administración', 
+      path: '/admin', 
+      module: 'admin',
+      requiredRole: ['admin']
     },
   ];
 
-  // Filter items based on user access
-  const menuItems = allMenuItems.filter(item => hasModuleAccess(item.module));
+  // Filter items based on user access and role
+  const menuItems = allMenuItems.filter(item => {
+    // If requires a specific role, check it
+    if (item.requiredRole && !hasRole(item.requiredRole)) {
+      return false;
+    }
+    // Check module access
+    return hasModuleAccess(item.module);
+  });
 
   return (
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen font-['Public_Sans'] fixed left-0 top-0 z-50">

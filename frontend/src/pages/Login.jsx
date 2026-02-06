@@ -18,8 +18,7 @@ const Login = () => {
     // Redirigir si ya está autenticado
     React.useEffect(() => {
         if (isAuthenticated) {
-            const from = location.state?.from?.pathname || '/menu';
-            navigate(from, { replace: true });
+            navigate('/menu', { replace: true });
         }
     }, [isAuthenticated, navigate, location]);
 
@@ -37,8 +36,7 @@ const Login = () => {
         const result = await login(username, password);
         
         if (result.success) {
-            const from = location.state?.from?.pathname || '/menu';
-            navigate(from, { replace: true });
+            navigate('/menu', { replace: true });
         } else {
             setError(result.error);
         }

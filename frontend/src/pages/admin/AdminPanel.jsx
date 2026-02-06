@@ -25,7 +25,8 @@ const AdminPanel = () => {
         password: '',
         nombre_completo: '',
         email: '',
-        rol_id: ''
+        rol_id: '',
+        modulo_ids: []
     });
     
     // Edit user modal
@@ -83,7 +84,8 @@ const AdminPanel = () => {
                 },
                 body: JSON.stringify({
                     ...newUser,
-                    rol_id: parseInt(newUser.rol_id)
+                    rol_id: parseInt(newUser.rol_id),
+                    modulo_ids: newUser.modulo_ids
                 })
             });
 
@@ -93,7 +95,7 @@ const AdminPanel = () => {
             }
 
             setShowCreateModal(false);
-            setNewUser({ username: '', password: '', nombre_completo: '', email: '', rol_id: '' });
+            setNewUser({ username: '', password: '', nombre_completo: '', email: '', rol_id: '', modulo_ids: [] });
             fetchData();
         } catch (err) {
             alert(err.message);
@@ -112,7 +114,8 @@ const AdminPanel = () => {
                 body: JSON.stringify({
                     nombre_completo: editingUser.nombre_completo,
                     email: editingUser.email,
-                    rol_id: parseInt(editingUser.rol_id)
+                    rol_id: parseInt(editingUser.rol_id),
+                    modulo_ids: editingUser.modulo_ids
                 })
             });
 
@@ -200,7 +203,8 @@ const AdminPanel = () => {
     const openEditModal = (user) => {
         setEditingUser({
             ...user,
-            rol_id: user.rol?.id || ''
+            rol_id: user.rol?.id || '',
+            modulo_ids: user.modulos?.map(m => m.id) || []
         });
         setShowEditModal(true);
     };
@@ -551,6 +555,28 @@ const AdminPanel = () => {
                                         ))}
                                     </select>
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Módulos Permitidos</label>
+                                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2">
+                                        {modules.filter(m => m.activo).map(module => (
+                                            <label key={module.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={newUser.modulo_ids.includes(module.id)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setNewUser({...newUser, modulo_ids: [...newUser.modulo_ids, module.id]});
+                                                        } else {
+                                                            setNewUser({...newUser, modulo_ids: newUser.modulo_ids.filter(id => id !== module.id)});
+                                                        }
+                                                    }}
+                                                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                />
+                                                <span className="text-sm text-gray-700">{module.nombre}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
                                 <div className="flex gap-3 pt-4">
                                     <button
                                         type="button"
@@ -616,6 +642,28 @@ const AdminPanel = () => {
                                             <option key={r.id} value={r.id}>{r.nombre}</option>
                                         ))}
                                     </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Módulos Permitidos</label>
+                                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2">
+                                        {modules.filter(m => m.activo).map(module => (
+                                            <label key={module.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={editingUser.modulo_ids?.includes(module.id) || false}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setEditingUser({...editingUser, modulo_ids: [...(editingUser.modulo_ids || []), module.id]});
+                                                        } else {
+                                                            setEditingUser({...editingUser, modulo_ids: (editingUser.modulo_ids || []).filter(id => id !== module.id)});
+                                                        }
+                                                    }}
+                                                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                />
+                                                <span className="text-sm text-gray-700">{module.nombre}</span>
+                                            </label>
+                                        ))}
+                                    </div>
                                 </div>
                                 <div className="flex gap-3 pt-4">
                                     <button
