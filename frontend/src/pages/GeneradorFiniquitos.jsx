@@ -57,13 +57,9 @@ const GeneradorFiniquitos = () => {
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Employee Management</h1>
-            <p className="text-gray-500">Manage active employees, view details, and generate legal documents.</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Generador de Finiquitos</h1>
+            <p className="text-gray-500">Selecciona los trabajadores para generar su finiquito.</p>
           </div>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm shadow-blue-200">
-            <span className="material-symbols-outlined">add</span>
-            Add New Employee
-          </button>
         </div>
 
         {/* Filters Bar */}
@@ -80,16 +76,16 @@ const GeneradorFiniquitos = () => {
           </div>
           <div className="flex gap-3">
             <select className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer">
-              <option>Department</option>
+              <option>Departamento</option>
               {/* Add dynamic departments if available */}
             </select>
             <select className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer">
-              <option>Status</option>
+              <option>Estado</option>
               <option>Active</option>
               <option>Inactive</option>
             </select>
             <select className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer">
-              <option>Location</option>
+              <option>Ubicación</option>
             </select>
           </div>
         </div>
@@ -143,12 +139,12 @@ const GeneradorFiniquitos = () => {
                       onChange={toggleSelectAll}
                     />
                   </th>
-                  <th className="p-4">Name / Position</th>
+                  <th className="p-4">Nombre / Cargo</th>
                   <th className="p-4">RUT</th>
                   <th className="p-4">Supervisor</th>
-                  <th className="p-4">Supervisor RUT</th>
-                  <th className="p-4">Tenure</th>
-                  <th className="p-4">Joined</th>
+                  <th className="p-4">RUT Supervisor</th>
+                  <th className="p-4">Antigüedad</th>
+                  <th className="p-4">Ingreso</th>
                   <th className="p-4 text-right"></th>
                 </tr>
               </thead>
@@ -157,12 +153,12 @@ const GeneradorFiniquitos = () => {
                   <tr>
                     <td colSpan="8" className="p-8 text-center text-gray-500">
                       <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
-                      Loading employees...
+                      Cargando trabajadores...
                     </td>
                   </tr>
                 ) : filteredEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="p-8 text-center text-gray-500">No employees found matching your search.</td>
+                    <td colSpan="8" className="p-8 text-center text-gray-500">No se encontraron trabajadores que coincidan con tu búsqueda.</td>
                   </tr>
                 ) : (
                   filteredEmployees.map((emp) => (

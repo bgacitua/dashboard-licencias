@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useLicencias } from "../hooks/useLicencias";
+import { useVacaciones } from "../hooks/useVacaciones";
 import { useMarcas } from "../hooks/useMarcas";
 import Sidebar from "../components/Sidebar";
 
@@ -191,6 +192,11 @@ const Dashboard = () => {
   } = useLicencias();
   
   const {
+    resumen: resumenVacaciones,
+    loading: loadingVacaciones
+  } = useVacaciones();
+  
+  const {
     marcas,
     loading: loadingMarcas,
     loadingMore,
@@ -238,7 +244,7 @@ const Dashboard = () => {
         <div className="flex justify-between items-end mb-8">
             <div>
                 <h1 className="text-2xl font-bold text-gray-900 mb-1">Gestión de Licencias y Asistencia</h1>
-                <p className="text-gray-500">Monitoreo en tiempo real de licencias médicas y control de asistencia.</p>
+                <p className="text-gray-500">Monitoreo en tiempo real de licencias médicas, vacaciones y control de asistencia.</p>
             </div>
             <div className="flex gap-3">
                 <div className="flex items-center gap-2">
@@ -270,8 +276,8 @@ const Dashboard = () => {
             </div>
         </div>
 
-        {/* Tarjetas de licencias médicas */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {/* Tarjetas de licencias médicas y vacaciones */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <Link to="/dashboard/licencias" target="_blank" className="cursor-pointer transition-transform hover:scale-[1.02]">
                 <StatCard 
                     title="Licencias activas"
@@ -283,11 +289,15 @@ const Dashboard = () => {
                     trendValue={`${resumen.porVencer} por vencer`}
                 />
             </Link>
-            {/* 
-            Hidden/Removed separate cards as per request
-            <StatCard ... /> 
-            <StatCard ... />
-            */}
+            <Link to="/dashboard/vacaciones" target="_blank" className="cursor-pointer transition-transform hover:scale-[1.02]">
+                <StatCard 
+                    title="Vacaciones activas"
+                    value={resumenVacaciones.total}
+                    subtext="Ver detalle completo"
+                    icon="beach_access"
+                    color="#0ea5e9"
+                />
+            </Link>
         </div>
 
 

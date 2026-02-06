@@ -17,6 +17,7 @@ const LoadingSpinner = () => (
 import Login from './pages/Login';
 import MainMenu from './pages/MainMenu';
 
+
 // Páginas protegidas con lazy loading (carga bajo demanda)
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const LicenciasVencidas = lazy(() => import('./pages/LicenciasVencidas'));
@@ -29,6 +30,7 @@ const VisualizadorFiniquito = lazy(() => import('./pages/VisualizadorFiniquito')
 const CrearFiniquito = lazy(() => import('./pages/CrearFiniquito'));
 const AdminPanel = lazy(() => import('./pages/admin/AdminPanel'));
 const Calculadora = lazy(() => import('./pages/Calculadora'));
+
 
 function App() {
   return (
@@ -92,6 +94,15 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="dashboard">
                   <LicenciasPage />
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/dashboard/vacaciones" 
+              element={
+                <ProtectedRoute requiredModule="dashboard">
+                  <VacacionesPage />
                 </ProtectedRoute>
               } 
             />

@@ -25,39 +25,26 @@ const Sidebar = () => {
     { 
       icon: 'medical_services', 
       label: 'Licencias Médicas', 
-      path: '/dashboard/vigentes', 
+      path: '/dashboard/licencias', 
       module: 'dashboard' 
     },
     { 
-      icon: 'schedule', 
-      label: 'Asistencia', 
-      path: '#', 
-      module: 'dashboard' // Assuming part of dashboard for now
-    },
-    { 
-      icon: 'group', 
-      label: 'Empleados', 
-      path: '#', 
-      module: 'finiquitos' // Assuming RRHH/Finiquitos module
+      icon: 'beach_access', 
+      label: 'Vacaciones Activas', 
+      path: '/dashboard/vacaciones', 
+      module: 'dashboard' 
     },
     { 
       icon: 'description', 
-      label: 'Reportes', 
-      path: '#', 
-      module: 'finiquitos' 
+      label: 'Generador Finiquitos', 
+      path: '/finiquitos', 
+      module: 'finiquitos'
     },
-    { 
-      icon: 'settings', 
-      label: 'Configuración', 
-      path: '#', 
-      module: 'admin' 
-    },
-
     { 
       icon: 'calculate', 
-      label: 'Calculadora', 
+      label: 'Calculadora Sueldos', 
       path: '/calculadora', 
-      module: 'calculadora' 
+      module: 'dashboard' 
     },
   ];
 
@@ -67,12 +54,12 @@ const Sidebar = () => {
   return (
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen font-['Public_Sans'] fixed left-0 top-0 z-50">
       {/* Logo */}
-      <div className="p-6 flex items-center gap-3">
+      <Link to="/menu" className="p-6 flex items-center gap-3 hover:bg-gray-50 transition-colors">
         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
              <span className="material-symbols-outlined text-white text-xl">hexagon</span>
         </div>
         <span className="text-xl font-bold text-gray-800">HR Portal</span>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex-1 px-4 py-4 space-y-1">
