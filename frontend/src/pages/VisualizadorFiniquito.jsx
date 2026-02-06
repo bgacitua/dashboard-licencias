@@ -393,7 +393,7 @@ const VisualizadorFiniquito = () => {
               )}
               {vacaciones > 0 && (
                 <div className="flex justify-between">
-                  <span>Vacaciones Proporcionales ({(finiquitoData.vacationDays || 0).toFixed(1)} días)</span>
+                  <span>Vacaciones Proporcionales ({(finiquitoData.vacationCalendarDays || 0).toFixed(1)} días)</span>
                   <span>{formatCurrency(vacaciones)}</span>
                 </div>
               )}
@@ -507,12 +507,20 @@ const VisualizadorFiniquito = () => {
           </div>
 
           {/* Closing */}
-          <div className="mb-4">
+          <div 
+            className={`mb-4 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            contentEditable={isEditable}
+            suppressContentEditableWarning={true}
+          >
             <p>Sin otro particular, le saluda atentamente</p>
           </div>
 
           {/* Manager Signature */}
-          <div className="mb-6 mt-6 text-center">
+          <div 
+            className={`mb-6 mt-6 text-center ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            contentEditable={isEditable}
+            suppressContentEditableWarning={true}
+          >
             <p className="font-bold">{selectedManager.name}</p>
             <p>{selectedManager.title}</p>
             <p>{companyDetails.legalName}</p>
@@ -520,12 +528,20 @@ const VisualizadorFiniquito = () => {
 
           {/* Worker and Inspection Signatures */}
           <div className="flex justify-between mt-6">
-            <div>
+            <div 
+              className={`${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+              contentEditable={isEditable}
+              suppressContentEditableWarning={true}
+            >
               <p>------------------------</p>
               <p><strong>Firma del trabajador</strong></p>
               <p>Rut: {employeeData.rut_trabajador}</p>
             </div>
-            <div className="text-right">
+            <div 
+              className={`text-right ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+              contentEditable={isEditable}
+              suppressContentEditableWarning={true}
+            >
               <p><strong>C.C.: Inspección del Trabajo</strong></p>
             </div>
           </div>
