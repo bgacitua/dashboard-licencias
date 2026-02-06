@@ -61,22 +61,7 @@ const MainMenu = () => {
                 </div>
               </Link>
 
-              {/* 3. Selección de personal */}
-              <Link to="#" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-emerald-100 cursor-default">
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-full mb-2">
-                  <span className="material-symbols-outlined text-emerald-600 text-3xl">person_search</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
-                    Selección de personal
-                  </h2>
-                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
-                    Administra candidatos, programa entrevistas y sigue los procesos de reclutamiento.
-                  </p>
-                </div>
-              </Link>
-
-              {/* 4. Calculadora de sueldos */}
+              {/* 3. Calculadora de sueldos */}
               <Link to="/calculadora" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-orange-100 cursor-default">
                 <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-full mb-2">
                   <span className="material-symbols-outlined text-orange-600 text-3xl">calculate</span>
@@ -91,9 +76,37 @@ const MainMenu = () => {
                 </div>
               </Link>
 
+              {/* 4. Selección de personal */}    
+              <Link to="#" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-emerald-100 cursor-default">
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-full mb-2">
+                  <span className="material-symbols-outlined text-emerald-600 text-3xl">person_search</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
+                    Selección de personal
+                  </h2>
+                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
+                    Administra candidatos, programa entrevistas y sigue los procesos de reclutamiento.
+                  </p>
+                </div>
+              </Link>
 
+              {/* 5. Selección de administrador */}    
+              <Link to="/admin" className="group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent hover:border-emerald-100 cursor-default">
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-full mb-2">
+                  <span className="material-symbols-outlined text-emerald-600 text-3xl">settings</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
+                    Configuración de administrador
+                  </h2>
+                  <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
+                    Configura los parámetros del sistema.
+                  </p>
+                </div>
+              </Link>
 
-              {/* 5. Gestión de desempeño (Próximamente) */}
+              {/* 6. Gestión de desempeño (Próximamente) */}
               <div className="group bg-[#f6f6f8] dark:bg-[#1a202c] p-8 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 flex flex-col items-start gap-4 h-full relative overflow-hidden">
                 <div className="absolute top-4 right-4 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold px-3 py-1 rounded-full">
                   Próximamente
