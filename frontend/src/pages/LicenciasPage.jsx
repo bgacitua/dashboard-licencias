@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import { useLicencias } from '../hooks/useLicencias';
 
@@ -11,6 +11,7 @@ const LicenciasPage = () => {
   } = useLicencias();
 
   const [activeTab, setActiveTab] = useState('activas');
+  const [sortOrder, setSortOrder] = useState('asc');
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
@@ -41,6 +42,35 @@ const LicenciasPage = () => {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
       return diffDays + 1; // Inclusive count usually preferred for leave days
   };
+
+  const toggleSort = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
+
+  const sortedData = useMemo(() => {
+    let data = [];
+    switch (activeTab) {
+      case 'activas':
+        data = vigentes;
+        break;
+      case 'por_vencer':
+        data = porVencer;
+        break;
+      case 'vencidas':
+        data = vencidasRecientes;
+        break;
+      default:
+        data = [];
+    }
+
+    if (!data) return [];
+
+    return [...data].sort((a, b) => {
+      const dateA = new Date(a.fecha_inicio);
+      const dateB = new Date(b.fecha_inicio);
+      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+  }, [activeTab, vigentes, porVencer, vencidasRecientes, sortOrder]);
 
 
   return (
@@ -110,7 +140,17 @@ const LicenciasPage = () => {
                             <th className="px-6 py-3">RUT</th>
                             <th className="px-6 py-3">Trabajador</th>
                             <th className="px-6 py-3">Tipo</th>
-                            <th className="px-6 py-3">Inicio</th>
+                            <th 
+                                className="px-6 py-3 cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                                onClick={toggleSort}
+                            >
+                                <div className="flex items-center gap-1">
+                                    Inicio
+                                    <span className="material-symbols-outlined text-sm">
+                                        {sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+                                    </span>
+                                </div>
+                            </th>
                             <th className="px-6 py-3">Término</th>
                             <th className="px-6 py-3">Duración</th>
                             {activeTab !== 'activas' && (
@@ -126,7 +166,7 @@ const LicenciasPage = () => {
                         )}
 
                         {!loading && activeTab === 'activas' && (
-                            vigentes.length > 0 ? vigentes.map((lic, idx) => (
+                            sortedData.length > 0 ? sortedData.map((lic, idx) => (
                                 <tr key={idx} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-6 py-4 text-sm font-mono text-gray-600">{lic.rut_empleado || lic.rut_trabajador}</td>
                                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{lic.nombre_completo || lic.nombre_trabajador}</td>
@@ -141,7 +181,7 @@ const LicenciasPage = () => {
                         )}
 
                         {!loading && activeTab === 'por_vencer' && (
-                            porVencer.length > 0 ? porVencer.map((lic, idx) => (
+                            sortedData.length > 0 ? sortedData.map((lic, idx) => (
                                 <tr key={idx} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-6 py-4 text-sm font-mono text-gray-600">{lic.rut_empleado || lic.rut_trabajador}</td>
                                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{lic.nombre_completo || lic.nombre_trabajador}</td>
@@ -159,7 +199,7 @@ const LicenciasPage = () => {
                         )}
 
                         {!loading && activeTab === 'vencidas' && (
-                             vencidasRecientes.length > 0 ? vencidasRecientes.map((lic, idx) => (
+                             sortedData.length > 0 ? sortedData.map((lic, idx) => (
                                 <tr key={idx} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-6 py-4 text-sm font-mono text-gray-600">{lic.rut_empleado || lic.rut_trabajador}</td>
                                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{lic.nombre_completo || lic.nombre_trabajador}</td>

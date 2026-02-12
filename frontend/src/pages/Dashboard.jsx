@@ -227,7 +227,7 @@ const Dashboard = () => {
             <div className="flex items-center gap-2 text-sm text-gray-500">
                 <span className="material-symbols-outlined text-lg">home</span>
                 <span>/</span>
-                <span className="text-gray-900 font-medium">Dashboard</span>
+                <span className="text-gray-900 font-medium">Panel de Control</span>
             </div>
             <div className="flex items-center gap-4">
                 <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors">

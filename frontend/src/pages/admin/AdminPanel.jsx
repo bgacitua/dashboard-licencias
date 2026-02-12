@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/Sidebar';
+import Toast from '../../components/Toast';
 import { getToken } from '../../services/auth';
+import { MODULE_REGISTRY } from '../../config/modules';
 
 const API_URL = 'http://localhost:8000/api/v1';
 
@@ -25,8 +27,7 @@ const AdminPanel = () => {
         password: '',
         nombre_completo: '',
         email: '',
-        rol_id: '',
-        modulo_ids: []
+        rol_id: ''
     });
     
     // Edit user modal
@@ -36,6 +37,18 @@ const AdminPanel = () => {
     // Password change modal
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [passwordData, setPasswordData] = useState({ userId: null, newPassword: '' });
+
+    // Edit Role Modules Modal
+    const [showRoleModal, setShowRoleModal] = useState(false);
+    const [editingRole, setEditingRole] = useState(null);
+
+    // Create Role Modal
+    const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
+    const [newRole, setNewRole] = useState({ nombre: '', descripcion: '', modulo_ids: [] });
+
+    // Toast notification
+    const [toast, setToast] = useState(null);
+    const showToast = (message, type = 'success') => setToast({ message, type });
 
     // Cargar datos
     useEffect(() => {
@@ -84,8 +97,7 @@ const AdminPanel = () => {
                 },
                 body: JSON.stringify({
                     ...newUser,
-                    rol_id: parseInt(newUser.rol_id),
-                    modulo_ids: newUser.modulo_ids
+                    rol_id: parseInt(newUser.rol_id)
                 })
             });
 
@@ -95,10 +107,11 @@ const AdminPanel = () => {
             }
 
             setShowCreateModal(false);
-            setNewUser({ username: '', password: '', nombre_completo: '', email: '', rol_id: '', modulo_ids: [] });
+            setNewUser({ username: '', password: '', nombre_completo: '', email: '', rol_id: '' });
             fetchData();
+            showToast('Usuario creado exitosamente');
         } catch (err) {
-            alert(err.message);
+            showToast(err.message, 'error');
         }
     };
 
@@ -115,7 +128,7 @@ const AdminPanel = () => {
                     nombre_completo: editingUser.nombre_completo,
                     email: editingUser.email,
                     rol_id: parseInt(editingUser.rol_id),
-                    modulo_ids: editingUser.modulo_ids
+                    activo: editingUser.activo
                 })
             });
 
@@ -126,8 +139,9 @@ const AdminPanel = () => {
             setShowEditModal(false);
             setEditingUser(null);
             fetchData();
+            showToast('Usuario actualizado exitosamente');
         } catch (err) {
-            alert(err.message);
+            showToast(err.message, 'error');
         }
     };
 
@@ -149,9 +163,9 @@ const AdminPanel = () => {
 
             setShowPasswordModal(false);
             setPasswordData({ userId: null, newPassword: '' });
-            alert('Contraseña actualizada exitosamente');
+            showToast('Contraseña actualizada exitosamente');
         } catch (err) {
-            alert(err.message);
+            showToast(err.message, 'error');
         }
     };
 
@@ -175,8 +189,9 @@ const AdminPanel = () => {
             }
 
             fetchData();
+            showToast(`Usuario ${currentActive ? 'desactivado' : 'activado'} exitosamente`);
         } catch (err) {
-            alert(err.message);
+            showToast(err.message, 'error');
         }
     };
 
@@ -195,16 +210,73 @@ const AdminPanel = () => {
             }
 
             fetchData();
+            showToast('Módulo actualizado exitosamente');
         } catch (err) {
-            alert(err.message);
+            showToast(err.message, 'error');
+        }
+    };
+
+    const handleUpdateRoleModules = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch(`${API_URL}/admin/roles/${editingRole.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    modulo_ids: editingRole.modulo_ids
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al actualizar rol');
+            }
+
+            setShowRoleModal(false);
+            setEditingRole(null);
+            fetchData();
+            showToast('Permisos del rol actualizados exitosamente');
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    };
+
+    const handleCreateRole = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch(`${API_URL}/admin/roles`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    nombre: newRole.nombre,
+                    descripcion: newRole.descripcion || null,
+                    modulo_ids: newRole.modulo_ids
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Error al crear rol');
+            }
+
+            setShowCreateRoleModal(false);
+            setNewRole({ nombre: '', descripcion: '', modulo_ids: [] });
+            fetchData();
+            showToast('Rol creado exitosamente');
+        } catch (err) {
+            showToast(err.message, 'error');
         }
     };
 
     const openEditModal = (user) => {
         setEditingUser({
             ...user,
-            rol_id: user.rol?.id || '',
-            modulo_ids: user.modulos?.map(m => m.id) || []
+            rol_id: user.rol?.id || ''
         });
         setShowEditModal(true);
     };
@@ -212,6 +284,14 @@ const AdminPanel = () => {
     const openPasswordModal = (userId) => {
         setPasswordData({ userId, newPassword: '' });
         setShowPasswordModal(true);
+    };
+
+    const openRoleModal = (role) => {
+        setEditingRole({
+            ...role,
+            modulo_ids: role.modulos?.map(m => m.id) || []
+        });
+        setShowRoleModal(true);
     };
 
     const formatDate = (dateStr) => {
@@ -234,6 +314,68 @@ const AdminPanel = () => {
         (user.email || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const renderModuleSelection = (selectedIds, onToggle) => {
+        // Agrupar módulos del backend según el registro del frontend
+        const groupedBackendModules = {};
+        const otherModules = [];
+        
+        modules.filter(m => m.activo).forEach(backendMod => {
+            const registryEntry = Object.entries(MODULE_REGISTRY).find(([code]) => code === backendMod.codigo);
+            
+            if (registryEntry) {
+                const [code, config] = registryEntry;
+                if (!groupedBackendModules[config.category]) {
+                    groupedBackendModules[config.category] = [];
+                }
+                groupedBackendModules[config.category].push({ ...backendMod, registryConfig: config });
+            } else {
+                otherModules.push(backendMod);
+            }
+        });
+
+        return (
+            <>
+                {Object.entries(groupedBackendModules).map(([category, categoryModules]) => (
+                    <div key={category}>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{category}</h4>
+                        <div className="space-y-1 ml-1">
+                            {categoryModules.map(module => (
+                                <label key={module.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds?.includes(module.id) || false}
+                                        onChange={(e) => onToggle(module.id, e.target.checked)}
+                                        className={`w-4 h-4 rounded border-gray-300 focus:ring-blue-500 ${module.registryConfig?.color ? `text-${module.registryConfig.color}-600` : 'text-blue-600'}`}
+                                    />
+                                    <span className="text-sm text-gray-700">{module.registryConfig?.title || module.nombre}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+                
+                {otherModules.length > 0 && (
+                    <div>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Otros</h4>
+                        <div className="space-y-1 ml-1">
+                            {otherModules.map(module => (
+                                <label key={module.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds?.includes(module.id) || false}
+                                        onChange={(e) => onToggle(module.id, e.target.checked)}
+                                        className="w-4 h-4 text-gray-600 rounded border-gray-300 focus:ring-gray-500"
+                                    />
+                                    <span className="text-sm text-gray-700">{module.nombre}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </>
+        );
+    };
+
     if (loading) {
         return (
             <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
@@ -252,6 +394,15 @@ const AdminPanel = () => {
         <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
             <Sidebar />
             
+            {/* Toast Notification */}
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
+
             <main className="flex-1 ml-64 p-8">
                 {/* Header */}
                 <header className="flex justify-between items-center mb-8">
@@ -274,6 +425,15 @@ const AdminPanel = () => {
                         >
                             <span className="material-symbols-outlined text-xl">add</span>
                             Nuevo Usuario
+                        </button>
+                    )}
+                    {activeTab === 'roles' && (
+                        <button
+                            onClick={() => setShowCreateRoleModal(true)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
+                        >
+                            <span className="material-symbols-outlined text-xl">add</span>
+                            Nuevo Rol
                         </button>
                     )}
                 </div>
@@ -434,23 +594,38 @@ const AdminPanel = () => {
                         <div className="p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {roles.map(role => (
-                                    <div key={role.id} className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                                    <div key={role.id} className="bg-gray-50 rounded-xl p-5 border border-gray-100 flex flex-col h-full">
                                         <div className="flex items-center gap-3 mb-3">
                                             <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
                                                 <span className="material-symbols-outlined text-indigo-600">badge</span>
                                             </div>
                                             <div>
-                                                <h3 className="font-semibold text-gray-900 capitalize">{role.nombre}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-semibold text-gray-900 capitalize">{role.nombre}</h3>
+                                                    <span className="text-[10px] px-1.5 py-0.5 bg-gray-200 text-gray-500 rounded font-mono">{role.codigo}</span>
+                                                </div>
                                                 <p className="text-xs text-gray-500">{role.descripcion || 'Sin descripción'}</p>
                                             </div>
                                         </div>
-                                        <div className="flex flex-wrap gap-1">
-                                            {role.modulos?.map(mod => (
-                                                <span key={mod.id} className="text-xs px-2 py-1 bg-white rounded border border-gray-200 text-gray-600">
-                                                    {mod.nombre}
-                                                </span>
-                                            )) || <span className="text-xs text-gray-400">Sin módulos asignados</span>}
+                                        
+                                        <div className="flex-1">
+                                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Módulos permitidos:</h4>
+                                            <div className="flex flex-wrap gap-1 mb-4">
+                                                {role.modulos?.map(mod => (
+                                                    <span key={mod.id} className="text-xs px-2 py-1 bg-white rounded border border-gray-200 text-gray-600">
+                                                        {mod.nombre}
+                                                    </span>
+                                                )) || <span className="text-xs text-gray-400">Sin módulos asignados</span>}
+                                            </div>
                                         </div>
+
+                                        <button
+                                            onClick={() => openRoleModal(role)}
+                                            className="w-full mt-auto py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                                        >
+                                            <span className="material-symbols-outlined text-base">settings</span>
+                                            Configurar Permisos
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -461,37 +636,57 @@ const AdminPanel = () => {
                     {activeTab === 'modules' && (
                         <div className="p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {modules.map(module => (
-                                    <div key={module.id} className="flex items-center justify-between bg-gray-50 rounded-xl p-4 border border-gray-100">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                                                module.activo ? 'bg-blue-100' : 'bg-gray-200'
-                                            }`}>
-                                                <span className={`material-symbols-outlined ${
-                                                    module.activo ? 'text-blue-600' : 'text-gray-400'
+                                {modules.map(module => {
+                                    // Enrich with MODULE_REGISTRY data
+                                    const registryEntry = MODULE_REGISTRY[module.codigo];
+                                    const icon = registryEntry?.icon || module.icono || 'extension';
+                                    const title = registryEntry?.title || module.nombre;
+                                    const description = registryEntry?.description || module.descripcion || `/${module.codigo}`;
+                                    const colorName = registryEntry?.color || 'gray';
+                                    
+                                    const colorMap = {
+                                        blue: { bg: 'bg-blue-100', icon: 'text-blue-600' },
+                                        purple: { bg: 'bg-purple-100', icon: 'text-purple-600' },
+                                        orange: { bg: 'bg-orange-100', icon: 'text-orange-600' },
+                                        emerald: { bg: 'bg-emerald-100', icon: 'text-emerald-600' },
+                                        gray: { bg: 'bg-gray-200', icon: 'text-gray-500' },
+                                    };
+                                    const colors = colorMap[colorName] || colorMap.gray;
+
+                                    return (
+                                        <div key={module.id} className="flex items-center justify-between bg-gray-50 rounded-xl p-4 border border-gray-100">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                                    module.activo ? colors.bg : 'bg-gray-200'
                                                 }`}>
-                                                    {module.icono || 'extension'}
-                                                </span>
+                                                    <span className={`material-symbols-outlined ${
+                                                        module.activo ? colors.icon : 'text-gray-400'
+                                                    }`}>
+                                                        {icon}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <h3 className={`font-semibold ${module.activo ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                        {title}
+                                                    </h3>
+                                                    <p className={`text-xs ${module.activo ? 'text-gray-500' : 'text-gray-400'} max-w-[280px] truncate`}>
+                                                        {description}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h3 className={`font-semibold ${module.activo ? 'text-gray-900' : 'text-gray-400'}`}>
-                                                    {module.nombre}
-                                                </h3>
-                                                <p className="text-xs text-gray-500">/{module.ruta || module.codigo}</p>
-                                            </div>
+                                            <button
+                                                onClick={() => handleToggleModule(module.id, module.activo)}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                                    module.activo ? 'bg-blue-600' : 'bg-gray-300'
+                                                }`}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                    module.activo ? 'translate-x-6' : 'translate-x-1'
+                                                }`} />
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={() => handleToggleModule(module.id, module.activo)}
-                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                                module.activo ? 'bg-blue-600' : 'bg-gray-300'
-                                            }`}
-                                        >
-                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                                module.activo ? 'translate-x-6' : 'translate-x-1'
-                                            }`} />
-                                        </button>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
@@ -554,29 +749,9 @@ const AdminPanel = () => {
                                             <option key={r.id} value={r.id}>{r.nombre}</option>
                                         ))}
                                     </select>
+                                    <p className="text-xs text-gray-500 mt-1">El usuario heredará los permisos del rol seleccionado.</p>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Módulos Permitidos</label>
-                                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2">
-                                        {modules.filter(m => m.activo).map(module => (
-                                            <label key={module.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={newUser.modulo_ids.includes(module.id)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            setNewUser({...newUser, modulo_ids: [...newUser.modulo_ids, module.id]});
-                                                        } else {
-                                                            setNewUser({...newUser, modulo_ids: newUser.modulo_ids.filter(id => id !== module.id)});
-                                                        }
-                                                    }}
-                                                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                                />
-                                                <span className="text-sm text-gray-700">{module.nombre}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
+                                
                                 <div className="flex gap-3 pt-4">
                                     <button
                                         type="button"
@@ -642,29 +817,9 @@ const AdminPanel = () => {
                                             <option key={r.id} value={r.id}>{r.nombre}</option>
                                         ))}
                                     </select>
+                                    <p className="text-xs text-gray-500 mt-1">El usuario heredará los permisos del rol seleccionado.</p>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Módulos Permitidos</label>
-                                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-2">
-                                        {modules.filter(m => m.activo).map(module => (
-                                            <label key={module.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={editingUser.modulo_ids?.includes(module.id) || false}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            setEditingUser({...editingUser, modulo_ids: [...(editingUser.modulo_ids || []), module.id]});
-                                                        } else {
-                                                            setEditingUser({...editingUser, modulo_ids: (editingUser.modulo_ids || []).filter(id => id !== module.id)});
-                                                        }
-                                                    }}
-                                                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                                />
-                                                <span className="text-sm text-gray-700">{module.nombre}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
+                                
                                 <div className="flex gap-3 pt-4">
                                     <button
                                         type="button"
@@ -678,6 +833,113 @@ const AdminPanel = () => {
                                         className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                                     >
                                         Guardar Cambios
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* Edit Role Modal */}
+                {showRoleModal && editingRole && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                            <h2 className="text-xl font-bold text-gray-900 mb-2">Configurar Permisos</h2>
+                            <p className="text-sm text-gray-500 mb-6">Rol: <span className="font-semibold text-gray-900 capitalize">{editingRole.nombre}</span></p>
+                            
+                            <form onSubmit={handleUpdateRoleModules} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Módulos Permitidos</label>
+                                    <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-4">
+                                        {renderModuleSelection(
+                                            editingRole.modulo_ids,
+                                            (moduleId, checked) => {
+                                                if (checked) {
+                                                    setEditingRole({...editingRole, modulo_ids: [...(editingRole.modulo_ids || []), moduleId]});
+                                                } else {
+                                                    setEditingRole({...editingRole, modulo_ids: (editingRole.modulo_ids || []).filter(id => id !== moduleId)});
+                                                }
+                                            }
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                <div className="flex gap-3 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRoleModal(false)}
+                                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                                    >
+                                        Guardar Permisos
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* Create Role Modal */}
+                {showCreateRoleModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                            <h2 className="text-xl font-bold text-gray-900 mb-6">Crear Nuevo Rol</h2>
+                            <form onSubmit={handleCreateRole} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Rol *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newRole.nombre}
+                                        onChange={e => setNewRole({...newRole, nombre: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        placeholder="Ej: supervisor, operador..."
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                                    <input
+                                        type="text"
+                                        value={newRole.descripcion}
+                                        onChange={e => setNewRole({...newRole, descripcion: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        placeholder="Descripción del rol..."
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Módulos Permitidos</label>
+                                    <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-4">
+                                        {renderModuleSelection(
+                                            newRole.modulo_ids,
+                                            (moduleId, checked) => {
+                                                if (checked) {
+                                                    setNewRole({...newRole, modulo_ids: [...newRole.modulo_ids, moduleId]});
+                                                } else {
+                                                    setNewRole({...newRole, modulo_ids: newRole.modulo_ids.filter(id => id !== moduleId)});
+                                                }
+                                            }
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                <div className="flex gap-3 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCreateRoleModal(false)}
+                                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                                    >
+                                        Crear Rol
                                     </button>
                                 </div>
                             </form>

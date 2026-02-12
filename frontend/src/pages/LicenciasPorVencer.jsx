@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useLicencias } from '../hooks/useLicencias';
 
 // Componente de tabla de licencias
-const TablaLicencias = ({ licencias, colorHeader, mostrarDias, tipoDias }) => (
+const TablaLicencias = ({ licencias, colorHeader, mostrarDias, tipoDias, onSort, sortOrder }) => (
     <div style={{ 
         backgroundColor: '#ffffff', 
         borderRadius: '12px', 
@@ -21,7 +21,25 @@ const TablaLicencias = ({ licencias, colorHeader, mostrarDias, tipoDias }) => (
                         <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>RUT</th>
                         <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>Trabajador</th>
                         <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>Tipo</th>
-                        <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>Inicio</th>
+                        <th 
+                            style={{ 
+                                padding: '12px', 
+                                textAlign: 'left', 
+                                fontWeight: '600', 
+                                color: '#555', 
+                                borderBottom: '2px solid #eee',
+                                cursor: 'pointer',
+                                userSelect: 'none'
+                            }}
+                            onClick={onSort}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                Inicio
+                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                                    {sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+                                </span>
+                            </div>
+                        </th>
                         <th style={{ padding: '12px', textAlign: 'left', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>Término</th>
                         {mostrarDias && <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#555', borderBottom: '2px solid #eee' }}>{tipoDias}</th>}
                     </tr>
@@ -58,6 +76,21 @@ const TablaLicencias = ({ licencias, colorHeader, mostrarDias, tipoDias }) => (
 
 const LicenciasPorVencer = () => {
     const { porVencer, loading, error, recargar } = useLicencias();
+    const [sortOrder, setSortOrder] = useState('asc');
+
+    const toggleSort = () => {
+        setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    };
+
+    const sortedLicencias = useMemo(() => {
+        if (!porVencer) return [];
+        
+        return [...porVencer].sort((a, b) => {
+            const dateA = new Date(a.fecha_inicio);
+            const dateB = new Date(b.fecha_inicio);
+            return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+        });
+    }, [porVencer, sortOrder]);
 
     if (loading) {
         return (
@@ -187,10 +220,12 @@ const LicenciasPorVencer = () => {
 
             {/* Tabla */}
             <TablaLicencias 
-                licencias={porVencer}
+                licencias={sortedLicencias}
                 colorHeader="#f59e0b"
                 mostrarDias={true}
                 tipoDias="Días Restantes"
+                onSort={toggleSort}
+                sortOrder={sortOrder}
             />
         </div>
     );

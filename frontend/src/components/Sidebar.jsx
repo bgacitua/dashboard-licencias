@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { MODULE_REGISTRY } from '../config/modules';
 
 const Sidebar = () => {
   const { user, logout, hasModuleAccess, hasRole } = useAuth();
@@ -14,63 +15,28 @@ const Sidebar = () => {
     navigate('/login');
   };
 
-  // Define menu items with required module access and optional role
-  const allMenuItems = [
-    { 
-      icon: 'dashboard', 
-      label: 'Dashboard', 
-      path: '/dashboard', 
-      module: 'dashboard' 
-    },
-    { 
-      icon: 'medical_services', 
-      label: 'Licencias Médicas', 
-      path: '/dashboard/licencias', 
-      module: 'dashboard' 
-    },
-    { 
-      icon: 'beach_access', 
-      label: 'Vacaciones Activas', 
-      path: '/dashboard/vacaciones', 
-      module: 'dashboard' 
-    },
-    { 
-      icon: 'description', 
-      label: 'Generador Finiquitos', 
-      path: '/finiquitos', 
-      module: 'finiquitos'
-    },
-    { 
-      icon: 'calculate', 
-      label: 'Calculadora Sueldos', 
-      path: '/calculadora', 
-      module: 'calculadora' 
-    },
-    { 
-      icon: 'person_search', 
-      label: 'Selección de Personal', 
-      path: '/seleccion', 
-      module: 'seleccion',
-      requiredRole: ['admin']
-    },
-    { 
-      icon: 'settings', 
-      label: 'Administración', 
-      path: '/admin', 
-      module: 'admin',
-      requiredRole: ['admin']
-    },
-  ];
+  // Generar items de menú dinámicamente
+  const menuItems = useMemo(() => {
+    const items = [];
+    
+    // Iterar sobre el registro de módulos
+    Object.entries(MODULE_REGISTRY).forEach(([code, config]) => {
+        // Verificar acceso basado en módulos asignados al rol del usuario
+        let hasAccess = hasModuleAccess(code);
 
-  // Filter items based on user access and role
-  const menuItems = allMenuItems.filter(item => {
-    // If requires a specific role, check it
-    if (item.requiredRole && !hasRole(item.requiredRole)) {
-      return false;
-    }
-    // Check module access
-    return hasModuleAccess(item.module);
-  });
+        if (hasAccess) {
+            // Agregar todos los sub-items definidos en el módulo
+            config.items.forEach(subItem => {
+                items.push({
+                    ...subItem,
+                    category: config.category
+                });
+            });
+        }
+    });
+
+    return items;
+  }, [hasModuleAccess, hasRole]);
 
   return (
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen font-['Public_Sans'] fixed left-0 top-0 z-50">
@@ -83,22 +49,36 @@ const Sidebar = () => {
       </Link>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-4 space-y-1">
-        {menuItems.map((item) => (
-          <Link
-            key={item.label}
-            to={item.path}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive(item.path) || (item.path === '/dashboard' && location.pathname === '/dashboard')
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
-                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-            }`}
-          >
-            <span className={`material-symbols-outlined ${isActive(item.path) ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'}`}>
-              {item.icon}
-            </span>
-            <span className="font-medium">{item.label}</span>
-          </Link>
+      <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+        {menuItems.map((item, index) => (
+          <React.Fragment key={item.path}>
+             {/* Opcional: Separador de categorías si cambia respecto al anterior */}
+             {index > 0 && item.category !== menuItems[index - 1].category && (
+                 <div className="px-4 py-2 mt-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                     {item.category}
+                 </div>
+             )}
+              {/* Primer item también lleva categoria si queremos ser explícitos */}
+             {index === 0 && (
+                 <div className="px-4 py-2 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                     {item.category}
+                 </div>
+             )}
+
+             <Link
+                to={item.path}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive(item.path) || (item.path === '/dashboard' && location.pathname === '/dashboard')
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+            >
+                <span className={`material-symbols-outlined ${isActive(item.path) ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'}`}>
+                {item.icon}
+                </span>
+                <span className="font-medium">{item.label}</span>
+            </Link>
+          </React.Fragment>
         ))}
       </nav>
 

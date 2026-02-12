@@ -92,7 +92,7 @@ export const AuthProvider = ({ children }) => {
     const hasRole = useCallback((roles) => {
         if (!user?.rol) return false;
         const roleArray = Array.isArray(roles) ? roles : [roles];
-        return roleArray.includes(user.rol.nombre);
+        return roleArray.includes(user.rol.codigo);
     }, [user]);
 
     const value = {
