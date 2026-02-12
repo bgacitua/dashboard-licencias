@@ -129,7 +129,7 @@ def require_role(allowed_roles: list[str]):
     Crea una dependencia que verifica si el usuario tiene uno de los roles permitidos.
     
     Args:
-        allowed_roles: Lista de nombres de roles permitidos (ej: ["admin", "rrhh"])
+        allowed_roles: Lista de códigos de roles permitidos (ej: ["admin", "rrhh"])
     
     Usage:
         @router.get("/admin-only")
@@ -145,7 +145,7 @@ def require_role(allowed_roles: list[str]):
                 detail="Usuario sin rol asignado"
             )
         
-        if current_user.rol.nombre not in allowed_roles:
+        if current_user.rol.codigo not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Acceso denegado. Rol requerido: {', '.join(allowed_roles)}"

@@ -12,6 +12,9 @@ from app.schemas.auth import (
     UsuarioUpdate,
     UsuarioResponse,
     RoleResponse,
+    RoleWithModules,
+    RoleUpdate,
+    RoleCreate,
     ModuloResponse
 )
 from app.core.security import require_role
@@ -50,14 +53,14 @@ async def create_user(
             detail=f"El usuario '{user_data.username}' ya existe"
         )
     
-    # Crea el usuario
+    # Crea el usuario (sin asignación directa de módulos, hereda del rol)
     user = auth_service.create_user(
         username=user_data.username,
         password=user_data.password,
         rol_id=user_data.rol_id,
         email=user_data.email,
         nombre_completo=user_data.nombre_completo,
-        modulo_ids=user_data.modulo_ids
+        modulo_ids=None
     )
     
     return UsuarioResponse.model_validate(user)
@@ -99,7 +102,7 @@ async def update_user(
         rol_id=user_data.rol_id,
         activo=user_data.activo,
         password=user_data.password,
-        modulo_ids=user_data.modulo_ids
+        modulo_ids=None
     )
     
     if not user:
@@ -138,15 +141,60 @@ async def deactivate_user(
 
 # === Gestión de Roles ===
 
-@router.get("/roles", response_model=List[RoleResponse])
+@router.get("/roles", response_model=List[RoleWithModules])
 async def list_roles(
     current_user: Usuario = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """Listar todos los roles disponibles."""
+    """Listar todos los roles disponibles con sus módulos."""
     auth_service = AuthService(db)
     roles = auth_service.get_all_roles()
-    return [RoleResponse.model_validate(r) for r in roles]
+    return [RoleWithModules.model_validate(r) for r in roles]
+
+
+@router.post("/roles", response_model=RoleWithModules, status_code=status.HTTP_201_CREATED)
+async def create_role(
+    role_data: RoleCreate,
+    current_user: Usuario = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Crear un nuevo rol."""
+    auth_service = AuthService(db)
+    
+    role = auth_service.create_role(
+        codigo=role_data.codigo,
+        nombre=role_data.nombre,
+        descripcion=role_data.descripcion,
+        modulo_ids=role_data.modulo_ids
+    )
+    
+    return RoleWithModules.model_validate(role)
+
+
+@router.put("/roles/{role_id}", response_model=RoleWithModules)
+async def update_role(
+    role_id: int,
+    role_data: RoleUpdate,
+    current_user: Usuario = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Actualizar un rol (incluyendo módulos)."""
+    auth_service = AuthService(db)
+    
+    role = auth_service.update_role(
+        role_id=role_id,
+        nombre=role_data.nombre,
+        descripcion=role_data.descripcion,
+        modulo_ids=role_data.modulo_ids
+    )
+    
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rol no encontrado"
+        )
+        
+    return RoleWithModules.model_validate(role)
 
 
 # === Gestión de Módulos ===

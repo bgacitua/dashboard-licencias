@@ -50,8 +50,14 @@ class ModuloResponse(ModuloBase):
 
 class RoleBase(BaseModel):
     """Datos base de un rol"""
+    codigo: str
     nombre: str
     descripcion: Optional[str] = None
+
+
+class RoleCreate(RoleBase):
+    """Request para crear un rol"""
+    modulo_ids: Optional[List[int]] = None
 
 
 class RoleResponse(RoleBase):
@@ -65,6 +71,14 @@ class RoleResponse(RoleBase):
 class RoleWithModules(RoleResponse):
     """Rol con sus módulos permitidos"""
     modulos: List[ModuloResponse] = []
+
+
+class RoleUpdate(BaseModel):
+    """Request para actualizar un rol"""
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    modulo_ids: Optional[List[int]] = None
+
 
 
 # === Schemas de Usuario ===

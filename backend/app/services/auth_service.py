@@ -5,7 +5,7 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 
 from app.repositories.auth_repository import AuthRepository
-from app.models.auth import Usuario, Modulo
+from app.models.auth import Usuario, Modulo, Role
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.core.logging_config import logger
 
@@ -150,6 +150,51 @@ class AuthService:
     def get_all_roles(self):
         """Obtiene todos los roles."""
         return self.repository.get_all_roles()
+    
+    def create_role(
+        self,
+        codigo: str,
+        nombre: str,
+        descripcion: Optional[str] = None,
+        modulo_ids: Optional[List[int]] = None
+    ) -> Role:
+        """Crea un nuevo rol."""
+        role = self.repository.create_role(codigo=codigo, nombre=nombre, descripcion=descripcion)
+        
+        if modulo_ids:
+            self.repository.set_role_modules(role, modulo_ids)
+        
+        logger.info(f"Rol creado: {codigo} ({nombre})")
+        return role
+    
+    def update_role(
+        self,
+        role_id: int,
+        nombre: Optional[str] = None,
+        descripcion: Optional[str] = None,
+        modulo_ids: Optional[List[int]] = None
+    ) -> Optional[Role]:
+        """Actualiza un rol existente."""
+        role = self.repository.get_role_by_id(role_id)
+        if not role:
+            return None
+        
+        # Actualizar campos básicos
+        if nombre:
+            role.nombre = nombre
+        if descripcion:
+            role.descripcion = descripcion
+        
+        # Actualizar módulos
+        if modulo_ids is not None:
+            self.repository.set_role_modules(role, modulo_ids)
+            
+        # Confirmar cambios si no se usó set_role_modules (que ya hace commit)
+        # o si se actualizaron otros campos
+        self.repository.db.commit()
+        self.repository.db.refresh(role)
+        
+        return role
     
     def get_all_modules(self, only_active: bool = True):
         """Obtiene todos los módulos."""

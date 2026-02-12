@@ -32,7 +32,8 @@ class Role(Base):
     __table_args__ = {'schema': 'App'}
     
     id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String(50), unique=True, nullable=False)
+    codigo = Column(String(50), unique=True, nullable=False)
+    nombre = Column(String(100), nullable=False)
     descripcion = Column(String(255))
     created_at = Column(DateTime, server_default=func.now())
     
