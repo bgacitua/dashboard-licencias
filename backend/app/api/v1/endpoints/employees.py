@@ -50,3 +50,27 @@ async def get_sueldo_base(rut: str, db: Session = Depends(get_db)):
         return await service.get_sueldo_base(rut_limpio)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{rut}/salary-history", response_model=List[dict])
+async def get_salary_history(
+    rut: str, 
+    start: str = Query(..., description="Fecha de inicio (DD-MM-YYYY)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el historial de sueldos desde una fecha de inicio.
+    
+    Args:
+        rut: RUT del trabajador
+        start: Fecha de inicio (DD-MM-YYYY)
+        
+    Returns:
+        Lista de periodos y montos
+    """
+    service = FiniquitosService(db)
+    # Limpiar el rut de puntos y guiones para la búsqueda
+    rut_limpio = rut.replace(".", "").replace("-", "").strip()
+    try:
+        return await service.get_salary_history(rut_limpio, start)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

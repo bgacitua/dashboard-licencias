@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getMarcas, getRelojes } from '../services/marcas';
 
 export const useMarcas = (initialLimit = 100) => {
@@ -20,6 +20,10 @@ export const useMarcas = (initialLimit = 100) => {
     });
     const limit = initialLimit;
 
+    // Keep a ref to always have the latest filters (avoids stale closures)
+    const filtersRef = useRef(filters);
+    filtersRef.current = filters;
+
     // Cargar lista de relojes al iniciar
     useEffect(() => {
         const cargarRelojes = async () => {
@@ -33,7 +37,8 @@ export const useMarcas = (initialLimit = 100) => {
         cargarRelojes();
     }, []);
 
-    const cargarMarcas = useCallback(async (newFilters = filters) => {
+    const cargarMarcas = useCallback(async (filterOverride) => {
+        const activeFilters = filterOverride || filtersRef.current;
         try {
             setLoading(true);
             setError(null);
@@ -41,12 +46,12 @@ export const useMarcas = (initialLimit = 100) => {
             const response = await getMarcas({ 
                 limit, 
                 offset: 0,
-                fechaInicio: newFilters.fechaInicio || undefined,
-                fechaFin: newFilters.fechaFin || undefined,
-                nombre: newFilters.nombre || undefined,
-                rut: newFilters.rut || undefined,
-                reloj: newFilters.reloj || undefined,
-                tipoMarca: newFilters.tipoMarca || undefined
+                fechaInicio: activeFilters.fechaInicio || undefined,
+                fechaFin: activeFilters.fechaFin || undefined,
+                nombre: activeFilters.nombre || undefined,
+                rut: activeFilters.rut || undefined,
+                reloj: activeFilters.reloj || undefined,
+                tipoMarca: activeFilters.tipoMarca || undefined
             });
             setMarcas(response.data);
             setTotal(response.total);
@@ -56,7 +61,7 @@ export const useMarcas = (initialLimit = 100) => {
         } finally {
             setLoading(false);
         }
-    }, [limit, filters]);
+    }, [limit]);
 
     const cargarMas = useCallback(async () => {
         if (loadingMore || !hasMore) return;
@@ -64,15 +69,16 @@ export const useMarcas = (initialLimit = 100) => {
         try {
             setLoadingMore(true);
             const newOffset = offset + limit;
+            const currentFilters = filtersRef.current;
             const response = await getMarcas({ 
                 limit, 
                 offset: newOffset,
-                fechaInicio: filters.fechaInicio || undefined,
-                fechaFin: filters.fechaFin || undefined,
-                nombre: filters.nombre || undefined,
-                rut: filters.rut || undefined,
-                reloj: filters.reloj || undefined,
-                tipoMarca: filters.tipoMarca || undefined
+                fechaInicio: currentFilters.fechaInicio || undefined,
+                fechaFin: currentFilters.fechaFin || undefined,
+                nombre: currentFilters.nombre || undefined,
+                rut: currentFilters.rut || undefined,
+                reloj: currentFilters.reloj || undefined,
+                tipoMarca: currentFilters.tipoMarca || undefined
             });
             setMarcas(prev => [...prev, ...response.data]);
             setOffset(newOffset);
@@ -82,11 +88,14 @@ export const useMarcas = (initialLimit = 100) => {
         } finally {
             setLoadingMore(false);
         }
-    }, [offset, limit, hasMore, loadingMore, filters]);
+    }, [offset, limit, hasMore, loadingMore]);
 
     const aplicarFiltros = useCallback((newFilters) => {
-        setFilters(newFilters);
-        cargarMarcas(newFilters);
+        // Merge with current filters from ref to avoid stale state
+        const merged = { ...filtersRef.current, ...newFilters };
+        setFilters(merged);
+        filtersRef.current = merged;
+        cargarMarcas(merged);
     }, [cargarMarcas]);
 
     const limpiarFiltros = useCallback(() => {
@@ -99,6 +108,7 @@ export const useMarcas = (initialLimit = 100) => {
             tipoMarca: ''
         };
         setFilters(emptyFilters);
+        filtersRef.current = emptyFilters;
         cargarMarcas(emptyFilters);
     }, [cargarMarcas]);
 
@@ -115,7 +125,7 @@ export const useMarcas = (initialLimit = 100) => {
         error,
         filters,
         relojes,
-        recargar: () => cargarMarcas(filters),
+        recargar: () => cargarMarcas(filtersRef.current),
         cargarMas,
         aplicarFiltros,
         limpiarFiltros

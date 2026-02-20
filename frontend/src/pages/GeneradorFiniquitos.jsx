@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import FiniquitosService from '../services/finiquitos.service';
 
+const ITEMS_PER_PAGE = 50;
+
 const GeneradorFiniquitos = () => {
   const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
@@ -11,6 +13,7 @@ const GeneradorFiniquitos = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [selectedDepartamento, setSelectedDepartamento] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetchEmployees();
@@ -29,6 +32,7 @@ const GeneradorFiniquitos = () => {
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
+    setCurrentPage(1); // Reset to first page on search
   };
 
   const toggleSelection = (rut) => {
@@ -38,10 +42,10 @@ const GeneradorFiniquitos = () => {
   };
 
   const toggleSelectAll = () => {
-    if (selectedEmployees.length === filteredEmployees.length) {
+    if (selectedEmployees.length === paginatedEmployees.length) {
       setSelectedEmployees([]);
     } else {
-      setSelectedEmployees(filteredEmployees.map(e => e.rut_trabajador));
+      setSelectedEmployees(paginatedEmployees.map(e => e.rut_trabajador));
     }
   };
 
@@ -73,6 +77,36 @@ const GeneradorFiniquitos = () => {
     
     return true;
   });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredEmployees.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, filteredEmployees.length);
+  const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
+
+  // Reset page when department filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDepartamento]);
+
+  // Build page numbers to display (smart range with ellipsis)
+  const getPageNumbers = () => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    
+    const pages = [];
+    pages.push(1);
+    
+    if (currentPage > 3) pages.push('...');
+    
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    
+    if (currentPage < totalPages - 2) pages.push('...');
+    
+    pages.push(totalPages);
+    return pages;
+  };
 
   return (
     <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
@@ -121,12 +155,12 @@ const GeneradorFiniquitos = () => {
                 <span className="material-symbols-outlined text-sm">check</span>
               </div>
               <span className="font-semibold text-gray-900">
-                {selectedEmployees.length} Employee{selectedEmployees.length !== 1 ? 's' : ''} Selected
+                {selectedEmployees.length} trabajador{selectedEmployees.length !== 1 ? 'es' : ''} seleccionado{selectedEmployees.length !== 1 ? 's' : ''}
               </span>
               <span className="text-gray-400">•</span>
               <span className="text-gray-600 text-sm">
                 {filteredEmployees.find(e => e.rut_trabajador === selectedEmployees[0])?.nombre_trabajador}
-                {selectedEmployees.length > 1 && ` + ${selectedEmployees.length - 1} more`}
+                {selectedEmployees.length > 1 && ` + ${selectedEmployees.length - 1} más`}
               </span>
             </div>
             <div className="flex gap-3">
@@ -134,7 +168,7 @@ const GeneradorFiniquitos = () => {
                 className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
                 onClick={() => setSelectedEmployees([])}
               >
-                Cancel
+                Cancelar
               </button>
               <button 
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"
@@ -158,7 +192,7 @@ const GeneradorFiniquitos = () => {
                     <input 
                       type="checkbox" 
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      checked={selectedEmployees.length === filteredEmployees.length && filteredEmployees.length > 0}
+                      checked={selectedEmployees.length === paginatedEmployees.length && paginatedEmployees.length > 0}
                       onChange={toggleSelectAll}
                     />
                   </th>
@@ -179,12 +213,12 @@ const GeneradorFiniquitos = () => {
                       Cargando trabajadores...
                     </td>
                   </tr>
-                ) : filteredEmployees.length === 0 ? (
+                ) : paginatedEmployees.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="p-8 text-center text-gray-500">No se encontraron trabajadores que coincidan con tu búsqueda.</td>
                   </tr>
                 ) : (
-                  filteredEmployees.map((emp) => (
+                  paginatedEmployees.map((emp) => (
                     <tr key={emp.rut_trabajador} className={`hover:bg-gray-50 transition-colors ${selectedEmployees.includes(emp.rut_trabajador) ? 'bg-blue-50/30' : ''}`}>
                       <td className="p-4 text-center">
                         <input 
@@ -233,25 +267,47 @@ const GeneradorFiniquitos = () => {
             </table>
           </div>
           
-          {/* Pagination (Static for now) */}
-          <div className="p-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
-            <p className="text-sm text-gray-500">
-              Showing <span className="font-bold text-gray-900">1</span> to <span className="font-bold text-gray-900">{filteredEmployees.length}</span> of <span className="font-bold text-gray-900">{employees.length}</span> employees
-            </p>
-            <div className="flex gap-2">
-              <button className="p-2 border border-gray-300 rounded-lg bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50" disabled>
-                <span className="material-symbols-outlined text-sm">chevron_left</span>
-              </button>
-              <button className="w-8 h-8 flex items-center justify-center bg-blue-600 text-white rounded-lg text-sm font-medium shadow-sm">1</button>
-              <button className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">2</button>
-              <button className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">3</button>
-              <span className="flex items-end px-1 text-gray-400">...</span>
-              <button className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">12</button>
-              <button className="p-2 border border-gray-300 rounded-lg bg-white text-gray-500 hover:bg-gray-50">
-                <span className="material-symbols-outlined text-sm">chevron_right</span>
-              </button>
+          {/* Pagination */}
+          {!loading && filteredEmployees.length > 0 && (
+            <div className="p-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
+              <p className="text-sm text-gray-500">
+                Mostrando <span className="font-bold text-gray-900">{startIndex + 1}</span> a <span className="font-bold text-gray-900">{endIndex}</span> de <span className="font-bold text-gray-900">{filteredEmployees.length}</span> trabajadores
+              </p>
+              <div className="flex gap-1">
+                <button 
+                  className="p-2 border border-gray-300 rounded-lg bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => prev - 1)}
+                >
+                  <span className="material-symbols-outlined text-sm">chevron_left</span>
+                </button>
+                {getPageNumbers().map((page, idx) => (
+                  page === '...' ? (
+                    <span key={`ellipsis-${idx}`} className="flex items-end px-1 text-gray-400">...</span>
+                  ) : (
+                    <button
+                      key={page}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === page
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-gray-600 hover:bg-gray-200'
+                      }`}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </button>
+                  )
+                ))}
+                <button 
+                  className="p-2 border border-gray-300 rounded-lg bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                >
+                  <span className="material-symbols-outlined text-sm">chevron_right</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
       </main>
