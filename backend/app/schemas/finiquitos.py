@@ -41,6 +41,7 @@ class FiniquitoItemResponse(BaseModel):
     rut_trabajador: Optional[str] = None
     cargo: Optional[str] = None
     fecha_ingreso: Optional[date] = None
+    fecha_nacimiento: Optional[date] = None
     periodo: Optional[str] = None
     status: Optional[str] = None
     direccion: Optional[str] = None

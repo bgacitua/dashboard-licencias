@@ -262,7 +262,36 @@ const VisualizadorFiniquito = () => {
         <Sidebar />
       </div>
 
-      <main className="flex-1 ml-64 p-8 print:ml-0 print:p-0 flex justify-center">
+      <main className="flex-1 ml-64 p-8 print:ml-0 print:p-0 flex flex-col items-center">
+        {/* Actions Bar (Hidden on Print) - Moved outside printRef for fidelity */}
+        <div className="w-full max-w-[215.9mm] flex justify-between items-center mb-4 print:hidden bg-white/50 p-4 rounded-xl border border-gray-100 backdrop-blur-sm">
+          <div className="flex gap-2">
+            <button 
+              onClick={() => navigate(`/finiquitos/crear/${decodedRut}`, { state: { preserveData: true } })}
+              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <span className="material-symbols-outlined mr-2">arrow_back</span>
+              Volver a editar
+            </button>
+          </div>
+          <div className="flex gap-3">
+             <button 
+              onClick={() => setIsEditable(!isEditable)}
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${isEditable ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            >
+              <span className="material-symbols-outlined">edit_document</span>
+              {isEditable ? 'Modo Edición (Activo)' : 'Habilitar Edición'}
+            </button>
+            <button 
+              onClick={handlePrint}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
+            >
+              <span className="material-symbols-outlined">print</span>
+              Imprimir / Descargar PDF
+            </button>
+          </div>
+        </div>
+
         <div 
           ref={printRef} 
           className="w-full max-w-[215.9mm] bg-white shadow-lg min-h-[279.4mm] print:shadow-none print:w-full text-[10pt] leading-normal tracking-tighter relative overflow-hidden"
@@ -280,40 +309,13 @@ const VisualizadorFiniquito = () => {
           />
 
           {/* Content container with padding for the text area - Adjusted for letterhead */}
-          <div className="px-[25mm] pt-[30mm] pb-[25mm] relative z-10">
+          <div className="px-[25mm] pt-[15mm] pb-[25mm] relative z-10 text-[9.5pt] leading-snug">
           
-            {/* Actions Bar (Hidden on Print) */}
-            <div className="flex justify-between items-center mb-8 print:hidden border-b pb-4 bg-white/90 -mx-[25mm] px-[25mm] -mt-[30mm] pt-[15mm]">
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => navigate(`/finiquitos/crear/${decodedRut}`, { state: { preserveData: true } })}
-                  className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
-                >
-                  <span className="material-symbols-outlined mr-2">arrow_back</span>
-                  Volver a editar
-                </button>
-              </div>
-              <div className="flex gap-3">
-                 <button 
-                  onClick={() => setIsEditable(!isEditable)}
-                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${isEditable ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                >
-                  <span className="material-symbols-outlined">edit_document</span>
-                  {isEditable ? 'Modo Edición (Activo)' : 'Habilitar Edición'}
-                </button>
-                <button 
-                  onClick={handlePrint}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined">print</span>
-                  Imprimir / Descargar PDF
-                </button>
-              </div>
-            </div>
+
 
             {/* Date - positioned to align with letterhead */}
             <div 
-              className={`flex justify-end mb-1 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+              className={`flex flex-col items-end justify-start mb-2 min-h-[40px] w-full rounded p-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
               contentEditable={isEditable}
               suppressContentEditableWarning={true}
             >
@@ -322,7 +324,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Addressee */}
           <div 
-            className={`mb-2 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            className={`mb-2 rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
@@ -334,7 +336,7 @@ const VisualizadorFiniquito = () => {
 
           {/* First Paragraph - Termination Notice */}
           <div 
-            className={`mb-1 text-justify indent-8 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            className={`mb-1 text-justify indent-8 rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
@@ -359,7 +361,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Second Paragraph - Conditional based on cargo */}
           <div 
-            className={`mb-1 text-justify indent-8 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            className={`mb-1 text-justify indent-8 rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
@@ -368,7 +370,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Third Paragraph - Payment Details */}
           <div 
-            className={`mb-1 text-justify indent-8 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            className={`mb-1 text-justify indent-8 rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
@@ -467,14 +469,14 @@ const VisualizadorFiniquito = () => {
 
 
           {/* TOTAL A PAGAR - Final net amount: (Haberes - Descuentos) + Liquidacion */}
-          <div className="mb-1 ml-8 flex justify-between font-bold border-t border-black pt-1 text-[9pt]">
+          <div className="mb-0.5 ml-8 flex justify-between font-bold border-t border-black pt-0.5 text-[9pt]">
             <span>TOTAL A PAGAR</span>
             <span>{formatCurrency(finiquitoData.totalSettlement || (totalHaberes - totalDescuentos))}</span>
           </div>
 
           {/* Legal Notes */}
           <div 
-            className={`mb-0 text-justify text-[10pt] ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            className={`mb-0 text-justify text-[10pt] rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
@@ -488,7 +490,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Payment Information */}
           <div 
-            className={`mb-1 text-justify ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            className={`mb-1 text-justify rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
@@ -508,7 +510,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Closing */}
           <div 
-            className={`mb-4 ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            className={`mb-4 rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
@@ -517,7 +519,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Manager Signature */}
           <div 
-            className={`mb-6 mt-6 text-center ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+            className={`mb-4 mt-6 text-center rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
@@ -527,9 +529,9 @@ const VisualizadorFiniquito = () => {
           </div>
 
           {/* Worker and Inspection Signatures */}
-          <div className="flex justify-between mt-6">
+          <div className="flex justify-between mt-8">
             <div 
-              className={`${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+              className={`rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
               contentEditable={isEditable}
               suppressContentEditableWarning={true}
             >
@@ -538,7 +540,7 @@ const VisualizadorFiniquito = () => {
               <p>Rut: {employeeData.rut_trabajador}</p>
             </div>
             <div 
-              className={`text-right ${isEditable ? 'border border-dashed border-gray-400 rounded p-1 print:border-none' : ''}`}
+              className={`text-right rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
               contentEditable={isEditable}
               suppressContentEditableWarning={true}
             >

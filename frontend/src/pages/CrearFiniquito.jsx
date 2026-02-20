@@ -28,6 +28,7 @@ const CrearFiniquito = () => {
   const [movilizacion, setMovilizacion] = useState(40000);
   const [liquidacionMesActual, setLiquidacionMesActual] = useState(0);
   const [descuentos, setDescuentos] = useState("");
+  const [aporteCesantia, setAporteCesantia] = useState("");
   const [selectedManager, setSelectedManager] = useState("");
 
   // Manager options
@@ -281,6 +282,7 @@ const CrearFiniquito = () => {
         // Restaurar descuentos personalizados si existen
         if (data.descuentosPersonalizados)
           setDescuentosPersonalizados(data.descuentosPersonalizados);
+        if (data.aporteCesantia) setAporteCesantia(data.aporteCesantia);
         if (data.ufValue) setUfValue(data.ufValue); // Restore stored UF
         console.log("Datos del formulario restaurados desde sessionStorage");
       }
@@ -309,11 +311,47 @@ const CrearFiniquito = () => {
     return Math.round(value * 10) / 10;
   };
 
-  // Helper function: Check if a date is a business day (Monday-Friday)
+  // Helper function: Helper function: Check if a date is a business day (Monday-Friday)
+  // Also checks specific Chilean holidays for 2026
   const isBusinessDay = (date) => {
     const day = date.getDay();
-    return day !== 0 && day !== 6; // 0 = Sunday, 6 = Saturday
+    // 0 = Sunday, 6 = Saturday
+    if (day === 0 || day === 6) return false;
+
+    // Check specific holidays (YYYY-MM-DD)
+    // Month is 0-indexed in JS Date, but we formatted strings as 01-12
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const dayOfMonth = String(date.getDate()).padStart(2, "0");
+    const dateString = `${year}-${month}-${dayOfMonth}`;
+
+    // Feriados Chile 2026
+    const HOLIDAYS_2026 = [
+      "2026-01-01", // Año Nuevo
+      "2026-04-03", // Viernes Santo
+      "2026-04-04", // Sábado Santo
+      "2026-05-01", // Día del Trabajo
+      "2026-05-21", // Día de las Glorias Navales
+      "2026-06-21", // Día Nacional de los Pueblos Indígenas
+      "2026-06-29", // San Pedro y San Pablo
+      "2026-07-16", // Día de la Virgen del Carmen
+      "2026-08-15", // Asunción de la Virgen
+      "2026-09-18", // Independencia Nacional
+      "2026-09-19", // Día de las Glorias del Ejército
+      "2026-10-12", // Encuentro de Dos Mundos
+      "2026-10-31", // Día de las Iglesias Evangélicas
+      "2026-11-01", // Día de Todos los Santos
+      "2026-12-08", // Inmaculada Concepción
+      "2026-12-25", // Navidad
+    ];
+
+    return !HOLIDAYS_2026.includes(dateString);
   };
+
+  // Helper function:  // State for salary history
+  const [salaryHistory, setSalaryHistory] = useState([]);
+  const [averageSalary, setAverageSalary] = useState(0);
+  const [isLoadingSalaryHistory, setIsLoadingSalaryHistory] = useState(false);
 
   // Helper function: Get next business day
   const getNextBusinessDay = (date) => {
@@ -475,6 +513,43 @@ const CrearFiniquito = () => {
     return diasCorridos;
   };
 
+  // Handler to fetch salary history
+  const handleFetchSalaryHistory = async () => {
+    if (!rut) return;
+
+    setIsLoadingSalaryHistory(true);
+    try {
+      const history = await EmployeesService.getSalaryHistory(rut, 48);
+      console.log("Salary History Fetch:", history);
+      setSalaryHistory(history);
+
+      // Calculate average
+      if (history.length > 0) {
+        const total = history.reduce(
+          (sum, item) => sum + Number(item.amount || 0),
+          0,
+        );
+        const avg = Math.round(total / history.length);
+        console.log(
+          "Calculated Average:",
+          avg,
+          "from total:",
+          total,
+          "items:",
+          history.length,
+        );
+        setAverageSalary(avg);
+      } else {
+        console.log("No salary history items found.");
+        setAverageSalary(0);
+      }
+    } catch (error) {
+      console.error("Error fetching salary history:", error);
+    } finally {
+      setIsLoadingSalaryHistory(false);
+    }
+  };
+
   // Fetch vacation days from backend when termination date changes
   // The backend calculates the projection using the BUK API with the date parameter
   // Uses debounce to avoid excessive API calls when user changes date rapidly
@@ -552,21 +627,40 @@ const CrearFiniquito = () => {
         const years = diffTime / (1000 * 60 * 60 * 24 * 365.25);
         setYearsOfService(years);
 
-        // Calculate Indemnity Years (Chilean Law Rules):
-        // 1. Si < 1 año: No hay indemnización (0)
-        // 2. Si >= 1 año y < 1.5 años: Usar duración real
-        // 3. Si >= 1.5 años: Aplica regla de 6 meses + 1 día (>= 0.5 redondea hacia arriba)
+        // Calculate Indemnity Years (New Rules):
+        // 1. < 1 year: 0
+        // 2. >= 1 year: Apply strict 6 months + 1 day rule for rounding.
+        //    (Months 1-5 round down. > 6 months round up).
+
         let indemnityYears = 0;
-        if (years < 1) {
+
+        // precise full years calculation
+        let y = end.getFullYear() - start.getFullYear();
+        let m = end.getMonth() - start.getMonth();
+        let d = end.getDate() - start.getDate();
+
+        if (m < 0 || (m === 0 && d < 0)) {
+          y--;
+        }
+
+        if (y < 1) {
           indemnityYears = 0;
-        } else if (years >= 1 && years < 1.5) {
-          // Usar la duración real (ej: 1.3 años)
-          indemnityYears = years;
         } else {
-          // >= 1.5 años: aplicar regla de redondeo 6 meses + 1 día
-          const fullYears = Math.floor(years);
-          const remainder = years - fullYears;
-          indemnityYears = remainder >= 0.5 ? fullYears + 1 : fullYears;
+          // We have at least 1 full year. Current base is 'y'.
+          // Check if we have exceeded 6 months and 1 day past the anniversary.
+
+          // Construct the 6-month threshold date relative to the last anniversary
+          const thresholdDate = new Date(start.getTime());
+          thresholdDate.setFullYear(thresholdDate.getFullYear() + y);
+          thresholdDate.setMonth(thresholdDate.getMonth() + 6);
+
+          // If endDate is strictly after the 6-month threshold, round up.
+          // Note: end > threshold implies we have passed the 6-month mark (at least 1 day or millisecond).
+          if (end > thresholdDate) {
+            indemnityYears = y + 1;
+          } else {
+            indemnityYears = y;
+          }
         }
         setYearsForIndemnity(indemnityYears);
       }
@@ -624,10 +718,65 @@ const CrearFiniquito = () => {
   const yearsIndemnityApplies =
     terminationReason === "necesidades_empresa" ||
     terminationReason === "mutuo_acuerdo";
-  const yearsIndemnity =
-    yearsIndemnityApplies && yearsOfService >= 1
-      ? yearsForIndemnity * totalHaberes
-      : 0;
+
+  let yearsIndemnity = 0;
+  if (yearsIndemnityApplies && yearsOfService >= 1) {
+    if (terminationReason === "mutuo_acuerdo" && employee?.fecha_nacimiento) {
+      // Mutuo Acuerdo Special Rules
+      const birthDate = new Date(employee.fecha_nacimiento);
+      const ageDiffMs = Date.now() - birthDate.getTime();
+      const ageDate = new Date(ageDiffMs);
+      const age = Math.abs(ageDate.getUTCFullYear() - 1970);
+
+      const years = yearsForIndemnity;
+      // Base Salary: Use average of last 48 salaries if available, else current total haberes fallback
+      // Rule says "Promedio de últimos 48 sueldos base".
+      let baseAmount = averageSalary > 0 ? averageSalary : salary || 0;
+
+      const cap90UF = (ufValue || 0) * 90;
+
+      // Rule 4: 65 years old (no caps)
+      if (age >= 65) {
+        yearsIndemnity = baseAmount * years;
+      }
+      // Rule 1: 4 to 20 years
+      else if (years >= 4 && years < 20) {
+        const cappedBase =
+          cap90UF > 0 && baseAmount > cap90UF ? cap90UF : baseAmount;
+        const cappedYears = Math.min(years, 11);
+        yearsIndemnity = cappedBase * cappedYears;
+      }
+      // Rule 2: 20 to 25 years
+      else if (years >= 20 && years < 25) {
+        const cappedBase =
+          cap90UF > 0 && baseAmount > cap90UF ? cap90UF : baseAmount;
+        const cappedYears = Math.min(years, 16);
+        yearsIndemnity = cappedBase * cappedYears;
+      }
+      // Rule 3: More than 25 years (no caps)
+      else if (years >= 25) {
+        yearsIndemnity = baseAmount * years;
+      }
+      // Fallback for < 4 years or other cases
+      else {
+        // Standard rule: Years * TotalHaberes (or maybe Base? The prompt is ambiguous but usually standard is TotalHaberes)
+        // However, user prompt says "Promedio de últimos 48 sueldos base" is the key.
+        // Let's stick to standard Total Haberes for < 4 years unless specified otherwise.
+        yearsIndemnity = years * totalHaberes;
+      }
+
+      console.log("Mutuo Acuerdo Calc:", {
+        age,
+        years,
+        baseAmount,
+        cap90UF,
+        result: yearsIndemnity,
+      });
+    } else {
+      // Standard Calculation (Necesidades de la Empresa or Mutuo w/o special data)
+      yearsIndemnity = yearsForIndemnity * totalHaberes;
+    }
+  }
 
   // 3. Notice Month = Total Haberes (si no se dio aviso de 30 días)
   // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso)
@@ -640,6 +789,7 @@ const CrearFiniquito = () => {
 
   // Total Settlement = (Mes de Aviso + Indemnización por Años de Servicio + Vacaciones Proporcionales) - Todos los Descuentos
   const descuentosNum = parseFloat(descuentos) || 0;
+  const aporteCesantiaNum = parseFloat(aporteCesantia) || 0;
   const descuentosAutomaticos = descuentosItems.reduce(
     (sum, d) => sum + (d.monto || 0),
     0,
@@ -665,7 +815,10 @@ const CrearFiniquito = () => {
   }, 0);
 
   const totalDescuentos =
-    descuentosNum + descuentosAutomaticos + descuentosCustom;
+    descuentosNum +
+    aporteCesantiaNum +
+    descuentosAutomaticos +
+    descuentosCustom;
   const liquidacionMesActualNum = parseFloat(liquidacionMesActual) || 0;
   const totalSettlement =
     noticeIndemnity +
@@ -725,10 +878,7 @@ const CrearFiniquito = () => {
       liquidacionMesActual: parseFloat(liquidacionMesActual) || 0,
 
       // Descuentos - find specific types
-      aporteCesantia:
-        descuentosPersonalizados.find((d) =>
-          d.descripcion?.toLowerCase().includes("cesant"),
-        )?.monto || 0,
+      aporteCesantia: aporteCesantiaNum,
       // For loan, check if we need to send CLP or UF. Usually visualizer expects CLP.
       prestamoInterno: (() => {
         const loanItem = descuentosPersonalizados.find((d) =>
@@ -751,8 +901,13 @@ const CrearFiniquito = () => {
       descuentosItems,
       descuentosPersonalizados,
 
-      // Total
-      totalSettlement: Math.round(totalSettlement),
+      // Total - Sum of rounded components to match Visualizer display
+      totalSettlement:
+        Math.round(noticeIndemnity) +
+        Math.round(yearsIndemnity) +
+        Math.round(vacationIndemnity) +
+        (parseFloat(liquidacionMesActual) || 0) -
+        Math.round(totalDescuentos),
     };
 
     // Guardar datos en sessionStorage para preservarlos al volver
@@ -883,9 +1038,80 @@ const CrearFiniquito = () => {
               <p className="text-xs text-gray-400 mt-2">
                 Esta selección determina la base de cálculo de la indemnización.
               </p>
+
+              {/* Salary History Trigger for Mutuo Acuerdo */}
+              {terminationReason === "mutuo_acuerdo" && (
+                <div className="mt-4">
+                  <button
+                    onClick={handleFetchSalaryHistory}
+                    disabled={isLoadingSalaryHistory}
+                    className="flex items-center gap-2 text-sm text-blue-600 font-medium hover:text-blue-800 disabled:opacity-50"
+                  >
+                    {isLoadingSalaryHistory ? (
+                      <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+                    ) : (
+                      <span className="material-symbols-outlined text-lg">
+                        history
+                      </span>
+                    )}
+                    Consultar últimos 48 sueldos
+                  </button>
+
+                  {/* Salary History Table */}
+                  {salaryHistory.length > 0 && (
+                    <div className="mt-3 border rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 px-3 py-2 border-b flex justify-between items-center">
+                        <span className="text-xs font-bold text-gray-700 uppercase">
+                          Historial de Sueldos Base
+                        </span>
+                        <div className="flex gap-3">
+                          <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                            Promedio: $
+                            {Math.round(
+                              salaryHistory.reduce(
+                                (s, i) => s + (i.amount || 0),
+                                0,
+                              ) / salaryHistory.length,
+                            ).toLocaleString("es-CL")}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {salaryHistory.length} registros
+                          </span>
+                        </div>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 sticky top-0">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Periodo
+                              </th>
+                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Monto
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-100">
+                            {salaryHistory.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="px-3 py-2 text-gray-900 font-mono text-xs">
+                                  {item.period}
+                                </td>
+                                <td className="px-3 py-2 text-right text-gray-900 font-medium">
+                                  ${(item.amount || 0).toLocaleString("es-CL")}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-6">
+            <div className="flex gap-6 items-start">
               <div className="flex-1">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Fecha de salida <span className="text-red-500">*</span>
@@ -1604,22 +1830,41 @@ const CrearFiniquito = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-6">
+            {/* Base Salary Input */}
             <div>
-              <label className="block text-sm font-semibold text-blue-600 mb-2">
-                Sueldo Base (Editable)
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Sueldo Base <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-600 font-bold">
-                  $
-                </span>
+                <span className="absolute left-3 top-3 text-gray-400">$</span>
                 <input
                   type="number"
-                  className="w-full pl-8 p-3 bg-blue-50 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-900"
+                  className="w-full p-3 pl-8 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                   value={salary}
-                  onChange={(e) => setSalary(parseFloat(e.target.value))}
+                  onChange={(e) => setSalary(Number(e.target.value))}
                 />
               </div>
+              <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                <span className="material-symbols-outlined text-[10px]">
+                  check_circle
+                </span>
+                Extraído desde Buk
+              </p>
+              {terminationReason === "mutuo_acuerdo" && averageSalary > 0 && (
+                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1 bg-blue-50 p-1.5 rounded border border-blue-100">
+                  <span className="material-symbols-outlined text-sm">
+                    info
+                  </span>
+                  <span>
+                    Promedio 48 sueldos:{" "}
+                    <span className="font-bold">
+                      ${averageSalary.toLocaleString("es-CL")}
+                    </span>
+                  </span>
+                </p>
+              )}
             </div>
+
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Bonos Variables (Calculado)
@@ -1739,6 +1984,19 @@ const CrearFiniquito = () => {
                 $ {Math.round(yearsIndemnity).toLocaleString("es-CL")}
               </span>
             </div>
+            {terminationReason === "mutuo_acuerdo" && averageSalary > 0 && (
+              <div className="flex justify-between text-sm items-center bg-blue-50 p-2 rounded border border-blue-100">
+                <span className="text-blue-700 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm">
+                    info
+                  </span>
+                  Promedio últimas 48 liquidaciones
+                </span>
+                <span className="font-mono font-bold text-blue-700">
+                  $ {averageSalary.toLocaleString("es-CL")}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Vacaciones Pendientes</span>
               <span className="font-mono font-medium">
@@ -1785,6 +2043,26 @@ const CrearFiniquito = () => {
                   onChange={(e) => {
                     const value = e.target.value.replace(/[^0-9]/g, "");
                     setDescuentos(value);
+                  }}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-between text-sm items-center mb-2">
+              <span className="text-red-600 font-medium">
+                Aporte Empleador Seguro Cesantía
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-red-400">- $</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="w-28 p-1 text-right bg-red-50 border border-red-200 rounded focus:ring-2 focus:ring-red-500 outline-none font-mono text-red-700"
+                  value={aporteCesantia}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, "");
+                    setAporteCesantia(value);
                   }}
                   placeholder="0"
                 />
@@ -1947,16 +2225,20 @@ const CrearFiniquito = () => {
             </button>
           </div>
 
-          {ufValue > 0 && (
-            <div className="mt-4 flex justify-end">
-              <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg text-xs text-blue-700 border border-blue-100 shadow-sm">
-                <span className="font-bold">Valor UF Hoy:</span>
-                <span className="font-mono">
-                  $ {ufValue.toLocaleString("es-CL")}
-                </span>
-              </div>
+          <div className="mt-4 flex justify-end">
+            <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg text-xs text-blue-700 border border-blue-100 shadow-sm">
+              <span className="font-bold">Valor UF Hoy:</span>
+              <span className="text-gray-400 ml-1">$</span>
+              <input
+                type="number"
+                step="0.01"
+                className="w-28 bg-transparent font-mono text-blue-700 text-right outline-none border-b border-blue-200 focus:border-blue-500 py-0.5"
+                value={ufValue}
+                onChange={(e) => setUfValue(Number(e.target.value))}
+                placeholder="0.00"
+              />
             </div>
-          )}
+          </div>
 
           <div className="mt-2 bg-gray-900 text-white p-6 rounded-xl flex justify-between items-center shadow-lg">
             <div>

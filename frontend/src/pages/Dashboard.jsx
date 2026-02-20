@@ -87,7 +87,16 @@ const AsistenciaTable = ({ marcas, loading, hasMore, onLoadMore, loadingMore, fi
                     />
                 </td>
                 <td className="px-6 py-2">
-                    {/* Date filter placeholder (handled globally) */}
+                    <input 
+                        type="date" 
+                        className="w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={filters.fechaInicio || ''}
+                        onChange={(e) => {
+                            const date = e.target.value;
+                            // Set both start and end to same date to filter a specific day
+                            onFilterChange('fecha', date);
+                        }}
+                    />
                 </td>
                 <td className="px-6 py-2">
                     {/* Time filter not requested, placeholder or empty */}
@@ -211,10 +220,13 @@ const Dashboard = () => {
   /* Removed handleSearch and searchTerm state */
   
   const handleFilterChange = (key, value) => {
-    aplicarFiltros({
-        ...filters,
-        [key]: value
-    });
+    // 'fecha' is a convenience key from the inline column filter
+    // that sets both fechaInicio and fechaFin to the same day
+    if (key === 'fecha') {
+      aplicarFiltros({ fechaInicio: value, fechaFin: value });
+      return;
+    }
+    aplicarFiltros({ [key]: value });
   };
 
   return (
