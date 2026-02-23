@@ -45,6 +45,18 @@ const MainMenu = () => {
       requiredRole: ['rrhh', 'admin'],
     },
     {
+      id: 'contract_alerts',
+      title: 'Alertas de contratos',
+      description: 'Visualiza vencimientos, envía notificaciones a jefaturas y gestiona renovaciones.',
+      path: '/contract-alerts',
+      icon: 'notifications_active',
+      iconColor: 'text-orange-600',
+      bgColor: 'bg-orange-50 dark:bg-orange-900/20',
+      borderHover: 'hover:border-orange-100',
+      moduleCode: 'contract_alerts',
+      requiredRole: ['rrhh', 'admin'],
+    },
+    {
       id: 'seleccion',
       title: 'Selección de personal',
       description: 'Administra candidatos, programa entrevistas y sigue los procesos de reclutamiento.',

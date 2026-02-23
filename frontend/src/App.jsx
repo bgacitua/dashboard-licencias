@@ -30,6 +30,7 @@ const VisualizadorFiniquito = lazy(() => import('./pages/VisualizadorFiniquito')
 const CrearFiniquito = lazy(() => import('./pages/CrearFiniquito'));
 const AdminPanel = lazy(() => import('./pages/admin/AdminPanel'));
 const Calculadora = lazy(() => import('./pages/Calculadora'));
+const ContractAlerts = lazy(() => import('./pages/ContractAlerts'));
 
 
 function App() {
@@ -155,6 +156,16 @@ function App() {
               element={
                 <ProtectedRoute> {/*requiredModule="calculadora">*/}
                   <Calculadora />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Módulo Alertas de Contratos */}
+            <Route 
+              path="/contract-alerts" 
+              element={
+                <ProtectedRoute requiredModule="contract_alerts">
+                  <ContractAlerts />
                 </ProtectedRoute>
               } 
             />
