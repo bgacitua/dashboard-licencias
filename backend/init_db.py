@@ -93,6 +93,15 @@ def seed_modules(db):
             "orden": 99,
             "activo": True
         },
+        {
+            "codigo": "contract_alerts",
+            "nombre": "Alertas de Contratos",
+            "descripcion": "Gestión de vencimientos y renovaciones de contratos",
+            "icono": "🔔",
+            "ruta": "/contract-alerts",
+            "orden": 3,
+            "activo": True
+        },
     ]
     
     created = 0
@@ -114,8 +123,8 @@ def assign_modules_to_roles(db, roles, modules):
     
     # Mapeo de permisos: rol -> lista de códigos de módulos
     permissions = {
-        "admin": ["dashboard", "finiquitos", "admin"],
-        "rrhh": ["dashboard", "finiquitos"],
+        "admin": ["dashboard", "finiquitos", "admin", "contract_alerts"],
+        "rrhh": ["dashboard", "finiquitos", "contract_alerts"],
         "usuario": ["dashboard"],
     }
     

@@ -8,3 +8,5 @@ from app.models import licencias  # noqa: F401, E402
 from app.models import auth  # noqa: F401, E402
 from app.models import finiquito  # noqa: F401, E402
 from app.models import vacaciones  # noqa: F401, E402
+from app.models import contract_alert  # noqa: F401, E402
+from app.models import calendario_cierres  # noqa: F401, E402

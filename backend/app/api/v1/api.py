@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import licencias, marcas, auth, admin, finiquitos, employees, calculadora, vacaciones
+from app.api.v1.endpoints import licencias, marcas, auth, admin, finiquitos, employees, calculadora, vacaciones, contract_alerts
 
 
 api_router = APIRouter()
@@ -29,3 +29,5 @@ api_router.include_router(employees.router, prefix="/employees", tags=["employee
 api_router.include_router(calculadora.router, prefix="/calculadora", tags=["calculadora"])
 
 api_router.include_router(vacaciones.router, prefix="/vacaciones", tags=["vacaciones"])
+
+api_router.include_router(contract_alerts.router, prefix="/contract-alerts", tags=["contract-alerts"])
