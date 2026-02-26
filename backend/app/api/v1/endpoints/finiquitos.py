@@ -24,11 +24,11 @@ def read_rut_finiquitos(rut: str, db: Session = Depends(get_db)):
     service = FiniquitosService(db)
     return service.get_item_by_rut(rut)
 
-@router.get("/{rut}/variable", response_model=List[FiniquitoItemResponse])
-def read_rut_finiquitos_variable(rut: str, variable: str, db: Session = Depends(get_db)):
-    """Obtiene la información de remuneración variable de los trabajadores."""
-    service = FiniquitosService(db)
-    return service.get_item_variable_by_rut(rut, variable)
+# @router.get("/{rut}/variable", response_model=List[FiniquitoItemResponse])
+# def read_rut_finiquitos_variable(rut: str, variable: str, db: Session = Depends(get_db)):
+#     """Obtiene la información de remuneración variable de los trabajadores."""
+#     service = FiniquitosService(db)
+#     return service.get_item_variable_by_rut(rut, variable)
 
 @router.get("/meses-anteriores", response_model=List[FiniquitoItemResponse])
 def read_tres_meses_finiquitos(db: Session = Depends(get_db)):
