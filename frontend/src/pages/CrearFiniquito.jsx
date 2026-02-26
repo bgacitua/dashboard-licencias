@@ -178,7 +178,8 @@ const CrearFiniquito = () => {
               (item.income_type === "remuneracion_ocasional" &&
                 !excludedConceptos.includes(item.concepto)) ||
               (item.income_type === "remuneracion_fija" &&
-                item.concepto === "Bono Supervisores Noche"),
+                (item.concepto === "Bono Supervisores Noche" ||
+                  item.concepto === "Bono Jefe Área Contingencia")),
           );
 
           if (varData.length > 0) {
@@ -519,7 +520,7 @@ const CrearFiniquito = () => {
 
     setIsLoadingSalaryHistory(true);
     try {
-      const history = await EmployeesService.getSalaryHistory(rut, 48);
+      const history = await EmployeesService.getSalaryHistory(rut, lastDayWork);
       console.log("Salary History Fetch:", history);
       setSalaryHistory(history);
 
@@ -670,6 +671,86 @@ const CrearFiniquito = () => {
       setYearsForIndemnity(Math.floor(employee.duracion_empresa));
     }
   }, [lastDayWork, employee]);
+
+  // ── AUDITORÍA DE CÁLCULO ──────────────────────────────────────────────────
+  // Genera y descarga un archivo .txt con el detalle de todos los cálculos
+  // del finiquito. Se llama al momento de generar el documento.
+  const downloadAuditFile = ({
+    haberes, gratificacion, topeGrat,
+    noticeIndemnityResult, yearsIndemnityResult, vacationIndemnityResult,
+    totalDescuentosResult, totalSettlementResult, cap90UF,
+  }) => {
+    const fmt = (n) => `$${Math.round(n).toLocaleString("es-CL")}`;
+    const now = new Date().toLocaleString("es-CL");
+
+    const lines = [
+      "==================================================================",
+      " RESUMEN DE CÁLCULO DE FINIQUITO",
+      `  Generado: ${now}`,
+      "==================================================================",
+      "",
+      "-- INPUTS PRINCIPALES --",
+      `  RUT:                 ${employee?.rut_trabajador || "—"}`,
+      `  Nombre:              ${employee?.nombre_trabajador || "—"}`,
+      `  Fecha ingreso:       ${employee?.fecha_ingreso || "—"}`,
+      `  Último día trabajo:  ${lastDayWork || "—"}`,
+      `  Causal:              ${terminationReason || "—"}`,
+      `  Aviso previo dado:   ${noticeGiven ? "Sí" : "No"}`,
+      "",
+      "-- REMUNERACIONES --",
+      `  Sueldo base:         ${fmt(salary)}`,
+      `  Promedio bonos var.: ${fmt(variableBonus)}`,
+      `  Gratificación legal: ${fmt(gratificacion)}  (tope: ${fmt(topeGrat)})`,
+      `  Movilización:        ${fmt(movilizacion)}`,
+      `  TOTAL HABERES:       ${fmt(haberes)}`,
+      `  Tarifa diaria:       ${fmt((salary + variableBonus) / 30)}`,
+      "",
+      "-- INDEMNIZACIÓN POR AÑOS DE SERVICIO --",
+      `  Años de servicio:    ${yearsOfService?.toFixed(2) || "—"}`,
+      `  Años para cálculo:   ${yearsForIndemnity}`,
+      `  Base (prom. 48 s.):  ${averageSalary > 0 ? fmt(averageSalary) : "(no disponible)"}`,
+      `  Cap 90 UF (CLP):     ${cap90UF > 0 ? fmt(cap90UF) : "Sin UF"}`,
+      `  UF actual:           ${ufValue ? `$${ufValue.toLocaleString("es-CL")}` : "—"}`,
+      `  RESULTADO:           ${fmt(yearsIndemnityResult)}`,
+      "",
+      "-- VACACIONES PROPORCIONALES --",
+      `  Días disponibles:    ${vacationDays}`,
+      `  RESULTADO:           ${fmt(vacationIndemnityResult)}`,
+      "",
+      "-- MES DE AVISO --",
+      `  Aviso dado:          ${noticeGiven ? "Sí (no aplica cobro)" : "No — se incluye"}`,
+      `  RESULTADO:           ${fmt(noticeIndemnityResult)}`,
+      "",
+      "-- DESCUENTOS --",
+      `  Descuentos manuales: ${fmt(parseFloat(descuentos) || 0)}`,
+      `  Aporte cesantía:     ${fmt(parseFloat(aporteCesantia) || 0)}`,
+      `  Desc. automáticos:   ${fmt(descuentosItems?.reduce((s, d) => s + (d.monto || 0), 0) ?? 0)}`,
+      `  Desc. personalizados:${fmt((descuentosPersonalizados || []).reduce((sum, d) => {
+        let m = parseFloat(d.monto) || 0;
+        const c = parseInt(d.cuotas) || 1;
+        if (d.descripcion === "Préstamo Interno" && ufValue > 0) m = Math.round(m * ufValue);
+        return sum + m * c;
+      }, 0))}`,
+      `  TOTAL DESCUENTOS:    ${fmt(totalDescuentosResult)}`,
+      "",
+      "==================================================================",
+      `  TOTAL FINIQUITO:     ${fmt(totalSettlementResult)}`,
+      "==================================================================",
+    ];
+
+    const content = lines.join("\n");
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `auditoria_finiquito_${employee?.rut_trabajador || "rut"}_${lastDayWork || "fecha"}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+  // ── FIN AUDITORÍA ─────────────────────────────────────────────────────────
+
 
   if (loading) {
     return (
@@ -912,6 +993,23 @@ const CrearFiniquito = () => {
 
     // Guardar datos en sessionStorage para preservarlos al volver
     sessionStorage.setItem(`finiquito_${rut}`, JSON.stringify(finiquitoData));
+
+    // Descargar archivo de auditoría de cálculo
+    const sueldoMinimo = 539000;
+    const topeGrat = (4.75 / 12) * sueldoMinimo;
+    const gratificacion = Math.min((salary + variableBonus) * 0.25, topeGrat);
+    const haberes = salary + variableBonus + gratificacion + movilizacion;
+    downloadAuditFile({
+      haberes,
+      gratificacion,
+      topeGrat,
+      noticeIndemnityResult: Math.round(noticeIndemnity),
+      yearsIndemnityResult: Math.round(yearsIndemnity),
+      vacationIndemnityResult: Math.round(vacationIndemnity),
+      totalDescuentosResult: Math.round(totalDescuentos),
+      totalSettlementResult: Math.round(noticeIndemnity) + Math.round(yearsIndemnity) + Math.round(vacationIndemnity) + (parseFloat(liquidacionMesActual) || 0) - Math.round(totalDescuentos),
+      cap90UF: (ufValue || 0) * 90,
+    });
 
     // Navegar al visualizador en la misma pestaña
     navigate(`/finiquitos/visualizar/${rut}`, { state: finiquitoData });
@@ -1981,7 +2079,11 @@ const CrearFiniquito = () => {
                 años)
               </span>
               <span className="font-mono font-medium">
-                $ {Math.round(yearsIndemnity).toLocaleString("es-CL")}
+                $ {Math.round(
+                  terminationReason === "mutuo_acuerdo"
+                    ? yearsIndemnity - aporteCesantiaNum
+                    : yearsIndemnity
+                ).toLocaleString("es-CL")}
               </span>
             </div>
             {terminationReason === "mutuo_acuerdo" && averageSalary > 0 && (
