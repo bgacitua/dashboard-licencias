@@ -441,8 +441,20 @@ class FiniquitosService:
                         del raw_records[k]
 
                 # --- 4. Sustituir worked_days < 30 en los registros recuperados ---
-                # Trabajar sobre la lista ordenada ascendente de lo que BUK devolvió
+                # Regla de usuario:
+                # - Para los meses 01–06 (primer semestre del año) y 07–12 (segundo semestre),
+                #   el sueldo base de un mes con menos de 30 días trabajados debe
+                #   aproximarse usando preferentemente los meses POSTERIORES dentro
+                #   del mismo semestre (ej: licencia en enero toma sueldo de febreromarzo, etc.).
+                # - Solo si no existe referencia posterior válida en el mismo semestre
+                #   intentamos usar una referencia anterior del mismo semestre.
+                #
+                # Trabajamos sobre la lista ordenada ASCENDENTE (más antiguo primero).
                 sorted_keys = sorted(raw_records.keys())
+
+                def _half_from_month(month: int) -> int:
+                    """Devuelve 1 para meses 1-6 y 2 para meses 7-12."""
+                    return 1 if month <= 6 else 2
 
                 for idx, key in enumerate(sorted_keys):
                     item = raw_records[key]
@@ -450,27 +462,43 @@ class FiniquitosService:
                         original = item["amount"]
                         replaced = False
 
-                        # Intentar mes anterior en raw_records
-                        if idx > 0:
-                            prev_key = sorted_keys[idx - 1]
-                            if raw_records[prev_key]["worked_days"] >= 30:
-                                item["amount"] = raw_records[prev_key]["amount"]
-                                replaced = True
-                                logger.info(
-                                    f"[worked_days<30] {key}: ${original:,} → "
-                                    f"${item['amount']:,} (del mes anterior {prev_key})"
-                                )
+                        # Determinar año/mes y semestre del período actual
+                        cur_year, cur_month = map(int, key.split("-"))
+                        cur_half = _half_from_month(cur_month)
 
-                        # Intentar mes siguiente si no se reemplazó
-                        if not replaced and idx < len(sorted_keys) - 1:
-                            next_key = sorted_keys[idx + 1]
-                            if raw_records[next_key]["worked_days"] >= 30:
-                                item["amount"] = raw_records[next_key]["amount"]
+                        # 4.a) Intentar con meses POSTERIORES del mismo semestre (preferencia usuario)
+                        for j in range(idx + 1, len(sorted_keys)):
+                            cand_key = sorted_keys[j]
+                            cy, cm = map(int, cand_key.split("-"))
+                            if _half_from_month(cm) != cur_half:
+                                # Saltar cuando cambia de semestre
+                                continue
+                            cand_item = raw_records[cand_key]
+                            if cand_item["worked_days"] >= 30:
+                                item["amount"] = cand_item["amount"]
                                 replaced = True
                                 logger.info(
                                     f"[worked_days<30] {key}: ${original:,} → "
-                                    f"${item['amount']:,} (del mes siguiente {next_key})"
+                                    f"${item['amount']:,} (del mes posterior {cand_key} dentro del mismo semestre)"
                                 )
+                                break
+
+                        # 4.b) Si no hay posterior válido, intentar con meses ANTERIORES del mismo semestre
+                        if not replaced:
+                            for j in range(idx - 1, -1, -1):
+                                cand_key = sorted_keys[j]
+                                cy, cm = map(int, cand_key.split("-"))
+                                if _half_from_month(cm) != cur_half:
+                                    continue
+                                cand_item = raw_records[cand_key]
+                                if cand_item["worked_days"] >= 30:
+                                    item["amount"] = cand_item["amount"]
+                                    replaced = True
+                                    logger.info(
+                                        f"[worked_days<30] {key}: ${original:,} → "
+                                        f"${item['amount']:,} (del mes anterior {cand_key} dentro del mismo semestre)"
+                                    )
+                                    break
 
                         if not replaced:
                             logger.warning(
@@ -478,44 +506,54 @@ class FiniquitosService:
                                 f"Manteniendo ${original:,}"
                             )
 
-                # --- 4. Usar ventana de 48 meses y rellenar huecos ---
+                # --- 5. Usar ventana de 48 meses y rellenar huecos ---
                 # Para cada mes esperado busca en raw_records; si falta, rellena
-                # con el mismo criterio: mes anterior si coincide, posterior si no.
+                # con el mismo criterio de semestres:
+                #   - Preferir un mes POSTERIOR dentro del mismo semestre con dato.
+                #   - Si no existe, usar un mes ANTERIOR del mismo semestre.
                 filled: List[Dict] = []
                 for i, sort_date in enumerate(expected_months):
                     m_num = int(sort_date.split("-")[1])
                     y_num = int(sort_date.split("-")[0])
                     display = f"{m_num:02d}-{y_num}"
+                    cur_half = _half_from_month(m_num)
 
                     if sort_date in raw_records:
                         filled.append(raw_records[sort_date].copy())
                     else:
                         # Período ausente (licencia sin sueldo, ej. sueldo=0)
-                        # Buscar valor de referencia: anterior → posterior
+                        # Buscar valor de referencia:
+                        #   1) posterior del mismo semestre
+                        #   2) anterior del mismo semestre
                         ref_amount = None
 
-                        # Buscar el mes anterior más próximo que sí exista
-                        for j in range(i - 1, -1, -1):
+                        # 5.a) Buscar el mes POSTERIOR más próximo del mismo semestre que sí exista
+                        for j in range(i + 1, len(expected_months)):
                             candidate = expected_months[j]
+                            cy, cm = map(int, candidate.split("-"))
+                            if _half_from_month(cm) != cur_half:
+                                continue
                             if candidate in raw_records:
-                                prev_amt = raw_records[candidate]["amount"]
-                                # Usar si coincide con el siguiente disponible o de todas formas
-                                ref_amount = prev_amt
+                                ref_amount = raw_records[candidate]["amount"]
                                 logger.info(
-                                    f"[gap] {sort_date}: rellenado con anterior {candidate} "
-                                    f"(${prev_amt:,})"
+                                    f"[gap] {sort_date}: rellenado con posterior {candidate} "
+                                    f"(${ref_amount:,}) dentro del mismo semestre"
                                 )
                                 break
 
+                        # 5.b) Si no hay posterior, buscar el mes ANTERIOR más próximo del mismo semestre
                         if ref_amount is None:
-                            # No hay mes anterior; buscar el siguiente disponible
-                            for j in range(i + 1, len(expected_months)):
+                            for j in range(i - 1, -1, -1):
                                 candidate = expected_months[j]
+                                cy, cm = map(int, candidate.split("-"))
+                                if _half_from_month(cm) != cur_half:
+                                    continue
                                 if candidate in raw_records:
-                                    ref_amount = raw_records[candidate]["amount"]
+                                    prev_amt = raw_records[candidate]["amount"]
+                                    ref_amount = prev_amt
                                     logger.info(
-                                        f"[gap] {sort_date}: rellenado con posterior {candidate} "
-                                        f"(${ref_amount:,})"
+                                        f"[gap] {sort_date}: rellenado con anterior {candidate} "
+                                        f"(${prev_amt:,}) dentro del mismo semestre"
                                     )
                                     break
 
@@ -531,7 +569,7 @@ class FiniquitosService:
                             "filled": True,     # flag informativo
                         })
 
-                # --- 5. Ordenar descendente (más reciente primero) y devolver ---
+                # --- 6. Ordenar descendente (más reciente primero) y devolver ---
                 filled.sort(key=lambda x: x["sort_date"], reverse=True)
                 logger.info(f"Historial final: {len(filled)} períodos devueltos para rut {rut}")
                 return filled

@@ -34,7 +34,7 @@ class FiniquitosRepository:
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
     def get_item_by_rut(self, rut: str) -> List[Finiquito]:
-        """Obtiene Finiquitos y el detalle de los items mensuales por periodo"""
+        """Obtiene Finiquitos y el detalle de los items mensuales por periodo (últimos 15 para cruce con licencias y 3 meses válidos)"""
         query = text("""
             WITH DatosRankeados AS (
                 SELECT 
@@ -85,7 +85,7 @@ class FiniquitosRepository:
                 concepto,
                 monto
             FROM DatosRankeados
-            WHERE RankingPeriodo <= 5
+            WHERE RankingPeriodo <= 15
             AND rut_trabajador = :rut
             ORDER BY 
             RankingPeriodo ASC, nombre_trabajador;

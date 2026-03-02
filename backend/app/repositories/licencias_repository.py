@@ -70,9 +70,9 @@ class LicenciasRepository:
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
     def get_licencia_by_rut(self, rut: str) -> List[Licencia]:
-        """Obtiene las últimas 5 licencias con filtro de rut"""
+        """Obtiene las últimas 15 licencias con filtro de rut (para cruce con remuneración variable)"""
         query = text("""
-            SELECT TOP 5 
+            SELECT TOP 15 
                 rut_empleado AS rut_trabajador,
                 nombre_completo AS nombre_trabajador,
                 fecha_inicio,
