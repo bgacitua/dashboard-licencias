@@ -1,9 +1,186 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import FiniquitosService from "../services/finiquitos.service";
 import EmployeesService from "../services/employees.service";
 import { getLicenciasByRut } from "../services/licencias";
+
+// --- Helpers for variable bonus: period parsing, filled months, license overlap ---
+function parsePeriodo(periodoStr) {
+  if (!periodoStr || typeof periodoStr !== "string") return null;
+  const s = periodoStr.trim();
+  const dash = s.match(/^(\d{1,2})[-/](\d{4})$/);
+  if (dash) return { month: parseInt(dash[1], 10), year: parseInt(dash[2], 10) };
+  if (s.length === 6 && /^\d{6}$/.test(s))
+    return { month: parseInt(s.slice(0, 2), 10), year: parseInt(s.slice(2), 10) };
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})$/);
+  if (iso) return { month: parseInt(iso[2], 10), year: parseInt(iso[1], 10) };
+  return null;
+}
+
+function getMonthsInRange(minYear, minMonth, maxYear, maxMonth) {
+  const out = [];
+  let y = minYear;
+  let m = minMonth;
+  while (y < maxYear || (y === maxYear && m <= maxMonth)) {
+    out.push({ year: y, month: m });
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
+}
+
+function monthHasLicense(year, month, licencias) {
+  if (!licencias || !licencias.length) return false;
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+  return licencias.some((lic) => {
+    const start = new Date(lic.fecha_inicio);
+    const end = new Date(lic.fecha_fin);
+    return end >= firstDay && start <= lastDay;
+  });
+}
+
+function formatPeriodoDisplay(year, month) {
+  return new Date(year, month - 1, 1)
+    .toLocaleDateString("es-CL", { month: "2-digit", year: "numeric" })
+    .replace("/", "-");
+}
+
+function getExpandedVariableGroups(
+  variableItems,
+  variableCustomAdditions,
+  licencias,
+  variableFilledActive
+) {
+  const groups = {};
+  variableItems.forEach((item, idx) => {
+    const key = item.concepto || "Sin Concepto";
+    if (!groups[key]) groups[key] = [];
+    const p = parsePeriodo(item.periodo);
+    const hasLicense = p
+      ? monthHasLicense(p.year, p.month, licencias)
+      : false;
+    groups[key].push({
+      ...item,
+      type: "fetched",
+      originalIndex: idx,
+      hasLicense,
+    });
+  });
+  Object.keys(variableCustomAdditions || {}).forEach((key) => {
+    if (!groups[key]) groups[key] = [];
+    (variableCustomAdditions[key] || []).forEach((item, idx) => {
+      const p = item.periodo && item.periodo !== "Manual"
+        ? parsePeriodo(item.periodo)
+        : null;
+      const hasLicense = p
+        ? monthHasLicense(p.year, p.month, licencias)
+        : false;
+      groups[key].push({
+        ...item,
+        concepto: key,
+        type: "custom",
+        originalIndex: idx,
+        hasLicense,
+      });
+    });
+  });
+
+  Object.keys(groups).forEach((concepto) => {
+    const items = groups[concepto];
+    const existingMonths = new Set();
+    items.forEach((it) => {
+      const p = it.periodo && it.type !== "custom" ? parsePeriodo(it.periodo) : null;
+      if (p) existingMonths.add(`${p.year}-${p.month}`);
+    });
+    let minY = Infinity,
+      minM = 12,
+      maxY = -Infinity,
+      maxM = 1;
+    items.forEach((it) => {
+      const p = it.periodo && it.type !== "custom" ? parsePeriodo(it.periodo) : null;
+      if (p) {
+        if (p.year < minY || (p.year === minY && p.month < minM)) {
+          minY = p.year;
+          minM = p.month;
+        }
+        if (p.year > maxY || (p.year === maxY && p.month > maxM)) {
+          maxY = p.year;
+          maxM = p.month;
+        }
+      }
+    });
+    if (minY === Infinity) return;
+    const range = getMonthsInRange(minY, minM, maxY, maxM);
+    range.forEach(({ year, month }) => {
+      const key = `${year}-${month}`;
+      if (existingMonths.has(key)) return;
+      const filledKey = `${concepto}-${year}-${month}`;
+      const hasLic = monthHasLicense(year, month, licencias);
+      const active =
+        variableFilledActive[filledKey] !== undefined
+          ? variableFilledActive[filledKey]
+          : !hasLic;
+      groups[concepto].push({
+        type: "filled",
+        concepto,
+        periodo: formatPeriodoDisplay(year, month),
+        monto: 0,
+        year,
+        month,
+        filledKey,
+        active,
+        hasLicense: hasLic,
+      });
+    });
+    groups[concepto].sort((a, b) => {
+      const pa = a.year && a.month ? { year: a.year, month: a.month } : parsePeriodo(a.periodo);
+      const pb = b.year && b.month ? { year: b.year, month: b.month } : parsePeriodo(b.periodo);
+      if (!pa || !pb) return 0;
+      if (pa.year !== pb.year) return pa.year - pb.year;
+      return pa.month - pb.month;
+    });
+  });
+
+  return groups;
+}
+
+const VALID_VARIABLE_MONTHS_REQUIRED = 3;
+
+function getItemPeriodForSort(item) {
+  if (item.year != null && item.month != null)
+    return { year: item.year, month: item.month };
+  return parsePeriodo(item.periodo);
+}
+
+function calculateTotalFromExpandedGroups(groups) {
+  return Object.values(groups).reduce((total, groupItems) => {
+    // Valid months: active and no license (include filled with 0)
+    const validItems = groupItems.filter(
+      (i) => i.active !== false && !i.hasLicense
+    );
+    if (validItems.length === 0) return total;
+    // Sort by period descending (most recent first) and take up to 3
+    const sorted = [...validItems].sort((a, b) => {
+      const pa = getItemPeriodForSort(a);
+      const pb = getItemPeriodForSort(b);
+      if (!pa || !pb) return 0;
+      if (pa.year !== pb.year) return pb.year - pa.year;
+      return pb.month - pa.month;
+    });
+    const toUse = sorted.slice(0, VALID_VARIABLE_MONTHS_REQUIRED);
+    const groupSum = toUse.reduce(
+      (sum, item) => sum + (parseFloat(item.monto) || 0),
+      0
+    );
+    const groupAvg = groupSum / toUse.length;
+    return total + groupAvg;
+  }, 0);
+}
 
 const CrearFiniquito = () => {
   const { rut } = useParams();
@@ -66,6 +243,9 @@ const CrearFiniquito = () => {
   const [descuentosItems, setDescuentosItems] = useState([]); // Automatic deductions from backend
   const [descuentosPersonalizados, setDescuentosPersonalizados] = useState([]); // Custom added discounts
   const [variableCustomAdditions, setVariableCustomAdditions] = useState({}); // Custom manual additions for variable bonus: { [concepto]: [{ id, descripcion, amount, active }] }
+  const [variableFilledActive, setVariableFilledActive] = useState({}); // Active state for filled (zero) months per concepto: { "Concepto-YYYY-MM": boolean }
+  const [variableGroupsCollapsed, setVariableGroupsCollapsed] = useState({}); // Collapse state per group: { [concepto]: true } = collapsed
+  const [licenciasTableCollapsed, setLicenciasTableCollapsed] = useState(false); // Collapse state for Licencias recientes table
   const [newCustomItems, setNewCustomItems] = useState({}); // Temporary state for new manual item inputs per concept: { [concepto]: { description: '', amount: '' } }
   const [ufValue, setUfValue] = useState(0); // Valor UF del día
   const [isLoadingUf, setIsLoadingUf] = useState(false);
@@ -120,10 +300,38 @@ const CrearFiniquito = () => {
     return Math.round(sumOfAverages);
   };
 
+  // Recalculate variable bonus from expanded groups (includes filled months and license-deselected items)
+  useEffect(() => {
+    if (variableItems.length === 0 && Object.keys(variableCustomAdditions).length === 0) {
+      setVariableBonus(0);
+      return;
+    }
+    const groups = getExpandedVariableGroups(
+      variableItems,
+      variableCustomAdditions,
+      licencias,
+      variableFilledActive
+    );
+    const total = Math.round(calculateTotalFromExpandedGroups(groups));
+    setVariableBonus(total);
+  }, [variableItems, variableCustomAdditions, licencias, variableFilledActive]);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         const data = await FiniquitosService.getItemsByRut(rut);
+        let sortedLicencias = [];
+        try {
+          const employeeLicencias = await getLicenciasByRut(rut);
+          sortedLicencias = employeeLicencias.sort(
+            (a, b) => new Date(b.fecha_fin) - new Date(a.fecha_fin)
+          );
+          setLicencias(sortedLicencias);
+        } catch (err) {
+          console.error("Error fetching licenses:", err);
+          setLicencias([]);
+        }
+
         if (Array.isArray(data) && data.length > 0) {
           const empData = data[0];
           setEmployee(empData);
@@ -183,31 +391,25 @@ const CrearFiniquito = () => {
           );
 
           if (varData.length > 0) {
-            const mappedVarData = varData.map((item, idx) => ({
-              ...item,
-              active: true,
-              originalIndex: idx,
-            }));
+            const mappedVarData = varData.map((item, idx) => {
+              const p = parsePeriodo(item.periodo);
+              const active =
+                p && sortedLicencias.length > 0
+                  ? !monthHasLicense(p.year, p.month, sortedLicencias)
+                  : true;
+              return {
+                ...item,
+                active,
+                originalIndex: idx,
+              };
+            });
             setVariableItems(mappedVarData);
 
-            // Initial calculation using the helper
-            const total = calculateTotalVariableBonus(mappedVarData, {});
-            setVariableBonus(total);
+            // Initial total will be set by useEffect from expanded groups
           } else {
             setVariableItems([]);
             setVariableBonus(0);
           }
-        }
-        try {
-          const employeeLicencias = await getLicenciasByRut(rut);
-          // Sort by fecha_fin descending (most recent first) and take last 5
-          const sortedLicencias = employeeLicencias
-            .sort((a, b) => new Date(b.fecha_fin) - new Date(a.fecha_fin))
-            .slice(0, 5);
-          setLicencias(sortedLicencias);
-        } catch (err) {
-          console.error("Error fetching licenses:", err);
-          setLicencias([]);
         }
 
         // Fetch automatic deductions for this employee (Prestamo Interno, Descuento Por Planilla)
@@ -1266,9 +1468,33 @@ const CrearFiniquito = () => {
           </div>
         </div>
 
-        {/* Recent Licenses Table */}
+        {/* Recent Licenses Table (collapsible, shows all 15 from backend) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-          <div className="flex items-center gap-2 mb-6">
+          <div
+            className="flex items-center gap-2 mb-6 cursor-pointer select-none"
+            onClick={() => setLicenciasTableCollapsed((c) => !c)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setLicenciasTableCollapsed((c) => !c);
+              }
+            }}
+          >
+            <button
+              type="button"
+              className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLicenciasTableCollapsed((c) => !c);
+              }}
+              title={licenciasTableCollapsed ? "Expandir tabla" : "Colapsar tabla"}
+            >
+              <span className="material-symbols-outlined text-xl">
+                {licenciasTableCollapsed ? "expand_more" : "expand_less"}
+              </span>
+            </button>
             <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
               <span className="material-symbols-outlined">
                 medical_information
@@ -1278,10 +1504,12 @@ const CrearFiniquito = () => {
               Licencias recientes
             </h3>
             <span className="ml-auto px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-              Últimos 5 registros
+              {licencias.length} registro{licencias.length !== 1 ? "s" : ""}
             </span>
           </div>
 
+          {!licenciasTableCollapsed && (
+          <>
           {licencias.length === 0 ? (
             <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
               <span className="material-symbols-outlined text-gray-300 text-4xl mb-2">
@@ -1295,9 +1523,9 @@ const CrearFiniquito = () => {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 bg-white shadow-sm z-10">
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">
                       Razón
@@ -1371,6 +1599,8 @@ const CrearFiniquito = () => {
               </table>
             </div>
           )}
+          </>
+          )}
         </div>
 
         {/* Review Variable Bonuses (Collapsed for now or simplified) */}
@@ -1390,8 +1620,9 @@ const CrearFiniquito = () => {
           </div>
           <div className="mt-6 space-y-4">
             <p className="text-sm text-gray-500 mb-4">
-              Selecciona los bonos de los últimos meses que serán incluídos en
-              el promedio de cálculo.
+              El promedio se calcula con los últimos 3 meses válidos por concepto
+              (sin licencia; se incluyen meses con valor 0). Los meses sin asignación se muestran con $0.
+              Los meses con licencia médica se deseleccionan por defecto.
             </p>
             {variableItems.length === 0 ? (
               <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
@@ -1406,48 +1637,41 @@ const CrearFiniquito = () => {
                 </p>
               </div>
             ) : (
-              // Group iterarion logic updated to handle custom additions
               (() => {
-                // 1. Prepare groups uniting fetched and custom items
-                const allGroups = variableItems.reduce((acc, item, idx) => {
-                  const key = item.concepto || "Sin Concepto";
-                  if (!acc[key]) acc[key] = [];
-                  acc[key].push({
-                    ...item,
-                    type: "fetched",
-                    originalIndex: idx,
-                  });
-                  return acc;
-                }, {});
+                const expandedGroups = getExpandedVariableGroups(
+                  variableItems,
+                  variableCustomAdditions,
+                  licencias,
+                  variableFilledActive
+                );
 
-                // Merge custom additions into groups
-                Object.keys(variableCustomAdditions).forEach((key) => {
-                  if (!allGroups[key]) allGroups[key] = []; // Should usually exist, but just in case
-
-                  variableCustomAdditions[key].forEach((item, idx) => {
-                    allGroups[key].push({
-                      ...item,
-                      concepto: key,
-                      type: "custom",
-                      originalIndex: idx,
-                    });
-                  });
-                });
-
-                return Object.entries(allGroups).map(([concepto, items]) => {
-                  // Calculate stats for this group
-                  const activeItems = items.filter(
-                    (item) => item.active !== false,
-                  );
+                return Object.entries(expandedGroups).map(([concepto, items]) => {
                   const allActive = items.every(
                     (item) => item.active !== false,
                   );
-                  const groupSum = activeItems.reduce(
+                  // Same as total: use up to 3 most recent valid months (no license; include filled with 0)
+                  const validItems = items.filter(
+                    (i) => i.active !== false && !i.hasLicense,
+                  );
+                  const sortedValid = [...validItems].sort((a, b) => {
+                    const pa = getItemPeriodForSort(a);
+                    const pb = getItemPeriodForSort(b);
+                    if (!pa || !pb) return 0;
+                    if (pa.year !== pb.year) return pb.year - pa.year;
+                    return pb.month - pa.month;
+                  });
+                  const toUse = sortedValid.slice(
+                    0,
+                    VALID_VARIABLE_MONTHS_REQUIRED,
+                  );
+                  const groupSum = toUse.reduce(
                     (sum, item) => sum + (parseFloat(item.monto) || 0),
                     0,
                   );
                   const groupAverage =
-                    activeItems.length > 0 ? groupSum / activeItems.length : 0;
+                    toUse.length > 0 ? groupSum / toUse.length : 0;
+
+                  const isCollapsed = variableGroupsCollapsed[concepto];
 
                   return (
                     <div
@@ -1455,8 +1679,25 @@ const CrearFiniquito = () => {
                       className="border border-gray-200 rounded-lg overflow-hidden mb-3"
                     >
                       {/* Header del grupo */}
-                      <div className="flex items-center justify-between p-4 bg-gray-100 border-b border-gray-200">
+                      <div
+                        className={`flex items-center justify-between p-4 bg-gray-100 ${isCollapsed ? "" : "border-b border-gray-200"}`}
+                      >
                         <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            className="p-0.5 rounded hover:bg-gray-200 transition-colors text-gray-500 hover:text-gray-700"
+                            onClick={() =>
+                              setVariableGroupsCollapsed((prev) => ({
+                                ...prev,
+                                [concepto]: !prev[concepto],
+                              }))
+                            }
+                            title={isCollapsed ? "Expandir listado" : "Colapsar listado"}
+                          >
+                            <span className="material-symbols-outlined text-xl">
+                              {isCollapsed ? "expand_more" : "expand_less"}
+                            </span>
+                          </button>
                           {/* Group Toggle */}
                           <div
                             className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${allActive ? "bg-blue-600" : "bg-gray-300"}`}
@@ -1486,14 +1727,14 @@ const CrearFiniquito = () => {
                                 setVariableCustomAdditions(newCustomAdditions);
                               }
 
-                              // Recalculate Total
-                              const newTotal = calculateTotalVariableBonus(
-                                newVariableItems,
-                                newCustomAdditions[concepto]
-                                  ? newCustomAdditions
-                                  : variableCustomAdditions,
-                              );
-                              setVariableBonus(newTotal);
+                              // Update filled items for this concept
+                              const newFilled = { ...variableFilledActive };
+                              items.forEach((item) => {
+                                if (item.type === "filled" && item.filledKey) {
+                                  newFilled[item.filledKey] = newState;
+                                }
+                              });
+                              setVariableFilledActive(newFilled);
                             }}
                           >
                             <div
@@ -1505,7 +1746,7 @@ const CrearFiniquito = () => {
                               {concepto}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {items.length} registro(s) • Promedio: ${" "}
+                              {items.length} registro(s) • Promedio ({toUse.length} de {VALID_VARIABLE_MONTHS_REQUIRED} meses válidos): ${" "}
                               {Math.round(groupAverage).toLocaleString("es-CL")}
                             </p>
                           </div>
@@ -1721,12 +1962,13 @@ const CrearFiniquito = () => {
                         </div>
                       </div>
 
-                      {/* Items del grupo */}
+                      {/* Items del grupo (colapsable) */}
+                      {!isCollapsed && (
                       <div className="divide-y divide-gray-100">
                         {items.map((bonus, idx) => (
                           <div
-                            key={idx}
-                            className={`flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors ${bonus.type === "custom" ? "bg-blue-50/30" : ""}`}
+                            key={bonus.type === "filled" ? bonus.filledKey : idx}
+                            className={`flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors ${bonus.type === "custom" ? "bg-blue-50/30" : ""} ${bonus.type === "filled" ? "bg-gray-50/50" : ""}`}
                           >
                             <div className="flex items-center gap-2">
                               {bonus.type === "custom" && (
@@ -1735,6 +1977,22 @@ const CrearFiniquito = () => {
                                   title="Item Manual"
                                 >
                                   edit_note
+                                </span>
+                              )}
+                              {bonus.type === "filled" && (
+                                <span
+                                  className="material-symbols-outlined text-xs text-gray-400"
+                                  title="Mes sin asignación"
+                                >
+                                  remove_circle_outline
+                                </span>
+                              )}
+                              {bonus.hasLicense && (
+                                <span
+                                  className="material-symbols-outlined text-xs text-amber-600"
+                                  title="Mes con licencia médica"
+                                >
+                                  medical_services
                                 </span>
                               )}
                               <div>
@@ -1746,6 +2004,11 @@ const CrearFiniquito = () => {
                                 {bonus.type === "custom" && (
                                   <p className="text-xs text-gray-400">
                                     Manual
+                                  </p>
+                                )}
+                                {bonus.type === "filled" && (
+                                  <p className="text-xs text-gray-400">
+                                    Sin asignación
                                   </p>
                                 )}
                               </div>
@@ -1761,19 +2024,18 @@ const CrearFiniquito = () => {
                               <div
                                 className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${bonus.active !== false ? "bg-blue-600" : "bg-gray-300"}`}
                                 onClick={() => {
-                                  // Handle toggle based on type
                                   if (bonus.type === "fetched") {
                                     const newItems = [...variableItems];
                                     newItems[bonus.originalIndex].active =
                                       !newItems[bonus.originalIndex].active;
                                     setVariableItems(newItems);
-                                    const total = calculateTotalVariableBonus(
-                                      newItems,
-                                      variableCustomAdditions,
-                                    );
-                                    setVariableBonus(total);
+                                  } else if (bonus.type === "filled") {
+                                    setVariableFilledActive((prev) => ({
+                                      ...prev,
+                                      [bonus.filledKey]:
+                                        !bonus.active,
+                                    }));
                                   } else {
-                                    // Custom item
                                     const newCustomAdditions = {
                                       ...variableCustomAdditions,
                                     };
@@ -1788,11 +2050,6 @@ const CrearFiniquito = () => {
                                     setVariableCustomAdditions(
                                       newCustomAdditions,
                                     );
-                                    const total = calculateTotalVariableBonus(
-                                      variableItems,
-                                      newCustomAdditions,
-                                    );
-                                    setVariableBonus(total);
                                   }
                                 }}
                               >
@@ -1836,6 +2093,7 @@ const CrearFiniquito = () => {
                           </div>
                         ))}
                       </div>
+                      )}
                     </div>
                   );
                 });
