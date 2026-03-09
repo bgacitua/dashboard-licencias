@@ -69,10 +69,20 @@ class LicenciasRepository:
         columns = result.keys()
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
-    def get_licencia_by_rut(self, rut: str) -> List[Licencia]:
-        """Obtiene las últimas 15 licencias con filtro de rut (para cruce con remuneración variable)"""
-        query = text("""
-            SELECT TOP 15 
+    def get_licencia_by_rut(
+        self,
+        rut: str,
+        limit: int = 15,
+        order_asc: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Obtiene las últimas N licencias con filtro de rut (para cruce con remuneración variable).
+        order_asc=True ordena por fecha_fin ascendente (más antiguas primero)."""
+        limit = max(1, min(100, limit))  # Clamp entre 1 y 100
+        order_dir = "ASC" if order_asc else "DESC"
+        # TOP con parámetro; dirección de orden fija para evitar SQL injection
+        query = text(
+            f"""
+            SELECT TOP (:limit)
                 rut_empleado AS rut_trabajador,
                 nombre_completo AS nombre_trabajador,
                 fecha_inicio,
@@ -82,9 +92,10 @@ class LicenciasRepository:
                 status
             FROM [IARRHH].[dbo].[consolidado_incidencias]
             WHERE rut_empleado = :rut
-            ORDER BY fecha_fin DESC
-                    """)
-        result = self.db.execute(query, {"rut": rut})
+            ORDER BY fecha_fin {order_dir}
+            """
+        )
+        result = self.db.execute(query, {"rut": rut, "limit": limit})
         columns = result.keys()
         return [dict(zip(columns, row)) for row in result.fetchall()]
 

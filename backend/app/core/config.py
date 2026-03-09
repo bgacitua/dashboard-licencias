@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     BUK_API_BASE_URL: str 
     BUK_API_KEY: str 
 
+    # Pool de conexiones BD (opcional; por defecto SQLAlchemy usa pool_size=5, max_overflow=10)
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
+    MARCAS_DB_POOL_SIZE: int = 2
+    MARCAS_DB_MAX_OVERFLOW: int = 5
+
     class Config:
         # Indica dónde buscar el archivo .env
         env_file = ".env"

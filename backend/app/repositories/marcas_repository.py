@@ -161,7 +161,6 @@ class MarcasRepository:
                     "tipo_marca": "IN" if row.tipo_marca == 6 else ("OUT" if row.tipo_marca == 7 else "No key"),
                     "tipo_marca_texto": row.tipo_marca_texto
                 })
-            logger.info(f"Marcas: {len(marcas)} de {total}")
             return marcas, total
         except Exception as e:
             logger.error(f"Error al obtener marcas: {type(e).__name__}: {str(e)}")

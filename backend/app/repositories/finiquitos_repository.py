@@ -68,7 +68,7 @@ class FiniquitosRepository:
                 e.status = 'activo'
                 )
 
-            SELECT 
+            SELECT TOP 15
                 nombre_trabajador,
                 rut_trabajador,
                 cargo,
@@ -85,7 +85,8 @@ class FiniquitosRepository:
                 concepto,
                 monto
             FROM DatosRankeados
-            WHERE RankingPeriodo <= 15
+            --WHERE RankingPeriodo <= 15
+            WHERE income_type = 'remuneracion_variable'
             AND rut_trabajador = :rut
             ORDER BY 
             RankingPeriodo ASC, nombre_trabajador;

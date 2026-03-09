@@ -253,6 +253,7 @@ class FiniquitosService:
         except httpx.RequestError as e:
             logger.error(f"Error de conexión al consultar descuentos para rut {rut}: {str(e)}")
             raise Exception(f"Error de conexión con API de descuentos: {str(e)}")
+        except Exception as e:
             logger.error(f"Error inesperado al consultar descuentos para rut {rut}: {str(e)}")
             raise Exception(f"Error inesperado: {str(e)}")
 

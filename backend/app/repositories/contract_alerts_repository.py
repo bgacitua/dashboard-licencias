@@ -58,7 +58,6 @@ class ContractAlertsRepository:
             result = self.db.execute(query, params)
             columns = result.keys()
             rows = [dict(zip(columns, row)) for row in result.fetchall()]
-            logger.info(f"Alertas pendientes obtenidas: {len(rows)}")
             return rows
         except Exception as e:
             logger.error(f"Error obteniendo alertas pendientes: {e}")
@@ -128,6 +127,46 @@ class ContractAlertsRepository:
             logger.error(f"Error obteniendo tipo de alerta para {employee_rut}: {e}")
             return None
 
+    def get_alert_types_and_processed_batch(self, ruts: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Obtiene tipo de alerta y estado de procesado para varios RUTs en una sola consulta.
+        Retorna: {rut: {"alert_type": str|None, "processed": bool}}
+        """
+        if not ruts:
+            return {}
+        placeholders = ", ".join(f":r{i}" for i in range(len(ruts)))
+        params = {f"r{i}": r for i, r in enumerate(ruts)}
+        query = text(f"""
+            SELECT employee_rut, alert_type, first_alert_sent, second_alert_sent
+            FROM contract_alerts
+            WHERE employee_rut IN ({placeholders})
+        """)
+        try:
+            result = self.db.execute(query, params)
+            keys = list(result.keys())
+            rows = result.fetchall()
+            idx_rut = keys.index("employee_rut") if "employee_rut" in keys else 0
+            idx_type = keys.index("alert_type") if "alert_type" in keys else 1
+            idx_first = keys.index("first_alert_sent") if "first_alert_sent" in keys else 2
+            idx_second = keys.index("second_alert_sent") if "second_alert_sent" in keys else 3
+            out: Dict[str, Dict[str, Any]] = {}
+            for row in rows:
+                rut = row[idx_rut]
+                at = row[idx_type]
+                first = bool(row[idx_first]) if row[idx_first] is not None else False
+                second = bool(row[idx_second]) if row[idx_second] is not None else False
+                if at == "SEGUNDO_PLAZO":
+                    processed = first
+                elif at == "INDEFINIDO":
+                    processed = second
+                else:
+                    processed = False
+                out[rut] = {"alert_type": at, "processed": processed}
+            return out
+        except Exception as e:
+            logger.error(f"Error en get_alert_types_and_processed_batch: {e}")
+            return {}
+
     def check_alert_processed(self, employee_rut: str, alert_type: str) -> bool:
         """Verifica si una alerta ya fue procesada/enviada"""
         if alert_type == 'SEGUNDO_PLAZO':
@@ -164,7 +203,6 @@ class ContractAlertsRepository:
             result = self.db.execute(query, {"rut": employee_rut})
             if result.rowcount > 0:
                 self.db.commit()
-                logger.info(f"Alerta marcada como enviada - RUT: {employee_rut}")
                 return True
             return False
         except Exception as e:

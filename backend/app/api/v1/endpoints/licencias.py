@@ -33,11 +33,19 @@ def read_licencias_vencidas_recientes(dias: int = 5, db: Session = Depends(get_d
     return service.get_licencias_vencidas_recientes(dias)
 
 @router.get("/rut/{rut}", response_model=List[LicenciaByRut])
-def read_licencias_by_rut(rut: str, db: Session = Depends(get_db)):
-    """Obtiene las últimas 5 licencias de un trabajador por su RUT"""
+def read_licencias_by_rut(
+    rut: str,
+    limit: int = 15,
+    order: str = "desc",
+    db: Session = Depends(get_db),
+):
+    """Obtiene las últimas N licencias de un trabajador por su RUT.
+    limit: cantidad máxima de registros (1-100, default 15).
+    order: 'asc' = fecha fin ascendente (más antiguas primero), 'desc' = descendente (más recientes primero)."""
+    order_asc = order.strip().lower() == "asc"
     service = LicenciasService(db)
     try:
-        return service.get_licencia_by_rut(rut)
+        return service.get_licencia_by_rut(rut, limit=limit, order_asc=order_asc)
     except Exception:
         # Si no hay licencias, retornar lista vacía en vez de error
         return []
