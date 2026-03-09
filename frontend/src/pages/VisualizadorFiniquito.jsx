@@ -221,7 +221,7 @@ const VisualizadorFiniquito = () => {
   const prestamoInterno = finiquitoData.prestamoInterno || 0;
   const totalDescuentos = aporteCesantia + prestamoInterno;
 
-  const isMutuoAcuerdo = finiquitoData.terminationReason === 'mutuo_acuerdo';
+  const isMutuoAcuerdo = finiquitoData.terminationReason === 'mutuo_acuerdo' || finiquitoData.terminationReason === 'mutuo_acuerdo_especial';
   
   const totalHaberesNormal = mesDeAviso + anosServicio + vacaciones + liquidacionMesActual;
   const indemnizacionConvencional = mesDeAviso + anosServicio - aporteCesantia;
@@ -375,8 +375,8 @@ const VisualizadorFiniquito = () => {
             <p>De nuestra consideración,</p>
           </div>
 
-          {/* Paragraphs - Conditional based on termination reason */}
-          {finiquitoData.terminationReason === 'mutuo_acuerdo' ? (
+          {/* Paragraphs - Conditional based on termination reason (mutuo_acuerdo_especial se muestra como mutuo acuerdo) */}
+          {(finiquitoData.terminationReason === 'mutuo_acuerdo' || finiquitoData.terminationReason === 'mutuo_acuerdo_especial') ? (
             <>
               {/* Mutuo Acuerdo Paragraph */}
               <div 

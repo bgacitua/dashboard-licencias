@@ -19,7 +19,7 @@ const StatCard = ({ title, value, subtext, icon, color, trend, trendValue, to })
       </div>
       <div className={`p-2 rounded-lg bg-${color}-50`}>
          {/* Icon placeholder if needed, or just use the background color */}
-         <span className="material-symbols-outlined" style={{ color }}>{icon}</span>
+        <span className="material-symbols-outlined" style={{ color }}>{icon}</span>
       </div>
     </div>
 
