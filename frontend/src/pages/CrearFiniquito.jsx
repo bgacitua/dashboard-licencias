@@ -378,12 +378,16 @@ const CrearFiniquito = () => {
             "Bono Empresa",
             "Bono Navidad",
             "Bono Fiestas Patrias",
+            "Horas Extras 50%",
+            "Horas Extras 100%",
+            "Bono De Escolaridad",
           ];
           const varData = data.filter(
             (item) =>
               item.income_type === "remuneracion_variable" ||
               (item.income_type === "remuneracion_ocasional" &&
-                !excludedConceptos.includes(item.concepto)) ||
+                (item.concepto === "Bono Especial Mensual" ||
+                  !excludedConceptos.includes(item.concepto))) ||
               (item.income_type === "remuneracion_fija" &&
                 (item.concepto === "Bono Supervisores Noche" ||
                   item.concepto === "Bono Jefe Área Contingencia")),
@@ -839,15 +843,14 @@ const CrearFiniquito = () => {
           indemnityYears = 0;
         } else {
           // We have at least 1 full year. Current base is 'y'.
-          // Check if we have exceeded 6 months and 1 day past the anniversary.
+          // Redondear hacia arriba solo cuando hay MÁS de 6 meses después del último aniversario
+          // (6 meses y 1 día o más). Así 1.5 años exactos cuenta como 1 año, no 2.
 
-          // Construct the 6-month threshold date relative to the last anniversary
           const thresholdDate = new Date(start.getTime());
           thresholdDate.setFullYear(thresholdDate.getFullYear() + y);
           thresholdDate.setMonth(thresholdDate.getMonth() + 6);
+          thresholdDate.setDate(thresholdDate.getDate() + 1); // +1 día: más de 6 meses
 
-          // If endDate is strictly after the 6-month threshold, round up.
-          // Note: end > threshold implies we have passed the 6-month mark (at least 1 day or millisecond).
           if (end > thresholdDate) {
             indemnityYears = y + 1;
           } else {
@@ -880,6 +883,8 @@ const CrearFiniquito = () => {
     otrosDescuentos,
     aporteCesantiaVal,
     totalSettlementResult,
+    variableDetails,
+    variableItemsDetail,
   }) => {
     const fmt = (n) => `$ ${Math.round(n).toLocaleString("es-CL")}.-`;
     const fmtNum = (n) => Math.round(Number(n) || 0);
@@ -970,8 +975,9 @@ const CrearFiniquito = () => {
 
     setRow(30, "Total a pagar", fmtNum(totalSettlementResult));
 
-    ws["!ref"] = "A2:B30";
-    ws["!cols"] = [{ wch: 38 }, { wch: 24 }];
+    // A2:D30 para incluir detalle de variable en columna D15
+    ws["!ref"] = "A2:D30";
+    ws["!cols"] = [{ wch: 38 }, { wch: 24 }, { wch: 8 }, { wch: 40 }];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Finiquito");
@@ -998,7 +1004,7 @@ const CrearFiniquito = () => {
   const dailySalary = ((salary + variableBonus) / 30).toFixed(0);
 
   // Gratificación Legal = (Sueldo Base + Promedio Bonificaciones) * 25%
-  // Tope = ((4.75/12) * Sueldo Mínimo) * 25%
+  // Tope = ((4.75/12) * Sueldo Mínimo) * 25%f
   const sueldoMinimo = 539000;
   const topeGratificacion = (4.75 / 12) * sueldoMinimo;
   const gratificacionLegal = Math.min(
@@ -1141,24 +1147,23 @@ const CrearFiniquito = () => {
 
   // Handle generate document - navigate to visualizer with all data
   const handleGenerate = () => {
-    console.log("handleGenerate called");
+    try {
+      // Validar que se hayan completado los campos requeridos
+      if (!lastDayWork) {
+        alert("Por favor seleccione la fecha de término del contrato");
+        return;
+      }
+      if (!terminationReason) {
+        alert("Por favor seleccione la causal de término");
+        return;
+      }
 
-    // Validar que se hayan completado los campos requeridos
-    if (!lastDayWork) {
-      alert("Por favor seleccione la fecha de término del contrato");
-      return;
-    }
-    if (!terminationReason) {
-      alert("Por favor seleccione la causal de término");
-      return;
-    }
+      // Find selected manager object
+      const managerObj =
+        managers.find((m) => m.id === selectedManager) || managers[0];
 
-    // Find selected manager object
-    const managerObj =
-      managers.find((m) => m.id === selectedManager) || managers[0];
-
-    // Prepare finiquito data to pass to visualizer
-    const finiquitoData = {
+      // Prepare finiquito data to pass to visualizer
+      const finiquitoData = {
       // Employee info
       employeeData: employee,
 
@@ -1220,41 +1225,92 @@ const CrearFiniquito = () => {
         Math.round(vacationIndemnity) +
         (parseFloat(liquidacionMesActual) || 0) -
         Math.round(totalDescuentos),
-    };
 
-    // Guardar datos en sessionStorage para preservarlos al volver
-    sessionStorage.setItem(`finiquito_${rut}`, JSON.stringify(finiquitoData));
+      // Datos para generar Excel de auditoría desde el visualizador (descarga opcional)
+      audit: (() => {
+        const sueldoMinimo = 539000;
+        const topeGrat = (4.75 / 12) * sueldoMinimo;
+        const grat = Math.min((salary + variableBonus) * 0.25, topeGrat);
+        const haberesVal = salary + variableBonus + grat + movilizacion;
+        const variableConcepts = Object.keys(expandedVariableGroups || {});
+        const variableDetails = variableConcepts.length
+          ? variableConcepts.join(", ")
+          : "";
+        // Detalle solo de ítems efectivamente usados en el promedio:
+        // por concepto, activos, sin licencia y hasta 3 meses más recientes
+        const variableItemsDetail = [];
+        Object.entries(expandedVariableGroups || {}).forEach(
+          ([concepto, items]) => {
+            const validItems = (items || []).filter(
+              (i) => i.active !== false && !i.hasLicense,
+            );
+            if (!validItems.length) return;
+            const sorted = [...validItems].sort((a, b) => {
+              const pa = getItemPeriodForSort(a);
+              const pb = getItemPeriodForSort(b);
+              if (!pa || !pb) return 0;
+              if (pa.year !== pb.year) return pb.year - pa.year;
+              return pb.month - pa.month;
+            });
+            const toUse = sorted.slice(0, VALID_VARIABLE_MONTHS_REQUIRED);
+            toUse.forEach((it) => {
+              variableItemsDetail.push({
+                concepto,
+                periodo: it.periodo || "",
+                monto: parseFloat(it.monto) || 0,
+              });
+            });
+          },
+        );
+        const causalLabels = {
+          necesidades_empresa: "Art. 161 - Necesidades de la empresa",
+          mutuo_acuerdo: "Art. 159 N°1 - Mutuo acuerdo",
+          mutuo_acuerdo_especial: "Mutuo acuerdo especial",
+          no_concurrencia: "Art. 160 N°3 - No concurrencia injustificada",
+          renuncia: "Art. 159 N°2 - Renuncia voluntaria",
+        };
+        const otrosDesc = Math.max(0, Math.round(totalDescuentos) - aporteCesantiaNum);
+        const vacCalendarDays = lastDayWork
+          ? calculateDiasCorridos(parseLocalDate(lastDayWork), vacationDays)
+          : 0;
+        return {
+          causalLabel: causalLabels[terminationReason] || terminationReason || "",
+          managerName: managerObj?.name || "",
+          haberes: haberesVal,
+          gratificacion: grat,
+          noticeIndemnityResult: Math.round(noticeIndemnity),
+          yearsIndemnityResult: Math.round(yearsIndemnity),
+          vacationIndemnityResult: Math.round(vacationIndemnity),
+          vacationCalendarDays: vacCalendarDays,
+          liquidacionMesActual: parseFloat(liquidacionMesActual) || 0,
+          otrosDescuentos: otrosDesc > 0 ? otrosDesc : 0,
+          aporteCesantiaVal: aporteCesantiaNum,
+          totalSettlementResult:
+            Math.round(noticeIndemnity) + Math.round(yearsIndemnity) + Math.round(vacationIndemnity) +
+            (parseFloat(liquidacionMesActual) || 0) - Math.round(totalDescuentos),
+          yearsForIndemnity,
+          salary,
+          variableBonus,
+          movilizacion,
+          variableDetails,
+          variableItemsDetail,
+        };
+      })(),
+      };
 
-    // Descargar archivo Excel de auditoría de cálculo
-    const sueldoMinimo = 539000;
-    const topeGrat = (4.75 / 12) * sueldoMinimo;
-    const gratificacion = Math.min((salary + variableBonus) * 0.25, topeGrat);
-    const haberes = salary + variableBonus + gratificacion + movilizacion;
-    const causalLabels = {
-      necesidades_empresa: "Art. 161 - Necesidades de la empresa",
-      mutuo_acuerdo: "Art. 159 N°1 - Mutuo acuerdo",
-      mutuo_acuerdo_especial: "Mutuo acuerdo especial",
-      no_concurrencia: "Art. 160 N°3 - No concurrencia injustificada",
-      renuncia: "Art. 159 N°2 - Renuncia voluntaria",
-    };
-    const otrosDescuentos = Math.max(0, Math.round(totalDescuentos) - aporteCesantiaNum);
-    downloadAuditFile({
-      causalLabel: causalLabels[terminationReason] || terminationReason || "",
-      managerName: managerObj?.name || "",
-      haberes,
-      gratificacion,
-      noticeIndemnityResult: Math.round(noticeIndemnity),
-      yearsIndemnityResult: Math.round(yearsIndemnity),
-      vacationIndemnityResult: Math.round(vacationIndemnity),
-      vacationCalendarDays: finiquitoData.vacationCalendarDays ?? (lastDayWork ? calculateDiasCorridos(parseLocalDate(lastDayWork), vacationDays) : 0),
-      liquidacionMesActual: parseFloat(liquidacionMesActual) || 0,
-      otrosDescuentos: otrosDescuentos > 0 ? otrosDescuentos : 0,
-      aporteCesantiaVal: aporteCesantiaNum,
-      totalSettlementResult: Math.round(noticeIndemnity) + Math.round(yearsIndemnity) + Math.round(vacationIndemnity) + (parseFloat(liquidacionMesActual) || 0) - Math.round(totalDescuentos),
-    });
+      // Navegar primero para no depender de sessionStorage (state se pasa por location.state)
+      navigate(`/finiquitos/visualizar/${rut}`, { state: finiquitoData });
 
-    // Navegar al visualizador en la misma pestaña
-    navigate(`/finiquitos/visualizar/${rut}`, { state: finiquitoData });
+      // Persistir en sessionStorage para pestaña nueva / volver (no debe bloquear la navegación)
+      try {
+        sessionStorage.setItem(`finiquito_${rut}`, JSON.stringify(finiquitoData));
+      } catch (e) {
+        console.warn("No se pudo guardar finiquito en sessionStorage:", e);
+      }
+    } catch (err) {
+      console.error("Error al generar finiquito:", err);
+      alert("Ocurrió un error al generar el finiquito. Revise la consola para más detalles.");
+    }
   };
 
   return (
@@ -2340,7 +2396,7 @@ const CrearFiniquito = () => {
                   : 0}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                Redondeado hacia arriba &gt; 6 meses
+                Redondeado hacia arriba si &gt; 6 meses y 1 día
               </p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
