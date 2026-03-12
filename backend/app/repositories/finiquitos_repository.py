@@ -41,8 +41,10 @@ class FiniquitosRepository:
                     e.full_name AS nombre_trabajador,
                     e.rut AS rut_trabajador,
                     e.name_role AS cargo,
+                    eb.full_name AS nombre_jefe,
                     e.status,
                     e.address AS direccion,
+                    e.district AS comuna,
                     e.active_since AS fecha_ingreso,
                     e.birthday AS fecha_nacimiento,
                     e.area_id AS cod_area,
@@ -63,6 +65,7 @@ class FiniquitosRepository:
                 LEFT JOIN [dbo].[historical_settlements] AS s ON e.rut = s.RUT
                 LEFT JOIN [dbo].[historical_settlement_items] AS si ON s.Liquidacion_ID = si.Liquidacion_ID
                 LEFT JOIN [dbo].[areas] AS a ON a.id = e.area_id
+                LEFT JOIN [dbo].[employees] AS eb ON e.rut_boss = eb.rut 
             
                 WHERE 
                 e.status = 'activo'
@@ -72,7 +75,9 @@ class FiniquitosRepository:
                 nombre_trabajador,
                 rut_trabajador,
                 cargo,
+                nombre_jefe,
                 direccion,
+                comuna,
                 fecha_ingreso,
                 fecha_nacimiento,
                 periodo,
@@ -86,7 +91,7 @@ class FiniquitosRepository:
                 monto
             FROM DatosRankeados
             --WHERE RankingPeriodo <= 15
-            WHERE income_type = 'remuneracion_variable'
+            WHERE income_type in ('remuneracion_variable', 'remuneracion_ocasional')
             AND rut_trabajador = :rut
             ORDER BY 
             RankingPeriodo ASC, nombre_trabajador;
