@@ -217,8 +217,24 @@ const VisualizadorFiniquito = () => {
     setRow(28, 'Aporte Empleador Seguro Cesantía', audit.aporteCesantiaVal != null && audit.aporteCesantiaVal > 0 ? `-${fmtNum(audit.aporteCesantiaVal)}` : '');
     setRow(30, 'Total a pagar', fmtNum(audit.totalSettlementResult));
 
-    // A2:F30 para incluir detalle de variable en columnas D-F
-    ws['!ref'] = 'A2:F30';
+    // Mutuo Acuerdo Especial - logs/reglas usadas
+    if (audit?.mutuoEspecialRules?.applied) {
+      const r = audit.mutuoEspecialRules;
+      setRow(32, 'Mutuo Acuerdo Especial - Regla aplicada', String(r.ruleApplied ?? ''));
+      setRow(33, 'Edad (años)', r.age != null ? fmtNum(r.age) : '');
+      setRow(34, 'Años de indemnización', r.years != null ? fmtNum(r.years) : '');
+      setRow(35, 'Base (promedio 48 sueldos base)', r.baseAmount != null ? fmtNum(r.baseAmount) : '');
+      setRow(36, 'Cap 90 UF', r.cap90UF != null ? fmtNum(r.cap90UF) : '');
+      setRow(37, 'Base acotada (si aplica)', r.cappedBase != null ? fmtNum(r.cappedBase) : '');
+      setRow(38, 'Años acotados (si aplica)', r.cappedYears != null ? fmtNum(r.cappedYears) : '');
+      setRow(39, 'Resultado añosIndemnity (mutuo)', r.result != null ? fmtNum(r.result) : '');
+    }
+
+    const lastDetalleRow = detalles.length > 0 ? 15 + detalles.length - 1 : 30;
+    const lastRow = audit?.mutuoEspecialRules?.applied ? Math.max(lastDetalleRow, 39) : lastDetalleRow;
+
+    // Asegura que Excel muestre tanto el detalle variable como las filas extra de mutuo.
+    ws['!ref'] = `A2:F${lastRow}`;
     ws['!cols'] = [
       { wch: 38 },
       { wch: 24 },

@@ -8,8 +8,10 @@ const FiniquitosService = {
     return response.data;
   },
 
-  getItemsByRut: async (rut) => {
-    const response = await axios.get(`${API_URL}/${rut}`);
+  getItemsByRut: async (rut, limit = 15) => {
+    const response = await axios.get(`${API_URL}/${rut}`, {
+      params: { limit },
+    });
     return response.data;
   },
 
