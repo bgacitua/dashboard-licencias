@@ -25,9 +25,9 @@ class FiniquitosService:
         logger.info("Obteniendo general de trabajadores")
         return self.repository.get_trabajadores_general()
 
-    def get_item_by_rut(self, rut: str) -> List[FiniquitoItemResponse]:
-        logger.info(f"Obteniendo items de sueldo por rut: {rut}")
-        return self.repository.get_item_by_rut(rut)
+    def get_item_by_rut(self, rut: str, limit: int = 15) -> List[FiniquitoItemResponse]:
+        logger.info(f"Obteniendo items de sueldo por rut: {rut} (limit={limit})")
+        return self.repository.get_item_by_rut(rut, limit=limit)
 
     # def get_item_variable_by_rut(self, rut: str, variable: str) -> List[FiniquitoItemResponse]:
     #     logger.info(f"Obteniendo items variables por rut: {rut}, variable: {variable}")
