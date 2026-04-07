@@ -161,32 +161,6 @@ function numeroALetrasCLP(num) {
     "novecientos",
   ];
 
-  const seccion = (n, divisor, singular, plural) => {
-    const cientos = Math.floor(n / divisor);
-    const resto = n - cientos * divisor;
-    let letras = "";
-    if (cientos > 0) {
-      letras = cientos === 1 ? singular : `${numeroALetrasCLP(cientos)} ${plural}`;
-    }
-    return { letras, resto };
-  };
-
-  const miles = (n) => {
-    const { letras, resto } = seccion(n, 1000, "mil", "mil");
-    const letrasResto = centenasDecenasUnidades(resto);
-    if (!letras) return letrasResto;
-    if (!letrasResto) return letras;
-    return `${letras} ${letrasResto}`;
-  };
-
-  const millones = (n) => {
-    const { letras, resto } = seccion(n, 1000000, "un millón", "millones");
-    const letrasMiles = miles(resto);
-    if (!letras) return letrasMiles;
-    if (!letrasMiles) return letras;
-    return `${letras} ${letrasMiles}`;
-  };
-
   const centenasDecenasUnidades = (n) => {
     if (n === 0) return "";
     if (n === 100) return "cien";
@@ -207,6 +181,32 @@ function numeroALetrasCLP(num) {
     }
     const separador = u > 0 ? " y " : "";
     return `${textoCentenas} ${textoDecenas}${separador}${textoUnidades}`.trim();
+  };
+
+  const seccion = (n, divisor, singular, plural) => {
+    const cientos = Math.floor(n / divisor);
+    const resto = n - cientos * divisor;
+    let letras = "";
+    if (cientos > 0) {
+      letras = cientos === 1 ? singular : `${centenasDecenasUnidades(cientos)} ${plural}`;
+    }
+    return { letras, resto };
+  };
+
+  const miles = (n) => {
+    const { letras, resto } = seccion(n, 1000, "mil", "mil");
+    const letrasResto = centenasDecenasUnidades(resto);
+    if (!letras) return letrasResto;
+    if (!letrasResto) return letras;
+    return `${letras} ${letrasResto}`;
+  };
+
+  const millones = (n) => {
+    const { letras, resto } = seccion(n, 1000000, "un millón", "millones");
+    const letrasMiles = miles(resto);
+    if (!letras) return letrasMiles;
+    if (!letrasMiles) return letras;
+    return `${letras} ${letrasMiles}`;
   };
 
   const letrasEntero = millones(num);
@@ -1562,12 +1562,15 @@ const CrearFiniquito = () => {
 
       // Construir tabla de haberes como texto multilinea (coherente con sección HABERES)
       const haberesLines = [];
+      const descuentosLines = [];
+
       const isMutuo =
         terminationReason === "mutuo_acuerdo" ||
         terminationReason === "mutuo_acuerdo_especial";
       const isRenuncia = terminationReason === "renuncia";
 
       const liquidacionMesActualNum = parseFloat(liquidacionMesActual) || 0;
+      const descuentosMesActualNum = parseFloat(descuentos) || 0;
 
       // Valores coherentes con sección "Cálculo indemnización"
       const yearsIndemnityDisplay =
@@ -1576,6 +1579,7 @@ const CrearFiniquito = () => {
           : yearsIndemnity;
 
       let totalHaberesTabla = 0;
+      let totalDescuentosTabla = 0;
 
       if (isRenuncia) {
         // Para renuncia voluntaria: mostrar Vacaciones pendientes y Remuneración adeudada
@@ -1588,9 +1592,7 @@ const CrearFiniquito = () => {
                 ).toFixed(1)
               : (vacationDays || 0).toFixed(1);
           haberesLines.push(
-            `Vacaciones pendientes (${dias} días)\t${fmtCurrency(
-              vacationIndemnity,
-            )}`,
+            `Vacaciones pendientes (${dias} días)\t${fmtCurrency(vacationIndemnity)}`,
           );
         }
 
@@ -1600,8 +1602,15 @@ const CrearFiniquito = () => {
           );
         }
 
-        totalHaberesTabla =
-          (Number(vacationIndemnity) || 0) + liquidacionMesActualNum;
+        if (descuentosMesActualNum > 0) {
+          descuentosLines.push(
+            `Diferencia remuneración\t${fmtCurrency(descuentosMesActualNum)}`,
+          );
+        }
+
+        totalHaberesTabla = (Number(vacationIndemnity) || 0) + liquidacionMesActualNum;
+        totalDescuentosTabla = Number(descuentosMesActualNum) || 0;
+
       } else {
         // Resto de causales: mantener lógica de indemnizaciones + vacaciones proporcionales
         if (!isMutuo && noticeIndemnity > 0) {
@@ -1611,9 +1620,7 @@ const CrearFiniquito = () => {
         }
         if (yearsIndemnityDisplay > 0) {
           haberesLines.push(
-            `Indemnización años de Servicios (${yearsForIndemnity || 0} años)\t${fmtCurrency(
-              yearsIndemnityDisplay,
-            )}`,
+            `Indemnización años de Servicios (${yearsForIndemnity || 0} años)\t${fmtCurrency(yearsIndemnityDisplay)}`,
           );
         }
         if (vacationIndemnity > 0) {
@@ -1625,23 +1632,27 @@ const CrearFiniquito = () => {
                 ).toFixed(1)
               : (vacationDays || 0).toFixed(1);
           haberesLines.push(
-            `Vacaciones Proporcionales (${dias} días)\t${fmtCurrency(
-              vacationIndemnity,
-            )}`,
+            `Vacaciones Proporcionales (${dias} días)\t${fmtCurrency(vacationIndemnity)}`,
+          );
+        }
+        if (descuentosMesActualNum > 0) {
+          descuentosLines.push(
+            `Diferencia remuneración (${terminationDate})\t${fmtCurrency(descuentosMesActualNum)}`,
           );
         }
 
-        // Total de la tabla de haberes (solo indemnizaciones + vacaciones),
-        // coherente con el detalle que se muestra al usuario
         totalHaberesTabla =
           (Number(noticeIndemnity) || 0) +
           (Number(yearsIndemnityDisplay) || 0) +
           (Number(vacationIndemnity) || 0);
+
+        totalDescuentosTabla = Number(descuentosMesActualNum) || 0;
       }
 
-      haberesLines.push(
-        `TOTAL HABERES\t${fmtCurrency(totalHaberesTabla)}`,
-      );
+      haberesLines.push(`Total haberes\t${fmtCurrency(totalHaberesTabla)}`);
+      if (totalDescuentosTabla > 0) {
+        descuentosLines.push(`Total descuentos\t${fmtCurrency(totalDescuentosTabla)}`);
+      }
 
       // Convertir líneas en estructura tabular para Word:
       // cada elemento será una fila de tabla: { concepto, monto }.
@@ -1653,10 +1664,28 @@ const CrearFiniquito = () => {
         };
       });
 
-      // Mantener también una representación en texto simple (por compatibilidad)
+      const descuentosRows = totalDescuentosTabla > 0
+        ? descuentosLines.map((line) => {
+            const [labelRaw, amountRaw] = line.split("\t");
+            return {
+              concepto: (labelRaw || "").trim(),
+              monto: (amountRaw || "").trim(),
+            };
+          })
+        : [];
+
+      // Representación en texto simple (por compatibilidad)
       const haberesTable = haberesRows
         .map((row) => `${row.concepto}\t${row.monto}`)
         .join("\n");
+
+      const descuentosTable = descuentosRows
+        .map((row) => `${row.concepto}\t${row.monto}`)
+        .join("\n");
+
+      // Títulos fijos para cada tabla
+      const haberesTableTitle = "HABERES";
+      const descuentosTableTitle = totalDescuentosTabla > 0 ? "DESCUENTOS" : "";
 
       // Contexto para placeholders del Word
       const managerObj =
@@ -1687,10 +1716,18 @@ const CrearFiniquito = () => {
         comuna: (employee?.comuna || "").toUpperCase(),
         active_since: formatDateWordsLong(employee?.fecha_ingreso || ""),
         causal_despido: getCausalDescription(terminationReason),
+        sujeto_termino: terminationReason === "renuncia" ? "el trabajador" : "el empleador",
         total_finiquito: fmtCurrency(totalSettlement),
         total_finiquito_letras: numeroALetrasCLP(totalSettlement),
         haberes_table: haberesTable,
         haberes_rows: haberesRows,
+        haberes_title: haberesTableTitle,
+        total_haberes_tabla: fmtCurrency(totalHaberesTabla),
+        descuentos_title: descuentosTableTitle,
+        descuentos_table: descuentosTable,
+        descuentos_rows: descuentosRows,
+        total_descuentos_tabla: fmtCurrency(totalDescuentosTabla),
+        total_a_pagar_tabla: fmtCurrency(totalHaberesTabla - totalDescuentosTabla),
 
         // Otros campos ya usados en distintas partes (compatibilidad)
         nombre_trabajador: employee?.nombre_trabajador || "",
@@ -3096,9 +3133,8 @@ const CrearFiniquito = () => {
                     >
                       <option value="">Tipo...</option>
                       <option value="Préstamo Interno">Préstamo Interno</option>
-                      <option value="Descuento por planilla">
-                        Descuento por planilla
-                      </option>
+                      <option value="Descuento por planilla">Descuento por planilla</option>
+                      <option value="Diferencia Remuneración del Mes en Curso">Diferencia Remuneración del Mes en Curso</option>
                     </select>
                     {desc.detalle && (
                       <span
@@ -3242,21 +3278,21 @@ const CrearFiniquito = () => {
             onClick={() => navigate("/finiquitos")}
             className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
           >
-            CANCEL
+            CANCELAR
           </button>
           <button
             onClick={handleDownloadWord}
             className="px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors shadow-md flex items-center gap-2"
           >
             <span className="material-symbols-outlined">description</span>
-            DESCARGAR WORD
+            DESCARGAR FINIQUITO
           </button>
           <button
             onClick={handleGenerate}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2"
           >
             <span className="material-symbols-outlined">description</span>
-            GENERAR DOCUMENTO
+            GENERAR CARTA
           </button>
         </div>
       </main>
