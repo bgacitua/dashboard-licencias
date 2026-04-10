@@ -8,23 +8,29 @@ class FiniquitosRepository:
         self.db = db
 
     def get_trabajadores_general(self) -> List[Dict[str, Any]]:
-        """Información general de empleados (base_wage ahora disponible en claro)."""
+        """Información general de empleados activos (un registro por RUT, el más reciente)."""
         query = text("""
-            SELECT
+            SELECT DISTINCT ON (e.rut)
                 e.rut          AS rut_trabajador,
                 e.full_name    AS nombre_trabajador,
                 e.name_role    AS cargo,
                 e.active_since AS fecha_ingreso,
                 NULL::date     AS fecha_salida,
-                (CURRENT_DATE - e.active_since) / 365.0 AS duracion_empresa,
+                ROUND(
+                    EXTRACT(EPOCH FROM (CURRENT_DATE - e.active_since)) / 31557600.0,
+                    2
+                )::float       AS duracion_empresa,
                 e.status       AS estado,
                 e.base_wage    AS sueldo_base,
                 e.rut_boss     AS rut_jefe,
                 boss.full_name AS nombre_jefe,
+                a.second_level_name AS departamento,
                 0              AS bonificaciones_mensuales,
                 0              AS movilizacion
             FROM employees AS e
             LEFT JOIN employees AS boss ON e.rut_boss = boss.rut
+            LEFT JOIN areas      AS a    ON a.id = e.area_id
+            ORDER BY e.rut, e.active_since DESC NULLS LAST
         """)
         result = self.db.execute(query)
         columns = result.keys()
@@ -62,17 +68,17 @@ class FiniquitosRepository:
                     ON e.rut = s.rut
                 LEFT JOIN historical_settlement_items AS si
                     ON s.liquidacion_id = si.liquidacion_id
+                    AND si.income_type IN (
+                        'remuneracion_ocasional',
+                        'remuneracion_fija',
+                        'remuneracion_variable'
+                    )
                 LEFT JOIN areas AS a
                     ON a.id = e.area_id
                 LEFT JOIN employees AS boss
                     ON e.rut_boss = boss.rut
                 WHERE
-                    si.income_type IN (
-                        'remuneracion_ocasional',
-                        'remuneracion_fija',
-                        'remuneracion_variable'
-                    )
-                    AND e.rut = :rut
+                    e.rut = :rut
             )
             SELECT
                 nombre_trabajador,
