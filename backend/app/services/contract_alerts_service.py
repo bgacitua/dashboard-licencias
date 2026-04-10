@@ -152,12 +152,16 @@ class ContractAlertsService:
                 "message": "No hay alertas pendientes para enviar.",
             }
 
-        # Filtrar alertas pendientes verificando en BD
+        # Filtrar alertas pendientes verificando en BD (una sola consulta batch)
+        ruts = list({a["employee_rut"] for a in alerts})
+        cache_alertas = self.repository.get_alert_types_and_processed_batch(ruts)
         alertas_pendientes = []
         for alert in alerts:
             rut = alert["employee_rut"]
-            tipo_alerta = self.repository.get_alert_type(rut)
-            if tipo_alerta and not self.repository.check_alert_processed(rut, tipo_alerta):
+            info = cache_alertas.get(rut, {})
+            tipo_alerta = info.get("alert_type")
+            processed = info.get("processed", True)
+            if tipo_alerta and not processed:
                 alertas_pendientes.append(alert)
 
         if not alertas_pendientes:
@@ -210,7 +214,7 @@ class ContractAlertsService:
 
             for emp in empleados_list:
                 rut = emp["employee_rut"]
-                tipo_alerta = self.repository.get_alert_type(rut)
+                tipo_alerta = cache_alertas.get(rut, {}).get("alert_type")
                 if tipo_alerta:
                     empleados_jefe.append({
                         "empleado": emp["employee_name"],

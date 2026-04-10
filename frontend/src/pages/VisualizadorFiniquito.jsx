@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import FiniquitosService from '../services/finiquitos.service';
 import Sidebar from '../components/Sidebar';
 import { useReactToPrint } from 'react-to-print';
@@ -11,6 +12,8 @@ const VisualizadorFiniquito = () => {
   const [loading, setLoading] = useState(true);
   const [employeeData, setEmployeeData] = useState(null);
   const [items, setItems] = useState([]);
+  const [isEditable, setIsEditable] = useState(false);
+  const [margins, setMargins] = useState({});
   const printRef = useRef(null);
 
   // Decodificar RUT en caso de que venga URL-encoded
@@ -120,7 +123,156 @@ const VisualizadorFiniquito = () => {
     return `$ ${Math.round(amount || 0).toLocaleString('es-CL')}.-`;
   };
 
-  const [isEditable, setIsEditable] = useState(false);
+  // Genera y descarga el Excel de auditoría (misma estructura que en CrearFiniquito)
+  const downloadAuditExcel = () => {
+    const audit = finiquitoData?.audit;
+    if (!audit || !employeeData) return;
+    const lastDayWork = finiquitoData.lastDayWork || '';
+    const fmt = (n) => `$ ${Math.round(n).toLocaleString('es-CL')}.-`;
+    const fmtNum = (n) => Math.round(Number(n) || 0);
+    const ws = {};
+    const setRow = (row, label, value) => {
+      ws[`A${row}`] = { t: 's', v: label };
+      const hasValue = value !== undefined && value !== null && value !== '';
+      const isNum = typeof value === 'number';
+      if (hasValue || value === 0) {
+        ws[`B${row}`] = isNum ? { t: 'n', v: value } : { t: 's', v: String(value ?? '') };
+      } else {
+        ws[`B${row}`] = { t: 's', v: '' };
+      }
+    };
+
+    const formatYearsMonthsDays = (startDate, endDate) => {
+      if (!startDate || !endDate) return '';
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return '';
+      let years = end.getFullYear() - start.getFullYear();
+      let months = end.getMonth() - start.getMonth();
+      let days = end.getDate() - start.getDate();
+      if (days < 0) {
+        months -= 1;
+        const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
+        days += prevMonth.getDate();
+      }
+      if (months < 0) {
+        years -= 1;
+        months += 12;
+      }
+      const result = [];
+      if (years > 0) result.push(`${years} año${years > 1 ? 's' : ''}`);
+      if (months > 0) result.push(`${months} mes${months > 1 ? 'es' : ''}`);
+      if (days > 0) result.push(`${days} día${days > 1 ? 's' : ''}`);
+      return result.length ? result.join(', ') : '0 días';
+    };
+
+    setRow(2, 'Causal de término del contrato', audit.causalLabel || '');
+    setRow(4, 'Nombre trabajador', employeeData.nombre_trabajador || '');
+    setRow(5, 'Cargo del trabajador', employeeData.cargo || '');
+    setRow(6, 'Jefe de área', employeeData.nombre_jefe || '');
+    setRow(9, 'Fecha de ingreso del trabajador', employeeData.fecha_ingreso || '');
+    setRow(10, 'Fecha de salida', lastDayWork);
+    setRow(
+      11,
+      'Duración empresa',
+      employeeData.fecha_ingreso && lastDayWork
+        ? formatYearsMonthsDays(employeeData.fecha_ingreso, lastDayWork)
+        : ''
+    );
+    setRow(15, 'Sueldo base del trabajador', fmtNum(audit.salary));
+    setRow(16, 'Promedio remuneración variable', fmtNum(audit.variableBonus));
+
+    // Detalle de ítems usados para el promedio de remuneración variable:
+    // Desde D15 hacia abajo: columna D = concepto, E = periodo, F = monto
+    const detalles = Array.isArray(audit.variableItemsDetail)
+      ? audit.variableItemsDetail
+      : [];
+    detalles.forEach((d, idx) => {
+      const row = 15 + idx;
+      ws[`D${row}`] = { t: 's', v: String(d.concepto ?? '') };
+      ws[`E${row}`] = { t: 's', v: String(d.periodo ?? '') };
+      ws[`F${row}`] = {
+        t: 'n',
+        v: Number.isFinite(Number(d.monto)) ? Number(d.monto) : 0,
+      };
+    });
+    setRow(17, 'Gratificación legal', fmtNum(audit.gratificacion));
+    setRow(18, 'Movilización', fmtNum(audit.movilizacion));
+    setRow(20, 'Total haber', fmtNum(audit.haberes));
+    setRow(
+      23,
+      `Indemnización por Años de Servicio${audit.yearsForIndemnity != null ? ` (${audit.yearsForIndemnity})` : ''}`,
+      audit.yearsIndemnityResult != null && audit.yearsIndemnityResult > 0 ? fmtNum(audit.yearsIndemnityResult) : ''
+    );
+    const vacacionesDiasStr =
+      audit.vacationCalendarDays != null && audit.vacationCalendarDays > 0
+        ? ` (${Number(audit.vacationCalendarDays).toFixed(1)} días)`
+        : '';
+    const vacacionesVal =
+      audit.vacationIndemnityResult != null && audit.vacationIndemnityResult > 0 ? fmt(audit.vacationIndemnityResult) : '';
+    setRow(24, `Vacaciones pendientes${vacacionesDiasStr}`, vacacionesVal || '');
+    setRow(25, 'Mes de aviso', audit.noticeIndemnityResult != null && audit.noticeIndemnityResult > 0 ? fmtNum(audit.noticeIndemnityResult) : '');
+    setRow(26, 'Remuneración adeudada', audit.liquidacionMesActual != null && Number(audit.liquidacionMesActual) > 0 ? fmtNum(audit.liquidacionMesActual) : '');
+    setRow(27, 'Otros descuentos', audit.otrosDescuentos != null && audit.otrosDescuentos > 0 ? `-${fmtNum(audit.otrosDescuentos)}` : '');
+    setRow(28, 'Aporte Empleador Seguro Cesantía', audit.aporteCesantiaVal != null && audit.aporteCesantiaVal > 0 ? `-${fmtNum(audit.aporteCesantiaVal)}` : '');
+    setRow(30, 'Total a pagar', fmtNum(audit.totalSettlementResult));
+
+    // Mutuo Acuerdo Especial - logs/reglas usadas
+    if (audit?.mutuoEspecialRules?.applied) {
+      const r = audit.mutuoEspecialRules;
+      setRow(32, 'Mutuo Acuerdo Especial - Regla aplicada', String(r.ruleApplied ?? ''));
+      setRow(33, 'Edad (años)', r.age != null ? fmtNum(r.age) : '');
+      setRow(34, 'Años de indemnización', r.years != null ? fmtNum(r.years) : '');
+      setRow(35, 'Base (promedio 48 sueldos base)', r.baseAmount != null ? fmtNum(r.baseAmount) : '');
+      setRow(36, 'Cap 90 UF', r.cap90UF != null ? fmtNum(r.cap90UF) : '');
+      setRow(37, 'Base acotada (si aplica)', r.cappedBase != null ? fmtNum(r.cappedBase) : '');
+      setRow(38, 'Años acotados (si aplica)', r.cappedYears != null ? fmtNum(r.cappedYears) : '');
+      setRow(39, 'Resultado añosIndemnity (mutuo)', r.result != null ? fmtNum(r.result) : '');
+    }
+
+    const lastDetalleRow = detalles.length > 0 ? 15 + detalles.length - 1 : 30;
+    const lastRow = audit?.mutuoEspecialRules?.applied ? Math.max(lastDetalleRow, 39) : lastDetalleRow;
+
+    // Asegura que Excel muestre tanto el detalle variable como las filas extra de mutuo.
+    ws['!ref'] = `A2:F${lastRow}`;
+    ws['!cols'] = [
+      { wch: 38 },
+      { wch: 24 },
+      { wch: 8 },
+      { wch: 30 },
+      { wch: 12 },
+      { wch: 14 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Finiquito');
+    XLSX.writeFile(wb, `auditoria_finiquito_${employeeData.rut_trabajador || 'rut'}_${lastDayWork || 'fecha'}.xlsx`);
+  };
+
+  // Helper for rendering margin controls
+  const renderMarginControls = (id) => {
+    if (!isEditable) return null;
+    const currentTop = margins[`${id}_top`] || 0;
+    const currentBottom = margins[`${id}_bottom`] || 0;
+
+    return (
+      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 flex flex-row items-center gap-1 print:hidden opacity-0 group-hover:opacity-100 transition-opacity z-50">
+        {/* Move block up (decrease top margin) */}
+        <div className="flex items-center bg-white shadow border border-blue-300 rounded-full px-1 py-0.5 gap-0.5">
+          <span className="text-[9px] font-bold text-blue-400 leading-none select-none">↑</span>
+          <button onClick={() => setMargins({...margins, [`${id}_top`]: currentTop - 2})} title="Subir bloque" className="text-blue-600 hover:bg-blue-50 rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">remove</span></button>
+          <button onClick={() => setMargins({...margins, [`${id}_top`]: currentTop + 2})} title="Bajar bloque" className="text-blue-600 hover:bg-blue-50 rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">add</span></button>
+          <span className="text-[9px] font-bold text-blue-400 leading-none select-none">↓</span>
+        </div>
+        {/* Space below (change bottom margin) */}
+        <div className="flex items-center bg-white shadow border border-gray-300 rounded-full px-1 py-0.5 gap-0.5">
+          <span className="text-[9px] text-gray-400 leading-none select-none font-bold">Esp</span>
+          <button onClick={() => setMargins({...margins, [`${id}_bottom`]: currentBottom - 2})} title="Menos espacio abajo" className="text-gray-500 hover:bg-gray-50 rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">remove</span></button>
+          <button onClick={() => setMargins({...margins, [`${id}_bottom`]: currentBottom + 2})} title="Más espacio abajo" className="text-gray-500 hover:bg-gray-50 rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">add</span></button>
+        </div>
+      </div>
+    );
+  };
 
   // Helper to add business days (Mon-Fri)
   const addBusinessDays = (date, days) => {
@@ -192,12 +344,24 @@ const VisualizadorFiniquito = () => {
   const vacaciones = finiquitoData.vacationIndemnity || 0;
   const liquidacionMesActual = finiquitoData.liquidacionMesActual || 0;
   
-  // Calculate Gross Haberes (Sum of all income items)
-  const totalHaberes = mesDeAviso + anosServicio + vacaciones + liquidacionMesActual;
-  
   const aporteCesantia = finiquitoData.aporteCesantia || 0;
   const prestamoInterno = finiquitoData.prestamoInterno || 0;
   const totalDescuentos = aporteCesantia + prestamoInterno;
+
+  const isMutuoAcuerdo = finiquitoData.terminationReason === 'mutuo_acuerdo' || finiquitoData.terminationReason === 'mutuo_acuerdo_especial';
+  
+  const totalHaberesNormal = mesDeAviso + anosServicio + vacaciones + liquidacionMesActual;
+  const indemnizacionConvencional = mesDeAviso + anosServicio - aporteCesantia;
+  
+  const totalHaberesDisplay = isMutuoAcuerdo 
+    ? (indemnizacionConvencional + vacaciones + liquidacionMesActual)
+    : totalHaberesNormal;
+    
+  // Hide cesantia from total discounts calculation for mutually agreed termination, as it's factored into haberes
+  const totalDescuentosData = finiquitoData.totalDescuentos || totalDescuentos;
+  const totalDescuentosDisplay = isMutuoAcuerdo 
+    ? (totalDescuentosData - aporteCesantia)
+    : totalDescuentosData;
 
   // Determine Company Details based on "nombre_empresa"
   const getCompanyDetails = (empresaRaw) => {
@@ -282,6 +446,15 @@ const VisualizadorFiniquito = () => {
               <span className="material-symbols-outlined">edit_document</span>
               {isEditable ? 'Modo Edición (Activo)' : 'Habilitar Edición'}
             </button>
+            {finiquitoData?.audit && (
+              <button
+                onClick={downloadAuditExcel}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
+              >
+                <span className="material-symbols-outlined">table_chart</span>
+                Descargar Excel de auditoría
+              </button>
+            )}
             <button 
               onClick={handlePrint}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
@@ -294,7 +467,7 @@ const VisualizadorFiniquito = () => {
 
         <div 
           ref={printRef} 
-          className="w-full max-w-[215.9mm] bg-white shadow-lg min-h-[279.4mm] print:shadow-none print:w-full text-[10pt] leading-normal tracking-tighter relative overflow-hidden"
+          className="w-full max-w-[215.9mm] bg-white shadow-lg h-[279.4mm] print:shadow-none print:w-full text-[9.5pt] leading-tight tracking-tighter relative flex flex-col overflow-hidden"
         >
           {/* Background Image Layer - Conditional Styling for Sabores vs Cramer/Global */}
           <div 
@@ -309,89 +482,167 @@ const VisualizadorFiniquito = () => {
           />
 
           {/* Content container with padding for the text area - Adjusted for letterhead */}
-          <div className="px-[25mm] pt-[15mm] pb-[25mm] relative z-10 text-[9.5pt] leading-snug">
+          <div className="px-[25mm] pt-[10mm] pb-[10mm] relative z-10 text-[9.5pt] leading-tight flex flex-col flex-1">
           
 
 
             {/* Date - positioned to align with letterhead */}
             <div 
-              className={`flex flex-col items-end justify-start mb-2 min-h-[40px] w-full rounded p-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+              className={`relative group flex flex-col items-end justify-start min-h-0 w-full rounded p-0 mb-4 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+              style={{ marginTop: `${margins['date_top'] || 0}mm`, marginBottom: `${margins['date_bottom'] || 0}mm` }}
               contentEditable={isEditable}
               suppressContentEditableWarning={true}
             >
+              {renderMarginControls('date')}
               <p className="text-[10pt]">Santiago, {formatDate(terminationDate)}</p>
             </div>
 
           {/* Addressee */}
           <div 
-            className={`mb-2 rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group rounded p-0 mb-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            style={{ marginTop: `${margins['addressee_top'] || 0}mm`, marginBottom: `${margins['addressee_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
-            <p>Señor</p>
+            {renderMarginControls('addressee')}
+            <p>Señor(a):</p>
             <p className="font-bold">{employeeData.nombre_trabajador}</p>
-            <p>{employeeData.direccion || 'Dirección no especificada'}</p>
+            <p>
+              {(() => {
+                const dirRaw =
+                  employeeData.direccion ??
+                  finiquitoData.employeeData?.direccion ??
+                  '';
+                const comunaRaw =
+                  employeeData.comuna ??
+                  finiquitoData.employeeData?.comuna ??
+                  '';
+
+                const dir = String(dirRaw).trim();
+                const comuna = String(comunaRaw).trim();
+
+                const parts = [];
+                if (dir) parts.push(dir);
+                if (comuna) parts.push(comuna);
+
+                return parts.length > 0 ? parts.join(', ') : 'Dirección no especificada';
+              })()}
+            </p>
             <p>De nuestra consideración,</p>
           </div>
 
-          {/* First Paragraph - Termination Notice */}
-          <div 
-            className={`mb-1 text-justify indent-8 rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
-            contentEditable={isEditable}
-            suppressContentEditableWarning={true}
-          >
-            <p>
-              <strong>{companyDetails.legalName}</strong>, Rut: <strong>{companyDetails.rut}</strong>, le 
-              comunica a usted que se procederá a poner término a su Contrato de Trabajo, con fecha {formatDate(terminationDate)}, 
-              en virtud de lo dispuesto en el {(() => {
-                switch(finiquitoData.terminationReason) {
-                  case 'mutuo_acuerdo':
-                    return 'Art. 159 N° 1 del Código del Trabajo, esto es, "Mutuo Acuerdo de las Partes".';
-                  case 'renuncia':
-                    return 'Art. 159 N° 2 del Código del Trabajo, esto es, "Renuncia Voluntaria".';
-                  case 'no_concurrencia':
-                    return 'Art. 160 N° 3 del Código del Trabajo, esto es, "No concurrencia del trabajador a sus labores sin causa justificada".';
-                  case 'necesidades_empresa':
-                  default:
-                    return 'Art. 161 inciso 1° del Código del Trabajo, esto es, "Necesidades de la Empresa, Establecimiento o Servicio".';
-                }
-              })()}
-            </p>
-          </div>
+          {/* Paragraphs - Conditional based on termination reason (mutuo_acuerdo_especial se muestra como mutuo acuerdo) */}
+          {(finiquitoData.terminationReason === 'mutuo_acuerdo' || finiquitoData.terminationReason === 'mutuo_acuerdo_especial') ? (
+            <>
+              {/* Mutuo Acuerdo Paragraph */}
+              <div 
+                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+                style={{ marginTop: `${margins['p1_mutuo_top'] || 0}mm`, marginBottom: `${margins['p1_mutuo_bottom'] || 0}mm` }}
+                contentEditable={isEditable}
+                suppressContentEditableWarning={true}
+              >
+                {renderMarginControls('p1_mutuo')}
+                <p>
+                  <strong>{companyDetails.legalName}</strong>, Rut: <strong>{companyDetails.rut}</strong>, y usted, han decidido poner término a la relación laboral que los unía en virtud al contrato de trabajo, suscrito con fecha {formatDate(employeeData.fecha_ingreso)}, a contar del día {formatDate(terminationDate)}, en virtud de lo dispuesto en el Art. 159 inciso 1° del Código del Trabajo, esto es “Mutuo Acuerdo”.
+                </p>
+              </div>
+              
+              {/* Payment Details */}
+              <div 
+                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+                style={{ marginTop: `${margins['p2_mutuo_top'] || 0}mm`, marginBottom: `${margins['p2_mutuo_bottom'] || 0}mm` }}
+                contentEditable={isEditable}
+                suppressContentEditableWarning={true}
+              >
+                {renderMarginControls('p2_mutuo')}
+                <p>A consecuencia del término de sus labores en la empresa, se le pagarán los siguientes valores:</p>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* First Paragraph - Termination Notice */}
+              <div 
+                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+                style={{ marginTop: `${margins['p1_top'] || 0}mm`, marginBottom: `${margins['p1_bottom'] || 0}mm` }}
+                contentEditable={isEditable}
+                suppressContentEditableWarning={true}
+              >
+                {renderMarginControls('p1')}
+                <p>
+                  <strong>{companyDetails.legalName}</strong>, Rut: <strong>{companyDetails.rut}</strong>, le 
+                  comunica a usted que se procederá a poner término a su Contrato de Trabajo, con fecha {formatDate(terminationDate)}, 
+                  en virtud de lo dispuesto en el {(() => {
+                    switch(finiquitoData.terminationReason) {
+                      case 'renuncia':
+                        return 'Art. 159 N° 2 del Código del Trabajo, esto es, "Renuncia Voluntaria".';
+                      case 'no_concurrencia':
+                        return 'Art. 160 N° 3 del Código del Trabajo, esto es, "No concurrencia del trabajador a sus labores sin causa justificada".';
+                      case 'necesidades_empresa':
+                      default:
+                        return 'Art. 161 inciso 1° del Código del Trabajo, esto es, "Necesidades de la Empresa, Establecimiento o Servicio".';
+                    }
+                  })()}
+                </p>
+              </div>
 
-          {/* Second Paragraph - Conditional based on cargo */}
-          <div 
-            className={`mb-1 text-justify indent-8 rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
-            contentEditable={isEditable}
-            suppressContentEditableWarning={true}
-          >
-            <p>{getSecondParagraph(employeeData.cargo)}</p>
-          </div>
+              {/* Second Paragraph - Conditional based on cargo */}
+              <div 
+                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+                style={{ marginTop: `${margins['p2_top'] || 0}mm`, marginBottom: `${margins['p2_bottom'] || 0}mm` }}
+                contentEditable={isEditable}
+                suppressContentEditableWarning={true}
+              >
+                {renderMarginControls('p2')}
+                <p>{getSecondParagraph(employeeData.cargo)}</p>
+              </div>
 
-          {/* Third Paragraph - Payment Details */}
-          <div 
-            className={`mb-1 text-justify indent-8 rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
-            contentEditable={isEditable}
-            suppressContentEditableWarning={true}
-          >
-            <p>A consecuencia del término de sus labores en la empresa, se le pagarán los siguientes valores:</p>
-          </div>
+              {/* Third Paragraph - Payment Details */}
+              <div 
+                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+                style={{ marginTop: `${margins['p3_top'] || 0}mm`, marginBottom: `${margins['p3_bottom'] || 0}mm` }}
+                contentEditable={isEditable}
+                suppressContentEditableWarning={true}
+              >
+                {renderMarginControls('p3')}
+                <p>A consecuencia del término de sus labores en la empresa, se le pagarán los siguientes valores:</p>
+              </div>
+            </>
+          )}
 
           {/* HABERES Table */}
-          <div className="mb-1 ml-8 text-[9pt]">
+          <div 
+            className={`relative group ml-8 text-[9pt] rounded p-1 mb-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            style={{ marginTop: `${margins['haberes_top'] || 0}mm`, marginBottom: `${margins['haberes_bottom'] || 0}mm` }}
+            contentEditable={isEditable}
+            suppressContentEditableWarning={true}
+          >
+            {renderMarginControls('haberes')}
             <p className="font-bold underline mb-1 text-[10pt]">HABERES</p>
             <div className="space-y-0.5">
-              {mesDeAviso > 0 && (
-                <div className="flex justify-between">
-                  <span>Indemnización mes de aviso</span>
-                  <span>{formatCurrency(mesDeAviso)}</span>
-                </div>
-              )}
-              {anosServicio > 0 && (
-                <div className="flex justify-between">
-                  <span>Indemnización años de Servicios ({finiquitoData.yearsForIndemnity || 0} años)</span>
-                  <span>{formatCurrency(anosServicio)}</span>
-                </div>
+              {isMutuoAcuerdo ? (
+                <>
+                  {indemnizacionConvencional > 0 && (
+                    <div className="flex justify-between">
+                      <span>Indemnización convencional</span>
+                      <span>{formatCurrency(indemnizacionConvencional)}</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {mesDeAviso > 0 && (
+                    <div className="flex justify-between">
+                      <span>Indemnización mes de aviso</span>
+                      <span>{formatCurrency(mesDeAviso)}</span>
+                    </div>
+                  )}
+                  {anosServicio > 0 && (
+                    <div className="flex justify-between">
+                      <span>Indemnización años de Servicios ({finiquitoData.yearsForIndemnity || 0} años)</span>
+                      <span>{formatCurrency(anosServicio)}</span>
+                    </div>
+                  )}
+                </>
               )}
               {vacaciones > 0 && (
                 <div className="flex justify-between">
@@ -407,21 +658,27 @@ const VisualizadorFiniquito = () => {
               )}
 
               {/* Show Total Haberes unless we have remuneration and no discounts (redundant with Total Payment) */}
-              {!(liquidacionMesActual > 0 && totalDescuentos === 0) && (
+              {!(liquidacionMesActual > 0 && totalDescuentosDisplay === 0) && (
                 <div className="flex justify-between font-bold text-[9pt]">
                   <span>TOTAL HABERES</span>
-                  <span>{formatCurrency(totalHaberes)}</span>
+                  <span>{formatCurrency(totalHaberesDisplay)}</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* DESCUENTOS Table - Only show if there are actual deductions */}
-          {(finiquitoData.totalDescuentos || totalDescuentos) > 0 && (
-            <div className="mb-1 ml-8 text-[9pt]">
+          {totalDescuentosDisplay > 0 && (
+            <div 
+              className={`relative group ml-8 text-[9pt] rounded p-1 mb-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+              style={{ marginTop: `${margins['descuentos_top'] || 0}mm`, marginBottom: `${margins['descuentos_bottom'] || 0}mm` }}
+              contentEditable={isEditable}
+              suppressContentEditableWarning={true}
+            >
+              {renderMarginControls('descuentos')}
               <p className="font-bold underline mb-1 text-[10pt]">DESCUENTOS</p>
               <div className="space-y-0.5">
-                {aporteCesantia > 0 && (
+                {!isMutuoAcuerdo && aporteCesantia > 0 && (
                   <div className="flex justify-between">
                     <span>Aporte Empleador Seguro de Cesantía</span>
                     <span>{formatCurrency(aporteCesantia)}</span>
@@ -459,7 +716,7 @@ const VisualizadorFiniquito = () => {
                 ))}
                 <div className="flex justify-between font-bold text-[9pt]">
                   <span className="underline">TOTAL DESCUENTOS</span>
-                  <span>{formatCurrency(finiquitoData.totalDescuentos || totalDescuentos)}</span>
+                  <span>{formatCurrency(totalDescuentosDisplay)}</span>
                 </div>
               </div>
             </div>
@@ -468,18 +725,28 @@ const VisualizadorFiniquito = () => {
 
 
 
-          {/* TOTAL A PAGAR - Final net amount: (Haberes - Descuentos) + Liquidacion */}
-          <div className="mb-0.5 ml-8 flex justify-between font-bold border-t border-black pt-0.5 text-[9pt]">
-            <span>TOTAL A PAGAR</span>
-            <span>{formatCurrency(finiquitoData.totalSettlement || (totalHaberes - totalDescuentos))}</span>
+          {/* TOTAL A PAGAR */}
+          <div 
+            className={`relative group ml-8 rounded p-1 mb-0.5 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            style={{ marginTop: `${margins['total_top'] || 0}mm`, marginBottom: `${margins['total_bottom'] || 0}mm` }}
+            contentEditable={isEditable}
+            suppressContentEditableWarning={true}
+          >
+            {renderMarginControls('total')}
+            <div className="flex justify-between font-bold border-t border-black pt-0.5 text-[9pt]">
+              <span>TOTAL A PAGAR</span>
+              <span>{formatCurrency(finiquitoData.totalSettlement || (totalHaberesDisplay - totalDescuentosDisplay))}</span>
+            </div>
           </div>
 
           {/* Legal Notes */}
           <div 
-            className={`mb-0 text-justify text-[10pt] rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group text-justify text-[10pt] rounded p-1 mb-0 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            style={{ marginTop: `${margins['legal_top'] || 0}mm`, marginBottom: `${margins['legal_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
+            {renderMarginControls('legal')}
             <p className="mb-0">
               A estos valores se le deducirán los descuentos legales que pudieran corresponder.
             </p>
@@ -490,10 +757,12 @@ const VisualizadorFiniquito = () => {
 
           {/* Payment Information */}
           <div 
-            className={`mb-1 text-justify rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group text-justify rounded p-1 mb-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            style={{ marginTop: `${margins['payment_top'] || 0}mm`, marginBottom: `${margins['payment_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
+            {renderMarginControls('payment')}
             <p>
               {liquidacionMesActual > 0 
                 ? "El monto adeudado por concepto de remuneración será pagado en el finiquito." 
@@ -508,30 +777,41 @@ const VisualizadorFiniquito = () => {
             </p>
           </div>
 
+          {/* Flex spacer - pushes signatures toward bottom */}
+          <div className="flex-1" />
+
           {/* Closing */}
           <div 
-            className={`mb-4 rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group rounded py-0 px-1 mt-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            style={{ marginTop: `${margins['closing_top'] || 0}mm`, marginBottom: `${margins['closing_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
+            {renderMarginControls('closing')}
             <p>Sin otro particular, le saluda atentamente</p>
           </div>
 
           {/* Manager Signature */}
           <div 
-            className={`mb-4 mt-6 text-center rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group text-center rounded py-0 px-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            style={{ marginTop: `${(margins['manager_top'] || 0) + 16}mm`, marginBottom: `${margins['manager_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
           >
+            {renderMarginControls('manager')}
             <p className="font-bold">{selectedManager.name}</p>
             <p>{selectedManager.title}</p>
             <p>{companyDetails.legalName}</p>
           </div>
 
           {/* Worker and Inspection Signatures */}
-          <div className="flex justify-between mt-8">
+          <div 
+            className={`relative group flex justify-between rounded py-0 px-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            style={{ marginTop: `${(margins['worker_top'] || 0) + 16}mm`, marginBottom: `${margins['worker_bottom'] || 0}mm` }}
+          >
+            {renderMarginControls('worker')}
             <div 
-              className={`rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+              className={`rounded py-0 px-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
               contentEditable={isEditable}
               suppressContentEditableWarning={true}
             >
@@ -540,7 +820,7 @@ const VisualizadorFiniquito = () => {
               <p>Rut: {employeeData.rut_trabajador}</p>
             </div>
             <div 
-              className={`text-right rounded p-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+              className={`text-right rounded py-0 px-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
               contentEditable={isEditable}
               suppressContentEditableWarning={true}
             >

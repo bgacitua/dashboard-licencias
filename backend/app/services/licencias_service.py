@@ -13,8 +13,13 @@ class LicenciasService:
         logger.info(f"Obteniendo licencias (skip={skip}, limit={limit})")
         return self.repository.get_all(skip, limit)
 
-    def get_licencia_by_rut(self, rut: str) -> List[LicenciaByRut]:
-        licencia = self.repository.get_licencia_by_rut(rut)
+    def get_licencia_by_rut(
+        self,
+        rut: str,
+        limit: int = 15,
+        order_asc: bool = False,
+    ) -> List[LicenciaByRut]:
+        licencia = self.repository.get_licencia_by_rut(rut, limit=limit, order_asc=order_asc)
         if not licencia:
             raise LicenciaNotFoundError(rut)
         return licencia

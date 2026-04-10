@@ -1,9 +1,379 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import * as XLSX from "xlsx";
 import Sidebar from "../components/Sidebar";
 import FiniquitosService from "../services/finiquitos.service";
 import EmployeesService from "../services/employees.service";
 import { getLicenciasByRut } from "../services/licencias";
+
+// --- Helpers for variable bonus: period parsing, filled months, license overlap ---
+function parsePeriodo(periodoStr) {
+  if (!periodoStr || typeof periodoStr !== "string") return null;
+  const s = periodoStr.trim();
+  const dash = s.match(/^(\d{1,2})[-/](\d{4})$/);
+  if (dash) return { month: parseInt(dash[1], 10), year: parseInt(dash[2], 10) };
+  if (s.length === 6 && /^\d{6}$/.test(s))
+    return { month: parseInt(s.slice(0, 2), 10), year: parseInt(s.slice(2), 10) };
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})$/);
+  if (iso) return { month: parseInt(iso[2], 10), year: parseInt(iso[1], 10) };
+  return null;
+}
+
+function getMonthsInRange(minYear, minMonth, maxYear, maxMonth) {
+  const out = [];
+  let y = minYear;
+  let m = minMonth;
+  while (y < maxYear || (y === maxYear && m <= maxMonth)) {
+    out.push({ year: y, month: m });
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
+}
+
+function monthHasLicense(year, month, licencias) {
+  if (!licencias || !licencias.length) return false;
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+  return licencias.some((lic) => {
+    const start = new Date(lic.fecha_inicio);
+    const end = new Date(lic.fecha_fin);
+    return end >= firstDay && start <= lastDay;
+  });
+}
+
+// Formatea fechas como "dd - mes - aaaa" en español
+function formatDateWords(dateString) {
+  if (!dateString) return "";
+  const clean = dateString.includes("T")
+    ? dateString.split("T")[0]
+    : dateString;
+  const parts = clean.split("-");
+  if (parts.length !== 3) return dateString;
+  const [yearStr, monthStr, dayStr] = parts;
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!year || !month || !day) return dateString;
+  const meses = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+  ];
+  const mesNombre = meses[month - 1] || "";
+  return `${day.toString().padStart(2, "0")} - ${mesNombre} - ${year}`;
+}
+
+// Formatea fechas como "dd mes del aaaa" en español (para documentos Word)
+function formatDateWordsLong(dateString) {
+  if (!dateString) return "";
+  const clean = dateString.includes("T")
+    ? dateString.split("T")[0]
+    : dateString;
+  const parts = clean.split("-");
+  if (parts.length !== 3) return dateString;
+  const [yearStr, monthStr, dayStr] = parts;
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!year || !month || !day) return dateString;
+  const meses = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+  ];
+  const mesNombre = meses[month - 1] || "";
+  return `${day.toString().padStart(2, "0")} ${mesNombre} del ${year}`;
+}
+
+// Convierte un número a letras en español (pesos chilenos, sin centavos)
+function numeroALetrasCLP(num) {
+  num = Math.round(Number(num) || 0);
+  if (num === 0) return "cero pesos";
+
+  const unidades = [
+    "",
+    "uno",
+    "dos",
+    "tres",
+    "cuatro",
+    "cinco",
+    "seis",
+    "siete",
+    "ocho",
+    "nueve",
+    "diez",
+    "once",
+    "doce",
+    "trece",
+    "catorce",
+    "quince",
+    "dieciséis",
+    "diecisiete",
+    "dieciocho",
+    "diecinueve",
+  ];
+  const decenas = [
+    "",
+    "diez",
+    "veinte",
+    "treinta",
+    "cuarenta",
+    "cincuenta",
+    "sesenta",
+    "setenta",
+    "ochenta",
+    "noventa",
+  ];
+  const centenas = [
+    "",
+    "ciento",
+    "doscientos",
+    "trescientos",
+    "cuatrocientos",
+    "quinientos",
+    "seiscientos",
+    "setecientos",
+    "ochocientos",
+    "novecientos",
+  ];
+
+  const centenasDecenasUnidades = (n) => {
+    if (n === 0) return "";
+    if (n === 100) return "cien";
+    let c = Math.floor(n / 100);
+    let d = Math.floor((n % 100) / 10);
+    let u = n % 10;
+    let textoCentenas = centenas[c];
+    let resto = n % 100;
+    if (resto < 20) {
+      return `${textoCentenas} ${unidades[resto]}`.trim();
+    }
+    let textoDecenas = decenas[d];
+    let textoUnidades = unidades[u];
+    if (d === 2 && u > 0) {
+      textoDecenas = "veinti";
+      textoUnidades = textoUnidades.replace(/^uno$/, "ún");
+      return `${textoCentenas} ${textoDecenas}${textoUnidades}`.trim();
+    }
+    const separador = u > 0 ? " y " : "";
+    return `${textoCentenas} ${textoDecenas}${separador}${textoUnidades}`.trim();
+  };
+
+  const seccion = (n, divisor, singular, plural) => {
+    const cientos = Math.floor(n / divisor);
+    const resto = n - cientos * divisor;
+    let letras = "";
+    if (cientos > 0) {
+      letras = cientos === 1 ? singular : `${centenasDecenasUnidades(cientos)} ${plural}`;
+    }
+    return { letras, resto };
+  };
+
+  const miles = (n) => {
+    const { letras, resto } = seccion(n, 1000, "mil", "mil");
+    const letrasResto = centenasDecenasUnidades(resto);
+    if (!letras) return letrasResto;
+    if (!letrasResto) return letras;
+    return `${letras} ${letrasResto}`;
+  };
+
+  const millones = (n) => {
+    const { letras, resto } = seccion(n, 1000000, "un millón", "millones");
+    const letrasMiles = miles(resto);
+    if (!letras) return letrasMiles;
+    if (!letrasMiles) return letras;
+    return `${letras} ${letrasMiles}`;
+  };
+
+  const letrasEntero = millones(num);
+  return `${letrasEntero} pesos`.replace(/\s+/g, " ").trim();
+}
+
+function formatPeriodoDisplay(year, month) {
+  return new Date(year, month - 1, 1)
+    .toLocaleDateString("es-CL", { month: "2-digit", year: "numeric" })
+    .replace("/", "-");
+}
+
+// Detalles de empresa (razón social y RUT) según nombre_empresa,
+// alineado con la lógica de VisualizadorFiniquito.
+function getCompanyDetails(empresaRaw) {
+  const normalized = (empresaRaw || "").toLowerCase();
+
+  if (normalized.includes("sabores")) {
+    return {
+      legalName: "Sabores y Fragancias.CL Comercial Ltda.",
+      rut: "76.165.072-6",
+    };
+  }
+  if (normalized.includes("servicios") || normalized.includes("logística")) {
+    return {
+      legalName: "SERVICIOS DE PRODUCCIÓN Y LOGÍSTICA CCPA LTDA",
+      rut: "76.479.573-3",
+    };
+  }
+  // Default Carlos Cramer
+  return {
+    legalName: "Carlos Cramer Productos Aromáticos S.A.C.I.",
+    rut: "92.845.000-7",
+  };
+}
+
+function getExpandedVariableGroups(
+  variableItems,
+  variableCustomAdditions,
+  licencias,
+  variableFilledActive
+) {
+  const groups = {};
+  variableItems.forEach((item, idx) => {
+    const key = item.concepto || "Sin Concepto";
+    if (!groups[key]) groups[key] = [];
+    const p = parsePeriodo(item.periodo);
+    const hasLicense = p
+      ? monthHasLicense(p.year, p.month, licencias)
+      : false;
+    groups[key].push({
+      ...item,
+      type: "fetched",
+      originalIndex: idx,
+      hasLicense,
+    });
+  });
+  Object.keys(variableCustomAdditions || {}).forEach((key) => {
+    if (!groups[key]) groups[key] = [];
+    (variableCustomAdditions[key] || []).forEach((item, idx) => {
+      const p = item.periodo && item.periodo !== "Manual"
+        ? parsePeriodo(item.periodo)
+        : null;
+      const hasLicense = p
+        ? monthHasLicense(p.year, p.month, licencias)
+        : false;
+      groups[key].push({
+        ...item,
+        concepto: key,
+        type: "custom",
+        originalIndex: idx,
+        hasLicense,
+      });
+    });
+  });
+
+  Object.keys(groups).forEach((concepto) => {
+    const items = groups[concepto];
+    const existingMonths = new Set();
+    items.forEach((it) => {
+      const p = it.periodo && it.type !== "custom" ? parsePeriodo(it.periodo) : null;
+      if (p) existingMonths.add(`${p.year}-${p.month}`);
+    });
+    let minY = Infinity,
+      minM = 12,
+      maxY = -Infinity,
+      maxM = 1;
+    items.forEach((it) => {
+      const p = it.periodo && it.type !== "custom" ? parsePeriodo(it.periodo) : null;
+      if (p) {
+        if (p.year < minY || (p.year === minY && p.month < minM)) {
+          minY = p.year;
+          minM = p.month;
+        }
+        if (p.year > maxY || (p.year === maxY && p.month > maxM)) {
+          maxY = p.year;
+          maxM = p.month;
+        }
+      }
+    });
+    if (minY === Infinity) return;
+    const range = getMonthsInRange(minY, minM, maxY, maxM);
+    range.forEach(({ year, month }) => {
+      const key = `${year}-${month}`;
+      if (existingMonths.has(key)) return;
+      const filledKey = `${concepto}-${year}-${month}`;
+      const hasLic = monthHasLicense(year, month, licencias);
+      const active =
+        variableFilledActive[filledKey] !== undefined
+          ? variableFilledActive[filledKey]
+          : !hasLic;
+      groups[concepto].push({
+        type: "filled",
+        concepto,
+        periodo: formatPeriodoDisplay(year, month),
+        monto: 0,
+        year,
+        month,
+        filledKey,
+        active,
+        hasLicense: hasLic,
+      });
+    });
+    groups[concepto].sort((a, b) => {
+      const pa = a.year && a.month ? { year: a.year, month: a.month } : parsePeriodo(a.periodo);
+      const pb = b.year && b.month ? { year: b.year, month: b.month } : parsePeriodo(b.periodo);
+      if (!pa || !pb) return 0;
+      if (pa.year !== pb.year) return pa.year - pb.year;
+      return pa.month - pb.month;
+    });
+  });
+
+  return groups;
+}
+
+const VALID_VARIABLE_MONTHS_REQUIRED = 3;
+
+function getItemPeriodForSort(item) {
+  if (item.year != null && item.month != null)
+    return { year: item.year, month: item.month };
+  return parsePeriodo(item.periodo);
+}
+
+function calculateTotalFromExpandedGroups(groups) {
+  return Object.values(groups).reduce((total, groupItems) => {
+    // Valid months: active and no license (include filled with 0)
+    const validItems = groupItems.filter(
+      (i) => i.active !== false && !i.hasLicense
+    );
+    if (validItems.length === 0) return total;
+    // Sort by period descending (most recent first) and take up to 3
+    const sorted = [...validItems].sort((a, b) => {
+      const pa = getItemPeriodForSort(a);
+      const pb = getItemPeriodForSort(b);
+      if (!pa || !pb) return 0;
+      if (pa.year !== pb.year) return pb.year - pa.year;
+      return pb.month - pa.month;
+    });
+    const toUse = sorted.slice(0, VALID_VARIABLE_MONTHS_REQUIRED);
+    const groupSum = toUse.reduce(
+      (sum, item) => sum + (parseFloat(item.monto) || 0),
+      0
+    );
+    const groupAvg = groupSum / toUse.length;
+    return total + groupAvg;
+  }, 0);
+}
 
 const CrearFiniquito = () => {
   const { rut } = useParams();
@@ -66,10 +436,17 @@ const CrearFiniquito = () => {
   const [descuentosItems, setDescuentosItems] = useState([]); // Automatic deductions from backend
   const [descuentosPersonalizados, setDescuentosPersonalizados] = useState([]); // Custom added discounts
   const [variableCustomAdditions, setVariableCustomAdditions] = useState({}); // Custom manual additions for variable bonus: { [concepto]: [{ id, descripcion, amount, active }] }
+  const [variableFilledActive, setVariableFilledActive] = useState({}); // Active state for filled (zero) months per concepto: { "Concepto-YYYY-MM": boolean }
+  const [variableGroupsCollapsed, setVariableGroupsCollapsed] = useState({}); // Collapse state per group: { [concepto]: true } = collapsed
+  const [licenciasTableCollapsed, setLicenciasTableCollapsed] = useState(false); // Collapse state for Licencias recientes table
+  const [licenciasLimit, setLicenciasLimit] = useState(15); // TOP N (5, 10, 15, 20, 30, 50)
+  const [licenciasOrder, setLicenciasOrder] = useState("desc"); // 'desc' = más recientes primero, 'asc' = ascendente
   const [newCustomItems, setNewCustomItems] = useState({}); // Temporary state for new manual item inputs per concept: { [concepto]: { description: '', amount: '' } }
   const [ufValue, setUfValue] = useState(0); // Valor UF del día
   const [isLoadingUf, setIsLoadingUf] = useState(false);
   const [isLoadingVacation, setIsLoadingVacation] = useState(false); // Loading state for vacation days API
+  const [itemsLimit, setItemsLimit] = useState(15); // TOP N períodos de remuneración (para variable)
+  const [itemsRefreshToken, setItemsRefreshToken] = useState(0); // Fuerza refresco manual para items/variable
 
   // Helper to recalculate total variable bonus based on current items and custom additions
   const calculateTotalVariableBonus = (
@@ -120,137 +497,155 @@ const CrearFiniquito = () => {
     return Math.round(sumOfAverages);
   };
 
+  // Grupos expandidos memoizados (evita recalcular en cada render)
+  const expandedVariableGroups = useMemo(
+    () =>
+      getExpandedVariableGroups(
+        variableItems,
+        variableCustomAdditions,
+        licencias,
+        variableFilledActive
+      ),
+    [variableItems, variableCustomAdditions, licencias, variableFilledActive]
+  );
+
+  // Recalculate variable bonus when expanded groups change
+  useEffect(() => {
+    if (variableItems.length === 0 && Object.keys(variableCustomAdditions).length === 0) {
+      setVariableBonus(0);
+      return;
+    }
+    const total = Math.round(calculateTotalFromExpandedGroups(expandedVariableGroups));
+    setVariableBonus(total);
+  }, [variableItems, variableCustomAdditions, expandedVariableGroups]);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const data = await FiniquitosService.getItemsByRut(rut);
+        // Disparar TODO en paralelo para reducir el tiempo total de carga.
+        // Antes: (items+licencias) -> (vacaciones+sueldo) -> (uf+descuentos) en serie.
+        const [
+          itemsResult,
+          licenciasResult,
+          vacacionesResult,
+          sueldoResult,
+          ufResult,
+          descuentosResult,
+        ] = await Promise.allSettled([
+          FiniquitosService.getItemsByRut(rut, itemsLimit),
+          getLicenciasByRut(rut, { limit: licenciasLimit, order: licenciasOrder }),
+          EmployeesService.getVacationsAvailable(rut),
+          EmployeesService.getSueldoBase(rut),
+          FiniquitosService.getIndicatorUF(),
+          FiniquitosService.getDescuentosByRut(rut),
+        ]);
+
+        const data =
+          itemsResult.status === "fulfilled" ? itemsResult.value : [];
+
+        const employeeLicencias =
+          licenciasResult.status === "fulfilled" ? licenciasResult.value : [];
+
+        const sortedLicencias = Array.isArray(employeeLicencias)
+          ? employeeLicencias
+          : [];
+        setLicencias(sortedLicencias);
+
         if (Array.isArray(data) && data.length > 0) {
           const empData = data[0];
           setEmployee(empData);
           setItems(data);
+          setVacationValue(0);
 
-          // Fetch vacation days from external API
-          try {
-            const vacationData =
-              await EmployeesService.getVacationsAvailable(rut);
-            const rawDays = vacationData.total_dias_disponibles || 0;
-            // Store raw value without rounding - rounding only for display
+          // Vacaciones
+          if (
+            vacacionesResult.status === "fulfilled" &&
+            vacacionesResult.value?.total_dias_disponibles != null
+          ) {
+            const rawDays = vacacionesResult.value.total_dias_disponibles;
             setVacationDaysStock(rawDays);
             setVacationDays(rawDays);
-          } catch (err) {
-            console.error("Error fetching vacation days:", err);
+          } else {
             setVacationDaysStock(0);
             setVacationDays(0);
           }
 
-          // Fetch base wage from external API
-          try {
-            const sueldoData = await EmployeesService.getSueldoBase(rut);
-            if (sueldoData && sueldoData.base_wage) {
-              setSalary(sueldoData.base_wage);
-            } else {
-              // Fallback if base_wage is null or 0
-              const baseSalaryItem =
-                data.find((i) => i.concepto === "Sueldo Base")?.monto || 0;
-              setSalary(baseSalaryItem > 0 ? baseSalaryItem : 2050000);
-            }
-          } catch (err) {
-            console.error("Error fetching base wage:", err);
-            // Fallback on error
-            const baseSalaryItem =
-              data.find((i) => i.concepto === "Sueldo Base")?.monto || 0;
+          // Sueldo base (fallback a "Sueldo Base" desde items)
+          const baseSalaryItem =
+            data.find((i) => i.concepto === "Sueldo Base")?.monto || 0;
+          if (
+            sueldoResult.status === "fulfilled" &&
+            sueldoResult.value?.base_wage
+          ) {
+            setSalary(sueldoResult.value.base_wage);
+          } else {
             setSalary(baseSalaryItem > 0 ? baseSalaryItem : 2050000);
           }
 
-          setVacationValue(0);
-
-          // Filter variable bonuses from the same dataset
-          // Include both 'remuneracion_variable' and 'remuneracion_ocasional'
-          // But exclude specific occasional bonuses that should not be averaged
+          // Remuneración variable (se calcula usando licencias)
           const excludedConceptos = [
             "Bono Empresa",
             "Bono Navidad",
             "Bono Fiestas Patrias",
+            "Horas Extras 50%",
+            "Horas Extras 100%",
+            "Bono De Escolaridad",
+            "Colación Adicional",
+            "Movilización Adicional",
+            "Bono Seniors",
+            "Liqui Difgrat 1 Sem",
           ];
           const varData = data.filter(
             (item) =>
               item.income_type === "remuneracion_variable" ||
               (item.income_type === "remuneracion_ocasional" &&
-                !excludedConceptos.includes(item.concepto)) ||
+                (item.concepto === "Bono Especial Mensual" ||
+                  !excludedConceptos.includes(item.concepto))) ||
               (item.income_type === "remuneracion_fija" &&
-                item.concepto === "Bono Supervisores Noche"),
+                (item.concepto === "Bono Supervisores Noche" ||
+                  item.concepto === "Bono Jefe Área Contingencia" ||
+                  item.concepto === "Bono Operario Master")),
           );
 
           if (varData.length > 0) {
-            const mappedVarData = varData.map((item, idx) => ({
-              ...item,
-              active: true,
-              originalIndex: idx,
-            }));
+            const mappedVarData = varData.map((item, idx) => {
+              const p = parsePeriodo(item.periodo);
+              const active =
+                p && sortedLicencias.length > 0
+                  ? !monthHasLicense(p.year, p.month, sortedLicencias)
+                  : true;
+              return { ...item, active, originalIndex: idx };
+            });
             setVariableItems(mappedVarData);
-
-            // Initial calculation using the helper
-            const total = calculateTotalVariableBonus(mappedVarData, {});
-            setVariableBonus(total);
           } else {
             setVariableItems([]);
             setVariableBonus(0);
           }
         }
-        try {
-          const employeeLicencias = await getLicenciasByRut(rut);
-          // Sort by fecha_fin descending (most recent first) and take last 5
-          const sortedLicencias = employeeLicencias
-            .sort((a, b) => new Date(b.fecha_fin) - new Date(a.fecha_fin))
-            .slice(0, 5);
-          setLicencias(sortedLicencias);
-        } catch (err) {
-          console.error("Error fetching licenses:", err);
-          setLicencias([]);
+
+        // UF
+        const ufValueResolved =
+          ufResult.status === "fulfilled" ? ufResult.value : 0;
+        setUfValue(ufValueResolved || 0);
+
+        // Descuentos (si el usuario vuelve desde el visualizador, respetamos preserveData)
+        const descuentosData =
+          descuentosResult.status === "fulfilled" ? descuentosResult.value : [];
+        if (!location.state?.preserveData) {
+          const mappedDescuentos = (descuentosData || []).map((item) => {
+            let desc = item.concepto || "";
+            if (desc === "Prestamo Interno") desc = "Préstamo Interno";
+            if (desc === "Descuento Por Planilla") desc = "Descuento por planilla";
+            return {
+              descripcion: desc,
+              detalle: item.detalle || "",
+              monto: item.monto || 0,
+              cuotas: 1,
+            };
+          });
+          setDescuentosPersonalizados(mappedDescuentos);
         }
-
-        // Fetch automatic deductions for this employee (Prestamo Interno, Descuento Por Planilla)
-        try {
-          // First fetch UF in parallel or before
-          let currentUF = 0;
-          try {
-            currentUF = await FiniquitosService.getIndicatorUF();
-            setUfValue(currentUF);
-          } catch (ufErr) {
-            console.error("Error fetching UF:", ufErr);
-          }
-
-          const descuentosData =
-            await FiniquitosService.getDescuentosByRut(rut);
-
-          // Map backend data (concepto) to frontend format (descripcion)
-          // Normalize strings to match frontend dropdown options
-          if (!location.state?.preserveData) {
-            const mappedDescuentos = (descuentosData || []).map((item) => {
-              let desc = item.concepto || "";
-              // Normalize backend strings to match frontend options exact spelling/casing
-              if (desc === "Prestamo Interno") desc = "Préstamo Interno"; // Add accent
-              if (desc === "Descuento Por Planilla")
-                desc = "Descuento por planilla"; // Lowercase 'p'
-
-              return {
-                descripcion: desc,
-                detalle: item.detalle || "", // Map detailed description
-                monto: item.monto || 0,
-                cuotas: 1, // Default cuotas
-              };
-            });
-            setDescuentosPersonalizados(mappedDescuentos);
-          }
-
-          // Keep legacy state empty as we moved to normalized list
-          setDescuentosItems([]);
-        } catch (err) {
-          console.error("Error fetching deductions:", err);
-          if (!location.state?.preserveData) {
-            setDescuentosPersonalizados([]);
-          }
-        }
+        setDescuentosItems([]);
       } catch (error) {
         console.error("Error fetching employee data:", error);
       } finally {
@@ -261,7 +656,7 @@ const CrearFiniquito = () => {
     if (rut) {
       fetchData();
     }
-  }, [rut]);
+  }, [rut, licenciasLimit, licenciasOrder, itemsLimit, itemsRefreshToken]);
 
   // Restaurar datos del formulario cuando se navega de vuelta desde el visualizador
   useEffect(() => {
@@ -519,7 +914,7 @@ const CrearFiniquito = () => {
 
     setIsLoadingSalaryHistory(true);
     try {
-      const history = await EmployeesService.getSalaryHistory(rut, 48);
+      const history = await EmployeesService.getSalaryHistory(rut, lastDayWork);
       console.log("Salary History Fetch:", history);
       setSalaryHistory(history);
 
@@ -647,15 +1042,14 @@ const CrearFiniquito = () => {
           indemnityYears = 0;
         } else {
           // We have at least 1 full year. Current base is 'y'.
-          // Check if we have exceeded 6 months and 1 day past the anniversary.
+          // Redondear hacia arriba solo cuando hay MÁS de 6 meses después del último aniversario
+          // (6 meses y 1 día o más). Así 1.5 años exactos cuenta como 1 año, no 2.
 
-          // Construct the 6-month threshold date relative to the last anniversary
           const thresholdDate = new Date(start.getTime());
           thresholdDate.setFullYear(thresholdDate.getFullYear() + y);
           thresholdDate.setMonth(thresholdDate.getMonth() + 6);
+          thresholdDate.setDate(thresholdDate.getDate() + 1); // +1 día: más de 6 meses
 
-          // If endDate is strictly after the 6-month threshold, round up.
-          // Note: end > threshold implies we have passed the 6-month mark (at least 1 day or millisecond).
           if (end > thresholdDate) {
             indemnityYears = y + 1;
           } else {
@@ -670,6 +1064,126 @@ const CrearFiniquito = () => {
       setYearsForIndemnity(Math.floor(employee.duracion_empresa));
     }
   }, [lastDayWork, employee]);
+
+  // ── AUDITORÍA DE CÁLCULO (EXCEL) ───────────────────────────────────────────
+  // Genera y descarga un archivo Excel con los parámetros del finiquito en las
+  // filas indicadas (columna A = etiqueta, columna B = valor). Se llama al
+  // momento de generar el documento.
+  const downloadAuditFile = ({
+    causalLabel,
+    managerName,
+    haberes,
+    gratificacion,
+    noticeIndemnityResult,
+    yearsIndemnityResult,
+    vacationIndemnityResult,
+    vacationCalendarDays,
+    liquidacionMesActual,
+    otrosDescuentos,
+    aporteCesantiaVal,
+    totalSettlementResult,
+    variableDetails,
+    variableItemsDetail,
+  }) => {
+    const fmt = (n) => `$ ${Math.round(n).toLocaleString("es-CL")}.-`;
+    const fmtNum = (n) => Math.round(Number(n) || 0);
+
+    const ws = {};
+    // Columna A = etiqueta, Columna B = valor
+    const setRow = (row, label, value) => {
+      ws[`A${row}`] = { t: "s", v: label };
+      const hasValue = value !== undefined && value !== null && value !== "";
+      const isNum = typeof value === "number";
+      if (hasValue || value === 0) {
+        ws[`B${row}`] = isNum ? { t: "n", v: value } : { t: "s", v: String(value ?? "") };
+      } else {
+        ws[`B${row}`] = { t: "s", v: "" };
+      }
+    };
+
+    setRow(2, "Causal de término del contrato", causalLabel || "");
+    setRow(4, "Nombre trabajador", employee?.nombre_trabajador || "");
+    setRow(5, "Cargo del trabajador", employee?.cargo || "");
+    setRow(9, "Fecha de ingreso del trabajador", employee?.fecha_ingreso || "");
+    setRow(10, "Fecha de salida", lastDayWork || "");
+    // Calcular duración exacta en "Años, meses y días" usando lastDayWork y fecha_ingreso
+    const formatYearsMonthsDays = (startDate, endDate) => {
+      if (!startDate || !endDate) return "";
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (isNaN(start) || isNaN(end)) return "";
+      let years = end.getFullYear() - start.getFullYear();
+      let months = end.getMonth() - start.getMonth();
+      let days = end.getDate() - start.getDate();
+
+      if (days < 0) {
+        // Borrow days from previous month
+        months -= 1;
+        const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
+        days += prevMonth.getDate();
+      }
+      if (months < 0) {
+        years -= 1;
+        months += 12;
+      }
+      let result = [];
+      if (years > 0) result.push(`${years} año${years > 1 ? 's' : ''}`);
+      if (months > 0) result.push(`${months} mes${months > 1 ? 'es' : ''}`);
+      if (days > 0) result.push(`${days} día${days > 1 ? 's' : ''}`);
+      return result.length ? result.join(', ') : "0 días";
+    };
+    setRow(
+      11,
+      "Duración empresa",
+      employee?.fecha_ingreso && lastDayWork
+        ? formatYearsMonthsDays(employee.fecha_ingreso, lastDayWork)
+        : ""
+    );
+    setRow(15, "Sueldo base del trabajador", fmtNum(salary));
+    setRow(16, "Promedio remuneración variable", fmtNum(variableBonus));
+    setRow(17, "Gratificación legal", fmtNum(gratificacion));
+    setRow(18, "Movilización", fmtNum(movilizacion));
+    setRow(20, "Total haber", fmtNum(haberes));
+
+    // Indemnización por Años de Servicio (si corresponde)
+    setRow(
+      23,
+      `Indemnización por Años de Servicio${yearsForIndemnity != null ? ` (${yearsForIndemnity})` : ""}`,
+      yearsIndemnityResult != null && yearsIndemnityResult > 0 ? fmtNum(yearsIndemnityResult) : ""
+    );
+
+    // Vacaciones pendientes: en columna A solo "Vacaciones pendientes (X.X días)" para que quepa la leyenda; en B el monto
+    const vacacionesDiasStr =
+      vacationCalendarDays != null && vacationCalendarDays > 0
+        ? ` (${Number(vacationCalendarDays).toFixed(1)} días)`
+        : "";
+    const vacacionesVal = vacationIndemnityResult != null && vacationIndemnityResult > 0 ? fmt(vacationIndemnityResult) : "";
+    setRow(24, `Vacaciones pendientes${vacacionesDiasStr}`, vacacionesVal || "");
+
+    // Mes de aviso (si corresponde)
+    setRow(25, "Mes de aviso", noticeIndemnityResult != null && noticeIndemnityResult > 0 ? fmtNum(noticeIndemnityResult) : "");
+
+    // Remuneración adeudada (si corresponde)
+    setRow(26, "Remuneración adeudada", liquidacionMesActual != null && Number(liquidacionMesActual) > 0 ? fmtNum(liquidacionMesActual) : "");
+
+    // Otros descuentos (si corresponde)
+    setRow(27, "Otros descuentos", otrosDescuentos != null && otrosDescuentos > 0 ? `-${fmtNum(otrosDescuentos)}` : "");
+
+    // Aporte Empleador Seguro Cesantía (si corresponde)
+    setRow(28, "Aporte Empleador Seguro Cesantía", aporteCesantiaVal != null && aporteCesantiaVal > 0 ? `-${fmtNum(aporteCesantiaVal)}` : "");
+
+    setRow(30, "Total a pagar", fmtNum(totalSettlementResult));
+
+    // A2:D30 para incluir detalle de variable en columna D15
+    ws["!ref"] = "A2:D30";
+    ws["!cols"] = [{ wch: 38 }, { wch: 24 }, { wch: 8 }, { wch: 40 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Finiquito");
+    XLSX.writeFile(wb, `auditoria_finiquito_${employee?.rut_trabajador || "rut"}_${lastDayWork || "fecha"}.xlsx`);
+  };
+  // ── FIN AUDITORÍA ─────────────────────────────────────────────────────────
+
 
   if (loading) {
     return (
@@ -689,7 +1203,7 @@ const CrearFiniquito = () => {
   const dailySalary = ((salary + variableBonus) / 30).toFixed(0);
 
   // Gratificación Legal = (Sueldo Base + Promedio Bonificaciones) * 25%
-  // Tope = ((4.75/12) * Sueldo Mínimo) * 25%
+  // Tope = ((4.75/12) * Sueldo Mínimo) * 25%f
   const sueldoMinimo = 539000;
   const topeGratificacion = (4.75 / 12) * sueldoMinimo;
   const gratificacionLegal = Math.min(
@@ -703,23 +1217,26 @@ const CrearFiniquito = () => {
 
   // 1. Vacation Indemnity = (Sueldo Base + Total Bonificaciones / 30) * días corridos
   // vacationValue ya está calculado en el useEffect con la fórmula de días corridos
-  // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso), no_concurrencia (Sí), renuncia (Sí)
+  // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso), mutuo_acuerdo_especial (como necesidades), no_concurrencia (Sí), renuncia (Sí)
   const vacationApplies =
     terminationReason === "necesidades_empresa" ||
     terminationReason === "mutuo_acuerdo" ||
+    terminationReason === "mutuo_acuerdo_especial" ||
     terminationReason === "no_concurrencia" ||
     terminationReason === "renuncia";
   const vacationIndemnity = vacationApplies ? vacationValue : 0;
 
   // 2. Years of Service Indemnity = Total Haberes * años de indemnización
   // Si tiene menos de 1 año (antigüedad real), no tiene indemnización por años de servicio
-  // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso)
+  // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso), mutuo_acuerdo_especial (mismo cálculo que necesidades_empresa)
   // NO aplica para: no_concurrencia (No), renuncia (No)
   const yearsIndemnityApplies =
     terminationReason === "necesidades_empresa" ||
-    terminationReason === "mutuo_acuerdo";
+    terminationReason === "mutuo_acuerdo" ||
+    terminationReason === "mutuo_acuerdo_especial";
 
   let yearsIndemnity = 0;
+  let mutuoEspecialRules = null;
   if (yearsIndemnityApplies && yearsOfService >= 1) {
     if (terminationReason === "mutuo_acuerdo" && employee?.fecha_nacimiento) {
       // Mutuo Acuerdo Special Rules
@@ -735,30 +1252,40 @@ const CrearFiniquito = () => {
 
       const cap90UF = (ufValue || 0) * 90;
 
+      // Used for audit/logs
+      let ruleApplied = "";
+      let cappedBase = null;
+      let cappedYears = null;
+
       // Rule 4: 65 years old (no caps)
       if (age >= 65) {
+        ruleApplied = "Rule 4 (edad >= 65): sin topes";
         yearsIndemnity = baseAmount * years;
       }
       // Rule 1: 4 to 20 years
       else if (years >= 4 && years < 20) {
-        const cappedBase =
+        ruleApplied = "Rule 1 (4 <= años < 20): topes por 90 UF y años acotados";
+        cappedBase =
           cap90UF > 0 && baseAmount > cap90UF ? cap90UF : baseAmount;
-        const cappedYears = Math.min(years, 11);
+        cappedYears = Math.min(years, 11);
         yearsIndemnity = cappedBase * cappedYears;
       }
       // Rule 2: 20 to 25 years
       else if (years >= 20 && years < 25) {
-        const cappedBase =
+        ruleApplied = "Rule 2 (20 <= años < 25): topes por 90 UF y años acotados";
+        cappedBase =
           cap90UF > 0 && baseAmount > cap90UF ? cap90UF : baseAmount;
-        const cappedYears = Math.min(years, 16);
+        cappedYears = Math.min(years, 16);
         yearsIndemnity = cappedBase * cappedYears;
       }
       // Rule 3: More than 25 years (no caps)
       else if (years >= 25) {
+        ruleApplied = "Rule 3 (años >= 25): sin topes";
         yearsIndemnity = baseAmount * years;
       }
       // Fallback for < 4 years or other cases
       else {
+        ruleApplied = "Fallback (años < 4): años * totalHaberes";
         // Standard rule: Years * TotalHaberes (or maybe Base? The prompt is ambiguous but usually standard is TotalHaberes)
         // However, user prompt says "Promedio de últimos 48 sueldos base" is the key.
         // Let's stick to standard Total Haberes for < 4 years unless specified otherwise.
@@ -772,6 +1299,19 @@ const CrearFiniquito = () => {
         cap90UF,
         result: yearsIndemnity,
       });
+
+      // Persist audit/logs so Excel can display them
+      mutuoEspecialRules = {
+        applied: true,
+        ruleApplied,
+        age,
+        years,
+        baseAmount,
+        cap90UF,
+        cappedBase,
+        cappedYears,
+        result: yearsIndemnity,
+      };
     } else {
       // Standard Calculation (Necesidades de la Empresa or Mutuo w/o special data)
       yearsIndemnity = yearsForIndemnity * totalHaberes;
@@ -779,11 +1319,12 @@ const CrearFiniquito = () => {
   }
 
   // 3. Notice Month = Total Haberes (si no se dio aviso de 30 días)
-  // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso)
+  // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso), mutuo_acuerdo_especial (como necesidades)
   // NO aplica para: no_concurrencia (No), renuncia (No)
   const noticeIndemnityApplies =
     terminationReason === "necesidades_empresa" ||
-    terminationReason === "mutuo_acuerdo";
+    terminationReason === "mutuo_acuerdo" ||
+    terminationReason === "mutuo_acuerdo_especial";
   const noticeIndemnity =
     noticeIndemnityApplies && !noticeGiven ? totalHaberes : 0;
 
@@ -829,24 +1370,23 @@ const CrearFiniquito = () => {
 
   // Handle generate document - navigate to visualizer with all data
   const handleGenerate = () => {
-    console.log("handleGenerate called");
+    try {
+      // Validar que se hayan completado los campos requeridos
+      if (!lastDayWork) {
+        alert("Por favor seleccione la fecha de término del contrato");
+        return;
+      }
+      if (!terminationReason) {
+        alert("Por favor seleccione la causal de término");
+        return;
+      }
 
-    // Validar que se hayan completado los campos requeridos
-    if (!lastDayWork) {
-      alert("Por favor seleccione la fecha de término del contrato");
-      return;
-    }
-    if (!terminationReason) {
-      alert("Por favor seleccione la causal de término");
-      return;
-    }
+      // Find selected manager object
+      const managerObj =
+        managers.find((m) => m.id === selectedManager) || managers[0];
 
-    // Find selected manager object
-    const managerObj =
-      managers.find((m) => m.id === selectedManager) || managers[0];
-
-    // Prepare finiquito data to pass to visualizer
-    const finiquitoData = {
+      // Prepare finiquito data to pass to visualizer
+      const finiquitoData = {
       // Employee info
       employeeData: employee,
 
@@ -908,13 +1448,414 @@ const CrearFiniquito = () => {
         Math.round(vacationIndemnity) +
         (parseFloat(liquidacionMesActual) || 0) -
         Math.round(totalDescuentos),
-    };
 
-    // Guardar datos en sessionStorage para preservarlos al volver
-    sessionStorage.setItem(`finiquito_${rut}`, JSON.stringify(finiquitoData));
+      // Datos para generar Excel de auditoría desde el visualizador (descarga opcional)
+      audit: (() => {
+        const sueldoMinimo = 539000;
+        const topeGrat = (4.75 / 12) * sueldoMinimo;
+        const grat = Math.min((salary + variableBonus) * 0.25, topeGrat);
+        const haberesVal = salary + variableBonus + grat + movilizacion;
+        const variableConcepts = Object.keys(expandedVariableGroups || {});
+        const variableDetails = variableConcepts.length
+          ? variableConcepts.join(", ")
+          : "";
+        // Detalle solo de ítems efectivamente usados en el promedio:
+        // por concepto, activos, sin licencia y hasta 3 meses más recientes
+        const variableItemsDetail = [];
+        Object.entries(expandedVariableGroups || {}).forEach(
+          ([concepto, items]) => {
+            const validItems = (items || []).filter(
+              (i) => i.active !== false && !i.hasLicense,
+            );
+            if (!validItems.length) return;
+            const sorted = [...validItems].sort((a, b) => {
+              const pa = getItemPeriodForSort(a);
+              const pb = getItemPeriodForSort(b);
+              if (!pa || !pb) return 0;
+              if (pa.year !== pb.year) return pb.year - pa.year;
+              return pb.month - pa.month;
+            });
+            const toUse = sorted.slice(0, VALID_VARIABLE_MONTHS_REQUIRED);
+            toUse.forEach((it) => {
+              variableItemsDetail.push({
+                concepto,
+                periodo: it.periodo || "",
+                monto: parseFloat(it.monto) || 0,
+              });
+            });
+          },
+        );
+        const causalLabels = {
+          necesidades_empresa: "Art. 161 - Necesidades de la empresa",
+          mutuo_acuerdo: "Art. 159 N°1 - Mutuo acuerdo",
+          mutuo_acuerdo_especial: "Mutuo acuerdo especial",
+          no_concurrencia: "Art. 160 N°3 - No concurrencia injustificada",
+          renuncia: "Art. 159 N°2 - Renuncia voluntaria",
+        };
+        const otrosDesc = Math.max(0, Math.round(totalDescuentos) - aporteCesantiaNum);
+        const vacCalendarDays = lastDayWork
+          ? calculateDiasCorridos(parseLocalDate(lastDayWork), vacationDays)
+          : 0;
+        return {
+          causalLabel: causalLabels[terminationReason] || terminationReason || "",
+          managerName: managerObj?.name || "",
+          haberes: haberesVal,
+          gratificacion: grat,
+          noticeIndemnityResult: Math.round(noticeIndemnity),
+          yearsIndemnityResult: Math.round(yearsIndemnity),
+          vacationIndemnityResult: Math.round(vacationIndemnity),
+          vacationCalendarDays: vacCalendarDays,
+          liquidacionMesActual: parseFloat(liquidacionMesActual) || 0,
+          otrosDescuentos: otrosDesc > 0 ? otrosDesc : 0,
+          aporteCesantiaVal: aporteCesantiaNum,
+          totalSettlementResult:
+            Math.round(noticeIndemnity) + Math.round(yearsIndemnity) + Math.round(vacationIndemnity) +
+            (parseFloat(liquidacionMesActual) || 0) - Math.round(totalDescuentos),
+          yearsForIndemnity,
+          salary,
+          variableBonus,
+          movilizacion,
+          variableDetails,
+          variableItemsDetail,
+          mutuoEspecialRules,
+        };
+      })(),
+      };
 
-    // Navegar al visualizador en la misma pestaña
-    navigate(`/finiquitos/visualizar/${rut}`, { state: finiquitoData });
+      // Navegar primero para no depender de sessionStorage (state se pasa por location.state)
+      navigate(`/finiquitos/visualizar/${rut}`, { state: finiquitoData });
+
+      // Persistir en sessionStorage para pestaña nueva / volver (no debe bloquear la navegación)
+      try {
+        sessionStorage.setItem(`finiquito_${rut}`, JSON.stringify(finiquitoData));
+      } catch (e) {
+        console.warn("No se pudo guardar finiquito en sessionStorage:", e);
+      }
+    } catch (err) {
+      console.error("Error al generar finiquito:", err);
+      alert("Ocurrió un error al generar el finiquito. Revise la consola para más detalles.");
+    }
+  };
+
+  // Descargar Word basado en plantilla de Renuncia Voluntaria
+  const handleDownloadWord = async () => {
+    try {
+      if (!employee) {
+        alert("No hay datos de empleado para generar el documento.");
+        return;
+      }
+      if (!lastDayWork) {
+        alert("Por favor seleccione la fecha de término del contrato");
+        return;
+      }
+
+      // Mapeo básico de datos desde CrearFiniquito (similar a Visualizador)
+      const terminationDate = lastDayWork;
+      const notaryDate = new Date(
+        new Date(lastDayWork).getTime() + 10 * 24 * 60 * 60 * 1000,
+      )
+        .toISOString()
+        .split("T")[0];
+
+      const fmtCurrency = (n) =>
+        `$ ${Math.round(n || 0).toLocaleString("es-CL")}.-`;
+
+      // Construir tabla de haberes como texto multilinea (coherente con sección HABERES)
+      const haberesLines = [];
+      const descuentosLines = [];
+
+      const isMutuo =
+        terminationReason === "mutuo_acuerdo" ||
+        terminationReason === "mutuo_acuerdo_especial";
+      const isRenuncia = terminationReason === "renuncia";
+
+      const liquidacionMesActualNum = parseFloat(liquidacionMesActual) || 0;
+      const descuentosMesActualNum = parseFloat(descuentos) || 0;
+
+      // Valores coherentes con sección "Cálculo indemnización"
+      const yearsIndemnityDisplay =
+        terminationReason === "mutuo_acuerdo"
+          ? yearsIndemnity - aporteCesantiaNum
+          : yearsIndemnity;
+
+      let totalHaberesTabla = 0;
+      let totalDescuentosTabla = 0;
+
+      if (isRenuncia) {
+        // Para renuncia voluntaria: mostrar Vacaciones pendientes y Remuneración adeudada
+        if (vacationIndemnity > 0) {
+          const dias =
+            lastDayWork && vacationDays
+              ? calculateDiasCorridos(
+                  parseLocalDate(lastDayWork),
+                  vacationDays,
+                ).toFixed(1)
+              : (vacationDays || 0).toFixed(1);
+          haberesLines.push(
+            `Vacaciones pendientes (${dias} días)\t${fmtCurrency(vacationIndemnity)}`,
+          );
+        }
+
+        if (liquidacionMesActualNum > 0) {
+          haberesLines.push(
+            `Remuneración adeudada\t${fmtCurrency(liquidacionMesActualNum)}`,
+          );
+        }
+
+        if (descuentosMesActualNum > 0) {
+          descuentosLines.push(
+            `Diferencia remuneración\t${fmtCurrency(descuentosMesActualNum)}`,
+          );
+        }
+
+        totalHaberesTabla = (Number(vacationIndemnity) || 0) + liquidacionMesActualNum;
+        totalDescuentosTabla = Number(descuentosMesActualNum) || 0;
+
+      } else {
+        // Resto de causales: mantener lógica de indemnizaciones + vacaciones proporcionales
+        if (!isMutuo && noticeIndemnity > 0) {
+          haberesLines.push(
+            `Indemnización mes de aviso\t${fmtCurrency(noticeIndemnity)}`,
+          );
+        }
+        if (yearsIndemnityDisplay > 0) {
+          haberesLines.push(
+            `Indemnización años de Servicios (${yearsForIndemnity || 0} años)\t${fmtCurrency(yearsIndemnityDisplay)}`,
+          );
+        }
+        if (vacationIndemnity > 0) {
+          const dias =
+            lastDayWork && vacationDays
+              ? calculateDiasCorridos(
+                  parseLocalDate(lastDayWork),
+                  vacationDays,
+                ).toFixed(1)
+              : (vacationDays || 0).toFixed(1);
+          haberesLines.push(
+            `Vacaciones Proporcionales (${dias} días)\t${fmtCurrency(vacationIndemnity)}`,
+          );
+        }
+        if (descuentosMesActualNum > 0) {
+          descuentosLines.push(
+            `Diferencia remuneración (${["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][Number((terminationDate||"").split("-")[1])-1] || terminationDate})\t${fmtCurrency(descuentosMesActualNum)}`,
+          );
+        }
+
+        totalHaberesTabla =
+          (Number(noticeIndemnity) || 0) +
+          (Number(yearsIndemnityDisplay) || 0) +
+          (Number(vacationIndemnity) || 0);
+
+        totalDescuentosTabla = Number(descuentosMesActualNum) || 0;
+      }
+
+      // Agregar descuentos automáticos del backend (independiente de la causal)
+      descuentosItems.forEach((d) => {
+        const monto = d.monto || 0;
+        if (monto > 0) {
+          let label = d.concepto || "Descuento";
+          if (label === "Prestamo Interno") label = "Préstamo Interno";
+          if (label === "Descuento Por Planilla") label = "Descuento por planilla";
+          descuentosLines.push(`${label}\t${fmtCurrency(monto)}`);
+          totalDescuentosTabla += monto;
+        }
+      });
+
+      // Agregar descuentos personalizados (independiente de la causal)
+      descuentosPersonalizados.forEach((d) => {
+        let monto = parseFloat(d.monto) || 0;
+        const cuotas = parseInt(d.cuotas) || 1;
+        if (d.descripcion === "Préstamo Interno" && ufValue > 0) {
+          monto = Math.round(monto * ufValue);
+        }
+        const total = monto * cuotas;
+        if (total > 0) {
+          descuentosLines.push(`${d.descripcion || "Descuento"}\t${fmtCurrency(total)}`);
+          totalDescuentosTabla += total;
+        }
+      });
+
+      // Aporte Empleador Seguro Cesantía (independiente de la causal)
+      if (aporteCesantiaNum > 0) {
+        descuentosLines.push(`Aporte Empleador Seguro Cesantía\t${fmtCurrency(aporteCesantiaNum)}`);
+        totalDescuentosTabla += aporteCesantiaNum;
+      }
+
+      haberesLines.push(`Total haberes\t${fmtCurrency(totalHaberesTabla)}`);
+      if (totalDescuentosTabla > 0) {
+        descuentosLines.push(`Total descuentos\t${fmtCurrency(totalDescuentosTabla)}`);
+      }
+
+      // Convertir líneas en estructura tabular para Word:
+      // cada elemento será una fila de tabla: { concepto, monto }.
+      const haberesRows = haberesLines.map((line) => {
+        const [labelRaw, amountRaw] = line.split("\t");
+        return {
+          concepto: (labelRaw || "").trim(),
+          monto: (amountRaw || "").trim(),
+        };
+      });
+
+      const descuentosRows = totalDescuentosTabla > 0
+        ? descuentosLines.map((line) => {
+            const [labelRaw, amountRaw] = line.split("\t");
+            return {
+              concepto: (labelRaw || "").trim(),
+              monto: (amountRaw || "").trim(),
+            };
+          })
+        : [];
+
+      // Representación en texto simple (por compatibilidad)
+      const haberesTable = haberesRows
+        .map((row) => `${row.concepto}\t${row.monto}`)
+        .join("\n");
+
+      const descuentosTable = descuentosRows
+        .map((row) => `${row.concepto}\t${row.monto}`)
+        .join("\n");
+
+      // Títulos fijos para cada tabla
+      const haberesTableTitle = "HABERES";
+      const descuentosTableTitle = totalDescuentosTabla > 0 ? "DESCUENTOS" : "";
+
+      // Contexto para placeholders del Word
+      const managerObj =
+        managers.find((m) => m.id === selectedManager) || managers[0];
+
+      const getCausalDescription = (reason) => {
+        switch (reason) {
+          case "renuncia":
+            return '“Renuncia del trabajador” de conformidad con lo dispuesto en el artículo 159 inciso 2° del Código del Trabajo';
+          case "no_concurrencia":
+            return 'Art. 160 N° 3 del Código del Trabajo, esto es, "No concurrencia del trabajador a sus labores sin causa justificada".';
+          case "necesidades_empresa":
+          default:
+            return 'Art. 161 inciso 1° del Código del Trabajo, esto es, "Necesidades de la Empresa, Establecimiento o Servicio".';
+        }
+      };
+
+      const companyDetails = getCompanyDetails(employee?.nombre_empresa);
+
+      const wordContext = {
+        // Placeholders solicitados
+        fecha_hoy: formatDateWordsLong(new Date().toISOString().split("T")[0]),
+        empresa: employee?.nombre_empresa || "",
+        rut_empresa: companyDetails.rut,
+        nombre_trabajador: employee?.nombre_trabajador || "",
+        rut_trabajador: employee?.rut_trabajador || "",
+        direccion: (employee?.direccion || "").toUpperCase(),
+        comuna: (employee?.comuna || "").toUpperCase(),
+        active_since: formatDateWordsLong(employee?.fecha_ingreso || ""),
+        causal_despido: getCausalDescription(terminationReason),
+        sujeto_termino: terminationReason === "renuncia" ? "el trabajador" : "el empleador",
+        total_finiquito: fmtCurrency(totalSettlement),
+        total_finiquito_letras: numeroALetrasCLP(totalSettlement),
+        haberes_table: haberesTable,
+        haberes_rows: haberesRows,
+        haberes_title: haberesTableTitle,
+        total_haberes_tabla: fmtCurrency(totalHaberesTabla),
+        descuentos_title: descuentosTableTitle,
+        descuentos_table: descuentosTable,
+        descuentos_rows: descuentosRows,
+        total_descuentos_tabla: fmtCurrency(totalDescuentosTabla),
+        total_a_pagar_tabla: fmtCurrency(totalHaberesTabla - totalDescuentosTabla),
+
+        // Otros campos ya usados en distintas partes (compatibilidad)
+        nombre_trabajador: employee?.nombre_trabajador || "",
+        rut_trabajador: employee?.rut_trabajador || "",
+        direccion: employee?.direccion || "",
+        comuna: employee?.comuna || "",
+        cargo: employee?.cargo || "",
+        fecha_ingreso: employee?.fecha_ingreso || "",
+        fecha_salida: formatDateWordsLong(terminationDate || ""),
+        nombre_jefe: employee?.nombre_jefe || "",
+        nombre_empresa: employee?.nombre_empresa || "",
+        nombre_gerente: managerObj?.name || "",
+        cargo_gerente: managerObj?.title || "",
+        fecha_notaria: notaryDate || "",
+        mes_de_aviso: fmtCurrency(noticeIndemnity),
+        indemnizacion_anos_servicio: fmtCurrency(yearsIndemnity),
+        vacaciones_proporcionales: fmtCurrency(vacationIndemnity),
+        remuneracion_adeudada: fmtCurrency(liquidacionMesActualNum),
+        total_haberes: fmtCurrency(totalHaberes),
+        total_descuentos: fmtCurrency(totalDescuentos),
+        total_a_pagar: fmtCurrency(
+          (Number(noticeIndemnity) || 0) +
+            (Number(yearsIndemnity) || 0) +
+            (Number(vacationIndemnity) || 0) +
+            liquidacionMesActualNum -
+            (Number(totalDescuentos) || 0),
+        ),
+      };
+
+      // IMPORTANTE: la plantilla debe ser .docx para funcionar con docxtemplater
+      const empresaNombre = (employee?.nombre_empresa || "").toLowerCase();
+      const templateUrl = empresaNombre.includes("sabores")
+        ? "/Formato Renuncia Voluntaria Syf.docx"
+        : "/Formato Renuncia Voluntaria.docx";
+      const templateResponse = await fetch(
+        encodeURI(`${templateUrl}?v=${Date.now()}`),
+        { cache: "no-store" },
+      );
+      if (!templateResponse.ok) {
+        alert(
+          `No se pudo cargar la plantilla Word (${templateUrl}). Asegúrate de que exista en /public.`,
+        );
+        return;
+      }
+      const arrayBuffer = await templateResponse.arrayBuffer();
+      // Los .docx son ZIP; los .doc antiguos no. Si el archivo fue renombrado de .doc a .docx, falla aquí.
+      const bytes = new Uint8Array(arrayBuffer);
+      const isZip =
+        bytes.length >= 4 &&
+        bytes[0] === 0x50 &&
+        bytes[1] === 0x4b &&
+        (bytes[2] === 0x03 || bytes[2] === 0x05) &&
+        (bytes[3] === 0x04 || bytes[3] === 0x06);
+      if (!isZip) {
+        alert(
+          "La plantilla no parece ser un archivo .docx válido. Abre 'Formato Renuncia Voluntaria.doc' en Word y guárdala como 'Formato Renuncia Voluntaria.docx' (formato Word 2007+).",
+        );
+        return;
+      }
+      const zip = new PizZip(arrayBuffer);
+      const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+        nullGetter: () => "",
+        delimiters: { start: "{{", end: "}}" }, // La plantilla usa {{placeholder}}
+      });
+
+      doc.setData(wordContext);
+      doc.render();
+
+      const out = doc.getZip().generate({
+        type: "blob",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      const blobUrl = URL.createObjectURL(out);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `Finiquito_${employee?.rut_trabajador || "trabajador"}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Error al generar documento Word:", err);
+      if (err?.properties?.errors?.length) {
+        err.properties.errors.forEach((e, i) =>
+          console.error(`Docxtemplater error ${i + 1}:`, e),
+        );
+      }
+      const msg = err?.message || String(err);
+      alert(
+        `Ocurrió un error al generar el documento Word: ${msg}. Revisa la consola para más detalles.`,
+      );
+    }
   };
 
   return (
@@ -1027,6 +1968,9 @@ const CrearFiniquito = () => {
                 </option>
                 <option value="mutuo_acuerdo">
                   Art. 159 N°1 - Mutuo acuerdo
+                </option>
+                <option value="mutuo_acuerdo_especial">
+                  Mutuo acuerdo especial
                 </option>
                 <option value="no_concurrencia">
                   Art. 160 N°3 - No concurrencia injustificada
@@ -1168,9 +2112,33 @@ const CrearFiniquito = () => {
           </div>
         </div>
 
-        {/* Recent Licenses Table */}
+        {/* Recent Licenses Table (collapsible, shows all 15 from backend) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-          <div className="flex items-center gap-2 mb-6">
+          <div
+            className="flex items-center gap-2 mb-6 cursor-pointer select-none"
+            onClick={() => setLicenciasTableCollapsed((c) => !c)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setLicenciasTableCollapsed((c) => !c);
+              }
+            }}
+          >
+            <button
+              type="button"
+              className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLicenciasTableCollapsed((c) => !c);
+              }}
+              title={licenciasTableCollapsed ? "Expandir tabla" : "Colapsar tabla"}
+            >
+              <span className="material-symbols-outlined text-xl">
+                {licenciasTableCollapsed ? "expand_more" : "expand_less"}
+              </span>
+            </button>
             <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
               <span className="material-symbols-outlined">
                 medical_information
@@ -1180,10 +2148,40 @@ const CrearFiniquito = () => {
               Licencias recientes
             </h3>
             <span className="ml-auto px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-              Últimos 5 registros
+              {licencias.length} registro{licencias.length !== 1 ? "s" : ""}
             </span>
           </div>
 
+          {!licenciasTableCollapsed && (
+          <>
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Mostrar últimos</span>
+              <select
+                value={licenciasLimit}
+                onChange={(e) => setLicenciasLimit(Number(e.target.value))}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              >
+                {[5, 10, 15, 20, 30, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              <span className="text-gray-400">registros</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Orden</span>
+              <select
+                value={licenciasOrder}
+                onChange={(e) => setLicenciasOrder(e.target.value)}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              >
+                <option value="desc">Más recientes primero</option>
+                <option value="asc">Ascendente (más antiguas primero)</option>
+              </select>
+            </label>
+          </div>
           {licencias.length === 0 ? (
             <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
               <span className="material-symbols-outlined text-gray-300 text-4xl mb-2">
@@ -1197,9 +2195,9 @@ const CrearFiniquito = () => {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 bg-white shadow-sm z-10">
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">
                       Razón
@@ -1273,11 +2271,13 @@ const CrearFiniquito = () => {
               </table>
             </div>
           )}
+          </>
+          )}
         </div>
 
         {/* Review Variable Bonuses (Collapsed for now or simplified) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-          <div className="flex justify-between items-center cursor-pointer">
+          <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
                 <span className="material-symbols-outlined">payments</span>
@@ -1286,14 +2286,40 @@ const CrearFiniquito = () => {
                 Resumen remuneración variable
               </h3>
             </div>
-            <span className="material-symbols-outlined text-gray-400">
-              expand_less
-            </span>
+            <div className="flex items-center gap-3 text-sm text-gray-600">
+              <label className="flex items-center gap-2">
+                <span>Usar últimos</span>
+                <select
+                  value={itemsLimit}
+                  onChange={(e) => setItemsLimit(Number(e.target.value) || 15)}
+                  className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  {[6, 12, 15, 24, 36].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-gray-400">períodos</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setItemsRefreshToken((t) => t + 1)}
+                className="p-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+                title="Actualizar lista"
+              >
+                <span className="material-symbols-outlined text-gray-600">
+                  refresh
+                </span>
+              </button>
+            </div>
           </div>
           <div className="mt-6 space-y-4">
             <p className="text-sm text-gray-500 mb-4">
-              Selecciona los bonos de los últimos meses que serán incluídos en
-              el promedio de cálculo.
+              El promedio se calcula con los últimos 3 meses válidos por concepto
+              (sin licencia; se incluyen meses con valor 0). Los meses sin asignación se muestran con $0.
+              Los meses con licencia médica se deseleccionan por defecto.
             </p>
             {variableItems.length === 0 ? (
               <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
@@ -1308,48 +2334,34 @@ const CrearFiniquito = () => {
                 </p>
               </div>
             ) : (
-              // Group iterarion logic updated to handle custom additions
               (() => {
-                // 1. Prepare groups uniting fetched and custom items
-                const allGroups = variableItems.reduce((acc, item, idx) => {
-                  const key = item.concepto || "Sin Concepto";
-                  if (!acc[key]) acc[key] = [];
-                  acc[key].push({
-                    ...item,
-                    type: "fetched",
-                    originalIndex: idx,
-                  });
-                  return acc;
-                }, {});
-
-                // Merge custom additions into groups
-                Object.keys(variableCustomAdditions).forEach((key) => {
-                  if (!allGroups[key]) allGroups[key] = []; // Should usually exist, but just in case
-
-                  variableCustomAdditions[key].forEach((item, idx) => {
-                    allGroups[key].push({
-                      ...item,
-                      concepto: key,
-                      type: "custom",
-                      originalIndex: idx,
-                    });
-                  });
-                });
-
-                return Object.entries(allGroups).map(([concepto, items]) => {
-                  // Calculate stats for this group
-                  const activeItems = items.filter(
-                    (item) => item.active !== false,
-                  );
+                return Object.entries(expandedVariableGroups).map(([concepto, items]) => {
                   const allActive = items.every(
                     (item) => item.active !== false,
                   );
-                  const groupSum = activeItems.reduce(
+                  // Same as total: use up to 3 most recent valid months (no license; include filled with 0)
+                  const validItems = items.filter(
+                    (i) => i.active !== false && !i.hasLicense,
+                  );
+                  const sortedValid = [...validItems].sort((a, b) => {
+                    const pa = getItemPeriodForSort(a);
+                    const pb = getItemPeriodForSort(b);
+                    if (!pa || !pb) return 0;
+                    if (pa.year !== pb.year) return pb.year - pa.year;
+                    return pb.month - pa.month;
+                  });
+                  const toUse = sortedValid.slice(
+                    0,
+                    VALID_VARIABLE_MONTHS_REQUIRED,
+                  );
+                  const groupSum = toUse.reduce(
                     (sum, item) => sum + (parseFloat(item.monto) || 0),
                     0,
                   );
                   const groupAverage =
-                    activeItems.length > 0 ? groupSum / activeItems.length : 0;
+                    toUse.length > 0 ? groupSum / toUse.length : 0;
+
+                  const isCollapsed = variableGroupsCollapsed[concepto];
 
                   return (
                     <div
@@ -1357,8 +2369,25 @@ const CrearFiniquito = () => {
                       className="border border-gray-200 rounded-lg overflow-hidden mb-3"
                     >
                       {/* Header del grupo */}
-                      <div className="flex items-center justify-between p-4 bg-gray-100 border-b border-gray-200">
+                      <div
+                        className={`flex items-center justify-between p-4 bg-gray-100 ${isCollapsed ? "" : "border-b border-gray-200"}`}
+                      >
                         <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            className="p-0.5 rounded hover:bg-gray-200 transition-colors text-gray-500 hover:text-gray-700"
+                            onClick={() =>
+                              setVariableGroupsCollapsed((prev) => ({
+                                ...prev,
+                                [concepto]: !prev[concepto],
+                              }))
+                            }
+                            title={isCollapsed ? "Expandir listado" : "Colapsar listado"}
+                          >
+                            <span className="material-symbols-outlined text-xl">
+                              {isCollapsed ? "expand_more" : "expand_less"}
+                            </span>
+                          </button>
                           {/* Group Toggle */}
                           <div
                             className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${allActive ? "bg-blue-600" : "bg-gray-300"}`}
@@ -1388,14 +2417,14 @@ const CrearFiniquito = () => {
                                 setVariableCustomAdditions(newCustomAdditions);
                               }
 
-                              // Recalculate Total
-                              const newTotal = calculateTotalVariableBonus(
-                                newVariableItems,
-                                newCustomAdditions[concepto]
-                                  ? newCustomAdditions
-                                  : variableCustomAdditions,
-                              );
-                              setVariableBonus(newTotal);
+                              // Update filled items for this concept
+                              const newFilled = { ...variableFilledActive };
+                              items.forEach((item) => {
+                                if (item.type === "filled" && item.filledKey) {
+                                  newFilled[item.filledKey] = newState;
+                                }
+                              });
+                              setVariableFilledActive(newFilled);
                             }}
                           >
                             <div
@@ -1407,7 +2436,7 @@ const CrearFiniquito = () => {
                               {concepto}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {items.length} registro(s) • Promedio: ${" "}
+                              {items.length} registro(s) • Promedio ({toUse.length} de {VALID_VARIABLE_MONTHS_REQUIRED} meses válidos): ${" "}
                               {Math.round(groupAverage).toLocaleString("es-CL")}
                             </p>
                           </div>
@@ -1623,12 +2652,13 @@ const CrearFiniquito = () => {
                         </div>
                       </div>
 
-                      {/* Items del grupo */}
+                      {/* Items del grupo (colapsable) */}
+                      {!isCollapsed && (
                       <div className="divide-y divide-gray-100">
                         {items.map((bonus, idx) => (
                           <div
-                            key={idx}
-                            className={`flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors ${bonus.type === "custom" ? "bg-blue-50/30" : ""}`}
+                            key={bonus.type === "filled" ? bonus.filledKey : idx}
+                            className={`flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors ${bonus.type === "custom" ? "bg-blue-50/30" : ""} ${bonus.type === "filled" ? "bg-gray-50/50" : ""}`}
                           >
                             <div className="flex items-center gap-2">
                               {bonus.type === "custom" && (
@@ -1637,6 +2667,22 @@ const CrearFiniquito = () => {
                                   title="Item Manual"
                                 >
                                   edit_note
+                                </span>
+                              )}
+                              {bonus.type === "filled" && (
+                                <span
+                                  className="material-symbols-outlined text-xs text-gray-400"
+                                  title="Mes sin asignación"
+                                >
+                                  remove_circle_outline
+                                </span>
+                              )}
+                              {bonus.hasLicense && (
+                                <span
+                                  className="material-symbols-outlined text-xs text-amber-600"
+                                  title="Mes con licencia médica"
+                                >
+                                  medical_services
                                 </span>
                               )}
                               <div>
@@ -1648,6 +2694,11 @@ const CrearFiniquito = () => {
                                 {bonus.type === "custom" && (
                                   <p className="text-xs text-gray-400">
                                     Manual
+                                  </p>
+                                )}
+                                {bonus.type === "filled" && (
+                                  <p className="text-xs text-gray-400">
+                                    Sin asignación
                                   </p>
                                 )}
                               </div>
@@ -1663,19 +2714,18 @@ const CrearFiniquito = () => {
                               <div
                                 className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${bonus.active !== false ? "bg-blue-600" : "bg-gray-300"}`}
                                 onClick={() => {
-                                  // Handle toggle based on type
                                   if (bonus.type === "fetched") {
                                     const newItems = [...variableItems];
                                     newItems[bonus.originalIndex].active =
                                       !newItems[bonus.originalIndex].active;
                                     setVariableItems(newItems);
-                                    const total = calculateTotalVariableBonus(
-                                      newItems,
-                                      variableCustomAdditions,
-                                    );
-                                    setVariableBonus(total);
+                                  } else if (bonus.type === "filled") {
+                                    setVariableFilledActive((prev) => ({
+                                      ...prev,
+                                      [bonus.filledKey]:
+                                        !bonus.active,
+                                    }));
                                   } else {
-                                    // Custom item
                                     const newCustomAdditions = {
                                       ...variableCustomAdditions,
                                     };
@@ -1690,11 +2740,6 @@ const CrearFiniquito = () => {
                                     setVariableCustomAdditions(
                                       newCustomAdditions,
                                     );
-                                    const total = calculateTotalVariableBonus(
-                                      variableItems,
-                                      newCustomAdditions,
-                                    );
-                                    setVariableBonus(total);
                                   }
                                 }}
                               >
@@ -1738,6 +2783,7 @@ const CrearFiniquito = () => {
                           </div>
                         ))}
                       </div>
+                      )}
                     </div>
                   );
                 });
@@ -1920,7 +2966,7 @@ const CrearFiniquito = () => {
                   : 0}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                Redondeado hacia arriba &gt; 6 meses
+                Redondeado hacia arriba si &gt; 6 meses y 1 día
               </p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
@@ -1981,7 +3027,11 @@ const CrearFiniquito = () => {
                 años)
               </span>
               <span className="font-mono font-medium">
-                $ {Math.round(yearsIndemnity).toLocaleString("es-CL")}
+                $ {Math.round(
+                  terminationReason === "mutuo_acuerdo"
+                    ? yearsIndemnity - aporteCesantiaNum
+                    : yearsIndemnity
+                ).toLocaleString("es-CL")}
               </span>
             </div>
             {terminationReason === "mutuo_acuerdo" && averageSalary > 0 && (
@@ -2115,9 +3165,8 @@ const CrearFiniquito = () => {
                     >
                       <option value="">Tipo...</option>
                       <option value="Préstamo Interno">Préstamo Interno</option>
-                      <option value="Descuento por planilla">
-                        Descuento por planilla
-                      </option>
+                      <option value="Descuento por planilla">Descuento por planilla</option>
+                      <option value="Diferencia Remuneración del Mes en Curso">Diferencia Remuneración del Mes en Curso</option>
                     </select>
                     {desc.detalle && (
                       <span
@@ -2261,14 +3310,21 @@ const CrearFiniquito = () => {
             onClick={() => navigate("/finiquitos")}
             className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
           >
-            CANCEL
+            CANCELAR
+          </button>
+          <button
+            onClick={handleDownloadWord}
+            className="px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors shadow-md flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined">description</span>
+            DESCARGAR FINIQUITO
           </button>
           <button
             onClick={handleGenerate}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2"
           >
             <span className="material-symbols-outlined">description</span>
-            GENERAR DOCUMENTO
+            GENERAR CARTA
           </button>
         </div>
       </main>

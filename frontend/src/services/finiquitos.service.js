@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/v1/finiquitos";
+const API_URL = "/api/v1/finiquitos";
 
 const FiniquitosService = {
   getTrabajadoresGeneral: async () => {
@@ -8,8 +8,10 @@ const FiniquitosService = {
     return response.data;
   },
 
-  getItemsByRut: async (rut) => {
-    const response = await axios.get(`${API_URL}/${rut}`);
+  getItemsByRut: async (rut, limit = 15) => {
+    const response = await axios.get(`${API_URL}/${rut}`, {
+      params: { limit },
+    });
     return response.data;
   },
 

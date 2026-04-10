@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/v1/employees";
+const API_URL = "/api/v1/employees";
 
 const EmployeesService = {
   getVacationsAvailable: async (rut, date = null) => {
@@ -22,22 +22,28 @@ const EmployeesService = {
     return response.data;
   },
 
-  getSalaryHistory: async (rut, months = 48) => {
+  getSalaryHistory: async (rut, terminationDate) => {
     // 1. Clean RUT (remove dots and hyphens)
     const cleanRut = rut.replace(/\./g, "").replace(/-/g, "").trim();
-    
-    // 2. Calculate Start Date (DD-MM-YYYY)
-    const date = new Date();
-    date.setMonth(date.getMonth() - months);
-    
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    const startObj = `${day}-${month}-${year}`;
 
-    // 3. Call API with start param
+    // 2. Convert termination date (YYYY-MM-DD) to DD-MM-YYYY for the backend
+    // The backend uses this date to anchor the 48-month window
+    let startParam = "";
+    if (terminationDate) {
+      const [year, month, day] = terminationDate.split("-");
+      startParam = `${day}-${month}-${year}`; // DD-MM-YYYY
+    } else {
+      // Fallback: use today's date
+      const today = new Date();
+      const day = String(today.getDate()).padStart(2, "0");
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const year = today.getFullYear();
+      startParam = `${day}-${month}-${year}`;
+    }
+
+    // 3. Call API - the backend computes the 48-month window from this date
     const response = await axios.get(`${API_URL}/${cleanRut}/salary-history`, {
-      params: { start: startObj }
+      params: { start: startParam }
     });
     return response.data;
   },

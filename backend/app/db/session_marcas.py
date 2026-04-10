@@ -1,18 +1,19 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.core.config import get_marcas_database_url
+from app.core.config import get_marcas_database_url, settings
 from app.core.logging_config import logger
 
 # Obtenemos la URL de la BD de Marcas
 MARCAS_DATABASE_URL = get_marcas_database_url()
 
-# Log de la URL (ocultando password)
-url_safe = MARCAS_DATABASE_URL.replace(MARCAS_DATABASE_URL.split(':')[2].split('@')[0], '****')
-logger.info(f"URL de conexión Marcas: {url_safe}")
-
 try:
-    # Motor de base de datos para Marcas
-    marcas_engine = create_engine(MARCAS_DATABASE_URL, pool_pre_ping=True)
+    # Motor de base de datos para Marcas (pool reducido: se usa menos que la BD principal)
+    marcas_engine = create_engine(
+        MARCAS_DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=settings.MARCAS_DB_POOL_SIZE,
+        max_overflow=settings.MARCAS_DB_MAX_OVERFLOW,
+    )
     logger.info("Engine de Marcas creado correctamente")
     
     # Fábrica de sesiones para Marcas

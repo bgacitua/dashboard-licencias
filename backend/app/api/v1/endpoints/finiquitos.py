@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
@@ -19,16 +19,20 @@ def read_general_finiquitos(db: Session = Depends(get_db)):
     return service.get_trabajadores_general()
 
 @router.get("/{rut}", response_model=List[FiniquitoItemResponse]) 
-def read_rut_finiquitos(rut: str, db: Session = Depends(get_db)):
-    """Obtiene la información del trabajador."""
+def read_rut_finiquitos(
+    rut: str,
+    limit: int = Query(15, ge=1, le=60),
+    db: Session = Depends(get_db),
+):
+    """Obtiene la información del trabajador (incluye parámetro `limit`)."""
     service = FiniquitosService(db)
-    return service.get_item_by_rut(rut)
+    return service.get_item_by_rut(rut, limit=limit)
 
-@router.get("/{rut}/variable", response_model=List[FiniquitoItemResponse])
-def read_rut_finiquitos_variable(rut: str, variable: str, db: Session = Depends(get_db)):
-    """Obtiene la información de remuneración variable de los trabajadores."""
-    service = FiniquitosService(db)
-    return service.get_item_variable_by_rut(rut, variable)
+# @router.get("/{rut}/variable", response_model=List[FiniquitoItemResponse])
+# def read_rut_finiquitos_variable(rut: str, variable: str, db: Session = Depends(get_db)):
+#     """Obtiene la información de remuneración variable de los trabajadores."""
+#     service = FiniquitosService(db)
+#     return service.get_item_variable_by_rut(rut, variable)
 
 @router.get("/meses-anteriores", response_model=List[FiniquitoItemResponse])
 def read_tres_meses_finiquitos(db: Session = Depends(get_db)):

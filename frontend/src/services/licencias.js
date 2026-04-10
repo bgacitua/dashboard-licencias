@@ -2,7 +2,7 @@ import axios from "axios";
 
 // URL base de tu API (FastAPI)
 // En desarrollo es localhost, en producción será la IP de tu servidor Linux
-const API_URL = "http://localhost:8000/api/v1";
+const API_URL = "/api/v1";
 
 export const getLicencias = async () => {
   try {
@@ -14,9 +14,19 @@ export const getLicencias = async () => {
   }
 };
 
-export const getLicenciasByRut = async (rut) => {
+/**
+ * @param {string} rut - RUT del empleado
+ * @param {{ limit?: number, order?: 'asc'|'desc' }} [opts] - limit: 1-100 (default 15), order: 'asc' | 'desc' (default 'desc')
+ */
+export const getLicenciasByRut = async (rut, opts = {}) => {
   try {
-    const response = await axios.get(`${API_URL}/licencias/rut/${rut}`);
+    const { limit = 15, order = "desc" } = opts;
+    const params = new URLSearchParams();
+    if (limit != null) params.set("limit", String(limit));
+    if (order) params.set("order", order);
+    const qs = params.toString();
+    const url = `${API_URL}/licencias/rut/${rut}${qs ? `?${qs}` : ""}`;
+    const response = await axios.get(url);
     return response.data;
   } catch (error) {
     console.error("Error al obtener licencias por RUT:", error);

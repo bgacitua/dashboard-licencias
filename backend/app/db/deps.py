@@ -14,14 +14,13 @@ def get_db() -> Generator[Session, None, None]:
 
 def get_marcas_db() -> Generator[Session, None, None]:
     """Dependencia para obtener sesión de BD de Marcas en cada petición."""
-    logger.info("Creando sesión de Marcas DB...")
+    db = None
     try:
         db = MarcasSessionLocal()
-        logger.info(f"Sesión de Marcas creada: {db}")
         yield db
     except Exception as e:
-        logger.error(f"Error al crear sesión de Marcas: {type(e).__name__}: {str(e)}")
+        logger.error(f"Error sesión Marcas: {type(e).__name__}: {str(e)}")
         raise
     finally:
-        db.close()
-        logger.info("Sesión de Marcas cerrada")
+        if db is not None:
+            db.close()

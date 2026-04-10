@@ -25,9 +25,9 @@ class FiniquitosService:
         logger.info("Obteniendo general de trabajadores")
         return self.repository.get_trabajadores_general()
 
-    def get_item_by_rut(self, rut: str) -> List[FiniquitoItemResponse]:
-        logger.info(f"Obteniendo items de sueldo por rut: {rut}")
-        return self.repository.get_item_by_rut(rut)
+    def get_item_by_rut(self, rut: str, limit: int = 15) -> List[FiniquitoItemResponse]:
+        logger.info(f"Obteniendo items de sueldo por rut: {rut} (limit={limit})")
+        return self.repository.get_item_by_rut(rut, limit=limit)
 
     # def get_item_variable_by_rut(self, rut: str, variable: str) -> List[FiniquitoItemResponse]:
     #     logger.info(f"Obteniendo items variables por rut: {rut}, variable: {variable}")
@@ -253,205 +253,329 @@ class FiniquitosService:
         except httpx.RequestError as e:
             logger.error(f"Error de conexión al consultar descuentos para rut {rut}: {str(e)}")
             raise Exception(f"Error de conexión con API de descuentos: {str(e)}")
+        except Exception as e:
             logger.error(f"Error inesperado al consultar descuentos para rut {rut}: {str(e)}")
             raise Exception(f"Error inesperado: {str(e)}")
 
     async def get_salary_history(self, rut: str, start_date_str: str) -> List[Dict[str, Any]]:
         """
-        Obtiene el historial de sueldos (últimos N meses) desde BUK.
-        Usa /payroll_detail?start={fecha} para filtrar.
-        
-        Para periodos donde worked_days < 30 (licencias, permisos, etc.),
-        se sustituye el sueldo base por el del mes anterior o siguiente
-        que tenga worked_days >= 30, obteniendo así el sueldo base teórico.
-        
+        Obtiene el historial de sueldos (últimos 48 meses) desde BUK.
+
+        Lógica:
+        1. Genera los 48 períodos esperados hacia atrás desde el mes anterior
+           a la fecha de salida (start_date_str en formato DD-MM-YYYY).
+        2. Descarga todos los payroll_detail paginados y extrae el Sueldo Base
+           de cada liquidación (solo periodos con sueldo base > 0).
+        3. Para liquidaciones con worked_days < 30 (licencias/permisos sin sueldo),
+           sustituye el monto por el del mes anterior si coincide, o el del mes
+           siguiente en caso contrario.
+        4. Rellena los períodos ausentes de la ventana de 48 meses con el mismo
+           criterio: mes anterior si coincide, mes posterior si no.
+        5. Devuelve los 48 períodos en orden descendente.
+
         Args:
-            rut: RUT del trabajador (se limpia internamente)
-            start_date_str: Fecha de inicio (DD-MM-YYYY)
-            
+            rut: RUT del trabajador (ya debe llegar limpio).
+            start_date_str: Fecha de inicio (DD-MM-YYYY) — primer mes que NO se
+                            debe incluir (i.e., mes de salida).
         Returns:
-            Lista de objetos con periodo, monto, sort_date y worked_days
+            Lista de exactamente 48 dicts con period, amount, sort_date, worked_days.
         """
+        from datetime import date, timedelta
+        import calendar
+
         logger.info(f"Consultando historial de sueldos para rut: {rut}, desde: {start_date_str}")
-        
-        # 1. Usar fecha recibida (DD-MM-YYYY)
-        # start_date_str viene listo del frontend
-        
-        # Limpiar RUT (sin puntos ni guión)
-        rut_clean = rut.replace(".","").replace("-", "").strip()
-        
+
+        rut_clean = rut.replace(".", "").replace("-", "").strip()
+
         if not settings.BUK_API_KEY:
             logger.error("CRITICAL: BUK_API_KEY no está configurada.")
 
-        # 2. Construir URL
-        # Endpoint: /employees/{id}/payroll_detail?start=DD-MM-YYYY
-        url = f"{settings.BUK_API_BASE_URL}/employees/{rut_clean}/payroll_detail?start={start_date_str}"
-        
+        # --- 1. Determinar el mes de inicio de la ventana de 48 meses ---
+        # start_date_str es DD-MM-YYYY (fecha de salida / término).
+        # El primer período incluido es el mes ANTERIOR a esa fecha.
+        try:
+            d, m, y = [int(x) for x in start_date_str.split("-")]
+            exit_date = date(y, m, d)
+        except Exception:
+            logger.warning(f"No se pudo parsear start_date_str='{start_date_str}', usando hoy.")
+            exit_date = date.today()
+
+        # Mes anterior al de salida (último mes a incluir en el historial)
+        first_month = exit_date.replace(day=1)
+        last_included = (first_month - timedelta(days=1)).replace(day=1)  # mes anterior
+
+        # Generar los 48 sort_date esperados en orden ASCENDENTE: más antiguo primero
+        expected_months: List[str] = []
+        cur = last_included
+        for _ in range(48):
+            expected_months.append(f"{cur.year}-{cur.month:02d}")
+            # Retroceder un mes
+            if cur.month == 1:
+                cur = cur.replace(year=cur.year - 1, month=12)
+            else:
+                cur = cur.replace(month=cur.month - 1)
+        expected_months.reverse()  # ahora: más antiguo → más reciente
+
+        # --- 2. Construir URL de BUK ---
+        # BUK interpreta ?start= como "devolver liquidaciones DESDE esta fecha en adelante".
+        # Calculamos la fecha del mes más antiguo de la ventana de 48 meses:
+        #   oldest = last_included retrocedido 47 meses (para tener 48 meses en total,
+        #   incluyendo last_included).
+        oldest = last_included
+        for _ in range(47):
+            if oldest.month == 1:
+                oldest = oldest.replace(year=oldest.year - 1, month=12)
+            else:
+                oldest = oldest.replace(month=oldest.month - 1)
+
+        buk_start = f"01-{oldest.month:02d}-{oldest.year}"  # DD-MM-YYYY para BUK
+        logger.info(
+            f"Ventana de 48 meses: {oldest.year}-{oldest.month:02d} -> "
+            f"{last_included.year}-{last_included.month:02d} | BUK start={buk_start}"
+        )
+
+        url = (
+            f"{settings.BUK_API_BASE_URL}/employees/{rut_clean}/payroll_detail"
+            f"?start={buk_start}"
+        )
         headers = {
             "auth_token": settings.BUK_API_KEY,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
-        
+
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                
-                raw_history = []
+
+                raw_records: Dict[str, Dict] = {}  # sort_date -> {amount, worked_days}
                 page = 1
-                has_more_pages = True
-                is_first_settlement = True
-                
-                # Loop for pagination
-                while has_more_pages and page <= 10: # Safety limit of 10 pages (~200 records usually)
-                    # Append page param
+                is_first = True
+
+                while page <= 10:
                     paged_url = f"{url}&page={page}"
-                    
-                    logger.info(f"Consultando página {page} de historial: {paged_url}")
+                    logger.info(f"Consultando página {page}: {paged_url}")
                     response = await client.get(paged_url, headers=headers)
                     response.raise_for_status()
-                    
                     data = response.json()
-                    
-                    # Estructura típica BUK: 
-                    # { "data": [ ... ], "pagination": { "total_pages": X, "page": Y ... } }
-                    
+
                     payload = data.get("data", [])
                     pagination = data.get("pagination", {})
-                    
+
                     if not payload:
-                        has_more_pages = False
                         break
-                        
-                    # Procesar liquidaciones de esta página
+
                     for settlement in payload:
-                        # Extract month and year from data
                         month = settlement.get("month")
                         year = settlement.get("year")
-                        
-                        # Extract worked_days from settlement level
                         worked_days = settlement.get("worked_days", 30)
                         try:
                             worked_days = int(worked_days) if worked_days is not None else 30
                         except (ValueError, TypeError):
                             worked_days = 30
-                        
-                        # Fallback if month/year are missing, though BUK usually sends them
+
                         if not month or not year:
-                            # Try to parse from 'period' field "YYYY-MM-DD"
                             raw_period = settlement.get("period", "")
                             if raw_period:
                                 try:
                                     parts = raw_period.split("-")
                                     year = int(parts[0])
                                     month = int(parts[1])
-                                except:
-                                    pass
-                        
-                        # Construct Display Period (e.g., "MM-YYYY")
-                        display_period = ""
-                        sort_date = ""
-                        
-                        if month and year:
-                            # Ensure ints
-                            try:
-                                month = int(month)
-                                year = int(year)
-                                display_period = f"{month:02d}-{year}"
-                                sort_date = f"{year}-{month:02d}"
-                            except:
-                                display_period = settlement.get("period", "")
-                                sort_date = display_period
-                        else:
-                             display_period = settlement.get("period", "")
-                             sort_date = display_period
+                                except Exception:
+                                    continue
 
-                        
-                        # Buscar "Sueldo Base" en lines_settlement
-                        # Estructura: settlement -> "lines_settlement" -> [ { "type": "haber", "income_type": "remuneracion_fija", "name": "Sueldo Base", "amount": X } ]
+                        try:
+                            month = int(month)
+                            year = int(year)
+                        except (ValueError, TypeError):
+                            continue
+
+                        sort_date = f"{year}-{month:02d}"
+                        display_period = f"{month:02d}-{year}"
+
+                        # Extraer Sueldo Base
                         lines = settlement.get("lines_settlement", [])
                         base_salary = 0
-                        
-                        # Debug log for first item to see structure
-                        if is_first_settlement:
-                             logger.info(f"Sample First Settlement: worked_days={worked_days}, lines={lines[:2]}")
-                             is_first_settlement = False
+
+                        if is_first:
+                            logger.info(f"Sample First Settlement: worked_days={worked_days}, lines={lines[:2]}")
+                            is_first = False
 
                         for line in lines:
-                            # Verificar tipo y nombre
                             l_type = str(line.get("type", "")).lower()
                             l_name = str(line.get("name", "")).lower()
                             l_income_type = str(line.get("income_type", "")).lower()
                             l_amount = line.get("amount", 0)
-                            
-                            # Log potential candidates to see strictly what we are missing
-                            if "sueldo" in l_name:
-                                logger.info(f"Candidate Line: name='{l_name}', type='{l_type}', income_type='{l_income_type}', amount={l_amount}")
 
-                            # Strict check as requested: type="haber", income_type="remuneracion_fija", name matches "sueldo base"
-                            if l_type == "haber" and l_income_type == "remuneracion_fija" and "sueldo base" in l_name:
+                            if "sueldo" in l_name:
+                                logger.info(
+                                    f"Candidate: name='{l_name}', type='{l_type}', "
+                                    f"income_type='{l_income_type}', amount={l_amount}"
+                                )
+
+                            if (
+                                l_type == "haber"
+                                and l_income_type == "remuneracion_fija"
+                                and "sueldo base" in l_name
+                            ):
                                 base_salary = l_amount
                                 break
-                        
+
                         if base_salary > 0:
-                            raw_history.append({
+                            raw_records[sort_date] = {
                                 "period": display_period,
                                 "amount": base_salary,
                                 "sort_date": sort_date,
-                                "worked_days": worked_days
-                            })
-                        elif display_period:
-                             logger.warning(f"No Base Salary found for period {display_period}")
-                    
-                    # Check pagination info to continue or stop
+                                "worked_days": worked_days,
+                            }
+                        else:
+                            logger.warning(f"No Base Salary found for period {display_period}")
+
                     total_pages = pagination.get("total_pages", 1)
                     if page >= total_pages:
-                        has_more_pages = False
-                    else:
-                        page += 1
-                
-                # --- Post-procesamiento: Sueldo Base Teórico ---
-                # Ordenar cronológicamente (ascendente) para buscar mes anterior/siguiente
-                raw_history.sort(key=lambda x: x.get("sort_date", ""))
-                
-                # Sustituir sueldo base donde worked_days < 30
-                for i, item in enumerate(raw_history):
+                        break
+                    page += 1
+
+                # --- 3. Filtrar registros fuera de la ventana de 48 meses ---
+                expected_set = set(expected_months)
+                for k in list(raw_records.keys()):
+                    if k not in expected_set:
+                        logger.info(f"[filtro] Descartando período fuera de ventana: {k}")
+                        del raw_records[k]
+
+                # --- 4. Sustituir worked_days < 30 en los registros recuperados ---
+                # Regla de usuario:
+                # - Para los meses 01–06 (primer semestre del año) y 07–12 (segundo semestre),
+                #   el sueldo base de un mes con menos de 30 días trabajados debe
+                #   aproximarse usando preferentemente los meses POSTERIORES dentro
+                #   del mismo semestre (ej: licencia en enero toma sueldo de febreromarzo, etc.).
+                # - Solo si no existe referencia posterior válida en el mismo semestre
+                #   intentamos usar una referencia anterior del mismo semestre.
+                #
+                # Trabajamos sobre la lista ordenada ASCENDENTE (más antiguo primero).
+                sorted_keys = sorted(raw_records.keys())
+
+                def _half_from_month(month: int) -> int:
+                    """Devuelve 1 para meses 1-6 y 2 para meses 7-12."""
+                    return 1 if month <= 6 else 2
+
+                for idx, key in enumerate(sorted_keys):
+                    item = raw_records[key]
                     if item["worked_days"] < 30:
-                        original_amount = item["amount"]
+                        original = item["amount"]
                         replaced = False
-                        
-                        # Intentar mes anterior (i - 1)
-                        if i > 0 and raw_history[i - 1]["worked_days"] >= 30:
-                            item["amount"] = raw_history[i - 1]["amount"]
-                            replaced = True
-                            logger.info(
-                                f"Sueldo Base Teórico: Periodo {item['period']} "
-                                f"(worked_days={item['worked_days']}) -> "
-                                f"Usando sueldo del mes anterior {raw_history[i - 1]['period']}: "
-                                f"${original_amount:,} -> ${item['amount']:,}"
-                            )
-                        # Si no, intentar mes siguiente (i + 1)
-                        elif i < len(raw_history) - 1 and raw_history[i + 1]["worked_days"] >= 30:
-                            item["amount"] = raw_history[i + 1]["amount"]
-                            replaced = True
-                            logger.info(
-                                f"Sueldo Base Teórico: Periodo {item['period']} "
-                                f"(worked_days={item['worked_days']}) -> "
-                                f"Usando sueldo del mes siguiente {raw_history[i + 1]['period']}: "
-                                f"${original_amount:,} -> ${item['amount']:,}"
-                            )
-                        
+
+                        # Determinar año/mes y semestre del período actual
+                        cur_year, cur_month = map(int, key.split("-"))
+                        cur_half = _half_from_month(cur_month)
+
+                        # 4.a) Intentar con meses POSTERIORES del mismo semestre (preferencia usuario)
+                        for j in range(idx + 1, len(sorted_keys)):
+                            cand_key = sorted_keys[j]
+                            cy, cm = map(int, cand_key.split("-"))
+                            if _half_from_month(cm) != cur_half:
+                                # Saltar cuando cambia de semestre
+                                continue
+                            cand_item = raw_records[cand_key]
+                            if cand_item["worked_days"] >= 30:
+                                item["amount"] = cand_item["amount"]
+                                replaced = True
+                                logger.info(
+                                    f"[worked_days<30] {key}: ${original:,} → "
+                                    f"${item['amount']:,} (del mes posterior {cand_key} dentro del mismo semestre)"
+                                )
+                                break
+
+                        # 4.b) Si no hay posterior válido, intentar con meses ANTERIORES del mismo semestre
+                        if not replaced:
+                            for j in range(idx - 1, -1, -1):
+                                cand_key = sorted_keys[j]
+                                cy, cm = map(int, cand_key.split("-"))
+                                if _half_from_month(cm) != cur_half:
+                                    continue
+                                cand_item = raw_records[cand_key]
+                                if cand_item["worked_days"] >= 30:
+                                    item["amount"] = cand_item["amount"]
+                                    replaced = True
+                                    logger.info(
+                                        f"[worked_days<30] {key}: ${original:,} → "
+                                        f"${item['amount']:,} (del mes anterior {cand_key} dentro del mismo semestre)"
+                                    )
+                                    break
+
                         if not replaced:
                             logger.warning(
-                                f"Sueldo Base Teórico: Periodo {item['period']} "
-                                f"(worked_days={item['worked_days']}) -> "
-                                f"No se encontró mes adyacente con >= 30 días. "
-                                f"Manteniendo valor original ${original_amount:,}"
+                                f"[worked_days<30] {key}: sin mes adyacente con >=30 días. "
+                                f"Manteniendo ${original:,}"
                             )
-                
-                # Ordenar por fecha descendente (lo más reciente primero)
-                raw_history.sort(key=lambda x: x.get("sort_date", ""), reverse=True)
-                
-                return raw_history
-                
+
+                # --- 5. Usar ventana de 48 meses y rellenar huecos ---
+                # Para cada mes esperado busca en raw_records; si falta, rellena
+                # con el mismo criterio de semestres:
+                #   - Preferir un mes POSTERIOR dentro del mismo semestre con dato.
+                #   - Si no existe, usar un mes ANTERIOR del mismo semestre.
+                filled: List[Dict] = []
+                for i, sort_date in enumerate(expected_months):
+                    m_num = int(sort_date.split("-")[1])
+                    y_num = int(sort_date.split("-")[0])
+                    display = f"{m_num:02d}-{y_num}"
+                    cur_half = _half_from_month(m_num)
+
+                    if sort_date in raw_records:
+                        filled.append(raw_records[sort_date].copy())
+                    else:
+                        # Período ausente (licencia sin sueldo, ej. sueldo=0)
+                        # Buscar valor de referencia:
+                        #   1) posterior del mismo semestre
+                        #   2) anterior del mismo semestre
+                        ref_amount = None
+
+                        # 5.a) Buscar el mes POSTERIOR más próximo del mismo semestre que sí exista
+                        for j in range(i + 1, len(expected_months)):
+                            candidate = expected_months[j]
+                            cy, cm = map(int, candidate.split("-"))
+                            if _half_from_month(cm) != cur_half:
+                                continue
+                            if candidate in raw_records:
+                                ref_amount = raw_records[candidate]["amount"]
+                                logger.info(
+                                    f"[gap] {sort_date}: rellenado con posterior {candidate} "
+                                    f"(${ref_amount:,}) dentro del mismo semestre"
+                                )
+                                break
+
+                        # 5.b) Si no hay posterior, buscar el mes ANTERIOR más próximo del mismo semestre
+                        if ref_amount is None:
+                            for j in range(i - 1, -1, -1):
+                                candidate = expected_months[j]
+                                cy, cm = map(int, candidate.split("-"))
+                                if _half_from_month(cm) != cur_half:
+                                    continue
+                                if candidate in raw_records:
+                                    prev_amt = raw_records[candidate]["amount"]
+                                    ref_amount = prev_amt
+                                    logger.info(
+                                        f"[gap] {sort_date}: rellenado con anterior {candidate} "
+                                        f"(${prev_amt:,}) dentro del mismo semestre"
+                                    )
+                                    break
+
+                        if ref_amount is None:
+                            logger.warning(f"[gap] {sort_date}: sin referencia disponible, se usa 0")
+                            ref_amount = 0
+
+                        filled.append({
+                            "period": display,
+                            "amount": ref_amount,
+                            "sort_date": sort_date,
+                            "worked_days": 0,  # marcado como rellenado
+                            "filled": True,     # flag informativo
+                        })
+
+                # --- 6. Ordenar descendente (más reciente primero) y devolver ---
+                filled.sort(key=lambda x: x["sort_date"], reverse=True)
+                logger.info(f"Historial final: {len(filled)} períodos devueltos para rut {rut}")
+                return filled
+
         except Exception as e:
             logger.error(f"Error al obtener historial de sueldos: {str(e)}")
             raise Exception(f"Error al consultar historial: {str(e)}")
+
