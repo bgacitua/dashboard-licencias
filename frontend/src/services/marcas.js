@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+const API_BASE_URL = '/api/v1';
 
 export const getMarcas = async (params = {}) => {
     const { limit = 100, offset = 0, fechaInicio, fechaFin, nombre, rut, reloj, tipoMarca } = params;

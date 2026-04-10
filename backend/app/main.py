@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware 
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.exceptions import generic_exception_handler
 from app.core.logging_config import logger
@@ -20,15 +20,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Handler global de excepciones
 app.add_exception_handler(Exception, generic_exception_handler)
 
-# Configuración de CORS (Permitir que el frontend hable con el backend)
-origins = [
-    "http://localhost:5173", # Puerto por defecto de Vite (React)
-    "http://localhost:3000",
-    "http://localhost",
-]
+origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,9 +32,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def root():
     return {"mensaje": "Bienvenido al Dashboard de Licencias API"}
 
-# Incluir todas las rutas definidas en api/v1
+
 app.include_router(api_router, prefix="/api/v1")

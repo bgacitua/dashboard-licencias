@@ -2,7 +2,7 @@ import axios from "axios";
 
 // URL base de tu API (FastAPI)
 // En desarrollo es localhost, en producción será la IP de tu servidor Linux
-const API_URL = "http://localhost:8000/api/v1";
+const API_URL = "/api/v1";
 
 export const getLicencias = async () => {
   try {

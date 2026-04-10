@@ -6,50 +6,40 @@ from app.core.logging_config import logger
 
 
 class ContractAlertsRepository:
-    """Repositorio para operaciones con alertas de contratos en SQL Server"""
-
     def __init__(self, db: Session):
         self.db = db
 
     def get_pending_alerts(self, end_date: Optional[date] = None) -> List[Dict[str, Any]]:
-        """
-        Obtiene alertas pendientes dentro del rango de fechas.
-        Si end_date se provee, busca desde hoy hasta end_date.
-        Si no, usa el rango por defecto de 16 días.
-        """
+        """Alertas pendientes en el rango de fechas."""
         if end_date:
             query = text("""
-                SELECT 
-                    employee_name, employee_rut, employee_role, email,
+                SELECT
+                    employee_name, rut AS employee_rut, employee_role, email,
                     boss_name, boss_email, boss_of_boss_email,
-                    FORMAT(alert_date, 'dd-MM-yyyy') AS alert_date,
-                    alert_reason, expiration, days_since_start, 
+                    TO_CHAR(alert_date, 'DD-MM-YYYY') AS alert_date,
+                    alert_reason, expiration, days_since_start,
                     employee_start_date, alert_type
-                FROM contract_alerts 
+                FROM contract_alerts
                 WHERE
-                    NOT (alert_type = 'INDEFINIDO' AND second_alert_sent != 0)
-                AND 
-                    NOT (alert_type = 'SEGUNDO_PLAZO' AND first_alert_sent != 0)
-                AND
-                    alert_date BETWEEN CAST(GETDATE() AS DATE) AND :end_date
+                    NOT (alert_type = 'INDEFINIDO' AND second_alert_sent)
+                    AND NOT (alert_type = 'SEGUNDO_PLAZO' AND first_alert_sent)
+                    AND alert_date BETWEEN CURRENT_DATE AND :end_date
                 ORDER BY alert_date ASC
             """)
             params = {"end_date": end_date}
         else:
             query = text("""
-                SELECT 
-                    employee_name, employee_rut, employee_role, email,
+                SELECT
+                    employee_name, rut AS employee_rut, employee_role, email,
                     boss_name, boss_email, boss_of_boss_email,
-                    FORMAT(alert_date, 'dd-MM-yyyy') AS alert_date,
-                    alert_reason, expiration, days_since_start, 
+                    TO_CHAR(alert_date, 'DD-MM-YYYY') AS alert_date,
+                    alert_reason, expiration, days_since_start,
                     employee_start_date, alert_type
-                FROM contract_alerts 
+                FROM contract_alerts
                 WHERE
-                    NOT (alert_type = 'INDEFINIDO' AND second_alert_sent != 0)
-                AND 
-                    NOT (alert_type = 'SEGUNDO_PLAZO' AND first_alert_sent != 0)
-                AND
-                    alert_date BETWEEN CAST(GETDATE() AS DATE) AND DATEADD(DAY, 16, CAST(GETDATE() AS DATE))
+                    NOT (alert_type = 'INDEFINIDO' AND second_alert_sent)
+                    AND NOT (alert_type = 'SEGUNDO_PLAZO' AND first_alert_sent)
+                    AND alert_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '16 days'
                 ORDER BY alert_date ASC
             """)
             params = {}
@@ -57,29 +47,25 @@ class ContractAlertsRepository:
         try:
             result = self.db.execute(query, params)
             columns = result.keys()
-            rows = [dict(zip(columns, row)) for row in result.fetchall()]
-            return rows
+            return [dict(zip(columns, row)) for row in result.fetchall()]
         except Exception as e:
             logger.error(f"Error obteniendo alertas pendientes: {e}")
             return []
 
     def get_incidencias_by_rut(self, rut: str) -> List[Dict[str, Any]]:
-        """Obtiene incidencias/permisos de un empleado por RUT."""
+        """Incidencias/permisos de un empleado por RUT."""
         query = text("""
             SELECT
-                rut_empleado,
-                FORMAT(fecha_inicio, 'dd-MM-yy') AS fecha_inicio_formato,
-                FORMAT(fecha_fin, 'dd-MM-yy') AS fecha_fin_formato,
+                e.rut AS rut_empleado,
+                TO_CHAR(ci.start_date, 'DD-MM-YY') AS fecha_inicio_formato,
+                TO_CHAR(ci.end_date, 'DD-MM-YY')   AS fecha_fin_formato,
                 CONCAT(
-                    UPPER(LEFT(REPLACE(tipo_permiso, '_', ' '), 1)),
-                    LOWER(SUBSTRING(
-                        REPLACE(tipo_permiso, '_', ' '), 
-                        2, 
-                        LEN(REPLACE(tipo_permiso, '_', ' '))
-                    ))
+                    UPPER(LEFT(REPLACE(ci.type_permission, '_', ' '), 1)),
+                    LOWER(SUBSTRING(REPLACE(ci.type_permission, '_', ' '), 2))
                 ) AS tipo_permiso
-            FROM consolidado_incidencias
-            WHERE rut_empleado = :rut
+            FROM consolidado_incidencias ci
+            JOIN employees e ON ci.employee_id = e.person_id
+            WHERE e.rut = :rut
         """)
         try:
             result = self.db.execute(query, {"rut": rut})
@@ -90,23 +76,21 @@ class ContractAlertsRepository:
             return []
 
     def get_all_incidencias(self) -> List[Dict[str, Any]]:
-        """Obtiene todas las incidencias activas"""
+        """Todas las incidencias."""
         query = text("""
             SELECT
-                rut_empleado,
-                fecha_inicio, fecha_fin,
-                FORMAT(fecha_inicio, 'dd-MM-yy') AS fecha_inicio_formato,
-                FORMAT(fecha_fin, 'dd-MM-yy') AS fecha_fin_formato,
-                tipo_permiso AS tipo_permiso_original,
+                e.rut              AS rut_empleado,
+                ci.start_date      AS fecha_inicio,
+                ci.end_date        AS fecha_fin,
+                TO_CHAR(ci.start_date, 'DD-MM-YY') AS fecha_inicio_formato,
+                TO_CHAR(ci.end_date, 'DD-MM-YY')   AS fecha_fin_formato,
+                ci.type_permission AS tipo_permiso_original,
                 CONCAT(
-                    UPPER(LEFT(REPLACE(tipo_permiso, '_', ' '), 1)),
-                    LOWER(SUBSTRING(
-                        REPLACE(tipo_permiso, '_', ' '), 
-                        2, 
-                        LEN(REPLACE(tipo_permiso, '_', ' '))
-                    ))
+                    UPPER(LEFT(REPLACE(ci.type_permission, '_', ' '), 1)),
+                    LOWER(SUBSTRING(REPLACE(ci.type_permission, '_', ' '), 2))
                 ) AS tipo_permiso
-            FROM consolidado_incidencias
+            FROM consolidado_incidencias ci
+            JOIN employees e ON ci.employee_id = e.person_id
         """)
         try:
             result = self.db.execute(query)
@@ -117,8 +101,7 @@ class ContractAlertsRepository:
             return []
 
     def get_alert_type(self, employee_rut: str) -> Optional[str]:
-        """Obtiene el tipo de alerta para un empleado"""
-        query = text("SELECT alert_type FROM contract_alerts WHERE employee_rut = :rut")
+        query = text("SELECT alert_type FROM contract_alerts WHERE rut = :rut")
         try:
             result = self.db.execute(query, {"rut": employee_rut})
             row = result.fetchone()
@@ -128,32 +111,28 @@ class ContractAlertsRepository:
             return None
 
     def get_alert_types_and_processed_batch(self, ruts: List[str]) -> Dict[str, Dict[str, Any]]:
-        """
-        Obtiene tipo de alerta y estado de procesado para varios RUTs en una sola consulta.
-        Retorna: {rut: {"alert_type": str|None, "processed": bool}}
-        """
         if not ruts:
             return {}
         placeholders = ", ".join(f":r{i}" for i in range(len(ruts)))
         params = {f"r{i}": r for i, r in enumerate(ruts)}
         query = text(f"""
-            SELECT employee_rut, alert_type, first_alert_sent, second_alert_sent
+            SELECT rut AS employee_rut, alert_type, first_alert_sent, second_alert_sent
             FROM contract_alerts
-            WHERE employee_rut IN ({placeholders})
+            WHERE rut IN ({placeholders})
         """)
         try:
             result = self.db.execute(query, params)
             keys = list(result.keys())
             rows = result.fetchall()
-            idx_rut = keys.index("employee_rut") if "employee_rut" in keys else 0
-            idx_type = keys.index("alert_type") if "alert_type" in keys else 1
-            idx_first = keys.index("first_alert_sent") if "first_alert_sent" in keys else 2
-            idx_second = keys.index("second_alert_sent") if "second_alert_sent" in keys else 3
+            idx_rut    = keys.index("employee_rut")
+            idx_type   = keys.index("alert_type")
+            idx_first  = keys.index("first_alert_sent")
+            idx_second = keys.index("second_alert_sent")
             out: Dict[str, Dict[str, Any]] = {}
             for row in rows:
-                rut = row[idx_rut]
-                at = row[idx_type]
-                first = bool(row[idx_first]) if row[idx_first] is not None else False
+                rut    = row[idx_rut]
+                at     = row[idx_type]
+                first  = bool(row[idx_first])  if row[idx_first]  is not None else False
                 second = bool(row[idx_second]) if row[idx_second] is not None else False
                 if at == "SEGUNDO_PLAZO":
                     processed = first
@@ -168,15 +147,13 @@ class ContractAlertsRepository:
             return {}
 
     def check_alert_processed(self, employee_rut: str, alert_type: str) -> bool:
-        """Verifica si una alerta ya fue procesada/enviada"""
         if alert_type == 'SEGUNDO_PLAZO':
             campo = 'first_alert_sent'
         elif alert_type == 'INDEFINIDO':
             campo = 'second_alert_sent'
         else:
             return False
-
-        query = text(f"SELECT {campo} FROM contract_alerts WHERE employee_rut = :rut")
+        query = text(f"SELECT {campo} FROM contract_alerts WHERE rut = :rut")
         try:
             result = self.db.execute(query, {"rut": employee_rut})
             row = result.fetchone()
@@ -186,18 +163,16 @@ class ContractAlertsRepository:
             return False
 
     def mark_as_processed(self, employee_rut: str, alert_type: str) -> bool:
-        """Marca una alerta como procesada/enviada en la base de datos"""
         if alert_type == 'SEGUNDO_PLAZO':
-            campo = 'first_alert_sent = 1'
+            campo = 'first_alert_sent = TRUE'
         elif alert_type == 'INDEFINIDO':
-            campo = 'second_alert_sent = 1, first_alert_sent = 1'
+            campo = 'second_alert_sent = TRUE, first_alert_sent = TRUE'
         else:
             return False
-
         query = text(f"""
-            UPDATE contract_alerts 
-            SET {campo}, updated_at = GETDATE()
-            WHERE employee_rut = :rut
+            UPDATE contract_alerts
+            SET {campo}, updated_at = NOW()
+            WHERE rut = :rut
         """)
         try:
             result = self.db.execute(query, {"rut": employee_rut})
@@ -215,10 +190,9 @@ class ContractAlertsRepository:
     # ================================================================
 
     def get_cierres_by_year(self, anio: int) -> List[Dict[str, Any]]:
-        """Obtiene todas las fechas de cierre de un año"""
         query = text("""
             SELECT id, anio, mes, fecha_cierre
-            FROM App.CalendarioCierres
+            FROM app.calendariocierres
             WHERE anio = :anio
             ORDER BY mes ASC
         """)
@@ -231,10 +205,9 @@ class ContractAlertsRepository:
             return []
 
     def get_cierre_by_month(self, anio: int, mes: int) -> Optional[Dict[str, Any]]:
-        """Obtiene la fecha de cierre de un mes específico"""
         query = text("""
             SELECT id, anio, mes, fecha_cierre
-            FROM App.CalendarioCierres
+            FROM app.calendariocierres
             WHERE anio = :anio AND mes = :mes
         """)
         try:
@@ -249,18 +222,17 @@ class ContractAlertsRepository:
             return None
 
     def upsert_cierre(self, anio: int, mes: int, fecha_cierre: date) -> bool:
-        """Crea o actualiza una fecha de cierre para un mes/año"""
         existing = self.get_cierre_by_month(anio, mes)
         try:
             if existing:
                 query = text("""
-                    UPDATE App.CalendarioCierres 
+                    UPDATE app.calendariocierres
                     SET fecha_cierre = :fecha_cierre
                     WHERE anio = :anio AND mes = :mes
                 """)
             else:
                 query = text("""
-                    INSERT INTO App.CalendarioCierres (anio, mes, fecha_cierre)
+                    INSERT INTO app.calendariocierres (anio, mes, fecha_cierre)
                     VALUES (:anio, :mes, :fecha_cierre)
                 """)
             self.db.execute(query, {"anio": anio, "mes": mes, "fecha_cierre": fecha_cierre})
@@ -273,8 +245,7 @@ class ContractAlertsRepository:
             return False
 
     def delete_cierre(self, cierre_id: int) -> bool:
-        """Elimina una fecha de cierre"""
-        query = text("DELETE FROM App.CalendarioCierres WHERE id = :id")
+        query = text("DELETE FROM app.calendariocierres WHERE id = :id")
         try:
             result = self.db.execute(query, {"id": cierre_id})
             if result.rowcount > 0:
@@ -285,4 +256,3 @@ class ContractAlertsRepository:
             self.db.rollback()
             logger.error(f"Error eliminando cierre {cierre_id}: {e}")
             return False
-

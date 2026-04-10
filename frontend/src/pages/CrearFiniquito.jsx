@@ -1637,7 +1637,7 @@ const CrearFiniquito = () => {
         }
         if (descuentosMesActualNum > 0) {
           descuentosLines.push(
-            `Diferencia remuneración (${terminationDate})\t${fmtCurrency(descuentosMesActualNum)}`,
+            `Diferencia remuneración (${["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][Number((terminationDate||"").split("-")[1])-1] || terminationDate})\t${fmtCurrency(descuentosMesActualNum)}`,
           );
         }
 
@@ -1647,6 +1647,38 @@ const CrearFiniquito = () => {
           (Number(vacationIndemnity) || 0);
 
         totalDescuentosTabla = Number(descuentosMesActualNum) || 0;
+      }
+
+      // Agregar descuentos automáticos del backend (independiente de la causal)
+      descuentosItems.forEach((d) => {
+        const monto = d.monto || 0;
+        if (monto > 0) {
+          let label = d.concepto || "Descuento";
+          if (label === "Prestamo Interno") label = "Préstamo Interno";
+          if (label === "Descuento Por Planilla") label = "Descuento por planilla";
+          descuentosLines.push(`${label}\t${fmtCurrency(monto)}`);
+          totalDescuentosTabla += monto;
+        }
+      });
+
+      // Agregar descuentos personalizados (independiente de la causal)
+      descuentosPersonalizados.forEach((d) => {
+        let monto = parseFloat(d.monto) || 0;
+        const cuotas = parseInt(d.cuotas) || 1;
+        if (d.descripcion === "Préstamo Interno" && ufValue > 0) {
+          monto = Math.round(monto * ufValue);
+        }
+        const total = monto * cuotas;
+        if (total > 0) {
+          descuentosLines.push(`${d.descripcion || "Descuento"}\t${fmtCurrency(total)}`);
+          totalDescuentosTabla += total;
+        }
+      });
+
+      // Aporte Empleador Seguro Cesantía (independiente de la causal)
+      if (aporteCesantiaNum > 0) {
+        descuentosLines.push(`Aporte Empleador Seguro Cesantía\t${fmtCurrency(aporteCesantiaNum)}`);
+        totalDescuentosTabla += aporteCesantiaNum;
       }
 
       haberesLines.push(`Total haberes\t${fmtCurrency(totalHaberesTabla)}`);

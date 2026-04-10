@@ -1,0 +1,46 @@
+name: dashboard-licencias
+
+networks:
+  # Red interna entre backend y frontend
+  internal:
+    driver: bridge
+  # Red externa compartida con Caddy para recibir tráfico HTTPS
+  # Crear antes del primer deploy: docker network create proxy
+  proxy:
+    external: true
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dashboard-licencias-backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    # Necesario para alcanzar el PostgreSQL instalado directamente en la VPS
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - internal
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dashboard-licencias-frontend
+    restart: unless-stopped
+    networks:
+      - internal
+      - proxy
+    expose:
+      - "80"
+    depends_on:
+      backend:
+        condition: service_healthy

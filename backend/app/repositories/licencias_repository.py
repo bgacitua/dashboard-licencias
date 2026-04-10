@@ -1,69 +1,71 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import List, Optional, Dict, Any
-from app.models.licencias import Licencia
-from app.schemas.licencias import LicenciaCreate
+from typing import List, Dict, Any
+
 
 class LicenciasRepository:
     def __init__(self, db: Session):
         self.db = db
 
     def get_vigentes(self) -> List[Dict[str, Any]]:
-        """Obtiene las licencias vigentes (fecha actual entre fecha_inicio y fecha_fin)"""
+        """Licencias vigentes (hoy entre start_date y end_date)."""
         query = text("""
-            SELECT 
-                rut_empleado,
-                nombre_completo,
-                fecha_inicio,
-                fecha_fin,
-                tipo_permiso,
-                dias_duracion,
-                status
-            FROM [IARRHH].[dbo].[consolidado_incidencias]
-            WHERE CAST(GETDATE() AS DATE) BETWEEN fecha_inicio AND fecha_fin
-            ORDER BY fecha_fin DESC
+            SELECT
+                e.rut              AS rut_empleado,
+                e.full_name        AS nombre_completo,
+                ci.start_date      AS fecha_inicio,
+                ci.end_date        AS fecha_fin,
+                ci.type_permission AS tipo_permiso,
+                ci.days_count      AS dias_duracion,
+                ci.status
+            FROM consolidado_incidencias ci
+            JOIN employees e ON ci.employee_id = e.person_id
+            WHERE CURRENT_DATE BETWEEN ci.start_date AND ci.end_date
+            ORDER BY ci.end_date DESC
         """)
         result = self.db.execute(query)
         columns = result.keys()
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
     def get_por_vencer(self, dias: int = 5) -> List[Dict[str, Any]]:
-        """Obtiene licencias que vencen en los próximos N días"""
+        """Licencias que vencen en los próximos N días."""
         query = text("""
-            SELECT 
-                rut_empleado,
-                nombre_completo,
-                fecha_inicio,
-                fecha_fin,
-                tipo_permiso,
-                dias_duracion,
-                status,
-                DATEDIFF(DAY, CAST(GETDATE() AS DATE), fecha_fin) as dias_restantes
-            FROM [IARRHH].[dbo].[consolidado_incidencias]
-            WHERE fecha_fin >= CAST(GETDATE() AS DATE)
-              AND fecha_fin <= DATEADD(DAY, :dias, CAST(GETDATE() AS DATE))
-            ORDER BY fecha_fin ASC
+            SELECT
+                e.rut              AS rut_empleado,
+                e.full_name        AS nombre_completo,
+                ci.start_date      AS fecha_inicio,
+                ci.end_date        AS fecha_fin,
+                ci.type_permission AS tipo_permiso,
+                ci.days_count      AS dias_duracion,
+                ci.status,
+                (ci.end_date - CURRENT_DATE) AS dias_restantes
+            FROM consolidado_incidencias ci
+            JOIN employees e ON ci.employee_id = e.person_id
+            WHERE ci.end_date >= CURRENT_DATE
+              AND ci.end_date <= CURRENT_DATE + (:dias || ' days')::interval
+            ORDER BY ci.end_date ASC
         """)
         result = self.db.execute(query, {"dias": dias})
         columns = result.keys()
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
     def get_vencidas_recientes(self, dias: int = 5) -> List[Dict[str, Any]]:
-        """Obtiene licencias que vencieron en los últimos N días"""
+        """Licencias que vencieron en los últimos N días."""
         query = text("""
-            SELECT 
-                rut_empleado,
-                nombre_completo,
-                fecha_inicio,
-                fecha_fin,
-                tipo_permiso,
-                dias_duracion,
-                status,
-                DATEDIFF(DAY, fecha_fin, CAST(GETDATE() AS DATE)) as dias_vencida
-            FROM [IARRHH].[dbo].[consolidado_incidencias]
-            WHERE fecha_fin < CAST(GETDATE() AS DATE)
-              AND fecha_fin >= DATEADD(DAY, -:dias, CAST(GETDATE() AS DATE))
-            ORDER BY fecha_fin DESC
+            SELECT
+                e.rut              AS rut_empleado,
+                e.full_name        AS nombre_completo,
+                ci.start_date      AS fecha_inicio,
+                ci.end_date        AS fecha_fin,
+                ci.type_permission AS tipo_permiso,
+                ci.days_count      AS dias_duracion,
+                ci.status,
+                (CURRENT_DATE - ci.end_date) AS dias_vencida
+            FROM consolidado_incidencias ci
+            JOIN employees e ON ci.employee_id = e.person_id
+            WHERE ci.end_date < CURRENT_DATE
+              AND ci.end_date >= CURRENT_DATE - (:dias || ' days')::interval
+            ORDER BY ci.end_date DESC
         """)
         result = self.db.execute(query, {"dias": dias})
         columns = result.keys()
@@ -75,41 +77,26 @@ class LicenciasRepository:
         limit: int = 15,
         order_asc: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Obtiene las últimas N licencias con filtro de rut (para cruce con remuneración variable).
-        order_asc=True ordena por fecha_fin ascendente (más antiguas primero)."""
-        limit = max(1, min(100, limit))  # Clamp entre 1 y 100
+        """Últimas N licencias de un trabajador por RUT."""
+        limit = max(1, min(100, limit))
         order_dir = "ASC" if order_asc else "DESC"
-        # TOP con parámetro; dirección de orden fija para evitar SQL injection
         query = text(
             f"""
-            SELECT TOP (:limit)
-                rut_empleado AS rut_trabajador,
-                nombre_completo AS nombre_trabajador,
-                fecha_inicio,
-                fecha_fin,
-                tipo_permiso,
-                dias_duracion,
-                status
-            FROM [IARRHH].[dbo].[consolidado_incidencias]
-            WHERE rut_empleado = :rut
-            ORDER BY fecha_fin {order_dir}
+            SELECT
+                e.rut              AS rut_trabajador,
+                e.full_name        AS nombre_trabajador,
+                ci.start_date      AS fecha_inicio,
+                ci.end_date        AS fecha_fin,
+                ci.type_permission AS tipo_permiso,
+                ci.days_count      AS dias_duracion,
+                ci.status
+            FROM consolidado_incidencias ci
+            JOIN employees e ON ci.employee_id = e.person_id
+            WHERE e.rut = :rut
+            ORDER BY ci.end_date {order_dir}
+            LIMIT :limit
             """
         )
         result = self.db.execute(query, {"rut": rut, "limit": limit})
         columns = result.keys()
         return [dict(zip(columns, row)) for row in result.fetchall()]
-
-    # def get_all(self, skip: int = 0, limit: int = 100) -> List[Licencia]:
-    #     # MSSQL requiere ORDER BY cuando se usa OFFSET/LIMIT
-    #     return self.db.query(Licencia).order_by(Licencia.id).offset(skip).limit(limit).all()
-
-    # def get_by_id(self, licencia_id: int) -> Optional[Licencia]:
-    #     return self.db.query(Licencia).filter(Licencia.id == licencia_id).first()
-
-        
-    # def create(self, licencia: LicenciaCreate) -> Licencia:
-    #     db_licencia = Licencia(**licencia.model_dump())
-    #     self.db.add(db_licencia)
-    #     self.db.commit()
-    #     self.db.refresh(db_licencia)
-    #     return db_licencia
