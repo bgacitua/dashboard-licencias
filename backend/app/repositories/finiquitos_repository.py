@@ -17,7 +17,7 @@ class FiniquitosRepository:
                 e.active_since AS fecha_ingreso,
                 NULL::date     AS fecha_salida,
                 ROUND(
-                    EXTRACT(EPOCH FROM (CURRENT_DATE - e.active_since)) / 31557600.0,
+                    (CURRENT_DATE - e.active_since)::numeric / 365.25,
                     2
                 )::float       AS duracion_empresa,
                 e.status       AS estado,
