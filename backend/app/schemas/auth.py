@@ -80,6 +80,7 @@ class UsuarioCreate(UsuarioBase):
     """Request para crear usuario"""
     password: str
     rol_id: int
+    modulo_ids: Optional[List[int]] = None  # Módulos específicos del usuario
 
 
 class UsuarioUpdate(BaseModel):
@@ -89,6 +90,7 @@ class UsuarioUpdate(BaseModel):
     rol_id: Optional[int] = None
     activo: Optional[bool] = None
     password: Optional[str] = None  # Solo si se quiere cambiar
+    modulo_ids: Optional[List[int]] = None  # Módulos específicos del usuario
 
 
 class UsuarioResponse(UsuarioBase):
@@ -98,6 +100,7 @@ class UsuarioResponse(UsuarioBase):
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     rol: Optional[RoleResponse] = None
+    modulos: List[ModuloResponse] = []  # Módulos directos del usuario
     
     class Config:
         from_attributes = True

@@ -47,14 +47,8 @@ class AuthRepository:
             .all()
         )
     
-    def create_user(
-        self, 
-        username: str, 
-        password_hash: str, 
-        rol_id: int,
-        email: Optional[str] = None,
-        nombre_completo: Optional[str] = None
-    ) -> Usuario:
+    def create_user( self, username: str, password_hash: str, rol_id: int, 
+        email: Optional[str] = None, nombre_completo: Optional[str] = None ) -> Usuario:
         """Crea un nuevo usuario."""
         user = Usuario(
             username=username,
@@ -88,6 +82,13 @@ class AuthRepository:
         self.db.commit()
         self.db.refresh(user)
         return user
+    
+    def set_user_modules(self, user: Usuario, modulo_ids: List[int]) -> None:
+        """Asigna módulos específicos a un usuario."""
+        modules = self.db.query(Modulo).filter(Modulo.id.in_(modulo_ids)).all()
+        user.modulos = modules
+        self.db.commit()
+        self.db.refresh(user)
     
     # === Operaciones de Rol ===
     
