@@ -204,74 +204,64 @@ class ContractAlertsService:
         alertas_enviadas = 0
         alertas_con_error = 0
 
+        from app.services.email_token_service import AuthRequiredError
+        from app.core.config import settings
+
         # Procesar cada jefe
-        for (nombre_jefe, email_jefe, email_jefe_jefe), empleados_list in alertas_por_jefe.items():
-            logger.info(f"Procesando jefe: {nombre_jefe} ({email_jefe})")
+        try:
+            for (nombre_jefe, email_jefe, email_jefe_jefe), empleados_list in alertas_por_jefe.items():
+                logger.info(f"Procesando jefe: {nombre_jefe} ({email_jefe})")
 
-            # Preparar datos de empleados para el template
-            empleados_jefe = []
-            ruts_procesados = []
+                empleados_jefe = []
+                ruts_procesados = []
 
-            for emp in empleados_list:
-                rut = emp["employee_rut"]
-                tipo_alerta = cache_alertas.get(rut, {}).get("alert_type")
-                if tipo_alerta:
-                    empleados_jefe.append({
-                        "empleado": emp["employee_name"],
-                        "rut": rut,
-                        "cargo": emp.get("employee_role", "N/A"),
-                        "email": emp.get("email", "N/A"),
-                        "fecha_alerta": emp.get("alert_date", "N/A"),
-                        "motivo": emp.get("alert_reason", "N/A"),
-                        "tipo_alerta": tipo_alerta,
-                    })
-                    ruts_procesados.append((rut, tipo_alerta))
+                for emp in empleados_list:
+                    rut = emp["employee_rut"]
+                    tipo_alerta = cache_alertas.get(rut, {}).get("alert_type")
+                    if tipo_alerta:
+                        empleados_jefe.append({
+                            "empleado": emp["employee_name"],
+                            "rut": rut,
+                            "cargo": emp.get("employee_role", "N/A"),
+                            "email": emp.get("email", "N/A"),
+                            "fecha_alerta": emp.get("alert_date", "N/A"),
+                            "motivo": emp.get("alert_reason", "N/A"),
+                            "tipo_alerta": tipo_alerta,
+                        })
+                        ruts_procesados.append((rut, tipo_alerta))
 
-            # Ordenar por fecha
-            empleados_jefe_ordenados = sorted(
-                empleados_jefe,
-                key=lambda e: _parse_date_safe(e["fecha_alerta"]),
-                reverse=False,
-            )
+                empleados_jefe_ordenados = sorted(
+                    empleados_jefe,
+                    key=lambda e: _parse_date_safe(e["fecha_alerta"]),
+                    reverse=False,
+                )
 
-            # Generar HTML
-            html = _generate_email_html(nombre_jefe, empleados_jefe_ordenados, incidencias)
+                html = _generate_email_html(nombre_jefe, empleados_jefe_ordenados, incidencias)
 
-            # Lista de CC
-            lista_copia = [
-                "DMISRAJI@cramer.cl", "bgacitua@cramer.cl", "gpavez@cramer.cl",
-                "navalos@cramer.cl", "ccisternas@cramer.cl", "jguinez@cramer.cl",
-                "lgarcia@cramer.cl", "eleon@cramer.cl", "nconstanzo@cramer.cl",
-                "ABB@cramer.cl"
-            ]
-            copia_final = lista_copia.copy()
+                lista_copia = [c.strip() for c in settings.EMAIL_CC_LIST.split(",") if c.strip()]
+                copia_final = [c for c in lista_copia if c not in (email_jefe, email_jefe_jefe)]
+                cc_parts = ([email_jefe_jefe] if email_jefe_jefe else []) + copia_final
+                cc_str = "; ".join(cc_parts)
 
-            # Remover al jefe y jefe del jefe de la lista de copia
-            if email_jefe in copia_final:
-                copia_final.remove(email_jefe)
-            if email_jefe_jefe and email_jefe_jefe in copia_final:
-                copia_final.remove(email_jefe_jefe)
+                subject = f"Alertas de contratos - {len(empleados_jefe)} empleado(s) requieren atención"
 
-            cc_str = f"{email_jefe_jefe}; {'; '.join(copia_final)}" if email_jefe_jefe else "; ".join(copia_final)
+                email_enviado = _send_email_graph(email_jefe, cc_str, subject, html)
 
-            subject = f"Alertas de contratos - {len(empleados_jefe)} empleado(s) requieren atención"
+                if email_enviado:
+                    for rut, tipo_alerta in ruts_procesados:
+                        self.repository.mark_as_processed(rut, tipo_alerta)
+                    jefes_exitosos += 1
+                    alertas_enviadas += len(empleados_jefe)
+                    logger.info(f"Correo enviado a {nombre_jefe} con {len(empleados_jefe)} alerta(s)")
+                else:
+                    jefes_con_error += 1
+                    alertas_con_error += len(empleados_jefe)
 
-            # Enviar email
-            email_enviado = _send_email_outlook(email_jefe, cc_str, subject, html)
-
-            # Marcar como procesadas si el envío fue exitoso
-            if email_enviado:
-                alertas_marcadas = 0
-                for rut, tipo_alerta in ruts_procesados:
-                    if self.repository.mark_as_processed(rut, tipo_alerta):
-                        alertas_marcadas += 1
-
-                jefes_exitosos += 1
-                alertas_enviadas += len(empleados_jefe)
-                logger.info(f"Correo enviado a {nombre_jefe} con {len(empleados_jefe)} alerta(s)")
-            else:
-                jefes_con_error += 1
-                alertas_con_error += len(empleados_jefe)
+        except AuthRequiredError:
+            return {
+                "auth_required": True,
+                "message": "Se requiere autorización de Microsoft. Usa el botón 'Autorizar correo' y vuelve a intentarlo.",
+            }
 
         return {
             "bosses_successful": jefes_exitosos,
@@ -311,22 +301,35 @@ def _parse_date_safe(date_str: str) -> datetime:
         return datetime.max
 
 
-def _send_email_outlook(to: str, cc: str, subject: str, html_body: str) -> bool:
-    """Envía un email usando Outlook COM (Windows + Outlook requerido)"""
+def _send_email_graph(to: str, cc: str, subject: str, html_body: str) -> bool:
+    """Envía un email vía Microsoft Graph API usando el refresh token almacenado.
+    Lanza AuthRequiredError si no hay sesión activa."""
+    import httpx
+    from app.services.email_token_service import get_access_token, AuthRequiredError  # noqa: F401
+
+    access_token = get_access_token()  # puede lanzar AuthRequiredError
+
+    cc_recipients = [
+        {"emailAddress": {"address": addr.strip()}}
+        for addr in cc.split(";")
+        if addr.strip()
+    ]
+
     try:
-        import pythoncom
-        import win32com.client as win32
-
-        pythoncom.CoInitialize()
-        outlook = win32.Dispatch("outlook.application")
-        mail = outlook.CreateItem(0)
-        mail.To = to
-        mail.CC = cc
-        mail.Subject = subject
-        mail.HTMLBody = html_body
-        mail.Send()
-        pythoncom.CoUninitialize()
-
+        resp = httpx.post(
+            "https://graph.microsoft.com/v1.0/me/sendMail",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "message": {
+                    "subject": subject,
+                    "body": {"contentType": "HTML", "content": html_body},
+                    "toRecipients": [{"emailAddress": {"address": to}}],
+                    "ccRecipients": cc_recipients,
+                }
+            },
+            timeout=20,
+        )
+        resp.raise_for_status()
         logger.info(f"Email enviado exitosamente a {to}")
         return True
     except Exception as e:

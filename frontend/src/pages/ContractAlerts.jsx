@@ -32,6 +32,7 @@ const ContractAlerts = () => {
   // Estado de envío
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState(null);
+  const [authRequired, setAuthRequired] = useState(false);
 
   // Schedule info
   const [scheduleInfo, setScheduleInfo] = useState(null);
@@ -159,10 +160,14 @@ const ContractAlerts = () => {
 
     setSending(true);
     setSendResult(null);
+    setAuthRequired(false);
     try {
       const result = await sendContractAlerts(selectedBosses);
+      if (result.auth_required) {
+        setAuthRequired(true);
+        return;
+      }
       setSendResult(result);
-      // Recargar datos después del envío
       await fetchData();
       setSelectedBosses([]);
     } catch (err) {
@@ -171,7 +176,7 @@ const ContractAlerts = () => {
         bosses_failed: selectedBosses.length,
         alerts_sent: 0,
         alerts_failed: 0,
-        message: 'Error al enviar alertas. Verifica que Outlook esté abierto.',
+        message: 'Error al enviar alertas.',
       });
     } finally {
       setSending(false);
@@ -754,6 +759,32 @@ const ContractAlerts = () => {
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-6">
+              {/* Banner auth requerida */}
+              {authRequired && (
+                <div className="mb-4 p-4 rounded-xl bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 flex items-start gap-3">
+                  <span className="material-symbols-outlined text-yellow-500 mt-0.5">lock</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">
+                      Se requiere autorización de Microsoft
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Haz clic en el botón, inicia sesión con tu cuenta y aprueba en DUO.
+                      La ventana se cerrará automáticamente.
+                    </p>
+                  </div>
+                  <a
+                    href="/api/v1/contract-alerts/auth/login"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setAuthRequired(false)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-xs font-semibold transition-colors whitespace-nowrap"
+                  >
+                    <span className="material-symbols-outlined text-sm">open_in_new</span>
+                    Autorizar correo
+                  </a>
+                </div>
+              )}
+
               {/* Send Result in Modal */}
               {sendResult && (
                 <div

@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     BUK_API_BASE_URL: str
     BUK_API_KEY: str
 
+    # === Azure App / Graph API (envío de correos) ===
+    AZURE_TENANT_ID: str = ""
+    AZURE_CLIENT_ID: str = ""
+    AZURE_CLIENT_SECRET: str = ""
+    SMTP_FROM: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAIL_CC_LIST: str = ""  # separado por comas, sin espacios
+    AZURE_REDIRECT_URI: str = "https://personas.cramer.cl:8444/api/v1/contract-alerts/auth/callback"
+    TOKEN_STORAGE_PATH: str = "/app/data/ms_token.json"
+
     # === CORS (lista separada por comas) ===
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost"
 

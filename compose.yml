@@ -17,6 +17,8 @@ services:
     container_name: dashboard-licencias-backend
     restart: unless-stopped
     env_file: ./backend/.env
+    volumes:
+      - ./data:/app/data
     # Necesario para alcanzar el PostgreSQL instalado directamente en la VPS
     extra_hosts:
       - "host.docker.internal:host-gateway"

@@ -55,11 +55,12 @@ class SendAlertsRequest(BaseModel):
 
 class SendAlertsResponse(BaseModel):
     """Respuesta después de enviar alertas"""
-    bosses_successful: int
-    bosses_failed: int
-    alerts_sent: int
-    alerts_failed: int
-    message: str
+    bosses_successful: int = 0
+    bosses_failed: int = 0
+    alerts_sent: int = 0
+    alerts_failed: int = 0
+    message: str = ""
+    auth_required: bool = False
 
 
 # === Calendario de Cierres ===
