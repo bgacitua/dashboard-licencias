@@ -16,8 +16,8 @@ class LicenciaByRut(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     tipo_permiso: Optional[str] = None
-    dias_duracion: int
-    status: str
+    dias_duracion: Optional[int] = None
+    status: Optional[str] = None
 
 # Create: Propiedades necesarias para crear (en este caso, las mismas que la base)
 class LicenciaCreate(LicenciaBase):

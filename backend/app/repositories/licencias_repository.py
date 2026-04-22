@@ -19,7 +19,7 @@ class LicenciasRepository:
                 ci.days_count      AS dias_duracion,
                 ci.status
             FROM rh.consolidado_incidencias ci
-            JOIN rh.employees e ON ci.employee_id = e.person_id
+            JOIN rh.employees e ON ci.employee_id = e.id
             WHERE CURRENT_DATE BETWEEN ci.start_date AND ci.end_date
             ORDER BY ci.end_date DESC
         """)
@@ -40,7 +40,7 @@ class LicenciasRepository:
                 ci.status,
                 (ci.end_date - CURRENT_DATE) AS dias_restantes
             FROM rh.consolidado_incidencias ci
-            JOIN rh.employees e ON ci.employee_id = e.person_id
+            JOIN rh.employees e ON ci.employee_id = e.id
             WHERE ci.end_date >= CURRENT_DATE
               AND ci.end_date <= CURRENT_DATE + (:dias || ' days')::interval
             ORDER BY ci.end_date ASC
@@ -62,7 +62,7 @@ class LicenciasRepository:
                 ci.status,
                 (CURRENT_DATE - ci.end_date) AS dias_vencida
             FROM rh.consolidado_incidencias ci
-            JOIN rh.employees e ON ci.employee_id = e.person_id
+            JOIN rh.employees e ON ci.employee_id = e.id
             WHERE ci.end_date < CURRENT_DATE
               AND ci.end_date >= CURRENT_DATE - (:dias || ' days')::interval
             ORDER BY ci.end_date DESC
@@ -91,7 +91,7 @@ class LicenciasRepository:
                 ci.days_count      AS dias_duracion,
                 ci.status
             FROM rh.consolidado_incidencias ci
-            JOIN rh.employees e ON ci.employee_id = e.person_id
+            JOIN rh.employees e ON ci.employee_id = e.id
             WHERE e.rut = :rut
             ORDER BY ci.end_date {order_dir}
             LIMIT :limit
