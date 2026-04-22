@@ -27,9 +27,9 @@ class FiniquitosRepository:
                 a.second_level_name AS departamento,
                 0              AS bonificaciones_mensuales,
                 0              AS movilizacion
-            FROM employees AS e
-            LEFT JOIN employees AS boss ON e.rut_boss = boss.rut
-            LEFT JOIN areas      AS a    ON a.id = e.area_id
+            FROM rh.employees AS e
+            LEFT JOIN rh.employees AS boss ON e.rut_boss = boss.rut
+            LEFT JOIN rh.areas      AS a    ON a.id = e.area_id
             ORDER BY e.rut, e.active_since DESC NULLS LAST
         """)
         result = self.db.execute(query)
@@ -63,19 +63,19 @@ class FiniquitosRepository:
                         PARTITION BY e.rut
                         ORDER BY RIGHT(s.periodo, 4) DESC, LEFT(s.periodo, 2) DESC
                     ) AS ranking_periodo
-                FROM employees AS e
-                LEFT JOIN historical_settlements AS s
+                FROM rh.employees AS e
+                LEFT JOIN rh.historical_settlements AS s
                     ON e.rut = s.rut
-                LEFT JOIN historical_settlement_items AS si
+                LEFT JOIN rh.historical_settlement_items AS si
                     ON s.liquidacion_id = si.liquidacion_id
                     AND si.income_type IN (
                         'remuneracion_ocasional',
                         'remuneracion_fija',
                         'remuneracion_variable'
                     )
-                LEFT JOIN areas AS a
+                LEFT JOIN rh.areas AS a
                     ON a.id = e.area_id
-                LEFT JOIN employees AS boss
+                LEFT JOIN rh.employees AS boss
                     ON e.rut_boss = boss.rut
                 WHERE
                     e.rut = :rut
@@ -127,12 +127,12 @@ class FiniquitosRepository:
                         PARTITION BY e.rut
                         ORDER BY RIGHT(s.periodo, 4) DESC, LEFT(s.periodo, 2) DESC
                     ) AS ranking_periodo
-                FROM employees AS e
-                LEFT JOIN historical_settlements AS s
+                FROM rh.employees AS e
+                LEFT JOIN rh.historical_settlements AS s
                     ON e.rut = s.rut
-                LEFT JOIN historical_settlement_items AS si
+                LEFT JOIN rh.historical_settlement_items AS si
                     ON s.liquidacion_id = si.liquidacion_id
-                LEFT JOIN areas AS a
+                LEFT JOIN rh.areas AS a
                     ON a.id = e.area_id
                 WHERE
                     e.rut = :rut

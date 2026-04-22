@@ -19,7 +19,7 @@ class ContractAlertsRepository:
                     TO_CHAR(alert_date, 'DD-MM-YYYY') AS alert_date,
                     alert_reason, expiration, days_since_start,
                     employee_start_date, alert_type
-                FROM contract_alerts
+                FROM rh.contract_alerts
                 WHERE
                     NOT (alert_type = 'INDEFINIDO' AND second_alert_sent)
                     AND NOT (alert_type = 'SEGUNDO_PLAZO' AND first_alert_sent)
@@ -35,7 +35,7 @@ class ContractAlertsRepository:
                     TO_CHAR(alert_date, 'DD-MM-YYYY') AS alert_date,
                     alert_reason, expiration, days_since_start,
                     employee_start_date, alert_type
-                FROM contract_alerts
+                FROM rh.contract_alerts
                 WHERE
                     NOT (alert_type = 'INDEFINIDO' AND second_alert_sent)
                     AND NOT (alert_type = 'SEGUNDO_PLAZO' AND first_alert_sent)
@@ -63,8 +63,8 @@ class ContractAlertsRepository:
                     UPPER(LEFT(REPLACE(ci.type_permission, '_', ' '), 1)),
                     LOWER(SUBSTRING(REPLACE(ci.type_permission, '_', ' '), 2))
                 ) AS tipo_permiso
-            FROM consolidado_incidencias ci
-            JOIN employees e ON ci.employee_id = e.person_id
+            FROM rh.consolidado_incidencias ci
+            JOIN rh.employees e ON ci.employee_id = e.person_id
             WHERE e.rut = :rut
         """)
         try:
@@ -89,8 +89,8 @@ class ContractAlertsRepository:
                     UPPER(LEFT(REPLACE(ci.type_permission, '_', ' '), 1)),
                     LOWER(SUBSTRING(REPLACE(ci.type_permission, '_', ' '), 2))
                 ) AS tipo_permiso
-            FROM consolidado_incidencias ci
-            JOIN employees e ON ci.employee_id = e.person_id
+            FROM rh.consolidado_incidencias ci
+            JOIN rh.employees e ON ci.employee_id = e.person_id
         """)
         try:
             result = self.db.execute(query)
@@ -117,7 +117,7 @@ class ContractAlertsRepository:
         params = {f"r{i}": r for i, r in enumerate(ruts)}
         query = text(f"""
             SELECT rut AS employee_rut, alert_type, first_alert_sent, second_alert_sent
-            FROM contract_alerts
+            FROM rh.contract_alerts
             WHERE rut IN ({placeholders})
         """)
         try:
@@ -153,7 +153,7 @@ class ContractAlertsRepository:
             campo = 'second_alert_sent'
         else:
             return False
-        query = text(f"SELECT {campo} FROM contract_alerts WHERE rut = :rut")
+        query = text(f"SELECT {campo} FROM rh.contract_alerts WHERE rut = :rut")
         try:
             result = self.db.execute(query, {"rut": employee_rut})
             row = result.fetchone()
@@ -170,7 +170,7 @@ class ContractAlertsRepository:
         else:
             return False
         query = text(f"""
-            UPDATE contract_alerts
+            UPDATE rh.contract_alerts
             SET {campo}, updated_at = NOW()
             WHERE rut = :rut
         """)

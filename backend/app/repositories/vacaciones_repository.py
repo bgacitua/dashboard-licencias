@@ -21,8 +21,8 @@ class VacacionesRepository:
                 vc.status,
                 vc.start_date,
                 vc.end_date
-            FROM vacations AS vc
-            INNER JOIN employees AS e ON vc.employee_id = e.person_id
+            FROM rh.vacations AS vc
+            INNER JOIN rh.employees AS e ON vc.employee_id = e.person_id
             WHERE NOW() BETWEEN vc.start_date AND vc.end_date
         """)
         result = self.db.execute(query)

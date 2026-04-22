@@ -18,8 +18,8 @@ class LicenciasRepository:
                 ci.type_permission AS tipo_permiso,
                 ci.days_count      AS dias_duracion,
                 ci.status
-            FROM consolidado_incidencias ci
-            JOIN employees e ON ci.employee_id = e.person_id
+            FROM rh.consolidado_incidencias ci
+            JOIN rh.employees e ON ci.employee_id = e.person_id
             WHERE CURRENT_DATE BETWEEN ci.start_date AND ci.end_date
             ORDER BY ci.end_date DESC
         """)
@@ -39,8 +39,8 @@ class LicenciasRepository:
                 ci.days_count      AS dias_duracion,
                 ci.status,
                 (ci.end_date - CURRENT_DATE) AS dias_restantes
-            FROM consolidado_incidencias ci
-            JOIN employees e ON ci.employee_id = e.person_id
+            FROM rh.consolidado_incidencias ci
+            JOIN rh.employees e ON ci.employee_id = e.person_id
             WHERE ci.end_date >= CURRENT_DATE
               AND ci.end_date <= CURRENT_DATE + (:dias || ' days')::interval
             ORDER BY ci.end_date ASC
@@ -61,8 +61,8 @@ class LicenciasRepository:
                 ci.days_count      AS dias_duracion,
                 ci.status,
                 (CURRENT_DATE - ci.end_date) AS dias_vencida
-            FROM consolidado_incidencias ci
-            JOIN employees e ON ci.employee_id = e.person_id
+            FROM rh.consolidado_incidencias ci
+            JOIN rh.employees e ON ci.employee_id = e.person_id
             WHERE ci.end_date < CURRENT_DATE
               AND ci.end_date >= CURRENT_DATE - (:dias || ' days')::interval
             ORDER BY ci.end_date DESC
@@ -90,8 +90,8 @@ class LicenciasRepository:
                 ci.type_permission AS tipo_permiso,
                 ci.days_count      AS dias_duracion,
                 ci.status
-            FROM consolidado_incidencias ci
-            JOIN employees e ON ci.employee_id = e.person_id
+            FROM rh.consolidado_incidencias ci
+            JOIN rh.employees e ON ci.employee_id = e.person_id
             WHERE e.rut = :rut
             ORDER BY ci.end_date {order_dir}
             LIMIT :limit
