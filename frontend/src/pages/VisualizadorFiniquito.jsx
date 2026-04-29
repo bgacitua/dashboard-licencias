@@ -230,7 +230,8 @@ const VisualizadorFiniquito = () => {
       setRow(39, 'Resultado añosIndemnity (mutuo)', r.result != null ? fmtNum(r.result) : '');
     }
 
-    const lastDetalleRow = detalles.length > 0 ? 15 + detalles.length - 1 : 30;
+    const maxDetailRow = detalles.length > 0 ? 15 + detalles.length - 1 : 0;
+    const lastDetalleRow = Math.max(30, maxDetailRow);
     const lastRow = audit?.mutuoEspecialRules?.applied ? Math.max(lastDetalleRow, 39) : lastDetalleRow;
 
     // Asegura que Excel muestre tanto el detalle variable como las filas extra de mutuo.
