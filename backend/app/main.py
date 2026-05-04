@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -6,6 +8,7 @@ from app.core.logging_config import logger
 from app.db.session import engine
 from app.db.base import Base
 from app.api.v1.api import api_router
+from app.services.scheduler_service import start_scheduler, stop_scheduler
 
 logger.info("Iniciando Dashboard Licencias API")
 
@@ -15,9 +18,18 @@ try:
 except Exception as e:
     logger.warning(f"No se pudo conectar a la BD: {e}")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
+    stop_scheduler()
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_exception_handler(Exception, generic_exception_handler)

@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     AZURE_REDIRECT_URI: str = "https://personas.cramer.cl:8444/api/v1/contract-alerts/auth/callback"
     TOKEN_STORAGE_PATH: str = "/app/data/ms_token.json"
 
+    # === Scheduler de alertas automáticas ===
+    ALERTS_SCHEDULER_ENABLED: bool = False
+    ALERTS_SCHEDULER_HOUR: int = 8       # hora de ejecución (formato 24h)
+    ALERTS_SCHEDULER_MINUTE: int = 0     # minuto de ejecución
+    ALERTS_SCHEDULER_TIMEZONE: str = "America/Santiago"
+
     # === CORS (lista separada por comas) ===
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost"
 
