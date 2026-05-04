@@ -1612,9 +1612,11 @@ const CrearFiniquito = () => {
           );
         }
         if (yearsIndemnityDisplay > 0) {
-          haberesLines.push(
-            `Indemnización años de Servicios (${yearsForIndemnity || 0} años)\t${fmtCurrency(yearsIndemnityDisplay)}`,
-          );
+          const yearsLabel =
+            terminationReason === "mutuo_acuerdo_especial"
+              ? `Indemnización Convencional (${yearsForIndemnity || 0} años)`
+              : `Indemnización años de Servicios (${yearsForIndemnity || 0} años)`;
+          haberesLines.push(`${yearsLabel}\t${fmtCurrency(yearsIndemnityDisplay)}`);
         }
         if (vacationIndemnity > 0) {
           const dias =
@@ -1769,6 +1771,8 @@ const CrearFiniquito = () => {
         fecha_notaria: notaryDate || "",
         mes_de_aviso: fmtCurrency(noticeIndemnity),
         indemnizacion_anos_servicio: fmtCurrency(yearsIndemnity),
+        indemnizacion_convencional: fmtCurrency(yearsIndemnityDisplay),
+        aporte_cesantia: fmtCurrency(aporteCesantiaNum),
         vacaciones_proporcionales: fmtCurrency(vacationIndemnity),
         remuneracion_adeudada: fmtCurrency(liquidacionMesActualNum),
         total_haberes: fmtCurrency(totalHaberes),
@@ -2073,7 +2077,6 @@ const CrearFiniquito = () => {
                       30 días de aviso
                     </p>
                     <p className="text-xs text-gray-400">
-                      Si se marca, se incluye el mes de aviso en el finiquito.
                     </p>
                   </div>
                 </label>
