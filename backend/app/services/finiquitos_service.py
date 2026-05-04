@@ -471,9 +471,9 @@ class FiniquitosService:
                         for j in range(idx + 1, len(sorted_keys)):
                             cand_key = sorted_keys[j]
                             cy, cm = map(int, cand_key.split("-"))
-                            if _half_from_month(cm) != cur_half:
-                                # Saltar cuando cambia de semestre
-                                continue
+                            if cy != cur_year or _half_from_month(cm) != cur_half:
+                                # Salir cuando cambia de año o de semestre
+                                break
                             cand_item = raw_records[cand_key]
                             if cand_item["worked_days"] >= 30:
                                 item["amount"] = cand_item["amount"]
@@ -489,8 +489,8 @@ class FiniquitosService:
                             for j in range(idx - 1, -1, -1):
                                 cand_key = sorted_keys[j]
                                 cy, cm = map(int, cand_key.split("-"))
-                                if _half_from_month(cm) != cur_half:
-                                    continue
+                                if cy != cur_year or _half_from_month(cm) != cur_half:
+                                    break
                                 cand_item = raw_records[cand_key]
                                 if cand_item["worked_days"] >= 30:
                                     item["amount"] = cand_item["amount"]
@@ -532,8 +532,8 @@ class FiniquitosService:
                         for j in range(i + 1, len(expected_months)):
                             candidate = expected_months[j]
                             cy, cm = map(int, candidate.split("-"))
-                            if _half_from_month(cm) != cur_half:
-                                continue
+                            if cy != y_num or _half_from_month(cm) != cur_half:
+                                break
                             if candidate in raw_records:
                                 ref_amount = raw_records[candidate]["amount"]
                                 logger.info(
@@ -547,8 +547,8 @@ class FiniquitosService:
                             for j in range(i - 1, -1, -1):
                                 candidate = expected_months[j]
                                 cy, cm = map(int, candidate.split("-"))
-                                if _half_from_month(cm) != cur_half:
-                                    continue
+                                if cy != y_num or _half_from_month(cm) != cur_half:
+                                    break
                                 if candidate in raw_records:
                                     prev_amt = raw_records[candidate]["amount"]
                                     ref_amount = prev_amt
