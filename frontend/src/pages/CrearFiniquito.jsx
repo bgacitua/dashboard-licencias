@@ -641,6 +641,7 @@ const CrearFiniquito = () => {
               detalle: item.detalle || "",
               monto: item.monto || 0,
               cuotas: 1,
+              moneda: desc === "Préstamo Interno" ? "UF" : "CLP",
             };
           });
           setDescuentosPersonalizados(mappedDescuentos);
@@ -1336,22 +1337,14 @@ const CrearFiniquito = () => {
     0,
   );
 
-  // Custom discount calculation with UF support for "Préstamo Interno"
   const descuentosCustom = descuentosPersonalizados.reduce((sum, d) => {
     let monto = parseFloat(d.monto) || 0;
     const cuotas = parseInt(d.cuotas) || 1;
 
-    // If it's a loan, backend usually sends UF value. We need to convert it to CLP for the monthly deduction if desired.
-    // However, usually the 'monto' received is the quota in UF.
-    // User request: "el valor de la UF del día y que se multiplique por el valor del concepto 'Préstamo interno'?"
-    if (d.descripcion === "Préstamo Interno" && ufValue > 0) {
-      // Assume 'monto' is in UF
-      // Calculate Total Debt in CLP = Monto(UF) * UF_Value * Cuotas
-      // Note: We use Math.round just once at the end if preferred, or per item.
+    if ((d.moneda || "CLP") === "UF" && ufValue > 0) {
       monto = Math.round(monto * ufValue);
     }
 
-    // Multiply by installments (Total Debt)
     return sum + monto * cuotas;
   }, 0);
 
@@ -1428,7 +1421,7 @@ const CrearFiniquito = () => {
         let val = parseFloat(loanItem.monto) || 0;
         const cuotas = parseInt(loanItem.cuotas) || 1;
 
-        if (ufValue > 0) val = Math.round(val * ufValue);
+        if ((loanItem.moneda || "CLP") === "UF" && ufValue > 0) val = Math.round(val * ufValue);
 
         // Return Total Debt: Monthly * Cuotas
         return val * cuotas;
@@ -1665,7 +1658,7 @@ const CrearFiniquito = () => {
       descuentosPersonalizados.forEach((d) => {
         let monto = parseFloat(d.monto) || 0;
         const cuotas = parseInt(d.cuotas) || 1;
-        if (d.descripcion === "Préstamo Interno" && ufValue > 0) {
+        if ((d.moneda || "CLP") === "UF" && ufValue > 0) {
           monto = Math.round(monto * ufValue);
         }
         const total = monto * cuotas;
@@ -3130,20 +3123,17 @@ const CrearFiniquito = () => {
             )}
 
             {descuentosPersonalizados.map((desc, idx) => {
-              // Calculate Total Debt
-              const isLoan = desc.descripcion === "Préstamo Interno";
               const montoVal = parseFloat(desc.monto) || 0;
               const cuotasVal = parseInt(desc.cuotas) || 1;
 
+              const isUF = (desc.moneda || "CLP") === "UF";
               let totalDebt = 0;
               let displayMonto = montoVal;
 
-              if (isLoan && ufValue > 0) {
-                // Loan: Monto is in UF. Total Debt = Monto(UF) * UF * Cuotas
+              if (isUF && ufValue > 0) {
                 totalDebt = Math.round(montoVal * ufValue * cuotasVal);
-                displayMonto = Math.round(montoVal * ufValue); // Monthly deduction in CLP
+                displayMonto = Math.round(montoVal * ufValue);
               } else {
-                // Planilla: Monto is in CLP. Total Debt = Monto * Cuotas
                 totalDebt = montoVal * cuotasVal;
               }
 
@@ -3181,18 +3171,26 @@ const CrearFiniquito = () => {
                   {/* Monto Input */}
                   <div className="col-span-3">
                     <div className="flex items-center gap-1 justify-end">
-                      {isLoan && (
-                        <span className="text-[9px] text-blue-600 font-bold">
-                          UF
-                        </span>
-                      )}
+                      <select
+                        className="text-[9px] font-bold text-blue-600 border border-blue-200 bg-blue-50 rounded px-0.5 outline-none cursor-pointer"
+                        value={desc.moneda || "CLP"}
+                        onChange={(e) => {
+                          const newDescuentos = [...descuentosPersonalizados];
+                          newDescuentos[idx].moneda = e.target.value;
+                          setDescuentosPersonalizados(newDescuentos);
+                        }}
+                      >
+                        <option value="CLP">$</option>
+                        <option value="UF">UF</option>
+                      </select>
                       <input
                         type="text"
                         className="w-full text-right bg-red-50 border border-red-200 rounded px-1 py-0.5 text-xs font-mono text-red-700 outline-none focus:ring-1 focus:ring-red-500"
                         value={desc.monto}
                         onChange={(e) => {
-                          // Allow decimals for UF
-                          const val = e.target.value.replace(/[^0-9.]/g, "");
+                          const val = isUF
+                            ? e.target.value.replace(/[^0-9.]/g, "")
+                            : e.target.value.replace(/[^0-9]/g, "");
                           const newDescuentos = [...descuentosPersonalizados];
                           newDescuentos[idx].monto = val;
                           setDescuentosPersonalizados(newDescuentos);
@@ -3200,7 +3198,7 @@ const CrearFiniquito = () => {
                         placeholder="0"
                       />
                     </div>
-                    {isLoan && ufValue > 0 && (
+                    {isUF && ufValue > 0 && (
                       <div className="text-[9px] text-gray-400 text-right mt-0.5">
                         ~ ${displayMonto.toLocaleString("es-CL")}
                       </div>
@@ -3262,7 +3260,7 @@ const CrearFiniquito = () => {
               onClick={() => {
                 setDescuentosPersonalizados([
                   ...descuentosPersonalizados,
-                  { descripcion: "", monto: "", cuotas: 1 },
+                  { descripcion: "", monto: "", cuotas: 1, moneda: "CLP" },
                 ]);
               }}
               className="mt-2 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border border-red-200"
