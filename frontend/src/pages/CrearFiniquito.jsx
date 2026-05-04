@@ -385,7 +385,7 @@ const CrearFiniquito = () => {
   // Form State
   const [terminationReason, setTerminationReason] = useState("");
   const [lastDayWork, setLastDayWork] = useState("");
-  const [noticeGiven, setNoticeGiven] = useState(false);
+  const [noticeGiven, setNoticeGiven] = useState(true);
   const [vacationDays, setVacationDays] = useState(0);
   const [vacationDaysStock, setVacationDaysStock] = useState(0); // Original API value
   const [vacationDaysManuallyEdited, setVacationDaysManuallyEdited] =
@@ -1326,7 +1326,7 @@ const CrearFiniquito = () => {
     terminationReason === "mutuo_acuerdo" ||
     terminationReason === "mutuo_acuerdo_especial";
   const noticeIndemnity =
-    noticeIndemnityApplies && !noticeGiven ? totalHaberes : 0;
+    noticeIndemnityApplies && noticeGiven ? totalHaberes : 0;
 
   // Total Settlement = (Mes de Aviso + Indemnización por Años de Servicio + Vacaciones Proporcionales) - Todos los Descuentos
   const descuentosNum = parseFloat(descuentos) || 0;
@@ -2080,7 +2080,7 @@ const CrearFiniquito = () => {
                       30 días de aviso
                     </p>
                     <p className="text-xs text-gray-400">
-                      Si no se marca, se agregará el mes de aviso.
+                      Si se marca, se incluye el mes de aviso en el finiquito.
                     </p>
                   </div>
                 </label>
