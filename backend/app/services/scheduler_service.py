@@ -1,6 +1,8 @@
 """
 Scheduler de envío automático de alertas de contratos.
-Usa APScheduler con un job diario configurable vía settings.
+Corre diariamente, pero solo ejecuta el envío si:
+  - Es lunes (ejecución semanal normal), o
+  - Modo cierre activo (≤7 días al cierre de mes) → ejecuta todos los días de esa semana.
 """
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -13,24 +15,87 @@ from app.core.logging_config import logger
 _scheduler: BackgroundScheduler | None = None
 
 
+def _notify_n8n(payload: dict) -> None:
+    """Envía notificación al webhook de n8n. Falla silenciosamente."""
+    if not settings.ALERTS_N8N_WEBHOOK_URL:
+        return
+    try:
+        import httpx
+        httpx.post(settings.ALERTS_N8N_WEBHOOK_URL, json=payload, timeout=10)
+    except Exception as e:
+        logger.warning(f"[Scheduler] No se pudo notificar a n8n: {e}")
+
+
+def _should_run(db) -> tuple[bool, str]:
+    """
+    Determina si el job debe ejecutarse hoy.
+    Returns (debe_ejecutar, motivo)
+    """
+    from datetime import date
+    from app.services.contract_alerts_service import ContractAlertsService
+
+    hoy = date.today()
+    es_lunes = hoy.weekday() == 0  # 0 = lunes
+
+    service = ContractAlertsService(db)
+    _, _, modo, _, dias_al_cierre = service._calculate_search_range()
+    en_cierre = modo == "cierre"
+
+    if es_lunes and en_cierre:
+        return True, f"lunes + modo cierre ({dias_al_cierre} días al cierre)"
+    if es_lunes:
+        return True, "lunes (ejecución semanal)"
+    if en_cierre:
+        return True, f"modo cierre activo ({dias_al_cierre} días al cierre)"
+    return False, f"día no programado ({hoy.strftime('%A')}), sin modo cierre"
+
+
 def _run_alerts_job() -> None:
-    """Ejecuta el envío de alertas a todos los jefes con alertas pendientes."""
+    """Evalúa si debe ejecutar y envía alertas a todos los jefes con alertas pendientes."""
     from app.db.session import SessionLocal
     from app.services.contract_alerts_service import ContractAlertsService
-    from app.services.email_token_service import AuthRequiredError
+    from datetime import datetime
 
-    logger.info("[Scheduler] Iniciando envío automático de alertas de contratos")
+    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
     db = SessionLocal()
     try:
+        debe_ejecutar, motivo = _should_run(db)
+
+        if not debe_ejecutar:
+            logger.info(f"[Scheduler] Omitido — {motivo}")
+            return
+
+        logger.info(f"[Scheduler] Ejecutando — {motivo}")
         service = ContractAlertsService(db)
         result = service.send_alerts_by_boss(bosses_filter=[])
 
         if result.get("auth_required"):
-            logger.error(
-                "[Scheduler] Envío cancelado: se requiere autorización de Microsoft. "
-                "Accede a /api/v1/contract-alerts/auth/login para re-autorizar."
-            )
+            msg = "⚠️ Envío automático cancelado: token Microsoft expirado. Re-autorizar en /auth/login."
+            logger.error(f"[Scheduler] {msg}")
+            _notify_n8n({"tipo": "error_auth", "timestamp": timestamp, "mensaje": msg})
             return
+
+        if result.get("alerts_sent", 0) == 0 and result.get("bosses_failed", 0) == 0:
+            logger.info("[Scheduler] Sin alertas pendientes — no se enviaron correos.")
+            _notify_n8n({
+                "tipo": "sin_alertas",
+                "timestamp": timestamp,
+                "mensaje": "✅ Scheduler ejecutado — sin alertas pendientes hoy.",
+            })
+            return
+
+        _notify_n8n({
+            "tipo": "envio_completado",
+            "timestamp": timestamp,
+            "motivo_ejecucion": motivo,
+            "resumen": {
+                "jefes_notificados": result.get("bosses_successful", 0),
+                "jefes_con_error": result.get("bosses_failed", 0),
+                "alertas_enviadas": result.get("alerts_sent", 0),
+            },
+            "detalle_enviados": result.get("detalle_enviados", []),
+            "detalle_errores": result.get("detalle_errores", []),
+        })
 
         logger.info(
             f"[Scheduler] Envío completado — "
@@ -40,6 +105,11 @@ def _run_alerts_job() -> None:
         )
     except Exception as e:
         logger.error(f"[Scheduler] Error inesperado durante envío automático: {e}", exc_info=True)
+        _notify_n8n({
+            "tipo": "error_inesperado",
+            "timestamp": timestamp,
+            "mensaje": f"❌ Error inesperado en scheduler de alertas: {str(e)}",
+        })
     finally:
         db.close()
 
@@ -60,7 +130,7 @@ def start_scheduler() -> None:
             minute=settings.ALERTS_SCHEDULER_MINUTE,
             timezone=tz,
         ),
-        id="contract_alerts_daily",
+        id="contract_alerts_job",
         name="Envío automático de alertas de contratos",
         replace_existing=True,
     )
@@ -68,7 +138,7 @@ def start_scheduler() -> None:
     logger.info(
         f"[Scheduler] Iniciado — job diario a las "
         f"{settings.ALERTS_SCHEDULER_HOUR:02d}:{settings.ALERTS_SCHEDULER_MINUTE:02d} "
-        f"({settings.ALERTS_SCHEDULER_TIMEZONE})"
+        f"({settings.ALERTS_SCHEDULER_TIMEZONE}) — ejecuta lunes o cuando modo cierre activo"
     )
 
 

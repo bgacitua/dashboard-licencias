@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     ALERTS_SCHEDULER_HOUR: int = 8       # hora de ejecución (formato 24h)
     ALERTS_SCHEDULER_MINUTE: int = 0     # minuto de ejecución
     ALERTS_SCHEDULER_TIMEZONE: str = "America/Santiago"
+    ALERTS_N8N_WEBHOOK_URL: str = ""     # webhook n8n para notificaciones Telegram
 
     # === CORS (lista separada por comas) ===
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost"

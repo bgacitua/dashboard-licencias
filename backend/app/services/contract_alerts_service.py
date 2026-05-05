@@ -203,6 +203,8 @@ class ContractAlertsService:
         jefes_con_error = 0
         alertas_enviadas = 0
         alertas_con_error = 0
+        detalle_enviados = []   # [{boss_name, boss_email, empleados: [{nombre, cargo, fecha_alerta}]}]
+        detalle_errores = []    # [{boss_name, boss_email}]
 
         from app.services.email_token_service import AuthRequiredError
         from app.core.config import settings
@@ -252,10 +254,24 @@ class ContractAlertsService:
                         self.repository.mark_as_processed(rut, tipo_alerta)
                     jefes_exitosos += 1
                     alertas_enviadas += len(empleados_jefe)
+                    detalle_enviados.append({
+                        "boss_name": nombre_jefe,
+                        "boss_email": email_jefe,
+                        "empleados": [
+                            {
+                                "nombre": e["empleado"],
+                                "cargo": e["cargo"],
+                                "fecha_alerta": e["fecha_alerta"],
+                                "tipo_alerta": e["tipo_alerta"],
+                            }
+                            for e in empleados_jefe_ordenados
+                        ],
+                    })
                     logger.info(f"Correo enviado a {nombre_jefe} con {len(empleados_jefe)} alerta(s)")
                 else:
                     jefes_con_error += 1
                     alertas_con_error += len(empleados_jefe)
+                    detalle_errores.append({"boss_name": nombre_jefe, "boss_email": email_jefe})
 
         except AuthRequiredError:
             return {
@@ -269,6 +285,8 @@ class ContractAlertsService:
             "alerts_sent": alertas_enviadas,
             "alerts_failed": alertas_con_error,
             "message": f"Envío completado: {jefes_exitosos} jefe(s) notificados, {jefes_con_error} error(es).",
+            "detalle_enviados": detalle_enviados,
+            "detalle_errores": detalle_errores,
         }
 
     # ================================================================
