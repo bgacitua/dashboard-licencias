@@ -8,9 +8,16 @@ export default defineConfig({
     port: 5173, // Puerto estándar de Vite
     // Redirigir todas las rutas al index.html para SPA routing
     historyApiFallback: true,
+    // En producción Nginx/Caddy hace este reenvío; en dev lo cubre Vite.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
   },
   // Asegurar que en preview también funcione
   preview: {
     port: 5173,
-  }
+  },
 })
