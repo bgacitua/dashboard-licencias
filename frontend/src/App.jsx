@@ -151,13 +151,13 @@ function App() {
               } 
             />
             
-            <Route 
-              path="/calculadora" 
+            <Route
+              path="/calculadora"
               element={
-                <ProtectedRoute> {/*requiredModule="calculadora">*/}
+                <ProtectedRoute requiredModule="calculadora">
                   <Calculadora />
                 </ProtectedRoute>
-              } 
+              }
             />
 
             {/* Módulo Alertas de Contratos */}

@@ -1,27 +1,34 @@
-import axios from "axios";
+import axios from 'axios'
+import { getToken } from './auth'
 
-const API_URL = "/api/v1/calculadora";
+const API_URL = '/api/v1/calculadora'
+
+const authHeaders = () => {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 const CalculadoraService = {
-  getParametros: async () => {
-    const response = await axios.get(`${API_URL}/parametros`);
-    return response.data;
+  /**
+   * Obtiene la configuración del país (UF, dólar, AFP, tasas, tax_brackets, bonos).
+   * @param {'chile'|'peru'|'brasil'} pais
+   * @returns {Promise<{
+   *   afpData: Record<string, number>,
+   *   ufValue: number,
+   *   dolarValue: number,
+   *   taxBrackets: Array,
+   *   bonosAnualesUF: { navidad: number, fiestaPatrias: number, escolaridad: number },
+   *   bonosEmpresa: Array,
+   *   tasas: object,
+   *   _meta: { pais: string, warnings: string[], updated_at: string|null }
+   * }>}
+   */
+  getCountryConfig: async (pais) => {
+    const response = await axios.get(`${API_URL}/config/${pais}`, {
+      headers: authHeaders(),
+    })
+    return response.data
   },
+}
 
-  getAfps: async () => {
-    const response = await axios.get(`${API_URL}/afps`);
-    return response.data;
-  },
-
-  calcularSueldoBase: async (datos) => {
-    const response = await axios.post(`${API_URL}/calcular`, datos);
-    return response.data;
-  },
-
-  simularLiquido: async (datos) => {
-    const response = await axios.post(`${API_URL}/simular`, datos);
-    return response.data;
-  },
-};
-
-export default CalculadoraService;
+export default CalculadoraService
