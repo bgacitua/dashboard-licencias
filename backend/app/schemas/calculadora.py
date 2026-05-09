@@ -1,72 +1,50 @@
-"""
-Schemas Pydantic para la calculadora de sueldos.
-"""
+from typing import Literal, Optional, Union
 from pydantic import BaseModel, Field
-from typing import List, Optional, Literal
 
-class BonoInput(BaseModel):
-    """Representa un bono individual"""
+Pais = Literal["chile", "peru", "brasil"]
+
+
+class TramoImpuesto(BaseModel):
+    desde: float
+    hasta: Optional[float] = None
+    factor: float
+    rebaja: float
+
+
+class Tasas(BaseModel):
+    TASA_SALUD_FONASA: float
+    TASA_CESANTIA: float
+    TOPE_AFP_SALUD_UF: float
+    TOPE_CESANTIA_UF: float
+    GRATIFICACION_MAX_IMM: float
+    SUELDO_MINIMO: float
+    CESANTIA_EMPLEADOR: float
+    MUTUAL: float
+    SIS: float
+    EXPECTATIVA_VIDA: float
+    AFP_EMPLEADOR: float
+    SEGURO_COMPLEMENTARIO_UF: float
+
+
+class BonoAnualesUF(BaseModel):
+    navidad: float
+    escolaridad: float
+    fiestaPatrias: float
+
+
+class BonoEmpresaTipo(BaseModel):
+    tipo: str
     nombre: str
-    monto: int = Field(gt=0)
-    imponible: bool = True
+    tasa: Optional[Union[float, list[float]]] = None
+    imponible: bool
 
-class CalculoRequest(BaseModel):
-    """Request para calcular sueldo base desde líquido deseado"""
-    sueldo_liquido: int = Field(gt=0, description="Sueldo líquido objetivo")
-    movilizacion: int = Field(default=40000, ge=0)
-    afp_nombre: str = Field(default="Uno")
-    salud_sistema: Literal["fonasa", "isapre"] = "fonasa"
-    salud_uf: float = Field(default=0.0, ge=0, description="Plan isapre en UF (solo si es isapre)")
-    bonos: List[BonoInput] = []
 
-class CalculoResponse(BaseModel):
-    """Respuesta con el desglose completo del cálculo"""
-    # Resultado principal
-    sueldo_base: int
-    sueldo_liquido: int
-    
-    # Haberes
-    gratificacion: int
-    bonos_imponibles: int
-    bonos_no_imponibles: int
-    movilizacion: int
-    imponible: int
-    total_haberes: int
-    
-    # Descuentos
-    cotizacion_previsional: int
-    cotizacion_salud: int
-    cesantia: int
-    impuesto: int
-    total_descuentos: int
-    
-    # Metadata
-    diferencia: int = Field(description="Diferencia vs objetivo por redondeo")
-    redondeo_aplicado: int
-
-class SimulacionRequest(BaseModel):
-    """Request para simular líquido desde sueldo base"""
-    sueldo_base: int = Field(gt=0)
-    movilizacion: int = Field(default=40000, ge=0)
-    afp_nombre: str = Field(default="Uno")
-    salud_sistema: Literal["fonasa", "isapre"] = "fonasa"
-    salud_uf: float = Field(default=0.0, ge=0)
-    bonos: List[BonoInput] = []
-
-class SimulacionResponse(BaseModel):
-    """Respuesta de simulación forward"""
-    sueldo_base: int
-    sueldo_liquido: int
-    total_haberes: int
-    total_descuentos: int
-    detalle: dict
-
-class ParametrosResponse(BaseModel):
-    """Parámetros actuales del sistema"""
-    valor_uf: float
-    sueldo_minimo: int
-    tope_imponible_afp_salud_uf: float
-    tope_imponible_cesantia_uf: float
-    default_plan_isapre_uf: float
-    afps: dict
-    tramos_impuesto: list
+class CountryConfigOut(BaseModel):
+    """Shape consumido por el frontend (mismo contrato que tenía Supabase)."""
+    afpData: dict[str, float] = Field(default_factory=dict)
+    ufValue: float
+    dolarValue: float
+    taxBrackets: list[TramoImpuesto] = Field(default_factory=list)
+    bonosAnualesUF: BonoAnualesUF
+    bonosEmpresa: list[BonoEmpresaTipo] = Field(default_factory=list)
+    tasas: Tasas
