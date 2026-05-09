@@ -31,3 +31,6 @@ backend/__pycache__/
 
 # --- BACKEND SPECIFIC (Ejemplo Node.js) ---
 backend/dist/
+# --- Scripts utilitarios locales (no versionar) ---
+backend/scripts/diag_db.py
+backend/scripts/test_calculadora_endpoint.py
