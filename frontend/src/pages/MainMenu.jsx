@@ -45,6 +45,18 @@ const MainMenu = () => {
       requiredRole: ['rrhh', 'admin'],
     },
     {
+      id: 'costos',
+      title: 'Costos por área',
+      description: 'Analiza el costo real ejecutado por empresa, área, jefatura, cargo o persona con MoM y YoY.',
+      path: '/costos',
+      icon: 'wallet',
+      iconColor: 'text-teal-600',
+      bgColor: 'bg-teal-50 dark:bg-teal-900/20',
+      borderHover: 'hover:border-teal-100',
+      moduleCode: 'costos',
+      requiredRole: ['rrhh', 'admin'],
+    },
+    {
       id: 'contract_alerts',
       title: 'Alertas de contratos',
       description: 'Visualiza vencimientos, envía notificaciones a jefaturas y gestiona renovaciones.',

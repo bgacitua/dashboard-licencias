@@ -1,0 +1,186 @@
+/* =========================================================================
+   Costos · Design tokens
+   -------------------------------------------------------------------------
+   Sistema de doble tema (light/dark) basado en variables CSS semánticas.
+   Convive con shadcn/ui (calculadora) sin colisionar: las variables se
+   definen dentro de `.costos-scope` y override los tokens shadcn sólo
+   en el subárbol del módulo.
+   ========================================================================= */
+
+.costos-scope {
+  /* Paleta semántica — tema CLARO (default) */
+  --bg-base:       #F3F4F6;
+  --bg-card:       #FFFFFF;
+  --bg-input:      #F9FAFB;
+  --border-color:  #E5E7EB;
+  --text-primary:  #111827;
+  --text-secondary:#4B5563;
+  --text-muted:    #9CA3AF;
+  --accent:        #2563EB;
+  --success:       #059669;
+  --danger:        #DC2626;
+  --warning-bg:    #FEF3C7;
+  --warning-fg:    #92400E;
+  --warning-border:#FCD34D;
+  --shadow-card:   0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
+  --radius-card:   12px;
+  --radius-input:  8px;
+
+  /* Bridge a tokens shadcn — para que las clases existentes
+     (bg-card, border, text-muted-foreground, bg-popover, …) tomen
+     automáticamente la paleta nueva dentro del scope. */
+  --background:           var(--bg-base);
+  --foreground:           var(--text-primary);
+  --card:                 var(--bg-card);
+  --card-foreground:      var(--text-primary);
+  --popover:              var(--bg-card);
+  --popover-foreground:   var(--text-primary);
+  --muted:                var(--bg-input);
+  --muted-foreground:     var(--text-secondary);
+  --border:               var(--border-color);
+  --input:                var(--bg-input);
+  --primary:              var(--accent);
+  --primary-foreground:   #FFFFFF;
+  --accent-foreground:    var(--text-primary);
+  --ring:                 var(--accent);
+
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont,
+               'Helvetica Neue', Arial, sans-serif;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased;
+}
+
+.costos-scope[data-theme="dark"] {
+  /* Paleta semántica — tema OSCURO */
+  --bg-base:       #0B0F19;
+  --bg-card:       #111827;
+  --bg-input:      #1F2937;
+  --border-color:  #374151;
+  --text-primary:  #F9FAFB;
+  --text-secondary:#9CA3AF;
+  --text-muted:    #6B7280;
+  --accent:        #3B82F6;
+  --success:       #10B981;
+  --danger:        #EF4444;
+  --warning-bg:    rgba(180,83,9,0.15);
+  --warning-fg:    #FCD34D;
+  --warning-border:#78350F;
+  --shadow-card:   none;
+}
+
+/* ---------- Utilidades semánticas --------------------------------------- */
+
+.costos-scope .cx-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.costos-scope .cx-input {
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-input);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.costos-scope .cx-input::placeholder { color: var(--text-muted); }
+.costos-scope .cx-input:focus,
+.costos-scope .cx-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.costos-scope .cx-text-primary   { color: var(--text-primary); }
+.costos-scope .cx-text-secondary { color: var(--text-secondary); }
+.costos-scope .cx-text-muted     { color: var(--text-muted); }
+.costos-scope .cx-text-accent    { color: var(--accent); }
+.costos-scope .cx-text-success   { color: var(--success); }
+.costos-scope .cx-text-danger    { color: var(--danger); }
+
+.costos-scope .cx-border         { border-color: var(--border-color); }
+.costos-scope .cx-bg-base        { background-color: var(--bg-base); }
+.costos-scope .cx-bg-card        { background-color: var(--bg-card); }
+.costos-scope .cx-bg-input       { background-color: var(--bg-input); }
+
+/* KPI principal — exigencia de la guía: ≥2rem, weight 700 */
+.costos-scope .cx-kpi {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.costos-scope .cx-kpi-sm {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 1.375rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Encabezados de tabla — uppercase, tracking, secondary */
+.costos-scope .cx-th {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Hover de fila de tabla — `var(--bg-input)` */
+.costos-scope .cx-row-hover { transition: background-color .12s ease; }
+.costos-scope .cx-row-hover:hover { background-color: var(--bg-input); }
+
+/* Banner de aviso */
+.costos-scope .cx-banner {
+  background-color: var(--warning-bg);
+  color: var(--warning-fg);
+  border: 1px solid var(--warning-border);
+}
+
+/* Toggle theme button */
+.costos-scope .cx-theme-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 10px;
+  background-color: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-input);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+}
+.costos-scope .cx-theme-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+/* Variación numérica (deltas MoM/YoY) */
+.costos-scope .cx-delta-pos { color: var(--success); }
+.costos-scope .cx-delta-neg { color: var(--danger); }
+.costos-scope .cx-delta-zero { color: var(--text-muted); }
+
+/* Recharts: ejes y grid usan tokens */
+.costos-scope .recharts-cartesian-grid line { stroke: var(--border-color); }
+.costos-scope .recharts-cartesian-axis-tick text,
+.costos-scope .recharts-legend-item-text { fill: var(--text-secondary) !important; color: var(--text-secondary) !important; }
+.costos-scope .recharts-tooltip-wrapper { outline: none; }
+
+/* Tooltip de recharts con look propio (cuando no se usa custom content) */
+.costos-scope .recharts-default-tooltip {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--radius-input) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Inputs nativos type="month" — color del icono en dark */
+.costos-scope[data-theme="dark"] input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.85);
+}

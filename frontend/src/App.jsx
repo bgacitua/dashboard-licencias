@@ -31,6 +31,7 @@ const CrearFiniquito = lazy(() => import('./pages/CrearFiniquito'));
 const AdminPanel = lazy(() => import('./pages/admin/AdminPanel'));
 const Calculadora = lazy(() => import('./pages/Calculadora'));
 const ContractAlerts = lazy(() => import('./pages/ContractAlerts'));
+const Costos = lazy(() => import('./pages/Costos'));
 
 
 function App() {
@@ -156,6 +157,16 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="calculadora">
                   <Calculadora />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Módulo Costos por Área */}
+            <Route
+              path="/costos"
+              element={
+                <ProtectedRoute requiredModule="costos">
+                  <Costos />
                 </ProtectedRoute>
               }
             />
