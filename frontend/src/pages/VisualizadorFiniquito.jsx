@@ -589,19 +589,24 @@ const VisualizadorFiniquito = () => {
                 </p>
               </div>
 
-              {/* Second Paragraph - Conditional based on cargo */}
-              <div 
+              {/* Second Paragraph - Conditional based on termination reason */}
+              <div
                 className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
                 style={{ marginTop: `${margins['p2_top'] || 0}mm`, marginBottom: `${margins['p2_bottom'] || 0}mm` }}
                 contentEditable={isEditable}
                 suppressContentEditableWarning={true}
               >
                 {renderMarginControls('p2')}
-                <p>{getSecondParagraph(employeeData.cargo)}</p>
+                <p>
+                  {(finiquitoData.terminationReason === 'vencimiento_plazo' || finiquitoData.terminationReason === 'termino_anticipado')
+                    ? 'A consecuencia del término de sus labores en la empresa, se le pagarán los siguientes valores:'
+                    : getSecondParagraph(employeeData.cargo)}
+                </p>
               </div>
 
-              {/* Third Paragraph - Payment Details */}
-              <div 
+              {/* Third Paragraph - Payment Details (only for non-vencimiento causals) */}
+              {finiquitoData.terminationReason !== 'vencimiento_plazo' && finiquitoData.terminationReason !== 'termino_anticipado' && (
+              <div
                 className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
                 style={{ marginTop: `${margins['p3_top'] || 0}mm`, marginBottom: `${margins['p3_bottom'] || 0}mm` }}
                 contentEditable={isEditable}
@@ -610,6 +615,7 @@ const VisualizadorFiniquito = () => {
                 {renderMarginControls('p3')}
                 <p>A consecuencia del término de sus labores en la empresa, se le pagarán los siguientes valores:</p>
               </div>
+              )}
             </>
           )}
 
