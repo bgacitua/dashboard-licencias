@@ -276,15 +276,28 @@ const VisualizadorFiniquito = () => {
   };
 
   // Helper to add business days (Mon-Fri)
+  const isBusinessDay = (date) => {
+    const day = date.getDay();
+    if (day === 0 || day === 6) return false;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const dayOfMonth = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${dayOfMonth}`;
+    const HOLIDAYS_2026 = [
+      '2026-01-01', '2026-04-03', '2026-04-04', '2026-05-01',
+      '2026-05-21', '2026-06-21', '2026-06-29', '2026-07-16',
+      '2026-08-15', '2026-09-18', '2026-09-19', '2026-10-12',
+      '2026-10-31', '2026-11-01', '2026-12-08', '2026-12-25',
+    ];
+    return !HOLIDAYS_2026.includes(dateStr);
+  };
+
   const addBusinessDays = (date, days) => {
     let result = new Date(date);
     let count = 0;
     while (count < days) {
       result.setDate(result.getDate() + 1);
-      // 0 = Sunday, 6 = Saturday
-      if (result.getDay() !== 0 && result.getDay() !== 6) {
-        count++;
-      }
+      if (isBusinessDay(result)) count++;
     }
     return result;
   };
@@ -330,7 +343,7 @@ const VisualizadorFiniquito = () => {
   const localTerminationDate = new Date(tParts[0], tParts[1] - 1, tParts[2]);
   
   const notaryDateObj = addBusinessDays(localTerminationDate, 10);
-  const notaryDate = notaryDateObj.toISOString().split('T')[0];
+  const notaryDate = `${notaryDateObj.getFullYear()}-${String(notaryDateObj.getMonth() + 1).padStart(2, '0')}-${String(notaryDateObj.getDate()).padStart(2, '0')}`;
   
   // Get manager info
   const selectedManager = finiquitoData.selectedManager || {
