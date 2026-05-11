@@ -276,15 +276,28 @@ const VisualizadorFiniquito = () => {
   };
 
   // Helper to add business days (Mon-Fri)
+  const isBusinessDay = (date) => {
+    const day = date.getDay();
+    if (day === 0 || day === 6) return false;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const dayOfMonth = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${dayOfMonth}`;
+    const HOLIDAYS_2026 = [
+      '2026-01-01', '2026-04-03', '2026-04-04', '2026-05-01',
+      '2026-05-21', '2026-06-21', '2026-06-29', '2026-07-16',
+      '2026-08-15', '2026-09-18', '2026-09-19', '2026-10-12',
+      '2026-10-31', '2026-11-01', '2026-12-08', '2026-12-25',
+    ];
+    return !HOLIDAYS_2026.includes(dateStr);
+  };
+
   const addBusinessDays = (date, days) => {
     let result = new Date(date);
     let count = 0;
     while (count < days) {
       result.setDate(result.getDate() + 1);
-      // 0 = Sunday, 6 = Saturday
-      if (result.getDay() !== 0 && result.getDay() !== 6) {
-        count++;
-      }
+      if (isBusinessDay(result)) count++;
     }
     return result;
   };
@@ -330,7 +343,7 @@ const VisualizadorFiniquito = () => {
   const localTerminationDate = new Date(tParts[0], tParts[1] - 1, tParts[2]);
   
   const notaryDateObj = addBusinessDays(localTerminationDate, 10);
-  const notaryDate = notaryDateObj.toISOString().split('T')[0];
+  const notaryDate = `${notaryDateObj.getFullYear()}-${String(notaryDateObj.getMonth() + 1).padStart(2, '0')}-${String(notaryDateObj.getDate()).padStart(2, '0')}`;
   
   // Get manager info
   const selectedManager = finiquitoData.selectedManager || {
@@ -571,34 +584,42 @@ const VisualizadorFiniquito = () => {
                 {renderMarginControls('p1')}
                 <p>
                   <strong>{companyDetails.legalName}</strong>, Rut: <strong>{companyDetails.rut}</strong>, le 
-                  comunica a usted que se procederá a poner término a su Contrato de Trabajo, con fecha {formatDate(terminationDate)}, 
+                  comunica a usted que se procederá a poner término {finiquitoData.terminationReason === 'termino_anticipado' ? 'anticipado ' : ''}a su Contrato de Trabajo, con fecha {formatDate(terminationDate)},
                   en virtud de lo dispuesto en el {(() => {
                     switch(finiquitoData.terminationReason) {
                       case 'renuncia':
-                        return 'Art. 159 N° 2 del Código del Trabajo, esto es, "Renuncia Voluntaria".';
+                        return 'Art. 159 N° 2 del Código del Trabajo, esto es, “Renuncia Voluntaria”.';
                       case 'no_concurrencia':
-                        return 'Art. 160 N° 3 del Código del Trabajo, esto es, "No concurrencia del trabajador a sus labores sin causa justificada".';
+                        return 'Art. 160 N° 3 del Código del Trabajo, esto es, “No concurrencia del trabajador a sus labores sin causa justificada”.';
+                      case 'vencimiento_plazo':
+                      case 'termino_anticipado':
+                        return 'Art. 159 N° 4 del Código del Trabajo, esto es, “Vencimiento del plazo convenido en el contrato de trabajo”.';
                       case 'necesidades_empresa':
                       default:
-                        return 'Art. 161 inciso 1° del Código del Trabajo, esto es, "Necesidades de la Empresa, Establecimiento o Servicio".';
+                        return 'Art. 161 inciso 1° del Código del Trabajo, esto es, “Necesidades de la Empresa, Establecimiento o Servicio”.';
                     }
                   })()}
                 </p>
               </div>
 
-              {/* Second Paragraph - Conditional based on cargo */}
-              <div 
+              {/* Second Paragraph - Conditional based on termination reason */}
+              <div
                 className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
                 style={{ marginTop: `${margins['p2_top'] || 0}mm`, marginBottom: `${margins['p2_bottom'] || 0}mm` }}
                 contentEditable={isEditable}
                 suppressContentEditableWarning={true}
               >
                 {renderMarginControls('p2')}
-                <p>{getSecondParagraph(employeeData.cargo)}</p>
+                <p>
+                  {(finiquitoData.terminationReason === 'vencimiento_plazo' || finiquitoData.terminationReason === 'termino_anticipado')
+                    ? 'A consecuencia del término de sus labores en la empresa, se le pagarán los siguientes valores:'
+                    : getSecondParagraph(employeeData.cargo)}
+                </p>
               </div>
 
-              {/* Third Paragraph - Payment Details */}
-              <div 
+              {/* Third Paragraph - Payment Details (only for non-vencimiento causals) */}
+              {finiquitoData.terminationReason !== 'vencimiento_plazo' && finiquitoData.terminationReason !== 'termino_anticipado' && (
+              <div
                 className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
                 style={{ marginTop: `${margins['p3_top'] || 0}mm`, marginBottom: `${margins['p3_bottom'] || 0}mm` }}
                 contentEditable={isEditable}
@@ -607,6 +628,7 @@ const VisualizadorFiniquito = () => {
                 {renderMarginControls('p3')}
                 <p>A consecuencia del término de sus labores en la empresa, se le pagarán los siguientes valores:</p>
               </div>
+              )}
             </>
           )}
 

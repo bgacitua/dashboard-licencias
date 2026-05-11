@@ -1224,7 +1224,9 @@ const CrearFiniquito = () => {
     terminationReason === "mutuo_acuerdo" ||
     terminationReason === "mutuo_acuerdo_especial" ||
     terminationReason === "no_concurrencia" ||
-    terminationReason === "renuncia";
+    terminationReason === "renuncia" ||
+    terminationReason === "vencimiento_plazo" ||
+    terminationReason === "termino_anticipado";
   const vacationIndemnity = vacationApplies ? vacationValue : 0;
 
   // 2. Years of Service Indemnity = Total Haberes * años de indemnización
@@ -1484,6 +1486,8 @@ const CrearFiniquito = () => {
           mutuo_acuerdo_especial: "Mutuo acuerdo especial",
           no_concurrencia: "Art. 160 N°3 - No concurrencia injustificada",
           renuncia: "Art. 159 N°2 - Renuncia voluntaria",
+          vencimiento_plazo: "Art. 159 N°4 - Vencimiento del plazo",
+          termino_anticipado: "Art. 159 N°4 - Término anticipado",
         };
         const otrosDesc = Math.max(0, Math.round(totalDescuentos) - aporteCesantiaNum);
         const vacCalendarDays = lastDayWork
@@ -1724,6 +1728,9 @@ const CrearFiniquito = () => {
             return '“Renuncia del trabajador” de conformidad con lo dispuesto en el artículo 159 inciso 2° del Código del Trabajo';
           case "no_concurrencia":
             return 'Art. 160 N° 3 del Código del Trabajo, esto es, "No concurrencia del trabajador a sus labores sin causa justificada".';
+          case "vencimiento_plazo":
+          case "termino_anticipado":
+            return 'Art. 159 N° 4 del Código del Trabajo, esto es, "Vencimiento del plazo convenido en el contrato de trabajo".';
           case "necesidades_empresa":
           default:
             return 'Art. 161 inciso 1° del Código del Trabajo, esto es, "Necesidades de la Empresa, Establecimiento o Servicio".';
@@ -1974,6 +1981,12 @@ const CrearFiniquito = () => {
                 </option>
                 <option value="renuncia">
                   Art. 159 N°2 - Renuncia voluntaria
+                </option>
+                <option value="vencimiento_plazo">
+                  Art. 159 N°4 - Vencimiento del plazo
+                </option>
+                <option value="termino_anticipado">
+                  Art. 159 N°4 - Término anticipado
                 </option>
               </select>
               <p className="text-xs text-gray-400 mt-2">
