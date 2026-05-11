@@ -571,16 +571,19 @@ const VisualizadorFiniquito = () => {
                 {renderMarginControls('p1')}
                 <p>
                   <strong>{companyDetails.legalName}</strong>, Rut: <strong>{companyDetails.rut}</strong>, le 
-                  comunica a usted que se procederá a poner término a su Contrato de Trabajo, con fecha {formatDate(terminationDate)}, 
+                  comunica a usted que se procederá a poner término {finiquitoData.terminationReason === 'termino_anticipado' ? 'anticipado ' : ''}a su Contrato de Trabajo, con fecha {formatDate(terminationDate)},
                   en virtud de lo dispuesto en el {(() => {
                     switch(finiquitoData.terminationReason) {
                       case 'renuncia':
-                        return 'Art. 159 N° 2 del Código del Trabajo, esto es, "Renuncia Voluntaria".';
+                        return 'Art. 159 N° 2 del Código del Trabajo, esto es, “Renuncia Voluntaria”.';
                       case 'no_concurrencia':
-                        return 'Art. 160 N° 3 del Código del Trabajo, esto es, "No concurrencia del trabajador a sus labores sin causa justificada".';
+                        return 'Art. 160 N° 3 del Código del Trabajo, esto es, “No concurrencia del trabajador a sus labores sin causa justificada”.';
+                      case 'vencimiento_plazo':
+                      case 'termino_anticipado':
+                        return 'Art. 159 N° 4 del Código del Trabajo, esto es, “Vencimiento del plazo convenido en el contrato de trabajo”.';
                       case 'necesidades_empresa':
                       default:
-                        return 'Art. 161 inciso 1° del Código del Trabajo, esto es, "Necesidades de la Empresa, Establecimiento o Servicio".';
+                        return 'Art. 161 inciso 1° del Código del Trabajo, esto es, “Necesidades de la Empresa, Establecimiento o Servicio”.';
                     }
                   })()}
                 </p>
