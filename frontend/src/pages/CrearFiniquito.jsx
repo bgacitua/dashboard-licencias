@@ -36,11 +36,19 @@ function getMonthsInRange(minYear, minMonth, maxYear, maxMonth) {
   return out;
 }
 
+const MEDICAL_KEYWORDS = ["enfermedad", "licencia", "accidente", "patología", "patologia", "medicina"];
+
+function isMedicalLicense(lic) {
+  const tipo = (lic.tipo_permiso || "").toLowerCase();
+  return MEDICAL_KEYWORDS.some((kw) => tipo.includes(kw));
+}
+
 function monthHasLicense(year, month, licencias) {
   if (!licencias || !licencias.length) return false;
   const firstDay = new Date(year, month - 1, 1);
   const lastDay = new Date(year, month, 0);
   return licencias.some((lic) => {
+    if (!isMedicalLicense(lic)) return false;
     const start = new Date(lic.fecha_inicio);
     const end = new Date(lic.fecha_fin);
     return end >= firstDay && start <= lastDay;
@@ -1640,10 +1648,17 @@ const CrearFiniquito = () => {
           );
         }
 
+        if (liquidacionMesActualNum > 0) {
+          haberesLines.push(
+            `Remuneración adeudada\t${fmtCurrency(liquidacionMesActualNum)}`,
+          );
+        }
+
         totalHaberesTabla =
           (Number(noticeIndemnity) || 0) +
           (Number(yearsIndemnityDisplay) || 0) +
-          (Number(vacationIndemnity) || 0);
+          (Number(vacationIndemnity) || 0) +
+          liquidacionMesActualNum;
 
         totalDescuentosTabla = Number(descuentosMesActualNum) || 0;
       }
