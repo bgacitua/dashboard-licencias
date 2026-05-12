@@ -1610,7 +1610,7 @@ const CrearFiniquito = () => {
 
       } else {
         // Resto de causales: mantener lógica de indemnizaciones + vacaciones proporcionales
-        if (!isMutuo && noticeIndemnity > 0) {
+        if (terminationReason === "necesidades_empresa" && noticeIndemnity > 0) {
           haberesLines.push(
             `Indemnización mes de aviso\t${fmtCurrency(noticeIndemnity)}`,
           );
@@ -1675,7 +1675,7 @@ const CrearFiniquito = () => {
       });
 
       // Aporte Empleador Seguro Cesantía (independiente de la causal)
-      if (aporteCesantiaNum > 0) {
+      if (aporteCesantiaNum > 0 && terminationReason !== "mutuo_acuerdo") {
         descuentosLines.push(`Aporte Empleador Seguro Cesantía\t${fmtCurrency(aporteCesantiaNum)}`);
         totalDescuentosTabla += aporteCesantiaNum;
       }
