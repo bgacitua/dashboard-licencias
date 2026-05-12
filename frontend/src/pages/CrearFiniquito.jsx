@@ -1731,6 +1731,10 @@ const CrearFiniquito = () => {
           case "vencimiento_plazo":
           case "termino_anticipado":
             return 'Art. 159 N° 4 del Código del Trabajo, esto es, "Vencimiento del plazo convenido en el contrato de trabajo".';
+          case "mutuo_acuerdo":
+            return 'Art. 159 N° 1 del Código del Trabajo, esto es, "Mutuo acuerdo de las partes".';
+          case "mutuo_acuerdo_especial":
+            return '"Mutuo acuerdo de las partes" de conformidad con lo dispuesto en el artículo 159 N° 1 del Código del Trabajo.';
           case "necesidades_empresa":
           default:
             return 'Art. 161 inciso 1° del Código del Trabajo, esto es, "Necesidades de la Empresa, Establecimiento o Servicio".';
