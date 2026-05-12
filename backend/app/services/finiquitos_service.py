@@ -558,6 +558,18 @@ class FiniquitosService:
                                     )
                                     break
 
+                        # 5.c) Fallback cross-semestre: último valor conocido antes de este mes
+                        if ref_amount is None:
+                            for j in range(i - 1, -1, -1):
+                                candidate = expected_months[j]
+                                if candidate in raw_records:
+                                    ref_amount = raw_records[candidate]["amount"]
+                                    logger.info(
+                                        f"[gap] {sort_date}: rellenado con {candidate} "
+                                        f"(${ref_amount:,}) cross-semestre"
+                                    )
+                                    break
+
                         if ref_amount is None:
                             logger.warning(f"[gap] {sort_date}: sin referencia disponible, se usa 0")
                             ref_amount = 0
