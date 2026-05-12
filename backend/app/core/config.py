@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     # === BUK API ===
     BUK_API_BASE_URL: str
     BUK_API_KEY: str
+    BUK_RENOVACIONES_KEY: str = ""  # token con permisos PATCH para renovaciones
 
     # === Azure App / Graph API (envío de correos) ===
     AZURE_TENANT_ID: str = ""

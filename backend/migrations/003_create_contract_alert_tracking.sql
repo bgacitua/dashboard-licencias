@@ -30,3 +30,47 @@ CREATE INDEX IF NOT EXISTS idx_tracking_boss_email  ON app.contract_alert_tracki
 CREATE INDEX IF NOT EXISTS idx_tracking_alert_date  ON app.contract_alert_tracking(alert_date);
 CREATE INDEX IF NOT EXISTS idx_tracking_response    ON app.contract_alert_tracking(response);
 CREATE INDEX IF NOT EXISTS idx_tracking_token       ON app.contract_alert_tracking(response_token);
+
+-- Poblar con alertas enviadas cuyo vencimiento es hoy o posterior y sin respuesta aún.
+-- first_alert_sent=true  → SEGUNDO_PLAZO ya notificado
+-- second_alert_sent=true → INDEFINIDO ya notificado
+INSERT INTO app.contract_alert_tracking (
+    employee_id,
+    rut,
+    employee_name,
+    employee_role,
+    boss_name,
+    boss_email,
+    alert_date,
+    alert_type,
+    alert_reason,
+    first_sent_at,
+    last_followup_at,
+    followup_count,
+    created_at,
+    updated_at
+)
+SELECT
+    employee_id,
+    rut,
+    employee_name,
+    employee_role,
+    boss_name,
+    boss_email,
+    alert_date,
+    alert_type,
+    alert_reason,
+    updated_at AS first_sent_at,   -- mejor aproximación de cuándo se envió
+    updated_at AS last_followup_at,
+    0           AS followup_count,
+    NOW()       AS created_at,
+    NOW()       AS updated_at
+FROM rh.contract_alerts
+WHERE
+    alert_date >= CURRENT_DATE
+    AND (
+        (alert_type = 'SEGUNDO_PLAZO' AND first_alert_sent  = TRUE)
+        OR
+        (alert_type = 'INDEFINIDO'    AND second_alert_sent = TRUE)
+    )
+ON CONFLICT (employee_id, alert_date) DO NOTHING;

@@ -421,7 +421,7 @@ class ContractAlertsService:
         try:
             patch_resp = httpx.patch(
                 f"{settings.BUK_API_BASE_URL}/employees/{employee_id}/jobs/{job_id}",
-                headers={"auth_token": settings.BUK_API_KEY, "Content-Type": "application/json"},
+                headers={"auth_token": settings.BUK_RENOVACIONES_KEY, "Content-Type": "application/json"},
                 json=patch_body,
                 timeout=15,
             )
