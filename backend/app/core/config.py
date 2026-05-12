@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     AZURE_REDIRECT_URI: str = "https://personas.cramer.cl:8444/api/v1/contract-alerts/auth/callback"
     TOKEN_STORAGE_PATH: str = "/app/data/ms_token.json"
 
+    # === URL pública para links de respuesta en correos ===
+    PUBLIC_URL: str = ""  # ej: https://personas.cramer.cl:8444
+
     # === Scheduler de alertas automáticas ===
     ALERTS_SCHEDULER_ENABLED: bool = False
     ALERTS_SCHEDULER_HOUR: int = 8       # hora de ejecución (formato 24h)

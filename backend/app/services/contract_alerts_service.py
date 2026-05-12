@@ -10,12 +10,14 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, date, timedelta
 import calendar
 from app.repositories.contract_alerts_repository import ContractAlertsRepository
+from app.repositories.tracking_repository import TrackingRepository
 from app.core.logging_config import logger
 
 
 class ContractAlertsService:
     def __init__(self, db: Session):
         self.repository = ContractAlertsRepository(db)
+        self.tracking = TrackingRepository(db)
 
     # ================================================================
     # Cálculo de rango dinámico
@@ -216,6 +218,7 @@ class ContractAlertsService:
 
                 empleados_jefe = []
                 ruts_procesados = []
+                token_map: Dict[str, str] = {}  # rut -> response_token UUID
 
                 for emp in empleados_list:
                     rut = emp["employee_rut"]
@@ -231,6 +234,20 @@ class ContractAlertsService:
                             "tipo_alerta": tipo_alerta,
                         })
                         ruts_procesados.append((rut, tipo_alerta))
+                        # Upsert tracking y obtener token
+                        token = self.tracking.upsert_tracking(
+                            employee_id=emp.get("employee_id", 0),
+                            rut=rut,
+                            employee_name=emp.get("employee_name", ""),
+                            employee_role=emp.get("employee_role", ""),
+                            boss_name=nombre_jefe,
+                            boss_email=email_jefe,
+                            alert_date=emp.get("alert_date_raw") or date.today(),
+                            alert_type=tipo_alerta,
+                            alert_reason=emp.get("alert_reason", ""),
+                        )
+                        if token:
+                            token_map[rut] = token
 
                 empleados_jefe_ordenados = sorted(
                     empleados_jefe,
@@ -238,7 +255,7 @@ class ContractAlertsService:
                     reverse=False,
                 )
 
-                html = _generate_email_html(nombre_jefe, empleados_jefe_ordenados, incidencias)
+                html = _generate_email_html(nombre_jefe, empleados_jefe_ordenados, incidencias, token_map)
 
                 lista_copia = [c.strip() for c in settings.EMAIL_CC_LIST.split(",") if c.strip()]
                 copia_final = [c for c in lista_copia if c not in (email_jefe, email_jefe_jefe)]
@@ -305,6 +322,174 @@ class ContractAlertsService:
     def delete_cierre(self, cierre_id: int) -> bool:
         """Elimina un cierre"""
         return self.repository.delete_cierre(cierre_id)
+
+    # ================================================================
+    # Seguimiento de respuestas
+    # ================================================================
+
+    def get_tracking(self) -> List[Dict[str, Any]]:
+        return self.tracking.get_all_tracking()
+
+    def respond(self, token: str, answer: str) -> Dict[str, Any]:
+        """Registra respuesta vía link del correo. Retorna datos para página de confirmación."""
+        valid_answers = {"indefinido", "plazo_fijo", "no_renovar"}
+        if answer not in valid_answers:
+            return {"ok": False, "error": "Respuesta inválida"}
+        record = self.tracking.get_by_token(token)
+        if not record:
+            return {"ok": False, "error": "Token no válido"}
+        if record.get("response"):
+            return {"ok": True, "already_answered": True, "record": record}
+        ok = self.tracking.set_response(token, answer)
+        if ok:
+            return {"ok": True, "already_answered": False, "record": record, "answer": answer}
+        return {"ok": False, "error": "Error al guardar respuesta"}
+
+    def sync_to_buk(self, tracking_id: int) -> Dict[str, Any]:
+        """
+        Sincroniza respuesta a BUK vía PATCH.
+        Fetcha job_id y contract_finishing_date_2 desde BUK antes del PATCH.
+        """
+        import httpx
+        from app.core.config import settings
+
+        # Obtener registro de tracking por id
+        from sqlalchemy import text
+        row = self.tracking.db.execute(
+            text("""
+                SELECT id, employee_id, alert_date, alert_type, response, buk_synced
+                FROM app.contract_alert_tracking
+                WHERE id = :id
+            """),
+            {"id": tracking_id}
+        ).fetchone()
+
+        if not row:
+            return {"ok": False, "error": "Registro no encontrado"}
+
+        rec = dict(zip(["id", "employee_id", "alert_date", "alert_type", "response", "buk_synced"], row))
+
+        if not rec["response"] or rec["response"] == "no_renovar":
+            return {"ok": False, "error": "Solo se sincronizan respuestas de renovación"}
+
+        if rec["buk_synced"]:
+            return {"ok": False, "error": "Ya sincronizado con BUK"}
+
+        employee_id = rec["employee_id"]
+        alert_date: date = rec["alert_date"]
+        response = rec["response"]
+
+        # Fetch employee data from BUK para obtener job_id y contract_finishing_date_2
+        try:
+            buk_resp = httpx.get(
+                f"{settings.BUK_API_BASE_URL}/employees/{employee_id}",
+                headers={"auth_token": settings.BUK_API_KEY},
+                timeout=15,
+            )
+            buk_resp.raise_for_status()
+            buk_data = buk_resp.json().get("data", {})
+        except Exception as e:
+            err = f"Error fetching BUK employee {employee_id}: {e}"
+            logger.error(err)
+            self.tracking.mark_buk_synced(tracking_id, error=err)
+            return {"ok": False, "error": err}
+
+        current_job = buk_data.get("current_job", {})
+        job_id = current_job.get("id")
+        if not job_id:
+            err = f"No se encontró current_job.id para employee_id={employee_id}"
+            self.tracking.mark_buk_synced(tracking_id, error=err)
+            return {"ok": False, "error": err}
+
+        # Construir body del PATCH
+        start_date = date(alert_date.year, alert_date.month, 1).strftime("%Y-%m-%d")
+
+        if response == "indefinido":
+            contract_type = "Indefinido"
+            end_of_contract = ""
+        else:  # plazo_fijo
+            contract_type = "Plazo fijo"
+            end_of_contract = current_job.get("contract_finishing_date_2") or ""
+
+        patch_body = {
+            "start_date": start_date,
+            "type_of_contract": contract_type,
+            "end_of_contract": end_of_contract,
+            "end_of_contract_2": "",
+        }
+
+        try:
+            patch_resp = httpx.patch(
+                f"{settings.BUK_API_BASE_URL}/employees/{employee_id}/jobs/{job_id}",
+                headers={"auth_token": settings.BUK_API_KEY, "Content-Type": "application/json"},
+                json=patch_body,
+                timeout=15,
+            )
+            patch_resp.raise_for_status()
+            self.tracking.mark_buk_synced(tracking_id)
+            logger.info(f"BUK sync OK: employee_id={employee_id} job_id={job_id} type={contract_type}")
+            return {"ok": True, "employee_id": employee_id, "job_id": job_id, "contract_type": contract_type}
+        except Exception as e:
+            err = f"Error PATCH BUK employee={employee_id} job={job_id}: {e}"
+            logger.error(err)
+            self.tracking.mark_buk_synced(tracking_id, error=err)
+            return {"ok": False, "error": err}
+
+    def send_followup_emails(self) -> Dict[str, Any]:
+        """
+        Envía recordatorios a jefaturas que no han respondido.
+        Agrupa por boss_email y envía un email por jefe.
+        """
+        from app.services.email_token_service import AuthRequiredError
+
+        pendientes = self.tracking.get_pending_followups()
+        if not pendientes:
+            logger.info("[Followup] Sin seguimientos pendientes")
+            return {"sent": 0, "errors": 0}
+
+        # Agrupar por jefe
+        por_jefe: Dict[str, List[Dict]] = {}
+        for rec in pendientes:
+            key = rec["boss_email"]
+            if key not in por_jefe:
+                por_jefe[key] = []
+            por_jefe[key].append(rec)
+
+        enviados = 0
+        errores = 0
+
+        try:
+            for boss_email, registros in por_jefe.items():
+                boss_name = registros[0]["boss_name"]
+                token_map = {r["rut"]: r["response_token"] for r in registros}
+
+                empleados_data = [
+                    {
+                        "empleado": r["employee_name"],
+                        "rut": r["rut"],
+                        "cargo": r["employee_role"] or "N/A",
+                        "email": "",
+                        "fecha_alerta": r["alert_date_fmt"],
+                        "motivo": r["alert_reason"] or "Vencimiento de contrato",
+                        "tipo_alerta": r["alert_type"],
+                    }
+                    for r in registros
+                ]
+
+                html = _generate_email_html(boss_name, empleados_data, [], token_map, is_followup=True)
+                subject = f"[Recordatorio] Alertas de contratos - {len(registros)} empleado(s) pendiente(s)"
+
+                ok = _send_email_graph(boss_email, "", subject, html)
+                if ok:
+                    enviados += 1
+                    logger.info(f"[Followup] Recordatorio enviado a {boss_email} ({len(registros)} empleados)")
+                else:
+                    errores += 1
+        except AuthRequiredError:
+            logger.error("[Followup] Token Microsoft expirado, no se enviaron recordatorios")
+            return {"sent": 0, "errors": len(por_jefe), "auth_required": True}
+
+        return {"sent": enviados, "errors": errores}
 
 
 # ============================================================================
@@ -396,11 +581,20 @@ def _generate_incidencias_html(rut: str, incidencias: List[Dict[str, Any]]) -> s
     return html
 
 
-def _generate_email_html(nombre_jefe: str, empleados_data: List[Dict], incidencias: List[Dict[str, Any]]) -> str:
+def _generate_email_html(
+    nombre_jefe: str,
+    empleados_data: List[Dict],
+    incidencias: List[Dict[str, Any]],
+    token_map: Dict[str, str] = None,
+    is_followup: bool = False,
+) -> str:
     """
     Genera el HTML completo del email de alertas para un jefe.
     Portado desde template_mails.py -> ReporteManager._generar_html_reporte_por_jefe
     """
+    from app.core.config import settings
+    public_url = getattr(settings, "PUBLIC_URL", "").rstrip("/")
+
     # Agrupar empleados por motivo
     empleados_por_motivo = {}
     for emp in empleados_data:
@@ -483,9 +677,9 @@ def _generate_email_html(nombre_jefe: str, empleados_data: List[Dict], incidenci
     </head>
     <body>
             <div class="jefe-info">
-                <p>Buenos días {nombre_jefe}:</p>
-                <p>Junto con saludar, notificamos los siguientes vencimientos de contrato:</p>
-                <p>(*) Rellenar la columna <strong>"Renovar"</strong> con su respuesta <strong>(Si/No)</strong></p>
+                <p>{'<strong>⚠️ RECORDATORIO</strong> — ' if is_followup else ''}Buenos días {nombre_jefe}:</p>
+                <p>Junto con saludar, {'le recordamos que aún tiene ' if is_followup else ''}notificamos los siguientes vencimientos de contrato{'<strong> pendientes de respuesta</strong>' if is_followup else ''}:</p>
+                <p>(*) Haga clic en el botón correspondiente para indicar su decisión de renovación.</p>
                 <p>Por favor contestar a la brevedad, por motivos de cierre de mes.</p>
             </div>
     """
@@ -498,10 +692,10 @@ def _generate_email_html(nombre_jefe: str, empleados_data: List[Dict], incidenci
             <table class="alerta-tabla">
                 <thead>
                     <tr>
-                        <th style="width: 40%;">Empleado</th>
-                        <th style="width: 30%;">Cargo</th>
-                        <th style="width: 20%;">Fecha Vencimiento</th>
-                        <th style="width: 10%;">Renovar (*)</th>
+                        <th style="width: 35%;">Empleado</th>
+                        <th style="width: 25%;">Cargo</th>
+                        <th style="width: 15%;">Fecha Vencimiento</th>
+                        <th style="width: 25%;">Renovar (*)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -510,13 +704,26 @@ def _generate_email_html(nombre_jefe: str, empleados_data: List[Dict], incidenci
         for emp in grupo_empleados:
             rut_empleado = emp.get("rut", "")
             clase_fila = "urgente" if emp["tipo_alerta"] == "INDEFINIDO" else ""
+            token = (token_map or {}).get(rut_empleado, "")
+
+            if token and public_url:
+                base = f"{public_url}/api/v1/contract-alerts/respond?token={token}&answer="
+                renovar_cell = f"""
+                    <td style="width: 25%; padding: 4px 8px;">
+                        <a href="{base}indefinido" style="display:inline-block;margin:2px;padding:4px 8px;background:#16a34a;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✓ Indefinido</a>
+                        <a href="{base}plazo_fijo" style="display:inline-block;margin:2px;padding:4px 8px;background:#2563eb;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✓ Plazo Fijo</a>
+                        <a href="{base}no_renovar" style="display:inline-block;margin:2px;padding:4px 8px;background:#dc2626;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✗ No Renovar</a>
+                    </td>
+                """
+            else:
+                renovar_cell = '<td style="width: 25%; background-color: #FFDDC1;"></td>'
 
             html += f"""
                 <tr class="{clase_fila}">
-                    <td style="width: 40%;"><strong>{emp['empleado']}</strong></td>
-                    <td style="width: 30%;">{emp['cargo']}</td>
-                    <td style="width: 20%;">{emp['fecha_alerta']}</td>
-                    <td style="width: 10%; background-color: #FFDDC1;"></td>
+                    <td style="width: 35%;"><strong>{emp['empleado']}</strong></td>
+                    <td style="width: 25%;">{emp['cargo']}</td>
+                    <td style="width: 15%;">{emp['fecha_alerta']}</td>
+                    {renovar_cell}
                 </tr>
             """
 

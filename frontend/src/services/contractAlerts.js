@@ -90,3 +90,23 @@ export const deleteCalendarioCierre = async (id) => {
     throw error;
   }
 };
+
+export const getTracking = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/contract-alerts/tracking`);
+    return response.data;
+  } catch (error) {
+    console.error("Error al obtener seguimiento:", error);
+    throw error;
+  }
+};
+
+export const syncToBuk = async (trackingId) => {
+  try {
+    const response = await axios.post(`${API_URL}/contract-alerts/tracking/${trackingId}/sync-buk`);
+    return response.data;
+  } catch (error) {
+    console.error("Error al sincronizar con BUK:", error);
+    throw error;
+  }
+};

@@ -114,6 +114,36 @@ def _run_alerts_job() -> None:
         db.close()
 
 
+def _run_followup_job() -> None:
+    """Envía recordatorios a jefaturas sin respuesta."""
+    from app.db.session import SessionLocal
+    from app.services.contract_alerts_service import ContractAlertsService
+    from datetime import datetime
+
+    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    db = SessionLocal()
+    try:
+        service = ContractAlertsService(db)
+        result = service.send_followup_emails()
+        if result.get("auth_required"):
+            logger.error("[Followup] Token Microsoft expirado")
+            return
+        logger.info(
+            f"[Followup] Completado — enviados: {result.get('sent', 0)}, "
+            f"errores: {result.get('errors', 0)}"
+        )
+        if result.get("sent", 0) > 0:
+            _notify_n8n({
+                "tipo": "followup_completado",
+                "timestamp": timestamp,
+                "enviados": result.get("sent", 0),
+            })
+    except Exception as e:
+        logger.error(f"[Followup] Error inesperado: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
 def start_scheduler() -> None:
     global _scheduler
 
@@ -132,6 +162,20 @@ def start_scheduler() -> None:
         ),
         id="contract_alerts_job",
         name="Envío automático de alertas de contratos",
+        replace_existing=True,
+    )
+    # Follow-up job: mismo horario, corre todos los días
+    followup_minute = (settings.ALERTS_SCHEDULER_MINUTE + 5) % 60
+    followup_hour = settings.ALERTS_SCHEDULER_HOUR + (1 if settings.ALERTS_SCHEDULER_MINUTE > 54 else 0)
+    _scheduler.add_job(
+        _run_followup_job,
+        trigger=CronTrigger(
+            hour=followup_hour,
+            minute=followup_minute,
+            timezone=tz,
+        ),
+        id="contract_followup_job",
+        name="Recordatorios de seguimiento de contratos",
         replace_existing=True,
     )
     _scheduler.start()

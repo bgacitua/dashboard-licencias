@@ -14,9 +14,10 @@ class ContractAlertsRepository:
         if end_date:
             query = text("""
                 SELECT
-                    employee_name, rut AS employee_rut, employee_role, email,
+                    employee_id, employee_name, rut AS employee_rut, employee_role, email,
                     boss_name, boss_email, boss_of_boss_email,
                     TO_CHAR(alert_date, 'DD-MM-YYYY') AS alert_date,
+                    alert_date AS alert_date_raw,
                     alert_reason, expiration, days_since_start,
                     employee_start_date, alert_type
                 FROM rh.contract_alerts
@@ -30,9 +31,10 @@ class ContractAlertsRepository:
         else:
             query = text("""
                 SELECT
-                    employee_name, rut AS employee_rut, employee_role, email,
+                    employee_id, employee_name, rut AS employee_rut, employee_role, email,
                     boss_name, boss_email, boss_of_boss_email,
                     TO_CHAR(alert_date, 'DD-MM-YYYY') AS alert_date,
+                    alert_date AS alert_date_raw,
                     alert_reason, expiration, days_since_start,
                     employee_start_date, alert_type
                 FROM rh.contract_alerts

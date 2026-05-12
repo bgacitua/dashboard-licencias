@@ -187,3 +187,100 @@ def delete_cierre(cierre_id: int, db: Session = Depends(get_db)):
             detail="Cierre no encontrado"
         )
     return {"message": "Cierre eliminado exitosamente"}
+
+
+# === Seguimiento ===
+
+@router.get("/tracking", response_model=List[Dict[str, Any]])
+def get_tracking(db: Session = Depends(get_db)):
+    """Lista todos los registros de seguimiento de alertas enviadas."""
+    service = ContractAlertsService(db)
+    return service.get_tracking()
+
+
+@router.get("/respond", response_class=HTMLResponse)
+def respond_alert(token: str, answer: str, db: Session = Depends(get_db)):
+    """Endpoint que recibe respuesta de la jefatura vía link del correo."""
+    service = ContractAlertsService(db)
+    result = service.respond(token, answer)
+
+    if not result.get("ok"):
+        error_msg = result.get("error", "Error desconocido")
+        return HTMLResponse(content=_respond_html(False, error_msg=error_msg), status_code=400)
+
+    record = result.get("record", {})
+    already = result.get("already_answered", False)
+    answer_label = {
+        "indefinido": "Renovar - Contrato Indefinido",
+        "plazo_fijo": "Renovar - Plazo Fijo",
+        "no_renovar": "No Renovar",
+    }.get(result.get("answer") or record.get("response"), "")
+
+    return HTMLResponse(content=_respond_html(True, already_answered=already, answer_label=answer_label, record=record))
+
+
+@router.post("/tracking/{tracking_id}/sync-buk", response_model=Dict[str, Any])
+def sync_buk(tracking_id: int, db: Session = Depends(get_db)):
+    """Sincroniza respuesta de seguimiento a BUK vía PATCH."""
+    service = ContractAlertsService(db)
+    result = service.sync_to_buk(tracking_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result.get("error"))
+    return result
+
+
+def _respond_html(
+    success: bool,
+    error_msg: str = "",
+    already_answered: bool = False,
+    answer_label: str = "",
+    record: dict = None,
+) -> str:
+    record = record or {}
+    employee_name = record.get("employee_name", "")
+    alert_date = record.get("alert_date", "")
+
+    if not success:
+        return f"""
+        <html><head><meta charset="utf-8"><title>Error</title></head>
+        <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
+                     height:100vh;margin:0;background:#f8f9fa">
+          <div style="text-align:center;padding:40px;background:white;border-radius:12px;
+                      box-shadow:0 2px 10px rgba(0,0,0,.1);max-width:400px">
+            <div style="font-size:48px">❌</div>
+            <h2 style="color:#dc2626;margin:16px 0 8px">Link inválido</h2>
+            <p style="color:#6b7280">{error_msg}</p>
+          </div>
+        </body></html>
+        """
+
+    if already_answered:
+        return f"""
+        <html><head><meta charset="utf-8"><title>Ya respondido</title></head>
+        <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
+                     height:100vh;margin:0;background:#f8f9fa">
+          <div style="text-align:center;padding:40px;background:white;border-radius:12px;
+                      box-shadow:0 2px 10px rgba(0,0,0,.1);max-width:400px">
+            <div style="font-size:48px">ℹ️</div>
+            <h2 style="color:#2563eb;margin:16px 0 8px">Ya fue respondido</h2>
+            <p style="color:#6b7280">La decisión para <strong>{employee_name}</strong> ya fue registrada anteriormente.</p>
+          </div>
+        </body></html>
+        """
+
+    color = "#16a34a" if "No" not in answer_label else "#dc2626"
+    return f"""
+    <html><head><meta charset="utf-8"><title>Respuesta registrada</title></head>
+    <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
+                 height:100vh;margin:0;background:#f8f9fa">
+      <div style="text-align:center;padding:40px;background:white;border-radius:12px;
+                  box-shadow:0 2px 10px rgba(0,0,0,.1);max-width:400px">
+        <div style="font-size:48px">✅</div>
+        <h2 style="color:{color};margin:16px 0 8px">¡Respuesta registrada!</h2>
+        <p style="color:#374151">Empleado: <strong>{employee_name}</strong></p>
+        <p style="color:#374151">Vencimiento: <strong>{alert_date}</strong></p>
+        <p style="color:{color};font-weight:bold;font-size:18px">{answer_label}</p>
+        <p style="color:#9ca3af;font-size:13px;margin-top:16px">Puede cerrar esta ventana.</p>
+      </div>
+    </body></html>
+    """

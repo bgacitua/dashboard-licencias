@@ -10,6 +10,8 @@ import {
   getCalendario,
   saveCalendarioCierre,
   deleteCalendarioCierre,
+  getTracking,
+  syncToBuk,
 } from '../services/contractAlerts';
 
 const ContractAlerts = () => {
@@ -48,6 +50,15 @@ const ContractAlerts = () => {
   const [customDays, setCustomDays] = useState(null);
   const [daysInput, setDaysInput] = useState('');
 
+  // Tab activo
+  const [activeTab, setActiveTab] = useState('alertas');
+
+  // Seguimiento
+  const [tracking, setTracking] = useState([]);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+  const [syncingId, setSyncingId] = useState(null);
+  const [syncResult, setSyncResult] = useState(null);
+
   // Cargar datos
   const fetchData = async (daysOverride = customDays) => {
     setLoading(true);
@@ -71,9 +82,40 @@ const ContractAlerts = () => {
     }
   };
 
+  const fetchTracking = async () => {
+    setTrackingLoading(true);
+    try {
+      const data = await getTracking();
+      setTracking(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTrackingLoading(false);
+    }
+  };
+
+  const handleSyncBuk = async (id) => {
+    setSyncingId(id);
+    setSyncResult(null);
+    try {
+      const result = await syncToBuk(id);
+      setSyncResult({ ok: true, id, message: `Sincronizado: ${result.contract_type}` });
+      await fetchTracking();
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Error al sincronizar';
+      setSyncResult({ ok: false, id, message: msg });
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'seguimiento') fetchTracking();
+  }, [activeTab]);
 
   // Filtrar alertas
   const filteredAlerts = useMemo(() => {
@@ -352,8 +394,29 @@ const ContractAlerts = () => {
               </div>
             </div>
 
+            {/* Tabs */}
+            <div className="flex gap-1 mb-6 bg-white dark:bg-[#1a202c] rounded-xl p-1 shadow-sm border border-gray-100 dark:border-gray-800 w-fit">
+              {[
+                { key: 'alertas', label: 'Alertas', icon: 'notifications_active' },
+                { key: 'seguimiento', label: 'Seguimiento', icon: 'track_changes' },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === tab.key
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-lg">{tab.icon}</span>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             {/* Schedule Info Banner */}
-            {scheduleInfo && (
+            {activeTab === 'alertas' && scheduleInfo && (
               <div className={`mb-6 p-4 rounded-2xl border flex items-center gap-4 flex-wrap ${
                 scheduleInfo.modo === 'cierre'
                   ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
@@ -463,6 +526,7 @@ const ContractAlerts = () => {
               </div>
             )}
 
+            {activeTab === 'alertas' && <>
             {/* Error */}
             {error && (
               <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-center gap-3">
@@ -725,6 +789,124 @@ const ContractAlerts = () => {
                 </table>
               </div>
             </div>
+            </>}
+
+            {/* Tab Seguimiento */}
+            {activeTab === 'seguimiento' && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-[#111318] dark:text-white">Seguimiento de Respuestas</h2>
+                  <button
+                    onClick={fetchTracking}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#1a202c] border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm"
+                  >
+                    <span className="material-symbols-outlined text-lg">refresh</span>
+                    Actualizar
+                  </button>
+                </div>
+
+                {syncResult && (
+                  <div className={`mb-4 p-3 rounded-xl border text-sm font-medium flex items-center gap-2 ${syncResult.ok ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400' : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'}`}>
+                    <span className="material-symbols-outlined text-lg">{syncResult.ok ? 'check_circle' : 'error'}</span>
+                    {syncResult.message}
+                    <button onClick={() => setSyncResult(null)} className="ml-auto text-gray-400 hover:text-gray-600"><span className="material-symbols-outlined text-lg">close</span></button>
+                  </div>
+                )}
+
+                {trackingLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : tracking.length === 0 ? (
+                  <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-12 text-center">
+                    <span className="material-symbols-outlined text-4xl text-gray-300 dark:text-gray-600">inbox</span>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Sin registros de seguimiento aún</p>
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-100 dark:border-gray-800">
+                            {['Jefatura', 'Empleado', 'Cargo', 'Fecha Envío', 'Vencimiento', 'F. Ups', 'Respuesta', 'BUK'].map((h) => (
+                              <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                          {tracking.map((row) => {
+                            const respConfig = {
+                              indefinido: { label: 'Indefinido', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+                              plazo_fijo: { label: 'Plazo Fijo', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+                              no_renovar: { label: 'No Renovar', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+                            };
+                            const resp = respConfig[row.response];
+                            const canSync = row.response && row.response !== 'no_renovar' && !row.buk_synced;
+                            return (
+                              <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{row.boss_name}</td>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{row.employee_name}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{row.employee_role}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{row.first_sent_at || '—'}</td>
+                                <td className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.alert_date}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-bold">
+                                    {row.followup_count}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  {resp ? (
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${resp.cls}`}>
+                                      {resp.label}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                                      Pendiente
+                                    </span>
+                                  )}
+                                  {row.responded_at && (
+                                    <p className="text-[10px] text-gray-400 mt-0.5">{row.responded_at}</p>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {row.buk_synced ? (
+                                    <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                                      <span className="material-symbols-outlined text-sm">check_circle</span>
+                                      Sync
+                                    </span>
+                                  ) : canSync ? (
+                                    <button
+                                      onClick={() => handleSyncBuk(row.id)}
+                                      disabled={syncingId === row.id}
+                                      className="flex items-center gap-1 px-2.5 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                                    >
+                                      {syncingId === row.id ? (
+                                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                      ) : (
+                                        <span className="material-symbols-outlined text-sm">sync</span>
+                                      )}
+                                      BUK
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs text-gray-400">—</span>
+                                  )}
+                                  {row.buk_sync_error && (
+                                    <p className="text-[10px] text-red-400 mt-0.5 max-w-[120px] truncate" title={row.buk_sync_error}>
+                                      {row.buk_sync_error}
+                                    </p>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         </main>
       </div>
