@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { 
-    login as loginService, 
-    logout as logoutService, 
+import {
+    loginStep1,
+    verify2FA as verify2FAService,
+    logout as logoutService,
     getCurrentUser,
     isAuthenticated as checkAuth,
     getStoredUser,
@@ -55,9 +56,31 @@ export const AuthProvider = ({ children }) => {
     const login = useCallback(async (username, password) => {
         setError(null);
         setLoading(true);
-        
+
         try {
-            const data = await loginService(username, password);
+            const data = await loginStep1(username, password);
+
+            if (data.requires_2fa) {
+                return { success: false, requires_2fa: true, pre_auth_token: data.pre_auth_token };
+            }
+
+            setUser(data.user);
+            setModules(data.modulos);
+            return { success: true };
+        } catch (err) {
+            setError(err.message);
+            return { success: false, error: err.message };
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const verify2FA = useCallback(async (preAuthToken, code) => {
+        setError(null);
+        setLoading(true);
+
+        try {
+            const data = await verify2FAService(preAuthToken, code);
             setUser(data.user);
             setModules(data.modulos);
             return { success: true };
@@ -102,6 +125,7 @@ export const AuthProvider = ({ children }) => {
         error,
         isAuthenticated: !!user,
         login,
+        verify2FA,
         logout,
         hasModuleAccess,
         hasRole,

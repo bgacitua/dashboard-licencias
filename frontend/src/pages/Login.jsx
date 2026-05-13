@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,17 +9,29 @@ const Login = () => {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    const { login, isAuthenticated } = useAuth();
+    // 2FA state
+    const [step, setStep] = useState('credentials'); // 'credentials' | 'totp'
+    const [preAuthToken, setPreAuthToken] = useState('');
+    const [totpCode, setTotpCode] = useState('');
+    const totpInputRef = useRef(null);
+
+    const { login, verify2FA, isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (isAuthenticated) {
             navigate('/menu', { replace: true });
         }
     }, [isAuthenticated, navigate, location]);
 
-    const handleSubmit = async (e) => {
+    useEffect(() => {
+        if (step === 'totp' && totpInputRef.current) {
+            totpInputRef.current.focus();
+        }
+    }, [step]);
+
+    const handleCredentials = async (e) => {
         e.preventDefault();
         setError('');
 
@@ -33,6 +45,9 @@ const Login = () => {
 
         if (result.success) {
             navigate('/menu', { replace: true });
+        } else if (result.requires_2fa) {
+            setPreAuthToken(result.pre_auth_token);
+            setStep('totp');
         } else {
             setError(result.error);
         }
@@ -40,15 +55,43 @@ const Login = () => {
         setIsLoading(false);
     };
 
+    const handleTotpVerify = async (e) => {
+        e.preventDefault();
+        setError('');
+
+        const code = totpCode.replace(/\s/g, '');
+        if (code.length !== 6 || !/^\d+$/.test(code)) {
+            setError('Ingresa el código de 6 dígitos de tu app autenticadora.');
+            return;
+        }
+
+        setIsLoading(true);
+        const result = await verify2FA(preAuthToken, code);
+
+        if (result.success) {
+            navigate('/menu', { replace: true });
+        } else {
+            setError(result.error || 'Código incorrecto. Inténtalo nuevamente.');
+            setTotpCode('');
+        }
+
+        setIsLoading(false);
+    };
+
+    const handleBackToCredentials = () => {
+        setStep('credentials');
+        setPreAuthToken('');
+        setTotpCode('');
+        setError('');
+    };
+
     return (
         <div className="min-h-screen flex font-['Public_Sans']">
             {/* Panel izquierdo — branding */}
             <aside className="hidden lg:flex lg:w-[480px] xl:w-[540px] flex-shrink-0 flex-col justify-between bg-[#0c1a3a] px-14 py-16 relative overflow-hidden">
-                {/* Texture sutil */}
                 <div className="absolute inset-0 pointer-events-none select-none" aria-hidden="true">
                     <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-primary/10 blur-3xl" />
                     <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-blue-800/20 blur-3xl" />
-                    {/* Grid decorativo */}
                     <svg className="absolute inset-0 w-full h-full opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
                         <defs>
                             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -59,7 +102,6 @@ const Login = () => {
                     </svg>
                 </div>
 
-                {/* Logo */}
                 <div className="relative z-10 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg">
                         <span className="material-symbols-outlined text-white text-xl">corporate_fare</span>
@@ -67,7 +109,6 @@ const Login = () => {
                     <span className="text-white font-semibold text-lg tracking-tight">HR Portal</span>
                 </div>
 
-                {/* Cuerpo */}
                 <div className="relative z-10 space-y-6">
                     <div className="space-y-3">
                         <p className="text-primary/80 text-sm font-semibold uppercase tracking-widest">
@@ -81,7 +122,6 @@ const Login = () => {
                         </p>
                     </div>
 
-                    {/* Feature pills */}
                     <ul className="space-y-2.5">
                         {[
                             { icon: 'medical_services', label: 'Licencias y permisos médicos' },
@@ -98,7 +138,6 @@ const Login = () => {
                     </ul>
                 </div>
 
-                {/* Footer branding */}
                 <p className="relative z-10 text-slate-600 text-xs">
                     © {new Date().getFullYear()} Portal RRHH — Uso interno
                 </p>
@@ -115,111 +154,175 @@ const Login = () => {
                         <span className="text-slate-800 font-semibold text-lg tracking-tight">HR Portal</span>
                     </div>
 
-                    {/* Header form */}
-                    <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                            Iniciar sesión
-                        </h2>
-                        <p className="mt-1.5 text-slate-500 text-sm">
-                            Ingresa tus credenciales para continuar.
-                        </p>
-                    </div>
-
-                    <form onSubmit={handleSubmit} noValidate className="space-y-5">
-                        {/* Usuario */}
-                        <div className="space-y-1.5">
-                            <label htmlFor="username" className="block text-sm font-semibold text-slate-700">
-                                Usuario
-                            </label>
-                            <div className="relative">
-                                <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-                                    <span className="material-symbols-outlined text-slate-400 text-[20px]">person</span>
-                                </span>
-                                <input
-                                    id="username"
-                                    type="text"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    placeholder="Nombre de usuario"
-                                    autoComplete="username"
-                                    disabled={isLoading}
-                                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 text-sm shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                />
+                    {step === 'credentials' ? (
+                        <>
+                            <div className="mb-8">
+                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                                    Iniciar sesión
+                                </h2>
+                                <p className="mt-1.5 text-slate-500 text-sm">
+                                    Ingresa tus credenciales para continuar.
+                                </p>
                             </div>
-                        </div>
 
-                        {/* Contraseña */}
-                        <div className="space-y-1.5">
-                            <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
-                                Contraseña
-                            </label>
-                            <div className="relative">
-                                <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-                                    <span className="material-symbols-outlined text-slate-400 text-[20px]">lock</span>
-                                </span>
-                                <input
-                                    id="password"
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Contraseña"
-                                    autoComplete="current-password"
+                            <form onSubmit={handleCredentials} noValidate className="space-y-5">
+                                <div className="space-y-1.5">
+                                    <label htmlFor="username" className="block text-sm font-semibold text-slate-700">
+                                        Usuario
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
+                                            <span className="material-symbols-outlined text-slate-400 text-[20px]">person</span>
+                                        </span>
+                                        <input
+                                            id="username"
+                                            type="text"
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value)}
+                                            placeholder="Nombre de usuario"
+                                            autoComplete="username"
+                                            disabled={isLoading}
+                                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 text-sm shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+                                        Contraseña
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
+                                            <span className="material-symbols-outlined text-slate-400 text-[20px]">lock</span>
+                                        </span>
+                                        <input
+                                            id="password"
+                                            type={showPassword ? 'text' : 'password'}
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            placeholder="Contraseña"
+                                            autoComplete="current-password"
+                                            disabled={isLoading}
+                                            className="w-full pl-10 pr-11 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 text-sm shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(v => !v)}
+                                            tabIndex={-1}
+                                            aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                            className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]">
+                                                {showPassword ? 'visibility_off' : 'visibility'}
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {error && (
+                                    <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                        <span className="material-symbols-outlined text-red-500 text-[18px] mt-px flex-shrink-0">error</span>
+                                        <span>{error}</span>
+                                    </div>
+                                )}
+
+                                <button
+                                    type="submit"
                                     disabled={isLoading}
-                                    className="w-full pl-10 pr-11 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 text-sm shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                />
+                                    className="w-full flex items-center justify-center gap-2.5 py-3 px-6 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                            </svg>
+                                            Iniciando sesión…
+                                        </>
+                                    ) : (
+                                        <>
+                                            Iniciar sesión
+                                            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+                        </>
+                    ) : (
+                        /* ── Step 2: TOTP ── */
+                        <>
+                            <div className="mb-8">
+                                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                                    <span className="material-symbols-outlined text-primary text-2xl">shield_lock</span>
+                                </div>
+                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                                    Verificación en dos pasos
+                                </h2>
+                                <p className="mt-1.5 text-slate-500 text-sm">
+                                    Abre tu app autenticadora e ingresa el código de 6 dígitos.
+                                </p>
+                            </div>
+
+                            <form onSubmit={handleTotpVerify} noValidate className="space-y-5">
+                                <div className="space-y-1.5">
+                                    <label htmlFor="totp" className="block text-sm font-semibold text-slate-700">
+                                        Código de verificación
+                                    </label>
+                                    <input
+                                        ref={totpInputRef}
+                                        id="totp"
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        maxLength={6}
+                                        value={totpCode}
+                                        onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                        placeholder="000000"
+                                        autoComplete="one-time-code"
+                                        disabled={isLoading}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-300 text-center text-2xl font-mono tracking-[0.5em] shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                    />
+                                </div>
+
+                                {error && (
+                                    <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                        <span className="material-symbols-outlined text-red-500 text-[18px] mt-px flex-shrink-0">error</span>
+                                        <span>{error}</span>
+                                    </div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    disabled={isLoading || totpCode.length !== 6}
+                                    className="w-full flex items-center justify-center gap-2.5 py-3 px-6 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                            </svg>
+                                            Verificando…
+                                        </>
+                                    ) : (
+                                        <>
+                                            Verificar
+                                            <span className="material-symbols-outlined text-[18px]">verified_user</span>
+                                        </>
+                                    )}
+                                </button>
+
                                 <button
                                     type="button"
-                                    onClick={() => setShowPassword(v => !v)}
-                                    tabIndex={-1}
-                                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                                    className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                                    onClick={handleBackToCredentials}
+                                    className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
                                 >
-                                    <span className="material-symbols-outlined text-[20px]">
-                                        {showPassword ? 'visibility_off' : 'visibility'}
-                                    </span>
+                                    <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                                    Volver al inicio de sesión
                                 </button>
-                            </div>
-                        </div>
-
-                        {/* Error */}
-                        {error && (
-                            <div
-                                role="alert"
-                                className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                            >
-                                <span className="material-symbols-outlined text-red-500 text-[18px] mt-px flex-shrink-0">error</span>
-                                <span>{error}</span>
-                            </div>
-                        )}
-
-                        {/* Submit */}
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full flex items-center justify-center gap-2.5 py-3 px-6 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                            {isLoading ? (
-                                <>
-                                    <svg
-                                        className="animate-spin h-4 w-4 text-white flex-shrink-0"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        aria-hidden="true"
-                                    >
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                                    </svg>
-                                    Iniciando sesión…
-                                </>
-                            ) : (
-                                <>
-                                    Iniciar sesión
-                                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                                </>
-                            )}
-                        </button>
-                    </form>
+                            </form>
+                        </>
+                    )}
 
                     <p className="mt-8 text-center text-xs text-slate-400">
                         Acceso restringido a personal autorizado.

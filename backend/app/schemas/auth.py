@@ -137,3 +137,30 @@ class MeResponse(BaseModel):
     """Respuesta del endpoint /me"""
     user: UsuarioResponse
     modulos: List[ModuloResponse]
+
+
+# === Schemas de 2FA ===
+
+class PreAuthResponse(BaseModel):
+    """Respuesta cuando el login requiere 2FA"""
+    requires_2fa: bool = True
+    pre_auth_token: str
+
+
+class TwoFactorVerifyRequest(BaseModel):
+    pre_auth_token: str
+    code: str
+
+
+class TwoFactorSetupResponse(BaseModel):
+    secret: str
+    qr_image_b64: str
+    otpauth_uri: str
+
+
+class TwoFactorVerifySetupRequest(BaseModel):
+    code: str
+
+
+class TwoFactorDisableRequest(BaseModel):
+    password: str

@@ -3,10 +3,14 @@ Servicio de autenticación y gestión de usuarios.
 """
 from typing import Optional, List
 from sqlalchemy.orm import Session
+import pyotp
+import qrcode
+import io
+import base64
 
 from app.repositories.auth_repository import AuthRepository
 from app.models.auth import Usuario, Modulo
-from app.core.security import verify_password, get_password_hash, create_access_token
+from app.core.security import verify_password, get_password_hash, create_access_token, verify_totp_code
 from app.core.logging_config import logger
 
 
@@ -169,3 +173,55 @@ class AuthService:
     def toggle_module(self, module_id: int, active: bool):
         """Activa/desactiva un módulo."""
         return self.repository.toggle_module(module_id, active)
+
+    # === TOTP 2FA ===
+
+    def generate_totp_setup(self, user: Usuario) -> dict:
+        """Genera secret TOTP, lo guarda en DB (sin activar), retorna QR."""
+        secret = pyotp.random_base32()
+        totp = pyotp.TOTP(secret)
+        uri = totp.provisioning_uri(name=user.username, issuer_name="HR Portal")
+
+        img = qrcode.make(uri)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+
+        user.totp_secret = secret
+        user.totp_enabled = False
+        self.repository.db.commit()
+        self.repository.db.refresh(user)
+
+        logger.info(f"TOTP setup iniciado para usuario: {user.username}")
+        return {
+            "secret": secret,
+            "qr_image_b64": f"data:image/png;base64,{b64}",
+            "otpauth_uri": uri
+        }
+
+    def verify_totp_setup(self, user: Usuario, code: str) -> bool:
+        """Verifica código y activa 2FA si correcto."""
+        if not user.totp_secret:
+            return False
+        if verify_totp_code(user.totp_secret, code):
+            user.totp_enabled = True
+            self.repository.db.commit()
+            logger.info(f"2FA activado para usuario: {user.username}")
+            return True
+        return False
+
+    def verify_totp(self, user: Usuario, code: str) -> bool:
+        """Verifica código TOTP durante login."""
+        if not user.totp_enabled or not user.totp_secret:
+            return False
+        return verify_totp_code(user.totp_secret, code)
+
+    def disable_totp(self, user: Usuario, password: str) -> bool:
+        """Desactiva 2FA previa verificación de contraseña."""
+        if not verify_password(password, user.password_hash):
+            return False
+        user.totp_secret = None
+        user.totp_enabled = False
+        self.repository.db.commit()
+        logger.info(f"2FA desactivado para usuario: {user.username}")
+        return True

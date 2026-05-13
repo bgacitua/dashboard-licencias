@@ -8,6 +8,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+import pyotp
 
 from app.core.config import settings
 from app.db.deps import get_db
@@ -57,6 +58,30 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
+def create_pre_auth_token(user_id: int, username: str) -> str:
+    """Crea JWT de vida corta (5 min) para flujo 2FA — no autoriza endpoints protegidos."""
+    data = {
+        "sub": username,
+        "user_id": user_id,
+        "token_type": "pre_2fa"
+    }
+    return create_access_token(data, expires_delta=timedelta(minutes=5))
+
+
+def decode_pre_auth_token(token: str) -> Optional[dict]:
+    """Decodifica token pre_2fa. Retorna None si no es de tipo pre_2fa."""
+    payload = decode_access_token(token)
+    if payload is None or payload.get("token_type") != "pre_2fa":
+        return None
+    return payload
+
+
+def verify_totp_code(secret: str, code: str) -> bool:
+    """Verifica código TOTP con ventana de ±1 intervalo (tolerancia 30s)."""
+    totp = pyotp.TOTP(secret)
+    return totp.verify(code, valid_window=1)
+
+
 def decode_access_token(token: str) -> Optional[dict]:
     """
     Decodifica un JWT y retorna su payload.
@@ -92,9 +117,9 @@ async def get_current_user(
     )
     
     payload = decode_access_token(token)
-    if payload is None:
+    if payload is None or payload.get("token_type") == "pre_2fa":
         raise credentials_exception
-    
+
     username: str = payload.get("sub")
     if username is None:
         raise credentials_exception

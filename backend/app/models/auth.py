@@ -50,6 +50,8 @@ class Usuario(Base):
     activo = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
     last_login = Column(DateTime)
+    totp_secret = Column(String(64), nullable=True)
+    totp_enabled = Column(Boolean, default=False)
 
     rol = relationship("Role", back_populates="usuarios")
     modulos = relationship("Modulo", secondary=usuario_modulos, back_populates="usuarios")

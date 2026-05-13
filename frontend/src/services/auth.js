@@ -4,60 +4,39 @@
 
 const API_URL = '/api/v1';
 
-/**
- * Almacena el token en localStorage
- */
 const setToken = (token) => {
     localStorage.setItem('access_token', token);
 };
 
-/**
- * Obtiene el token de localStorage
- */
 export const getToken = () => {
     return localStorage.getItem('access_token');
 };
 
-/**
- * Elimina el token de localStorage
- */
 const clearToken = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
     localStorage.removeItem('modules');
 };
 
-/**
- * Crea headers con autorización si hay token
- */
-const getAuthHeaders = () => {
+export const getAuthHeaders = () => {
     const token = getToken();
-    const headers = {
-        'Content-Type': 'application/json',
-    };
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
 };
 
 /**
- * Inicia sesión con username y password.
- * @param {string} username 
- * @param {string} password 
- * @returns {Promise<{user: object, modules: array, access_token: string}>}
+ * Paso 1 del login. Si el usuario tiene 2FA retorna { requires_2fa: true, pre_auth_token }.
+ * Si no, almacena token y retorna datos completos.
  */
-export const login = async (username, password) => {
-    // OAuth2 requiere form-data, no JSON
+export const loginStep1 = async (username, password) => {
     const formData = new URLSearchParams();
     formData.append('username', username);
     formData.append('password', password);
 
     const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData,
     });
 
@@ -67,35 +46,105 @@ export const login = async (username, password) => {
     }
 
     const data = await response.json();
-    
-    // Guardar token y datos en localStorage
+
+    if (data.requires_2fa) {
+        return data; // { requires_2fa: true, pre_auth_token }
+    }
+
     setToken(data.access_token);
     localStorage.setItem('user', JSON.stringify(data.user));
     localStorage.setItem('modules', JSON.stringify(data.modulos));
-
     return data;
 };
 
 /**
- * Cierra la sesión actual.
+ * Paso 2: verifica código TOTP y completa el login.
  */
+export const verify2FA = async (preAuthToken, code) => {
+    const response = await fetch(`${API_URL}/auth/2fa/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pre_auth_token: preAuthToken, code }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Código incorrecto');
+    }
+
+    const data = await response.json();
+    setToken(data.access_token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    localStorage.setItem('modules', JSON.stringify(data.modulos));
+    return data;
+};
+
+/**
+ * Inicia el proceso de configuración de 2FA. Retorna secret y QR image.
+ */
+export const setup2FA = async () => {
+    const response = await fetch(`${API_URL}/auth/2fa/setup`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Error al configurar 2FA');
+    }
+
+    return response.json();
+};
+
+/**
+ * Confirma el código TOTP para activar 2FA definitivamente.
+ */
+export const confirmSetup2FA = async (code) => {
+    const response = await fetch(`${API_URL}/auth/2fa/verify-setup`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ code }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Código incorrecto');
+    }
+
+    return response.json();
+};
+
+/**
+ * Desactiva 2FA. Requiere contraseña actual.
+ */
+export const disable2FA = async (password) => {
+    const response = await fetch(`${API_URL}/auth/2fa/disable`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ password }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Error al desactivar 2FA');
+    }
+
+    return response.json();
+};
+
 export const logout = async () => {
     try {
         await fetch(`${API_URL}/auth/logout`, {
             method: 'POST',
             headers: getAuthHeaders(),
         });
-    } catch (error) {
-        // Ignorar errores de logout
+    } catch (_) {
+        // ignorar errores de logout
     } finally {
         clearToken();
     }
 };
 
-/**
- * Obtiene información del usuario actual.
- * @returns {Promise<{user: object, modulos: array}>}
- */
 export const getCurrentUser = async () => {
     const response = await fetch(`${API_URL}/auth/me`, {
         headers: getAuthHeaders(),
@@ -112,10 +161,6 @@ export const getCurrentUser = async () => {
     return response.json();
 };
 
-/**
- * Obtiene los módulos del usuario actual.
- * @returns {Promise<array>}
- */
 export const getUserModules = async () => {
     const response = await fetch(`${API_URL}/auth/modules`, {
         headers: getAuthHeaders(),
@@ -128,28 +173,17 @@ export const getUserModules = async () => {
     return response.json();
 };
 
-/**
- * Verifica si hay una sesión activa.
- * @returns {boolean}
- */
-export const isAuthenticated = () => {
-    return !!getToken();
-};
+export const isAuthenticated = () => !!getToken();
 
-/**
- * Obtiene el usuario almacenado localmente.
- * @returns {object|null}
- */
 export const getStoredUser = () => {
     const user = localStorage.getItem('user');
     return user ? JSON.parse(user) : null;
 };
 
-/**
- * Obtiene los módulos almacenados localmente.
- * @returns {array}
- */
 export const getStoredModules = () => {
     const modules = localStorage.getItem('modules');
     return modules ? JSON.parse(modules) : [];
 };
+
+// Alias backward-compat para AuthContext
+export const login = loginStep1;
