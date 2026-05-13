@@ -73,9 +73,53 @@
 }
 
 /* Aquí abajo puedes poner tus estilos personalizados si tienes */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   padding: 0;
+  font-family: 'Public Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  color: #1a2332;
+  background-color: #f6f7fb;
+}
+
+/* Scrollbar refinado para look corporativo */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: #cbd2dc;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #94a0b1;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+/* Focus ring accesible y consistente */
+:focus-visible {
+  outline: 2px solid #135bec;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Selección de texto */
+::selection {
+  background-color: rgba(19, 91, 236, 0.18);
+  color: inherit;
 }
 
 /* Print Styles - Remove browser header/footer (page title and URL) */

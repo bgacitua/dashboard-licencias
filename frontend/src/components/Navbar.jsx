@@ -16,82 +16,48 @@ const Navbar = () => {
 
     if (!isAuthenticated) return null;
 
+    const initials = (user?.nombre_completo || user?.username || 'U')
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(s => s[0]?.toUpperCase())
+        .join('');
+
     return (
-        <nav style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '12px 24px',
-            backgroundColor: '#1a1a2e',
-            color: 'white',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
-        }}>
-            {/* Logo / Título */}
-            <Link 
-                to="/menu" 
-                style={{ 
-                    textDecoration: 'none', 
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
-                }}
+        <nav className="sticky top-0 z-40 flex items-center justify-between bg-white/95 backdrop-blur border-b border-slate-200 px-6 py-3 shadow-navbar">
+            <Link
+                to="/menu"
+                className="flex items-center gap-3 text-slate-800 hover:text-primary transition-colors"
             >
-                <span style={{ fontSize: '1.5rem' }}>🏢</span>
-                <span style={{ 
-                    fontSize: '1.1rem', 
-                    fontWeight: '600',
-                    letterSpacing: '0.5px'
-                }}>
+                <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shadow-sm">
+                    <span className="material-symbols-outlined text-white text-xl">corporate_fare</span>
+                </div>
+                <span className="text-base font-semibold tracking-tight">
                     Portal RRHH
                 </span>
             </Link>
 
-            {/* Usuario y Logout */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ textAlign: 'right' }}>
-                    <p style={{ 
-                        margin: 0, 
-                        fontSize: '0.9rem', 
-                        fontWeight: '500' 
-                    }}>
-                        {user?.nombre_completo || user?.username}
-                    </p>
-                    <p style={{ 
-                        margin: 0, 
-                        fontSize: '0.75rem', 
-                        color: '#a0aec0',
-                        textTransform: 'capitalize'
-                    }}>
-                        {user?.rol?.nombre || 'Usuario'}
-                    </p>
+            <div className="flex items-center gap-4">
+                <div className="hidden sm:flex items-center gap-3 pr-4 border-r border-slate-200">
+                    <div className="w-9 h-9 rounded-full bg-primary-soft text-primary flex items-center justify-center font-semibold text-sm select-none">
+                        {initials}
+                    </div>
+                    <div className="text-right leading-tight">
+                        <p className="text-sm font-semibold text-slate-800">
+                            {user?.nombre_completo || user?.username}
+                        </p>
+                        <p className="text-xs text-slate-500 capitalize">
+                            {user?.rol?.nombre || 'Usuario'}
+                        </p>
+                    </div>
                 </div>
-                
+
                 <button
                     onClick={handleLogout}
-                    style={{
-                        backgroundColor: 'transparent',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        color: 'white',
-                        padding: '8px 16px',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                    }}
-                    onMouseEnter={(e) => {
-                        e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                        e.target.style.borderColor = 'rgba(255, 255, 255, 0.4)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.target.style.backgroundColor = 'transparent';
-                        e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                    }}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 hover:text-red-600 hover:border-red-200 transition-colors"
                 >
-                    🚪 Cerrar Sesión
+                    <span className="material-symbols-outlined text-base">logout</span>
+                    <span>Cerrar sesión</span>
                 </button>
             </div>
         </nav>
