@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import SidebarLayout from '../components/SidebarLayout'
 import CalculadoraService from '../services/calculadora.service'
 import { Header } from '../features/calculadora/components/Header'
 import { ModoCalculo } from '../features/calculadora/components/ModoCalculo'
@@ -118,6 +119,7 @@ export default function Calculadora() {
   }
 
   return (
+    <SidebarLayout>
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <Header
         pais={pais}
@@ -191,5 +193,6 @@ export default function Calculadora() {
         </div>
       </main>
     </div>
+    </SidebarLayout>
   )
 }

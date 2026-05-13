@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import Navbar from '../components/Navbar'
+import SidebarLayout from '../components/SidebarLayout'
 import { Wallet, Moon, Sun } from 'lucide-react'
 
 import { useCostosFilters } from '../features/costos/lib/useCostosFilters'
@@ -113,9 +113,8 @@ export default function Costos() {
   const subtitulo = `${formatMesAbrev(filtros.fecha_inicio)} → ${formatMesAbrev(filtros.fecha_fin)}`
 
   return (
+    <SidebarLayout>
     <div className="costos-scope min-h-screen" data-theme={darkMode ? 'dark' : 'light'}>
-      <Navbar />
-
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-4">
         {/* Header del módulo */}
         <div className="flex items-end justify-between gap-4">
@@ -241,5 +240,6 @@ export default function Costos() {
         )}
       </main>
     </div>
+    </SidebarLayout>
   )
 }

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useLicencias } from "../hooks/useLicencias";
 import { useVacaciones } from "../hooks/useVacaciones";
 import { useMarcas } from "../hooks/useMarcas";
-import Sidebar from "../components/Sidebar";
+import SidebarLayout from "../components/SidebarLayout";
 
 // Stats Card Component
 const StatCard = ({ title, value, subtext, icon, color, trend, trendValue, to }) => (
@@ -230,10 +230,8 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
-      <Sidebar />
-      
-      <main className="flex-1 ml-64 p-8">
+    <SidebarLayout>
+      <main className="p-8">
         {/* Top Header */}
         <header className="flex justify-between items-center mb-8">
             <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -340,7 +338,7 @@ const Dashboard = () => {
         </div>
 
       </main>
-    </div>
+    </SidebarLayout>
   );
 };
 

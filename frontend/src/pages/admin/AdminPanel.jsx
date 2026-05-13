@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Sidebar from '../../components/Sidebar';
+import SidebarLayout from '../../components/SidebarLayout';
 import { getToken } from '../../services/auth';
 
 const API_URL = '/api/v1';
@@ -236,23 +236,20 @@ const AdminPanel = () => {
 
     if (loading) {
         return (
-            <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
-                <Sidebar />
-                <main className="flex-1 ml-64 p-8 flex items-center justify-center">
+            <SidebarLayout>
+                <main className="p-8 flex items-center justify-center min-h-screen">
                     <div className="text-center">
                         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
                         <p className="text-gray-500">Cargando datos...</p>
                     </div>
                 </main>
-            </div>
+            </SidebarLayout>
         );
     }
 
     return (
-        <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
-            <Sidebar />
-            
-            <main className="flex-1 ml-64 p-8">
+        <SidebarLayout>
+            <main className="p-8">
                 {/* Header */}
                 <header className="flex justify-between items-center mb-8">
                     <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -723,7 +720,7 @@ const AdminPanel = () => {
                     </div>
                 )}
             </main>
-        </div>
+        </SidebarLayout>
     );
 };
 

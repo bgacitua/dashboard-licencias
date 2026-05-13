@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import FiniquitosService from '../services/finiquitos.service';
-import Sidebar from '../components/Sidebar';
+import SidebarLayout from '../components/SidebarLayout';
 import { useReactToPrint } from 'react-to-print';
 
 const VisualizadorFiniquito = () => {
@@ -435,12 +435,9 @@ const VisualizadorFiniquito = () => {
   const bgStyles = getBackgroundStyles();
 
   return (
-    <div className="flex min-h-screen bg-[#525659] font-['Times_New_Roman',_serif] print:bg-white">
-      <div className="print:hidden fixed left-0 top-0 h-full z-10">
-        <Sidebar />
-      </div>
-
-      <main className="flex-1 ml-64 p-8 print:ml-0 print:p-0 flex flex-col items-center">
+    <SidebarLayout>
+    <div className="min-h-screen bg-[#525659] font-['Times_New_Roman',_serif] print:bg-white">
+      <main className="p-8 print:p-0 flex flex-col items-center">
         {/* Actions Bar (Hidden on Print) - Moved outside printRef for fidelity */}
         <div className="w-full max-w-[215.9mm] flex justify-between items-center mb-4 print:hidden bg-white/50 p-4 rounded-xl border border-gray-100 backdrop-blur-sm">
           <div className="flex gap-2">
@@ -860,6 +857,7 @@ const VisualizadorFiniquito = () => {
         </div>
       </main>
     </div>
+    </SidebarLayout>
   );
 };
 

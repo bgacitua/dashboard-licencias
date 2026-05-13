@@ -3,7 +3,7 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import * as XLSX from "xlsx";
-import Sidebar from "../components/Sidebar";
+import SidebarLayout from "../components/SidebarLayout";
 import FiniquitosService from "../services/finiquitos.service";
 import EmployeesService from "../services/employees.service";
 import { getLicenciasByRut } from "../services/licencias";
@@ -1882,10 +1882,8 @@ const CrearFiniquito = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
-      <Sidebar />
-
-      <main className="flex-1 ml-64 p-8">
+    <SidebarLayout>
+      <main className="p-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
@@ -3361,7 +3359,7 @@ const CrearFiniquito = () => {
           </button>
         </div>
       </main>
-    </div>
+    </SidebarLayout>
   );
 };
 

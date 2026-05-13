@@ -128,10 +128,20 @@ body {
 }
 
 @media print {
-  /* Hide browser default header and footer by setting appropriate margins */
   html,
   body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  /* Sidebar y su toggle no deben imprimirse */
+  aside,
+  [data-sidebar-toggle] {
+    display: none !important;
+  }
+
+  /* Remover offset del sidebar al imprimir */
+  [data-sidebar-content] {
+    margin-left: 0 !important;
   }
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import Sidebar from '../components/Sidebar';
+import SidebarLayout from '../components/SidebarLayout';
 import FiniquitosService from '../services/finiquitos.service';
 
 const ITEMS_PER_PAGE = 50;
@@ -109,10 +109,8 @@ const GeneradorFiniquitos = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f8f9fa] font-['Public_Sans']">
-      <Sidebar />
-
-      <main className="flex-1 ml-64 p-8">
+    <SidebarLayout>
+      <main className="p-8">
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
           <div>
@@ -311,7 +309,7 @@ const GeneradorFiniquitos = () => {
         </div>
 
       </main>
-    </div>
+    </SidebarLayout>
   );
 };
 

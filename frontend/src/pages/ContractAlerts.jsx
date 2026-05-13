@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import Navbar from '../components/Navbar';
+import SidebarLayout from '../components/SidebarLayout';
 import {
   getContractAlerts,
   getContractAlertsGrouped,
@@ -328,26 +328,20 @@ const ContractAlerts = () => {
   // Loading state
   if (loading) {
     return (
-      <div className="flex h-screen bg-[#f6f6f8] dark:bg-[#101622] font-['Public_Sans']">
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <Navbar />
-          <main className="flex-1 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-gray-500 dark:text-gray-400">Cargando alertas de contratos...</p>
-            </div>
-          </main>
-        </div>
-      </div>
+      <SidebarLayout>
+        <main className="flex-1 flex items-center justify-center min-h-screen">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-gray-500">Cargando alertas de contratos...</p>
+          </div>
+        </main>
+      </SidebarLayout>
     );
   }
 
   return (
-    <div className="flex h-screen bg-[#f6f6f8] dark:bg-[#101622] font-['Public_Sans']">
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Navbar />
-
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+    <SidebarLayout>
+      <main className="overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
@@ -909,7 +903,6 @@ const ContractAlerts = () => {
 
           </div>
         </main>
-      </div>
 
       {/* Modal: Resumen por Jefe */}
       {showBossModal && (
@@ -1230,7 +1223,7 @@ const ContractAlerts = () => {
           </div>
         </div>
       )}
-    </div>
+    </SidebarLayout>
   );
 };
 
