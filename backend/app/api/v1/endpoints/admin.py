@@ -12,7 +12,10 @@ from app.schemas.auth import (
     UsuarioUpdate,
     UsuarioResponse,
     RoleResponse,
-    ModuloResponse
+    RoleWithModules,
+    RoleCreate,
+    RoleUpdate,
+    ModuloResponse,
 )
 from app.core.security import require_role
 from app.models.auth import Usuario
@@ -138,15 +141,60 @@ async def deactivate_user(
 
 # === Gestión de Roles ===
 
-@router.get("/roles", response_model=List[RoleResponse])
+@router.get("/roles", response_model=List[RoleWithModules])
 async def list_roles(
     current_user: Usuario = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """Listar todos los roles disponibles."""
+    """Listar todos los roles con sus módulos."""
     auth_service = AuthService(db)
     roles = auth_service.get_all_roles()
-    return [RoleResponse.model_validate(r) for r in roles]
+    return [RoleWithModules.model_validate(r) for r in roles]
+
+
+@router.post("/roles", response_model=RoleWithModules, status_code=status.HTTP_201_CREATED)
+async def create_role(
+    role_data: RoleCreate,
+    current_user: Usuario = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Crear un nuevo rol."""
+    auth_service = AuthService(db)
+    existing = auth_service.repository.get_role_by_name(role_data.nombre)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El rol '{role_data.nombre}' ya existe"
+        )
+    role = auth_service.create_role(
+        nombre=role_data.nombre,
+        descripcion=role_data.descripcion,
+        modulo_ids=role_data.modulo_ids,
+    )
+    return RoleWithModules.model_validate(role)
+
+
+@router.put("/roles/{role_id}", response_model=RoleWithModules)
+async def update_role(
+    role_id: int,
+    role_data: RoleUpdate,
+    current_user: Usuario = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Actualizar nombre, descripción y módulos de un rol."""
+    auth_service = AuthService(db)
+    role = auth_service.update_role(
+        role_id=role_id,
+        nombre=role_data.nombre,
+        descripcion=role_data.descripcion,
+        modulo_ids=role_data.modulo_ids,
+    )
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rol no encontrado"
+        )
+    return RoleWithModules.model_validate(role)
 
 
 # === Gestión de Módulos ===

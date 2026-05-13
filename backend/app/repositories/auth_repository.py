@@ -93,8 +93,38 @@ class AuthRepository:
     # === Operaciones de Rol ===
     
     def get_all_roles(self) -> List[Role]:
-        """Obtiene todos los roles."""
-        return self.db.query(Role).order_by(Role.id).all()
+        """Obtiene todos los roles con sus módulos."""
+        return (
+            self.db.query(Role)
+            .options(joinedload(Role.modulos))
+            .order_by(Role.id)
+            .all()
+        )
+
+    def create_role(self, nombre: str, descripcion: Optional[str], modulo_ids: List[int]) -> Role:
+        """Crea un nuevo rol y le asigna módulos."""
+        role = Role(nombre=nombre, descripcion=descripcion)
+        self.db.add(role)
+        self.db.flush()
+        if modulo_ids:
+            modules = self.db.query(Modulo).filter(Modulo.id.in_(modulo_ids)).all()
+            role.modulos = modules
+        self.db.commit()
+        self.db.refresh(role)
+        return role
+
+    def update_role(self, role: Role, nombre: Optional[str], descripcion: Optional[str], modulo_ids: Optional[List[int]]) -> Role:
+        """Actualiza nombre, descripción y módulos de un rol."""
+        if nombre is not None:
+            role.nombre = nombre
+        if descripcion is not None:
+            role.descripcion = descripcion
+        if modulo_ids is not None:
+            modules = self.db.query(Modulo).filter(Modulo.id.in_(modulo_ids)).all()
+            role.modulos = modules
+        self.db.commit()
+        self.db.refresh(role)
+        return role
     
     def get_role_by_id(self, role_id: int) -> Optional[Role]:
         """Obtiene un rol por su ID."""

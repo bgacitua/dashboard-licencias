@@ -67,6 +67,18 @@ class RoleWithModules(RoleResponse):
     modulos: List[ModuloResponse] = []
 
 
+class RoleCreate(RoleBase):
+    """Request para crear un rol"""
+    modulo_ids: Optional[List[int]] = []
+
+
+class RoleUpdate(BaseModel):
+    """Request para actualizar un rol"""
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    modulo_ids: Optional[List[int]] = None
+
+
 # === Schemas de Usuario ===
 
 class UsuarioBase(BaseModel):

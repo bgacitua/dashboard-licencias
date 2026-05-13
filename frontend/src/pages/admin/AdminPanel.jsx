@@ -255,18 +255,16 @@ const AdminPanel = () => {
         // Optimistic update
         setModules(prev => prev.map(m => m.id === moduleId ? { ...m, activo: !currentActive } : m));
         try {
-            const res = await fetch(`${API_URL}/admin/modules/${moduleId}/toggle`, {
-                method: 'PUT',
-                headers: authHeaders(),
-                body: JSON.stringify({ active: !currentActive }),
-            });
+            // FastAPI reads `active` as query param (simple bool, not in path)
+            const res = await fetch(
+                `${API_URL}/admin/modules/${moduleId}/toggle?active=${!currentActive}`,
+                { method: 'PUT', headers: authHeaders() }
+            );
             if (!res.ok) {
-                // Revert on failure
                 setModules(prev => prev.map(m => m.id === moduleId ? { ...m, activo: currentActive } : m));
                 const errData = await res.json().catch(() => ({}));
                 throw new Error(errData.detail || `Error al ${currentActive ? 'desactivar' : 'activar'} módulo`);
             }
-            // Refresh to get server state
             fetchData();
         } catch (err) {
             setTabError(err.message);
@@ -371,7 +369,7 @@ const AdminPanel = () => {
 
     return (
         <SidebarLayout>
-            <main className="p-8 max-w-7xl">
+            <main className="p-8">
 
                 {/* Page header */}
                 <div className="flex justify-between items-start mb-8">

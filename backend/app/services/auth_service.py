@@ -148,8 +148,19 @@ class AuthService:
         return user
     
     def get_all_roles(self):
-        """Obtiene todos los roles."""
+        """Obtiene todos los roles con sus módulos."""
         return self.repository.get_all_roles()
+
+    def create_role(self, nombre: str, descripcion=None, modulo_ids=None):
+        """Crea un nuevo rol."""
+        return self.repository.create_role(nombre, descripcion, modulo_ids or [])
+
+    def update_role(self, role_id: int, nombre=None, descripcion=None, modulo_ids=None):
+        """Actualiza un rol existente."""
+        role = self.repository.get_role_by_id(role_id)
+        if not role:
+            return None
+        return self.repository.update_role(role, nombre, descripcion, modulo_ids)
     
     def get_all_modules(self, only_active: bool = True):
         """Obtiene todos los módulos."""
