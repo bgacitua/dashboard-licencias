@@ -3,180 +3,193 @@ import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
 
+const menuItems = [
+  {
+    id: 'dashboard',
+    title: 'Licencias Médicas',
+    description: 'Gestiona y visualiza el estado de las licencias médicas de todos los empleados.',
+    path: '/dashboard',
+    icon: 'medical_services',
+    accent: 'bg-blue-50 text-primary',
+    bar: 'bg-primary',
+    moduleCode: 'dashboard',
+    requiredRole: ['rrhh', 'admin'],
+  },
+  {
+    id: 'finiquitos',
+    title: 'Generador de Finiquitos',
+    description: 'Crea, valida y descarga documentos de término de contrato legales.',
+    path: '/finiquitos',
+    icon: 'description',
+    accent: 'bg-violet-50 text-violet-600',
+    bar: 'bg-violet-500',
+    moduleCode: 'finiquitos',
+    requiredRole: ['rrhh', 'admin'],
+  },
+  {
+    id: 'calculadora',
+    title: 'Calculadora de Sueldos',
+    description: 'Simula sueldos líquidos, brutos y costos empresa con parámetros actualizados.',
+    path: '/calculadora',
+    icon: 'calculate',
+    accent: 'bg-amber-50 text-amber-600',
+    bar: 'bg-amber-500',
+    moduleCode: 'calculadora',
+    requiredRole: ['rrhh', 'admin'],
+  },
+  {
+    id: 'costos',
+    title: 'Costos por Área',
+    description: 'Analiza el costo real ejecutado por empresa, área, jefatura, cargo o persona.',
+    path: '/costos',
+    icon: 'wallet',
+    accent: 'bg-teal-50 text-teal-600',
+    bar: 'bg-teal-500',
+    moduleCode: 'costos',
+    requiredRole: ['rrhh', 'admin'],
+  },
+  {
+    id: 'contract_alerts',
+    title: 'Alertas de Contratos',
+    description: 'Visualiza vencimientos, envía notificaciones a jefaturas y gestiona renovaciones.',
+    path: '/contract-alerts',
+    icon: 'notifications_active',
+    accent: 'bg-orange-50 text-orange-600',
+    bar: 'bg-orange-500',
+    moduleCode: 'contract_alerts',
+    requiredRole: ['rrhh', 'admin'],
+  },
+  {
+    id: 'seleccion',
+    title: 'Selección de Personal',
+    description: 'Administra candidatos, programa entrevistas y sigue procesos de reclutamiento.',
+    path: '#',
+    icon: 'person_search',
+    accent: 'bg-emerald-50 text-emerald-600',
+    bar: 'bg-emerald-500',
+    moduleCode: 'seleccion',
+    requiredRole: ['rrhh', 'admin'],
+  },
+  {
+    id: 'admin',
+    title: 'Administración',
+    description: 'Configura usuarios, roles y parámetros del sistema.',
+    path: '/admin',
+    icon: 'settings',
+    accent: 'bg-slate-100 text-slate-500',
+    bar: 'bg-slate-400',
+    moduleCode: 'admin',
+    requiredRole: ['admin'],
+  },
+];
+
+const now = new Date();
+const hour = now.getHours();
+const greeting =
+  hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
+
 const MainMenu = () => {
   const { user, hasModuleAccess, hasRole } = useAuth();
 
-  // Definir los módulos del menú con sus códigos de acceso
-  const menuItems = [
-    {
-      id: 'dashboard',
-      title: 'Dashboard licencias médicas',
-      description: 'Gestiona y visualiza el estado de las licencias médicas de todos los empleados.',
-      path: '/dashboard',
-      icon: 'medical_services',
-      iconColor: 'text-[#135bec]',
-      bgColor: 'bg-blue-50 dark:bg-blue-900/20',
-      borderHover: 'hover:border-blue-100',
-      moduleCode: 'dashboard', // Código del módulo requerido
-      requiredRole: ['rrhh', 'admin'],
-    },
-    {
-      id: 'finiquitos',
-      title: 'Generador de finiquitos',
-      description: 'Crea, valida y descarga documentos de término de contrato legales.',
-      path: '/finiquitos',
-      icon: 'description',
-      iconColor: 'text-purple-600',
-      bgColor: 'bg-purple-50 dark:bg-purple-900/20',
-      borderHover: 'hover:border-purple-100',
-      moduleCode: 'finiquitos',
-      requiredRole: ['rrhh', 'admin'],
-    },
-    {
-      id: 'calculadora',
-      title: 'Calculadora de sueldos',
-      description: 'Simula sueldos líquidos, brutos y costos empresa con parámetros actualizados.',
-      path: '/calculadora',
-      icon: 'calculate',
-      iconColor: 'text-orange-600',
-      bgColor: 'bg-orange-50 dark:bg-orange-900/20',
-      borderHover: 'hover:border-orange-100',
-      moduleCode: 'calculadora',
-      requiredRole: ['rrhh', 'admin'],
-    },
-    {
-      id: 'costos',
-      title: 'Costos por área',
-      description: 'Analiza el costo real ejecutado por empresa, área, jefatura, cargo o persona con MoM y YoY.',
-      path: '/costos',
-      icon: 'wallet',
-      iconColor: 'text-teal-600',
-      bgColor: 'bg-teal-50 dark:bg-teal-900/20',
-      borderHover: 'hover:border-teal-100',
-      moduleCode: 'costos',
-      requiredRole: ['rrhh', 'admin'],
-    },
-    {
-      id: 'contract_alerts',
-      title: 'Alertas de contratos',
-      description: 'Visualiza vencimientos, envía notificaciones a jefaturas y gestiona renovaciones.',
-      path: '/contract-alerts',
-      icon: 'notifications_active',
-      iconColor: 'text-orange-600',
-      bgColor: 'bg-orange-50 dark:bg-orange-900/20',
-      borderHover: 'hover:border-orange-100',
-      moduleCode: 'contract_alerts',
-      requiredRole: ['rrhh', 'admin'],
-    },
-    {
-      id: 'seleccion',
-      title: 'Selección de personal',
-      description: 'Administra candidatos, programa entrevistas y sigue los procesos de reclutamiento.',
-      path: '#',
-      icon: 'person_search',
-      iconColor: 'text-emerald-600',
-      bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
-      borderHover: 'hover:border-emerald-100',
-      moduleCode: 'seleccion',
-      requiredRole: ['rrhh', 'admin'],
-    },
-    {
-      id: 'admin',
-      title: 'Configuración de administrador',
-      description: 'Configura los parámetros del sistema.',
-      path: '/admin',
-      icon: 'settings',
-      iconColor: 'text-gray-600',
-      bgColor: 'bg-gray-100 dark:bg-gray-700',
-      borderHover: 'hover:border-gray-200',
-      moduleCode: 'admin',
-      requiredRole: ['admin'],
-    },
-  ];
-
-  // Filtrar módulos según permisos del usuario
   const visibleItems = menuItems.filter(item => {
-    // Si requiere un rol específico, verificar
-    if (item.requiredRole && !hasRole(item.requiredRole)) {
-      return false;
-    }
-    // Verificar acceso al módulo
+    if (item.requiredRole && !hasRole(item.requiredRole)) return false;
     return hasModuleAccess(item.moduleCode);
   });
 
+  const firstName = (user?.nombre_completo || user?.username || 'Usuario')
+    .split(' ')[0];
+
   return (
-    <div className="flex h-screen bg-[#f6f6f8] dark:bg-[#101622] font-['Public_Sans']">
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Navbar />
+    <div className="min-h-screen bg-slate-50 font-['Public_Sans']">
+      <Navbar />
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="max-w-7xl mx-auto">
-            
-            {/* Header Section */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-[#111318] dark:text-white mb-2">
-                Bienvenido, {user?.nombre_completo || user?.username || 'Usuario'}
-              </h1>
-              <p className="text-[#616f89] dark:text-gray-400 text-lg">
-                Selecciona un módulo para comenzar tus tareas de hoy.
-              </p>
-            </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
-            {/* Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              
-              {/* Renderizar módulos visibles */}
-              {visibleItems.map(item => (
-                <Link 
-                  key={item.id}
-                  to={item.path} 
-                  className={`group bg-white dark:bg-[#1a202c] p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-start gap-4 h-full border border-transparent ${item.borderHover}`}
-                >
-                  <div className={`p-3 ${item.bgColor} rounded-full mb-2`}>
-                    <span className={`material-symbols-outlined ${item.iconColor} text-3xl`}>{item.icon}</span>
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-[#111318] dark:text-white mb-2">
-                      {item.title}
-                    </h2>
-                    <p className="text-[#616f89] dark:text-gray-400 leading-relaxed">
-                      {item.description}
-                    </p>
-                  </div>
-                </Link>
-              ))}
+        {/* Header */}
+        <header className="mb-10">
+          <p className="text-sm font-semibold text-primary uppercase tracking-widest mb-1">
+            {greeting}
+          </p>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
+            {greeting}, {firstName}
+          </h1>
+          <p className="mt-1.5 text-slate-500 text-base">
+            Selecciona un módulo para comenzar.
+          </p>
+        </header>
 
-              {/* Mensaje si no hay módulos disponibles */}
-              {visibleItems.length === 0 && (
-                <div className="col-span-full text-center py-12">
-                  <span className="material-symbols-outlined text-gray-400 text-5xl mb-4">lock</span>
-                  <p className="text-gray-500">No tienes módulos asignados. Contacta al administrador.</p>
+        {/* Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+
+          {visibleItems.map(item => (
+            <Link
+              key={item.id}
+              to={item.path}
+              className="group relative bg-white rounded-2xl border border-slate-200 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col"
+            >
+              {/* Barra de color superior */}
+              <span className={`block h-1 w-full ${item.bar} rounded-t-2xl`} aria-hidden="true" />
+
+              <div className="flex flex-col gap-4 p-6 flex-1">
+                {/* Icono */}
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${item.accent}`}>
+                  <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
                 </div>
-              )}
 
-              {/* Gestión de desempeño (Próximamente) - Siempre visible */}
-              <div className="group bg-[#f6f6f8] dark:bg-[#1a202c] p-8 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 flex flex-col items-start gap-4 h-full relative overflow-hidden">
-                <div className="absolute top-4 right-4 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold px-3 py-1 rounded-full">
-                  Próximamente
-                </div>
-                <div className="p-3 bg-gray-200 dark:bg-gray-700 rounded-full mb-2">
-                  <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-3xl">lock_clock</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-500 dark:text-gray-400 mb-2">
-                    Gestión de desempeño
+                {/* Texto */}
+                <div className="flex-1">
+                  <h2 className="text-base font-semibold text-slate-900 leading-snug mb-1.5">
+                    {item.title}
                   </h2>
-                  <p className="text-gray-400 dark:text-gray-500 leading-relaxed">
-                    Nuevo módulo de evaluación y seguimiento de objetivos en construcción.
+                  <p className="text-sm text-slate-500 leading-relaxed">
+                    {item.description}
                   </p>
                 </div>
-              </div>
 
+                {/* CTA inline */}
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-primary opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
+                  <span>Abrir módulo</span>
+                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                </div>
+              </div>
+            </Link>
+          ))}
+
+          {/* Próximamente */}
+          <div className="relative bg-white rounded-2xl border border-dashed border-slate-200 overflow-hidden flex flex-col opacity-60">
+            <span className="block h-1 w-full bg-slate-200 rounded-t-2xl" aria-hidden="true" />
+            <div className="flex flex-col gap-4 p-6 flex-1">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-slate-100 text-slate-400">
+                <span className="material-symbols-outlined text-[22px]">lock_clock</span>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <h2 className="text-base font-semibold text-slate-400 leading-snug">
+                    Gestión de Desempeño
+                  </h2>
+                  <span className="text-[11px] font-bold uppercase tracking-wide bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full">
+                    Próximamente
+                  </span>
+                </div>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  Evaluación y seguimiento de objetivos en construcción.
+                </p>
+              </div>
             </div>
           </div>
-        </main>
-      </div>
+
+          {/* Sin módulos */}
+          {visibleItems.length === 0 && (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                <span className="material-symbols-outlined text-slate-400 text-3xl">lock</span>
+              </div>
+              <p className="text-slate-600 font-semibold">Sin módulos asignados</p>
+              <p className="text-sm text-slate-400 mt-1">Contacta al administrador para solicitar acceso.</p>
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 };
