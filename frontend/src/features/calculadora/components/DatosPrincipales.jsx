@@ -44,35 +44,38 @@ export function DatosPrincipales({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Building2 className="h-5 w-5 text-blue-600" />
+        <CardTitle className="text-base flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-primary-soft flex items-center justify-center">
+            <Building2 className="h-4 w-4 text-primary" />
+          </div>
           Datos Principales
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* Sueldo Principal */}
-        <div className="space-y-2">
-          <Label className="text-sm font-semibold">
+
+        {/* Sueldo principal */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-slate-600">
             {modo === 'liquido_a_base' ? 'Sueldo Líquido Deseado' : 'Sueldo Base'}
           </Label>
           <div className="relative">
-            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
               type="text"
               value={sueldo}
               onChange={(e) => onSueldoChange(formatNumericInput(e.target.value))}
               placeholder={modo === 'liquido_a_base' ? 'Ej: 1.000.000' : 'Ej: 1.500.000'}
-              className="pl-10 h-12 text-lg"
+              className="pl-10 h-12 text-lg font-semibold"
             />
           </div>
         </div>
 
         {/* AFP */}
-        <div className="space-y-2">
-          <Label className="text-sm font-semibold">AFP</Label>
-          <div className="flex gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-slate-600">AFP</Label>
+          <div className="flex gap-2">
             <Select value={afp} onValueChange={onAfpChange}>
-              <SelectTrigger className="flex-1 h-11">
+              <SelectTrigger className="flex-1 h-10">
                 <SelectValue placeholder="Selecciona AFP" />
               </SelectTrigger>
               <SelectContent>
@@ -83,44 +86,47 @@ export function DatosPrincipales({
                 ))}
               </SelectContent>
             </Select>
-            <Badge variant="secondary" className="h-11 px-4 flex items-center text-sm">
+            <Badge
+              variant="secondary"
+              className="h-10 px-3 flex items-center text-xs font-semibold bg-primary-soft text-primary border-0"
+            >
               {(tasaAFP * 100).toFixed(2)}%
             </Badge>
           </div>
         </div>
 
         {/* Sistema de Salud */}
-        <div className="space-y-3">
-          <Label className="text-sm font-semibold">Sistema de Salud</Label>
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold text-slate-600">Sistema de Salud</Label>
           <RadioGroup
             value={sistemaSalud}
             onValueChange={(v) => onSistemaSaludChange(v)}
+            className="flex gap-4"
           >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="fonasa" id="fonasa" />
-              <Label htmlFor="fonasa" className="cursor-pointer">
-                Fonasa
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="isapre" id="isapre" />
-              <Label htmlFor="isapre" className="cursor-pointer">
-                Isapre
-              </Label>
-            </div>
+            {[
+              { value: 'fonasa', label: 'Fonasa' },
+              { value: 'isapre', label: 'Isapre' },
+            ].map(({ value, label }) => (
+              <div key={value} className="flex items-center space-x-2">
+                <RadioGroupItem value={value} id={value} />
+                <Label htmlFor={value} className="cursor-pointer text-sm text-slate-700">
+                  {label}
+                </Label>
+              </div>
+            ))}
           </RadioGroup>
 
           {sistemaSalud === 'isapre' && (
-            <div className="flex items-center gap-3 mt-2">
-              <Label className="text-sm">UF:</Label>
+            <div className="flex items-center gap-2 mt-2">
+              <Label className="text-xs font-medium text-slate-600 whitespace-nowrap">UF a pagar:</Label>
               <Input
                 type="text"
                 value={saludUF}
                 onChange={(e) => onSaludUFChange(e.target.value)}
                 placeholder="Ej: 3.5"
-                className="w-24"
+                className="w-24 h-9"
               />
-              <span className="text-sm text-muted-foreground">
+              <span className="text-xs text-slate-500">
                 ({formatCLP(parseFloat(saludUF || '0') * (ufValue || 0))})
               </span>
             </div>
@@ -128,22 +134,22 @@ export function DatosPrincipales({
         </div>
 
         {/* Movilización */}
-        <div className="space-y-2">
-          <Label className="text-sm font-semibold">Movilización</Label>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-slate-600">Movilización</Label>
           <Input
             type="text"
             value={movilizacion}
             onChange={(e) => onMovilizacionChange(formatNumericInput(e.target.value))}
             placeholder="Ej: 40.000"
-            className="h-11"
+            className="h-10"
           />
         </div>
 
         {/* Bono Empresa */}
-        <div className="space-y-2">
-          <Label className="text-sm font-semibold">Bono Empresa</Label>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-slate-600">Bono Empresa</Label>
           <Select value={bonoEmpresaTipo} onValueChange={onBonoEmpresaTipoChange}>
-            <SelectTrigger className="h-11">
+            <SelectTrigger className="h-10">
               <SelectValue placeholder="Tipo de bono" />
             </SelectTrigger>
             <SelectContent>
@@ -154,40 +160,41 @@ export function DatosPrincipales({
               ))}
             </SelectContent>
           </Select>
+
           {Array.isArray(tasaArr) && tasaArr.length > 0 && (
-            <div className="flex gap-3">
-              <Select
-                value={String(bonoEmpresaTasaIdx)}
-                onValueChange={(v) => onBonoEmpresaTasaIdxChange(Number(v))}
-              >
-                <SelectTrigger className="flex-1 h-11">
-                  <SelectValue placeholder="Tasa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tasaArr.map((t, i) => (
-                    <SelectItem key={i} value={String(i)}>
-                      {(t * 100).toFixed(0)}%
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select
+              value={String(bonoEmpresaTasaIdx)}
+              onValueChange={(v) => onBonoEmpresaTasaIdxChange(Number(v))}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Tasa" />
+              </SelectTrigger>
+              <SelectContent>
+                {tasaArr.map((t, i) => (
+                  <SelectItem key={i} value={String(i)}>
+                    {(t * 100).toFixed(0)}%
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
+
           {esMontoFijo ? (
             <Input
               type="text"
               value={bonoEmpresaMonto}
               onChange={(e) => onBonoEmpresaMontoChange(formatNumericInput(e.target.value))}
               placeholder="Ej: 600.000"
-              className="h-11"
+              className="h-10"
             />
           ) : (
-            <div className="h-11 flex items-center px-3 rounded-md border bg-muted/50 text-sm text-muted-foreground">
+            <div className="h-10 flex items-center px-3 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-500">
               {formatCLP(bonoEmpresaComputado)}
-              <span className="ml-2 text-xs opacity-70">(calculado sobre sueldo base)</span>
+              <span className="ml-2 text-xs text-slate-400">(calculado sobre base)</span>
             </div>
           )}
         </div>
+
       </CardContent>
     </Card>
   )

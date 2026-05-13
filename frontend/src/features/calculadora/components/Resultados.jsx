@@ -22,39 +22,38 @@ export function Resultados({ modo, resultados, moneda, onMonedaChange, dolarValu
   const fmt = (v) =>
     moneda === 'USD' && dolarValue > 0 ? formatUSD(v / dolarValue) : formatCLP(v)
 
-  const headerColor =
-    modo === 'base_a_liquido'
-      ? 'bg-gradient-to-r from-blue-600 to-blue-700'
-      : 'bg-gradient-to-r from-emerald-600 to-emerald-700'
+  const headerColor = 'bg-[#0c1a3a]'
 
   const headerTitle =
-    modo === 'base_a_liquido' ? 'CÁLCULO: BASE → LÍQUIDO' : 'CÁLCULO: LÍQUIDO → BASE'
+    modo === 'base_a_liquido' ? 'BASE → LÍQUIDO' : 'LÍQUIDO → BASE'
 
   const { bonoNavidad, bonoFiestasPatrias, bonoEscolaridad, bonoEmpresaAnual } = resultados
 
   return (
     <Card className="sticky top-4">
-      <div className={`${headerColor} text-white rounded-t-lg p-4`}>
+      <div className={`${headerColor} text-white rounded-t-xl p-4`}>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-bold">{headerTitle}</h2>
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-white/50 font-semibold mb-0.5">Resultado</p>
+            <h2 className="text-base font-bold tracking-tight">{headerTitle}</h2>
+          </div>
           <ToggleGroup
             type="single"
             value={moneda}
             onValueChange={(v) => v && onMonedaChange(v)}
-            className="shrink-0"
+            className="shrink-0 gap-1"
           >
-            <ToggleGroupItem
-              value="CLP"
-              className="h-7 px-3 text-xs font-semibold text-white border-white/40 data-[state=on]:bg-white/30 data-[state=on]:text-white hover:bg-white/20 hover:text-white"
-            >
-              CLP
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="USD"
-              className="h-7 px-3 text-xs font-semibold text-white border-white/40 data-[state=on]:bg-white/30 data-[state=on]:text-white hover:bg-white/20 hover:text-white"
-            >
-              USD
-            </ToggleGroupItem>
+            {['CLP', 'USD'].map((cur) => (
+              <ToggleGroupItem
+                key={cur}
+                value={cur}
+                className="h-7 px-3 text-xs font-semibold border border-white/20 text-white/70 rounded-lg
+                  data-[state=on]:bg-white data-[state=on]:text-[#0c1a3a] data-[state=on]:border-white
+                  hover:bg-white/10 hover:text-white"
+              >
+                {cur}
+              </ToggleGroupItem>
+            ))}
           </ToggleGroup>
         </div>
         <p className="text-xs text-white/60 mt-1">1 USD = {formatCLP(dolarValue)}</p>
@@ -239,7 +238,7 @@ function ResultRow({ label, value, variant = 'normal', format }) {
   const valueClasses = {
     normal: 'text-foreground',
     entrada: 'text-muted-foreground font-semibold',
-    principal: 'text-emerald-600 dark:text-emerald-400 font-bold text-lg',
+    principal: 'text-primary font-bold text-lg',
     total: 'text-blue-600 dark:text-blue-400 font-semibold',
     'total-header': 'text-blue-600 dark:text-blue-400 font-bold text-lg',
     descuento: 'text-red-600 dark:text-red-400 font-semibold',
