@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SidebarLayout from '../../components/SidebarLayout';
 import { getToken } from '../../services/auth';
+import TwoFactorSetup from '../../components/TwoFactorSetup';
 
 const API_URL = '/api/v1';
 
@@ -347,9 +348,10 @@ const AdminPanel = () => {
     // ── tabs config ────────────────────────────────────────────────────────
 
     const tabs = [
-        { id: 'users',   label: 'Usuarios',  icon: 'group',     count: users.length },
-        { id: 'roles',   label: 'Roles',     icon: 'badge',     count: roles.length },
-        { id: 'modules', label: 'Módulos',   icon: 'extension', count: modules.length },
+        { id: 'users',    label: 'Usuarios',  icon: 'group',     count: users.length },
+        { id: 'roles',    label: 'Roles',     icon: 'badge',     count: roles.length },
+        { id: 'modules',  label: 'Módulos',   icon: 'extension', count: modules.length },
+        { id: 'security', label: 'Seguridad', icon: 'shield',    count: null },
     ];
 
     // ── render ─────────────────────────────────────────────────────────────
@@ -424,11 +426,13 @@ const AdminPanel = () => {
                                 >
                                     <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
                                     {tab.label}
-                                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                                        activeTab === tab.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-500'
-                                    }`}>
-                                        {tab.count}
-                                    </span>
+                                    {tab.count !== null && (
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                                            activeTab === tab.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-500'
+                                        }`}>
+                                            {tab.count}
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </nav>
@@ -636,6 +640,19 @@ const AdminPanel = () => {
                                     ))}
                                 </div>
                             )}
+                        </div>
+                    )}
+                    {/* ── Security tab ───────────────────────────────────── */}
+                    {activeTab === 'security' && (
+                        <div className="p-6 space-y-6">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-700 uppercase tracking-widest mb-1">Mi cuenta</h3>
+                                <p className="text-xs text-slate-400">Configuración de seguridad para tu usuario administrador.</p>
+                            </div>
+
+                            <div className="bg-white rounded-xl border border-slate-200 p-5">
+                                <TwoFactorSetup />
+                            </div>
                         </div>
                     )}
                 </div>
