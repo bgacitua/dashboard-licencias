@@ -43,6 +43,11 @@ services:
       - proxy
     expose:
       - "80"
+    # Expuesto solo en loopback del host para que nginx (host) pueda hacer
+    # reverse-proxy desde http://personas.cramer.cl. Caddy sigue accediendo
+    # vía red `proxy` para servir HTTPS en :8444 (OAuth Microsoft).
+    ports:
+      - "127.0.0.1:8090:80"
     depends_on:
       backend:
         condition: service_healthy
