@@ -72,9 +72,9 @@ def decode_pre_auth_token(token: str) -> Optional[dict]:
 
 
 def create_setup_token(user_id: int, username: str) -> str:
-    """JWT vida corta (10 min) — credenciales ok, debe verificar email OTP."""
+    """JWT vida corta (20 min) — credenciales ok, debe verificar email OTP."""
     data = {"sub": username, "user_id": user_id, "token_type": "setup_2fa"}
-    return create_access_token(data, expires_delta=timedelta(minutes=10))
+    return create_access_token(data, expires_delta=timedelta(minutes=20))
 
 
 def decode_setup_token(token: str) -> Optional[dict]:
