@@ -3,6 +3,7 @@ Módulo de seguridad para autenticación JWT y hashing de passwords.
 """
 from datetime import datetime, timedelta
 from typing import Optional
+import uuid
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -168,6 +169,31 @@ async def get_current_active_user(
             detail="Usuario inactivo"
         )
     return current_user
+
+
+def create_response_token(employee_id: int, rut: str, boss_email: str, alert_date: str) -> str:
+    """JWT sin expiración para links de respuesta en correos de alertas de contratos."""
+    payload = {
+        "token_type": "contract_response",
+        "employee_id": employee_id,
+        "rut": rut,
+        "boss_email": boss_email,
+        "alert_date": alert_date,
+        "jti": str(uuid.uuid4()),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_response_token(token: str) -> Optional[dict]:
+    """Decodifica token de respuesta. Retorna payload o None si inválido."""
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM],
+                             options={"verify_exp": False})
+        if payload.get("token_type") != "contract_response":
+            return None
+        return payload
+    except JWTError:
+        return None
 
 
 def require_role(allowed_roles: list[str]):

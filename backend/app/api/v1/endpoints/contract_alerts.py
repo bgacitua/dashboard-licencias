@@ -1,6 +1,6 @@
 import urllib.parse
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
@@ -199,14 +199,40 @@ def get_tracking(db: Session = Depends(get_db)):
 
 
 @router.get("/respond", response_class=HTMLResponse)
-def respond_alert(token: str, answer: str, db: Session = Depends(get_db)):
-    """Endpoint que recibe respuesta de la jefatura vía link del correo."""
+def respond_preview(token: str, answer: str, db: Session = Depends(get_db)):
+    """Muestra página de confirmación. No guarda aún."""
     service = ContractAlertsService(db)
-    result = service.respond(token, answer)
+    result = service.preview_respond(token, answer)
 
     if not result.get("ok"):
-        error_msg = result.get("error", "Error desconocido")
-        return HTMLResponse(content=_respond_html(False, error_msg=error_msg), status_code=400)
+        return HTMLResponse(content=_respond_html(False, error_msg=result.get("error", "Error desconocido")), status_code=400)
+
+    record = result.get("record", {})
+    if result.get("already_answered"):
+        return HTMLResponse(content=_respond_html(True, already_answered=True, record=record))
+
+    answer_label = {
+        "indefinido": "Renovar - Contrato Indefinido",
+        "plazo_fijo": "Renovar - Plazo Fijo",
+        "no_renovar": "No Renovar",
+    }.get(answer, answer)
+
+    token_boss_email = result.get("token_boss_email", "")
+    return HTMLResponse(content=_confirm_html(
+        token=token, answer=answer, answer_label=answer_label,
+        record=record, token_boss_email=token_boss_email,
+    ))
+
+
+@router.post("/respond/confirm", response_class=HTMLResponse)
+async def respond_confirm(token: str, answer: str, request: Request, db: Session = Depends(get_db)):
+    """Guarda la respuesta confirmada por la jefatura."""
+    responder_ip = request.client.host if request.client else None
+    service = ContractAlertsService(db)
+    result = service.respond(token, answer, responder_ip=responder_ip)
+
+    if not result.get("ok"):
+        return HTMLResponse(content=_respond_html(False, error_msg=result.get("error", "Error desconocido")), status_code=400)
 
     record = result.get("record", {})
     already = result.get("already_answered", False)
@@ -219,6 +245,13 @@ def respond_alert(token: str, answer: str, db: Session = Depends(get_db)):
     return HTMLResponse(content=_respond_html(True, already_answered=already, answer_label=answer_label, record=record))
 
 
+@router.post("/followup")
+def send_followup(boss_email: Optional[str] = None, db: Session = Depends(get_db)):
+    """Envía recordatorio a jefaturas sin respuesta. boss_email: filtrar a uno solo."""
+    service = ContractAlertsService(db)
+    return service.send_followup_emails(boss_email_filter=boss_email)
+
+
 @router.post("/tracking/{tracking_id}/sync-buk", response_model=Dict[str, Any])
 def sync_buk(tracking_id: int, db: Session = Depends(get_db)):
     """Sincroniza respuesta de seguimiento a BUK vía PATCH."""
@@ -227,6 +260,47 @@ def sync_buk(tracking_id: int, db: Session = Depends(get_db)):
     if not result.get("ok"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result.get("error"))
     return result
+
+
+def _confirm_html(token: str, answer: str, answer_label: str, record: dict, token_boss_email: str = "") -> str:
+    employee_name = record.get("employee_name", "")
+    boss_name = record.get("boss_name", "")
+    alert_date = record.get("alert_date", "")
+    directed_to = f'<p style="color:#64748b;font-size:13px">Este link fue enviado a: <strong>{token_boss_email}</strong></p>' if token_boss_email else ""
+    confirm_url = f"/api/v1/contract-alerts/respond/confirm?token={token}&answer={answer}"
+    cancel_url = "javascript:window.close()"
+    color = "#dc2626" if answer == "no_renovar" else "#16a34a"
+    icon = "✗" if answer == "no_renovar" else "✓"
+    return f"""
+    <html><head><meta charset="utf-8"><title>Confirmar decisión</title></head>
+    <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
+                 height:100vh;margin:0;background:#f8f9fa">
+      <div style="text-align:center;padding:40px;background:white;border-radius:12px;
+                  box-shadow:0 2px 10px rgba(0,0,0,.1);max-width:440px;width:90%">
+        <div style="font-size:48px">{icon}</div>
+        <h2 style="color:#1e293b;margin:16px 0 8px">Confirmar decisión</h2>
+        <p style="color:#475569;margin:8px 0">Hola <strong>{boss_name}</strong>,</p>
+        <p style="color:#475569;margin:8px 0">Estás a punto de registrar la siguiente decisión:</p>
+        <div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:20px 0;text-align:left">
+          <p style="margin:4px 0;color:#334155"><strong>Empleado:</strong> {employee_name}</p>
+          <p style="margin:4px 0;color:#334155"><strong>Vencimiento:</strong> {alert_date}</p>
+          <p style="margin:4px 0;color:{color};font-weight:bold"><strong>Decisión:</strong> {answer_label}</p>
+        </div>
+        {directed_to}
+        <p style="color:#94a3b8;font-size:13px;margin-bottom:24px">Esta acción quedará registrada y no podrá modificarse. Recibirás un correo de confirmación.</p>
+        <form method="post" action="{confirm_url}" style="display:inline">
+          <button type="submit" style="background:{color};color:white;border:none;padding:10px 28px;
+                  border-radius:6px;font-size:15px;font-weight:bold;cursor:pointer;margin-right:8px">
+            Confirmar
+          </button>
+        </form>
+        <a href="{cancel_url}" style="display:inline-block;padding:10px 28px;border:1px solid #cbd5e1;
+                border-radius:6px;font-size:15px;color:#64748b;text-decoration:none">
+          Cancelar
+        </a>
+      </div>
+    </body></html>
+    """
 
 
 def _respond_html(

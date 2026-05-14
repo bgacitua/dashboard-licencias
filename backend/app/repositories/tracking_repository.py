@@ -23,18 +23,28 @@ class TrackingRepository:
     ) -> Optional[str]:
         """
         Crea o actualiza registro de seguimiento.
-        Retorna el response_token UUID como string.
+        Retorna el response_token JWT como string.
         """
+        from app.core.security import create_response_token
+
+        # Generar JWT firmado con datos del jefe y empleado
+        new_token = create_response_token(
+            employee_id=employee_id,
+            rut=rut,
+            boss_email=boss_email,
+            alert_date=str(alert_date),
+        )
+
         query = text("""
             INSERT INTO app.contract_alert_tracking (
                 employee_id, rut, employee_name, employee_role,
                 boss_name, boss_email, alert_date, alert_type, alert_reason,
-                first_sent_at, last_followup_at, updated_at
+                response_token, first_sent_at, last_followup_at, updated_at
             )
             VALUES (
                 :employee_id, :rut, :employee_name, :employee_role,
                 :boss_name, :boss_email, :alert_date, :alert_type, :alert_reason,
-                NOW(), NOW(), NOW()
+                :response_token, NOW(), NOW(), NOW()
             )
             ON CONFLICT (employee_id, alert_date)
             DO UPDATE SET
@@ -44,8 +54,9 @@ class TrackingRepository:
                 boss_email       = EXCLUDED.boss_email,
                 alert_type       = EXCLUDED.alert_type,
                 alert_reason     = EXCLUDED.alert_reason,
+                response_token   = EXCLUDED.response_token,
                 updated_at       = NOW()
-            RETURNING response_token::text
+            RETURNING response_token
         """)
         try:
             result = self.db.execute(query, {
@@ -58,6 +69,7 @@ class TrackingRepository:
                 "alert_date": alert_date,
                 "alert_type": alert_type,
                 "alert_reason": alert_reason,
+                "response_token": new_token,
             })
             self.db.commit()
             row = result.fetchone()
@@ -74,11 +86,11 @@ class TrackingRepository:
                 boss_name, boss_email,
                 TO_CHAR(alert_date, 'YYYY-MM-DD') AS alert_date,
                 alert_type, alert_reason,
-                response_token::text AS response_token,
+                response_token,
                 first_sent_at, response, responded_at,
                 buk_synced
             FROM app.contract_alert_tracking
-            WHERE response_token = :token::uuid
+            WHERE response_token = :token
         """)
         try:
             result = self.db.execute(query, {"token": token})
@@ -89,15 +101,16 @@ class TrackingRepository:
             logger.error(f"Error get_by_token {token}: {e}")
             return None
 
-    def set_response(self, token: str, response: str) -> bool:
+    def set_response(self, token: str, response: str, responder_ip: str = None) -> bool:
         query = text("""
             UPDATE app.contract_alert_tracking
-            SET response = :response, responded_at = NOW(), updated_at = NOW()
-            WHERE response_token = :token::uuid
+            SET response = :response, responded_at = NOW(), updated_at = NOW(),
+                responder_ip = :responder_ip
+            WHERE response_token = :token
               AND response IS NULL
         """)
         try:
-            self.db.execute(query, {"token": token, "response": response})
+            self.db.execute(query, {"token": token, "response": response, "responder_ip": responder_ip})
             self.db.commit()
             return True
         except Exception as e:

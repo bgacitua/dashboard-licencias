@@ -330,20 +330,109 @@ class ContractAlertsService:
     def get_tracking(self) -> List[Dict[str, Any]]:
         return self.tracking.get_all_tracking()
 
-    def respond(self, token: str, answer: str) -> Dict[str, Any]:
-        """Registra respuesta vía link del correo. Retorna datos para página de confirmación."""
+    def _decode_token(self, token: str) -> Optional[dict]:
+        """Decodifica JWT. Retorna None si inválido, {} si es UUID legacy (sin payload)."""
+        from app.core.security import decode_response_token
+        import re
+        uuid_pattern = re.compile(
+            r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE
+        )
+        if uuid_pattern.match(token):
+            logger.info(f"[token] UUID legacy detectado, omitiendo validación JWT")
+            return {}  # token legacy válido pero sin payload JWT
+        return decode_response_token(token)  # None si JWT inválido
+
+    def preview_respond(self, token: str, answer: str) -> Dict[str, Any]:
+        """Retorna datos del registro para mostrar página de confirmación. No guarda."""
         valid_answers = {"indefinido", "plazo_fijo", "no_renovar"}
         if answer not in valid_answers:
             return {"ok": False, "error": "Respuesta inválida"}
+        jwt_payload = self._decode_token(token)
+        if jwt_payload is None:
+            return {"ok": False, "error": "Link inválido o corrupto"}
+        record = self.tracking.get_by_token(token)
+        if not record:
+            return {"ok": False, "error": "Token no válido"}
+        return {
+            "ok": True,
+            "record": record,
+            "answer": answer,
+            "already_answered": bool(record.get("response")),
+            "token_boss_email": jwt_payload.get("boss_email", ""),
+        }
+
+    def respond(self, token: str, answer: str, responder_ip: str = None) -> Dict[str, Any]:
+        """Registra respuesta confirmada. Verifica JWT, guarda respuesta, envía email de confirmación."""
+        valid_answers = {"indefinido", "plazo_fijo", "no_renovar"}
+        if answer not in valid_answers:
+            return {"ok": False, "error": "Respuesta inválida"}
+        jwt_payload = self._decode_token(token)
+        if jwt_payload is None:
+            return {"ok": False, "error": "Link inválido o corrupto"}
         record = self.tracking.get_by_token(token)
         if not record:
             return {"ok": False, "error": "Token no válido"}
         if record.get("response"):
             return {"ok": True, "already_answered": True, "record": record}
-        ok = self.tracking.set_response(token, answer)
+        # Auditar mismatch boss_email solo en tokens JWT (no legacy)
+        token_boss_email = jwt_payload.get("boss_email", "")
+        if token_boss_email and token_boss_email != record.get("boss_email", ""):
+            logger.warning(
+                f"[respond] Mismatch boss_email: token={token_boss_email} "
+                f"db={record.get('boss_email')} employee={record.get('employee_name')} ip={responder_ip}"
+            )
+        ok = self.tracking.set_response(token, answer, responder_ip=responder_ip)
         if ok:
+            self._send_confirmation_email(record, answer, responder_ip)
             return {"ok": True, "already_answered": False, "record": record, "answer": answer}
         return {"ok": False, "error": "Error al guardar respuesta"}
+
+    def _send_confirmation_email(self, record: Dict[str, Any], answer: str, responder_ip: Optional[str]) -> None:
+        """Envía email al jefe confirmando la decisión registrada."""
+        from app.core.config import settings
+        boss_email = record.get("boss_email", "")
+        boss_name = record.get("boss_name", "")
+        employee_name = record.get("employee_name", "")
+        alert_date = record.get("alert_date", "")
+        answer_label = {
+            "indefinido": "Renovar - Contrato Indefinido",
+            "plazo_fijo": "Renovar - Plazo Fijo",
+            "no_renovar": "No Renovar",
+        }.get(answer, answer)
+        color = "#dc2626" if answer == "no_renovar" else "#16a34a"
+        ip_info = f"<p style='color:#94a3b8;font-size:12px'>IP registrada: {responder_ip or 'desconocida'}</p>" if responder_ip else ""
+        html = f"""
+        <html><head><meta charset="utf-8"></head>
+        <body style="font-family:sans-serif;padding:20px;background:#f8f9fa">
+          <div style="max-width:480px;margin:0 auto;background:white;padding:32px;border-radius:10px;
+                      box-shadow:0 2px 8px rgba(0,0,0,.08)">
+            <h2 style="color:#1e293b;margin-top:0">Confirmación de decisión registrada</h2>
+            <p style="color:#475569">Hola <strong>{boss_name}</strong>,</p>
+            <p style="color:#475569">Se ha registrado la siguiente decisión en el sistema de alertas de contratos:</p>
+            <div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:20px 0">
+              <p style="margin:4px 0;color:#334155"><strong>Empleado:</strong> {employee_name}</p>
+              <p style="margin:4px 0;color:#334155"><strong>Vencimiento:</strong> {alert_date}</p>
+              <p style="margin:4px 0;color:{color};font-weight:bold"><strong>Decisión:</strong> {answer_label}</p>
+            </div>
+            <p style="color:#ef4444;font-size:14px">
+              Si <strong>no fuiste tú</strong> quien realizó esta acción, contacta inmediatamente al área de Recursos Humanos.
+            </p>
+            {ip_info}
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">
+            <p style="color:#94a3b8;font-size:12px">Este es un correo automático del Sistema de Alertas de Contratos. No responder.</p>
+          </div>
+        </body></html>
+        """
+        try:
+            _send_email_graph(
+                to=boss_email,
+                cc="",
+                subject=f"[Confirmación] Decisión registrada: {answer_label} — {employee_name}",
+                html_body=html,
+            )
+            logger.info(f"[confirm-email] Enviado a {boss_email} para {employee_name}")
+        except Exception as e:
+            logger.error(f"[confirm-email] Error enviando a {boss_email}: {e}")
 
     def sync_to_buk(self, tracking_id: int) -> Dict[str, Any]:
         """
@@ -435,14 +524,16 @@ class ContractAlertsService:
             self.tracking.mark_buk_synced(tracking_id, error=err)
             return {"ok": False, "error": err}
 
-    def send_followup_emails(self) -> Dict[str, Any]:
+    def send_followup_emails(self, boss_email_filter: Optional[str] = None) -> Dict[str, Any]:
         """
         Envía recordatorios a jefaturas que no han respondido.
-        Agrupa por boss_email y envía un email por jefe.
+        boss_email_filter: si se indica, envía solo a ese jefe.
         """
         from app.services.email_token_service import AuthRequiredError
 
         pendientes = self.tracking.get_pending_followups()
+        if boss_email_filter:
+            pendientes = [r for r in pendientes if r["boss_email"] == boss_email_filter]
         if not pendientes:
             logger.info("[Followup] Sin seguimientos pendientes")
             return {"sent": 0, "errors": 0}
@@ -708,10 +799,10 @@ def _generate_email_html(
 
             if token and public_url:
                 base = f"{public_url}/api/v1/contract-alerts/respond?token={token}&answer="
+                renovar_answer = "indefinido" if emp["tipo_alerta"] == "INDEFINIDO" else "plazo_fijo"
                 renovar_cell = f"""
                     <td style="width: 25%; padding: 4px 8px;">
-                        <a href="{base}indefinido" style="display:inline-block;margin:2px;padding:4px 8px;background:#16a34a;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✓ Indefinido</a>
-                        <a href="{base}plazo_fijo" style="display:inline-block;margin:2px;padding:4px 8px;background:#2563eb;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✓ Plazo Fijo</a>
+                        <a href="{base}{renovar_answer}" style="display:inline-block;margin:2px;padding:4px 8px;background:#16a34a;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✓ Renovar</a>
                         <a href="{base}no_renovar" style="display:inline-block;margin:2px;padding:4px 8px;background:#dc2626;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✗ No Renovar</a>
                     </td>
                 """
