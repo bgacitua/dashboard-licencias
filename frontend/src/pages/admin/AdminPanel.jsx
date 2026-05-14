@@ -235,6 +235,22 @@ const AdminPanel = () => {
         } catch (err) { setTabError(err.message); }
     };
 
+    const handleReset2FA = async (userId, username) => {
+        if (!confirm(`¿Resetear 2FA para "${username}"? El usuario deberá configurarlo nuevamente en su próximo login.`)) return;
+        setTabError('');
+        try {
+            const res = await fetch(`${API_URL}/admin/users/${userId}/2fa`, {
+                method: 'DELETE',
+                headers: authHeaders(),
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Error al resetear 2FA');
+            }
+            fetchData();
+        } catch (err) { setTabError(err.message); }
+    };
+
     const handleToggleActive = async (userId, currentActive) => {
         if (!confirm(`¿Confirmas ${currentActive ? 'desactivar' : 'activar'} este usuario?`)) return;
         setTabError('');
@@ -469,8 +485,8 @@ const AdminPanel = () => {
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-slate-50 border-b border-slate-100">
                                         <tr className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                                            {['Usuario', 'Nombre', 'Email', 'Rol', 'Último Login', 'Estado', ''].map((h, i) => (
-                                                <th key={i} className={`px-6 py-3 ${i === 6 ? 'text-right' : ''}`}>{h}</th>
+                                            {['Usuario', 'Nombre', 'Email', 'Rol', 'Último Login', 'Estado', '2FA', ''].map((h, i) => (
+                                                <th key={i} className={`px-6 py-3 ${i === 7 ? 'text-right' : ''}`}>{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -495,6 +511,16 @@ const AdminPanel = () => {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
+                                                        user.totp_enabled ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-400'
+                                                    }`}>
+                                                        <span className="material-symbols-outlined text-[14px]">
+                                                            {user.totp_enabled ? 'verified_user' : 'shield'}
+                                                        </span>
+                                                        {user.totp_enabled ? 'Activo' : 'Sin 2FA'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button onClick={() => openEditUser(user)} title="Editar"
                                                             className="p-2 text-slate-400 hover:text-primary hover:bg-primary-soft rounded-lg transition-colors">
@@ -504,6 +530,15 @@ const AdminPanel = () => {
                                                             className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
                                                             <span className="material-symbols-outlined text-[18px]">key</span>
                                                         </button>
+                                                        {user.totp_enabled && (
+                                                            <button
+                                                                onClick={() => handleReset2FA(user.id, user.username)}
+                                                                title="Resetear 2FA"
+                                                                className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">phonelink_erase</span>
+                                                            </button>
+                                                        )}
                                                         <button onClick={() => handleToggleActive(user.id, user.activo)}
                                                             title={user.activo ? 'Desactivar' : 'Activar'}
                                                             className={`p-2 rounded-lg transition-colors ${

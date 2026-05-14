@@ -80,7 +80,48 @@ export const verify2FA = async (preAuthToken, code) => {
 };
 
 /**
- * Inicia el proceso de configuración de 2FA. Retorna secret y QR image.
+ * Setup obligatorio paso 1: inicializa 2FA con setup_token del login.
+ * Retorna QR image y secret sin necesitar JWT completo.
+ */
+export const initialize2FA = async (setupToken) => {
+    const response = await fetch(`${API_URL}/auth/2fa/initialize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setup_token: setupToken }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Error al inicializar 2FA');
+    }
+
+    return response.json();
+};
+
+/**
+ * Setup obligatorio paso 2: activa 2FA y retorna JWT completo.
+ */
+export const activate2FA = async (setupToken, code) => {
+    const response = await fetch(`${API_URL}/auth/2fa/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setup_token: setupToken, code }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Código incorrecto');
+    }
+
+    const data = await response.json();
+    setToken(data.access_token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    localStorage.setItem('modules', JSON.stringify(data.modulos));
+    return data;
+};
+
+/**
+ * Inicia el proceso de reconfiguración de 2FA (usuario ya autenticado).
  */
 export const setup2FA = async () => {
     const response = await fetch(`${API_URL}/auth/2fa/setup`, {

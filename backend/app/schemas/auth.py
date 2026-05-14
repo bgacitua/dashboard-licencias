@@ -109,11 +109,12 @@ class UsuarioResponse(UsuarioBase):
     """Respuesta con datos de usuario (sin password)"""
     id: int
     activo: bool
+    totp_enabled: bool = False
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     rol: Optional[RoleResponse] = None
     modulos: List[ModuloResponse] = []  # Módulos directos del usuario
-    
+
     class Config:
         from_attributes = True
 
@@ -142,9 +143,24 @@ class MeResponse(BaseModel):
 # === Schemas de 2FA ===
 
 class PreAuthResponse(BaseModel):
-    """Respuesta cuando el login requiere 2FA"""
+    """Credenciales ok, usuario tiene 2FA activo — necesita ingresar código"""
     requires_2fa: bool = True
     pre_auth_token: str
+
+
+class SetupRequiredResponse(BaseModel):
+    """Credenciales ok, usuario no tiene 2FA — debe configurarlo obligatoriamente"""
+    requires_setup: bool = True
+    setup_token: str
+
+
+class TwoFactorInitializeRequest(BaseModel):
+    setup_token: str
+
+
+class TwoFactorActivateRequest(BaseModel):
+    setup_token: str
+    code: str
 
 
 class TwoFactorVerifyRequest(BaseModel):

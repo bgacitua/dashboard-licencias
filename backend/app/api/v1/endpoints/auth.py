@@ -14,12 +14,21 @@ from app.schemas.auth import (
     ModuloResponse,
     UsuarioResponse,
     PreAuthResponse,
+    SetupRequiredResponse,
     TwoFactorVerifyRequest,
     TwoFactorSetupResponse,
     TwoFactorVerifySetupRequest,
     TwoFactorDisableRequest,
+    TwoFactorInitializeRequest,
+    TwoFactorActivateRequest,
 )
-from app.core.security import get_current_user, create_pre_auth_token, decode_pre_auth_token
+from app.core.security import (
+    get_current_user,
+    create_pre_auth_token,
+    decode_pre_auth_token,
+    create_setup_token,
+    decode_setup_token,
+)
 from app.models.auth import Usuario
 
 router = APIRouter()
@@ -49,15 +58,9 @@ async def login(
         pre_auth_token = create_pre_auth_token(user.id, user.username)
         return PreAuthResponse(pre_auth_token=pre_auth_token)
 
-    access_token = auth_service.create_token_for_user(user)
-    modules = auth_service.get_user_modules(user)
-
-    return AuthResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user=UsuarioResponse.model_validate(user),
-        modulos=[ModuloResponse.model_validate(m) for m in modules]
-    )
+    # 2FA obligatorio — usuario no lo tiene configurado aún
+    setup_token = create_setup_token(user.id, user.username)
+    return SetupRequiredResponse(setup_token=setup_token)
 
 
 @router.post("/2fa/verify", response_model=AuthResponse)
@@ -102,12 +105,77 @@ async def verify_2fa(
     )
 
 
+@router.post("/2fa/initialize", response_model=TwoFactorSetupResponse)
+async def initialize_2fa(
+    request: TwoFactorInitializeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Paso 1 del setup obligatorio: genera QR usando setup_token del login.
+    No requiere JWT completo — el usuario aún no está autenticado.
+    """
+    payload = decode_setup_token(request.setup_token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado. Inicia sesión nuevamente."
+        )
+    user = db.query(Usuario).filter(
+        Usuario.id == payload["user_id"],
+        Usuario.activo == True
+    ).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
+    auth_service = AuthService(db)
+    return auth_service.generate_totp_setup(user)
+
+
+@router.post("/2fa/activate", response_model=AuthResponse)
+async def activate_2fa(
+    request: TwoFactorActivateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Paso 2 del setup obligatorio: verifica código, activa 2FA, retorna JWT completo.
+    """
+    payload = decode_setup_token(request.setup_token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado. Inicia sesión nuevamente."
+        )
+    user = db.query(Usuario).filter(
+        Usuario.id == payload["user_id"],
+        Usuario.activo == True
+    ).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
+
+    auth_service = AuthService(db)
+    if not auth_service.verify_totp_setup(user, request.code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Código incorrecto. Verifica que la hora de tu dispositivo esté sincronizada."
+        )
+
+    auth_service.repository.update_last_login(user)
+    access_token = auth_service.create_token_for_user(user)
+    modules = auth_service.get_user_modules(user)
+
+    return AuthResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=UsuarioResponse.model_validate(user),
+        modulos=[ModuloResponse.model_validate(m) for m in modules]
+    )
+
+
 @router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
 async def setup_2fa(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Genera secret TOTP y QR para el usuario autenticado."""
+    """Regenera QR para usuario ya autenticado (reconfiguración desde perfil)."""
     if current_user.totp_enabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

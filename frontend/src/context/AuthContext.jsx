@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import {
     loginStep1,
     verify2FA as verify2FAService,
+    activate2FA as activate2FAService,
     logout as logoutService,
     getCurrentUser,
     isAuthenticated as checkAuth,
@@ -63,6 +64,9 @@ export const AuthProvider = ({ children }) => {
             if (data.requires_2fa) {
                 return { success: false, requires_2fa: true, pre_auth_token: data.pre_auth_token };
             }
+            if (data.requires_setup) {
+                return { success: false, requires_setup: true, setup_token: data.setup_token };
+            }
 
             setUser(data.user);
             setModules(data.modulos);
@@ -78,9 +82,24 @@ export const AuthProvider = ({ children }) => {
     const verify2FA = useCallback(async (preAuthToken, code) => {
         setError(null);
         setLoading(true);
-
         try {
             const data = await verify2FAService(preAuthToken, code);
+            setUser(data.user);
+            setModules(data.modulos);
+            return { success: true };
+        } catch (err) {
+            setError(err.message);
+            return { success: false, error: err.message };
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const activate2FA = useCallback(async (setupToken, code) => {
+        setError(null);
+        setLoading(true);
+        try {
+            const data = await activate2FAService(setupToken, code);
             setUser(data.user);
             setModules(data.modulos);
             return { success: true };
@@ -126,6 +145,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: !!user,
         login,
         verify2FA,
+        activate2FA,
         logout,
         hasModuleAccess,
         hasRole,
