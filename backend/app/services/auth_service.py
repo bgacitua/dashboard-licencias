@@ -3,15 +3,19 @@ Servicio de autenticación y gestión de usuarios.
 """
 from typing import Optional, List
 from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+import secrets
 import pyotp
 import qrcode
 import io
 import base64
+import httpx
 
 from app.repositories.auth_repository import AuthRepository
-from app.models.auth import Usuario, Modulo
+from app.models.auth import Usuario, Modulo, OTPCode
 from app.core.security import verify_password, get_password_hash, create_access_token, verify_totp_code
 from app.core.logging_config import logger
+from app.services.email_token_service import get_access_token, AuthRequiredError
 
 
 class AuthService:
@@ -173,6 +177,95 @@ class AuthService:
     def toggle_module(self, module_id: int, active: bool):
         """Activa/desactiva un módulo."""
         return self.repository.toggle_module(module_id, active)
+
+    # === Email OTP (verificación antes de setup TOTP) ===
+
+    def send_setup_otp(self, user: Usuario) -> None:
+        """Genera OTP de 6 dígitos, lo guarda hasheado en DB y lo envía al email del usuario."""
+        # Invalidar OTPs anteriores del usuario
+        self.repository.db.query(OTPCode).filter(
+            OTPCode.user_id == user.id,
+            OTPCode.used == False
+        ).update({"used": True})
+        self.repository.db.commit()
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        code_hash = get_password_hash(code)
+        expires_at = datetime.utcnow() + timedelta(minutes=15)
+
+        otp = OTPCode(user_id=user.id, code_hash=code_hash, expires_at=expires_at)
+        self.repository.db.add(otp)
+        self.repository.db.commit()
+
+        self._send_otp_email(user.email, user.nombre_completo or user.username, code)
+        logger.info(f"OTP de configuración 2FA enviado a: {user.email}")
+
+    def verify_setup_otp(self, user: Usuario, code: str) -> bool:
+        """Verifica OTP de email. Retorna True si válido y no expirado."""
+        otp = (
+            self.repository.db.query(OTPCode)
+            .filter(
+                OTPCode.user_id == user.id,
+                OTPCode.used == False,
+                OTPCode.expires_at > datetime.utcnow()
+            )
+            .order_by(OTPCode.created_at.desc())
+            .first()
+        )
+        if not otp:
+            return False
+        if not verify_password(code, otp.code_hash):
+            return False
+        otp.used = True
+        self.repository.db.commit()
+        return True
+
+    def _send_otp_email(self, to_email: str, display_name: str, code: str) -> None:
+        """Envía email con código OTP vía Microsoft Graph API."""
+        try:
+            access_token = get_access_token()
+        except AuthRequiredError as e:
+            logger.error(f"Graph API no autorizada para enviar email: {e}")
+            raise RuntimeError("El sistema de email no está configurado. Contacta al administrador.")
+
+        html_body = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+            <div style="background: #0c1a3a; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
+                <h1 style="color: white; font-size: 20px; margin: 0;">HR Portal — Verificación de seguridad</h1>
+            </div>
+            <p style="color: #374151; font-size: 15px;">Hola <strong>{display_name}</strong>,</p>
+            <p style="color: #374151; font-size: 15px;">
+                Para configurar la verificación en dos pasos en tu cuenta, ingresa el siguiente código:
+            </p>
+            <div style="background: #f1f5f9; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+                <span style="font-size: 40px; font-weight: bold; letter-spacing: 12px; color: #0c1a3a; font-family: monospace;">{code}</span>
+            </div>
+            <p style="color: #6b7280; font-size: 13px;">
+                Este código expira en <strong>15 minutos</strong> y es de uso único.<br>
+                Si no solicitaste este código, ignora este mensaje.
+            </p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+            <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+                Portal RRHH — Cramer &amp; Asociados · Uso interno
+            </p>
+        </div>
+        """
+
+        resp = httpx.post(
+            "https://graph.microsoft.com/v1.0/me/sendMail",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "message": {
+                    "subject": f"[HR Portal] Código de verificación: {code}",
+                    "body": {"contentType": "HTML", "content": html_body},
+                    "toRecipients": [{"emailAddress": {"address": to_email}}],
+                }
+            },
+            timeout=15,
+        )
+        if resp.status_code not in (200, 202):
+            logger.error(f"Error enviando OTP email: {resp.status_code} {resp.text}")
+            raise RuntimeError("Error al enviar el correo de verificación.")
 
     # === TOTP 2FA ===
 

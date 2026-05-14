@@ -21,6 +21,8 @@ from app.schemas.auth import (
     TwoFactorDisableRequest,
     TwoFactorInitializeRequest,
     TwoFactorActivateRequest,
+    EmailOTPVerifyRequest,
+    QRTokenResponse,
 )
 from app.core.security import (
     get_current_user,
@@ -28,6 +30,8 @@ from app.core.security import (
     decode_pre_auth_token,
     create_setup_token,
     decode_setup_token,
+    create_qr_token,
+    decode_qr_token,
 )
 from app.models.auth import Usuario
 
@@ -58,7 +62,18 @@ async def login(
         pre_auth_token = create_pre_auth_token(user.id, user.username)
         return PreAuthResponse(pre_auth_token=pre_auth_token)
 
-    # 2FA obligatorio — usuario no lo tiene configurado aún
+    # 2FA obligatorio — enviar OTP al email corporativo del usuario
+    if not user.email:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta no tiene email registrado. Contacta al administrador."
+        )
+    auth_service = AuthService(db)
+    try:
+        auth_service.send_setup_otp(user)
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
     setup_token = create_setup_token(user.id, user.username)
     return SetupRequiredResponse(setup_token=setup_token)
 
@@ -105,16 +120,65 @@ async def verify_2fa(
     )
 
 
+@router.post("/2fa/verify-email-otp", response_model=QRTokenResponse)
+async def verify_email_otp(
+    request: EmailOTPVerifyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Verifica el OTP enviado al email corporativo.
+    Si es válido, retorna qr_token que permite ver el QR y activar TOTP.
+    """
+    payload = decode_setup_token(request.setup_token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sesión expirada. Inicia sesión nuevamente."
+        )
+    user = db.query(Usuario).filter(
+        Usuario.id == payload["user_id"],
+        Usuario.activo == True
+    ).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
+
+    auth_service = AuthService(db)
+    if not auth_service.verify_setup_otp(user, request.otp_code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Código incorrecto o expirado. Verifica tu correo o solicita uno nuevo."
+        )
+
+    return QRTokenResponse(qr_token=create_qr_token(user.id, user.username))
+
+
+@router.post("/2fa/resend-otp", response_model=SetupRequiredResponse)
+async def resend_email_otp(
+    request: TwoFactorInitializeRequest,
+    db: Session = Depends(get_db)
+):
+    """Reenvía OTP al email. Acepta qr_token o setup_token — cualquiera del flujo."""
+    payload = decode_setup_token(request.qr_token) or decode_qr_token(request.qr_token)
+    if not payload:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión expirada.")
+    user = db.query(Usuario).filter(Usuario.id == payload["user_id"], Usuario.activo == True).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
+    auth_service = AuthService(db)
+    try:
+        auth_service.send_setup_otp(user)
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+    return SetupRequiredResponse(setup_token=create_setup_token(user.id, user.username))
+
+
 @router.post("/2fa/initialize", response_model=TwoFactorSetupResponse)
 async def initialize_2fa(
     request: TwoFactorInitializeRequest,
     db: Session = Depends(get_db)
 ):
-    """
-    Paso 1 del setup obligatorio: genera QR usando setup_token del login.
-    No requiere JWT completo — el usuario aún no está autenticado.
-    """
-    payload = decode_setup_token(request.setup_token)
+    """Genera QR TOTP. Requiere qr_token (email OTP ya verificado)."""
+    payload = decode_qr_token(request.qr_token)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -135,10 +199,8 @@ async def activate_2fa(
     request: TwoFactorActivateRequest,
     db: Session = Depends(get_db)
 ):
-    """
-    Paso 2 del setup obligatorio: verifica código, activa 2FA, retorna JWT completo.
-    """
-    payload = decode_setup_token(request.setup_token)
+    """Verifica código TOTP, activa 2FA y retorna JWT completo. Requiere qr_token."""
+    payload = decode_qr_token(request.qr_token)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

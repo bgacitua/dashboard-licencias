@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { initialize2FA } from '../services/auth';
+import { initialize2FA, verifyEmailOTP, resendEmailOTP } from '../services/auth';
 
 const Login = () => {
     const [username, setUsername] = useState('');
@@ -11,12 +11,17 @@ const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
 
     // 2FA state
-    const [step, setStep] = useState('credentials'); // 'credentials' | 'totp' | 'setup' | 'setup-confirm'
+    // steps: 'credentials' | 'email-otp' | 'setup' | 'setup-confirm' | 'totp'
+    const [step, setStep] = useState('credentials');
     const [preAuthToken, setPreAuthToken] = useState('');
     const [setupToken, setSetupToken] = useState('');
-    const [setupData, setSetupData] = useState(null); // { qr_image_b64, secret }
+    const [qrToken, setQrToken] = useState('');
+    const [setupData, setSetupData] = useState(null);
     const [totpCode, setTotpCode] = useState('');
+    const [emailOtpCode, setEmailOtpCode] = useState('');
+    const [resendCooldown, setResendCooldown] = useState(0);
     const totpInputRef = useRef(null);
+    const emailOtpRef = useRef(null);
 
     const { login, verify2FA, activate2FA, isAuthenticated } = useAuth();
     const navigate = useNavigate();
@@ -32,7 +37,17 @@ const Login = () => {
         if ((step === 'totp' || step === 'setup-confirm') && totpInputRef.current) {
             totpInputRef.current.focus();
         }
+        if (step === 'email-otp' && emailOtpRef.current) {
+            emailOtpRef.current.focus();
+        }
     }, [step]);
+
+    // Cooldown timer para reenvío OTP
+    useEffect(() => {
+        if (resendCooldown <= 0) return;
+        const t = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+        return () => clearTimeout(t);
+    }, [resendCooldown]);
 
     const handleCredentials = async (e) => {
         e.preventDefault();
@@ -52,18 +67,11 @@ const Login = () => {
             setPreAuthToken(result.pre_auth_token);
             setStep('totp');
         } else if (result.requires_setup) {
-            // 2FA obligatorio — cargar QR y mostrar setup
+            // 2FA obligatorio — OTP enviado al email, mostrar input
             setSetupToken(result.setup_token);
-            setIsLoading(true);
-            try {
-                const data = await initialize2FA(result.setup_token);
-                setSetupData(data);
-                setStep('setup');
-            } catch (err) {
-                setError(err.message);
-            } finally {
-                setIsLoading(false);
-            }
+            setEmailOtpCode('');
+            setStep('email-otp');
+            setResendCooldown(60);
         } else {
             setError(result.error);
         }
@@ -94,6 +102,45 @@ const Login = () => {
         setIsLoading(false);
     };
 
+    const handleEmailOTPSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        const code = emailOtpCode.replace(/\D/g, '');
+        if (code.length !== 6) {
+            setError('Ingresa el código de 6 dígitos enviado a tu correo.');
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const { qr_token } = await verifyEmailOTP(setupToken, code);
+            setQrToken(qr_token);
+            const qrData = await initialize2FA(qr_token);
+            setSetupData(qrData);
+            setStep('setup');
+        } catch (err) {
+            setError(err.message);
+            setEmailOtpCode('');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleResendOTP = async () => {
+        if (resendCooldown > 0) return;
+        setError('');
+        setIsLoading(true);
+        try {
+            const { setup_token } = await resendEmailOTP(setupToken);
+            setSetupToken(setup_token);
+            setEmailOtpCode('');
+            setResendCooldown(60);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleSetupConfirm = async (e) => {
         e.preventDefault();
         setError('');
@@ -103,7 +150,7 @@ const Login = () => {
             return;
         }
         setIsLoading(true);
-        const result = await activate2FA(setupToken, code);
+        const result = await activate2FA(qrToken, code);
         if (result.success) {
             navigate('/menu', { replace: true });
         } else {
@@ -117,8 +164,10 @@ const Login = () => {
         setStep('credentials');
         setPreAuthToken('');
         setSetupToken('');
+        setQrToken('');
         setSetupData(null);
         setTotpCode('');
+        setEmailOtpCode('');
         setError('');
     };
 
@@ -285,6 +334,90 @@ const Login = () => {
                                 </button>
                             </form>
                         </>
+                    ) : step === 'email-otp' ? (
+                        /* ── Step 2: Verificar email OTP ── */
+                        <>
+                            <div className="mb-8">
+                                <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center mb-4">
+                                    <span className="material-symbols-outlined text-blue-600 text-2xl">mark_email_read</span>
+                                </div>
+                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                                    Verifica tu correo corporativo
+                                </h2>
+                                <p className="mt-1.5 text-slate-500 text-sm">
+                                    Enviamos un código de 6 dígitos a tu correo <strong>@cramer.cl</strong>. Revisa tu bandeja de entrada.
+                                </p>
+                            </div>
+
+                            <form onSubmit={handleEmailOTPSubmit} noValidate className="space-y-5">
+                                <div className="space-y-1.5">
+                                    <label htmlFor="email-otp" className="block text-sm font-semibold text-slate-700">
+                                        Código de verificación
+                                    </label>
+                                    <input
+                                        ref={emailOtpRef}
+                                        id="email-otp"
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={6}
+                                        value={emailOtpCode}
+                                        onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                        placeholder="000000"
+                                        autoComplete="one-time-code"
+                                        disabled={isLoading}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-300 text-center text-2xl font-mono tracking-[0.5em] shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100"
+                                    />
+                                </div>
+
+                                {error && (
+                                    <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                        <span className="material-symbols-outlined text-red-500 text-[18px] mt-px flex-shrink-0">error</span>
+                                        <span>{error}</span>
+                                    </div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    disabled={isLoading || emailOtpCode.length !== 6}
+                                    className="w-full flex items-center justify-center gap-2.5 py-3 px-6 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                            </svg>
+                                            Verificando…
+                                        </>
+                                    ) : (
+                                        <>
+                                            Continuar
+                                            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                                        </>
+                                    )}
+                                </button>
+
+                                <div className="flex items-center justify-between text-sm">
+                                    <button
+                                        type="button"
+                                        onClick={handleBackToCredentials}
+                                        className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 transition-colors"
+                                    >
+                                        <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                                        Volver
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleResendOTP}
+                                        disabled={resendCooldown > 0 || isLoading}
+                                        className="text-primary hover:text-primary-hover transition-colors disabled:text-slate-400 disabled:cursor-not-allowed font-medium"
+                                    >
+                                        {resendCooldown > 0 ? `Reenviar en ${resendCooldown}s` : 'Reenviar código'}
+                                    </button>
+                                </div>
+                            </form>
+                        </>
+
                     ) : step === 'setup' ? (
                         /* ── Step 2a: Setup obligatorio — escanear QR ── */
                         <>

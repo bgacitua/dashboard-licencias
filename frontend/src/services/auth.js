@@ -80,39 +80,66 @@ export const verify2FA = async (preAuthToken, code) => {
 };
 
 /**
- * Setup obligatorio paso 1: inicializa 2FA con setup_token del login.
- * Retorna QR image y secret sin necesitar JWT completo.
+ * Verifica OTP enviado al email corporativo. Retorna { qr_token }.
  */
-export const initialize2FA = async (setupToken) => {
-    const response = await fetch(`${API_URL}/auth/2fa/initialize`, {
+export const verifyEmailOTP = async (setupToken, otpCode) => {
+    const response = await fetch(`${API_URL}/auth/2fa/verify-email-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ setup_token: setupToken }),
+        body: JSON.stringify({ setup_token: setupToken, otp_code: otpCode }),
     });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al inicializar 2FA');
-    }
-
-    return response.json();
-};
-
-/**
- * Setup obligatorio paso 2: activa 2FA y retorna JWT completo.
- */
-export const activate2FA = async (setupToken, code) => {
-    const response = await fetch(`${API_URL}/auth/2fa/activate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ setup_token: setupToken, code }),
-    });
-
     if (!response.ok) {
         const error = await response.json();
         throw new Error(error.detail || 'Código incorrecto');
     }
+    return response.json(); // { qr_token }
+};
 
+/**
+ * Reenvía OTP al email. Retorna nuevo setup_token.
+ */
+export const resendEmailOTP = async (token) => {
+    const response = await fetch(`${API_URL}/auth/2fa/resend-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qr_token: token }),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Error al reenviar código');
+    }
+    return response.json(); // { setup_token }
+};
+
+/**
+ * Setup paso 2: genera QR usando qr_token (email ya verificado).
+ */
+export const initialize2FA = async (qrToken) => {
+    const response = await fetch(`${API_URL}/auth/2fa/initialize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qr_token: qrToken }),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Error al inicializar 2FA');
+    }
+    return response.json();
+};
+
+/**
+ * Setup paso 3: activa 2FA y retorna JWT completo.
+ */
+export const activate2FA = async (qrToken, code) => {
+    const response = await fetch(`${API_URL}/auth/2fa/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qr_token: qrToken, code }),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Código incorrecto');
+    }
     const data = await response.json();
     setToken(data.access_token);
     localStorage.setItem('user', JSON.stringify(data.user));

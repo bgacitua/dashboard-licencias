@@ -6,6 +6,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, T
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base import Base
+import secrets
 
 rol_modulos = Table(
     'rol_modulos',
@@ -55,6 +56,21 @@ class Usuario(Base):
 
     rol = relationship("Role", back_populates="usuarios")
     modulos = relationship("Modulo", secondary=usuario_modulos, back_populates="usuarios")
+
+
+class OTPCode(Base):
+    """Códigos OTP de un solo uso para verificar email antes de configurar 2FA."""
+    __tablename__ = 'otp_codes'
+    __table_args__ = {'schema': 'app'}
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('app.usuarios.id'), nullable=False)
+    code_hash = Column(String(255), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    usuario = relationship("Usuario")
 
 
 class Modulo(Base):

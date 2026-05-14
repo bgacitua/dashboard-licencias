@@ -1,9 +1,19 @@
 """
 Schemas Pydantic para autenticación y gestión de usuarios.
 """
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 from datetime import datetime
+
+CORPORATE_DOMAIN = "cramer.cl"
+
+
+def validate_corporate_email(email: Optional[str]) -> Optional[str]:
+    if email is None:
+        return email
+    if not email.lower().endswith(f"@{CORPORATE_DOMAIN}"):
+        raise ValueError(f"El correo debe ser @{CORPORATE_DOMAIN}")
+    return email.lower()
 
 
 # === Schemas de Autenticación ===
@@ -92,7 +102,13 @@ class UsuarioCreate(UsuarioBase):
     """Request para crear usuario"""
     password: str
     rol_id: int
-    modulo_ids: Optional[List[int]] = None  # Módulos específicos del usuario
+    email: str  # Obligatorio y debe ser @cramer.cl
+    modulo_ids: Optional[List[int]] = None
+
+    @field_validator('email')
+    @classmethod
+    def email_must_be_corporate(cls, v):
+        return validate_corporate_email(v)
 
 
 class UsuarioUpdate(BaseModel):
@@ -101,8 +117,13 @@ class UsuarioUpdate(BaseModel):
     nombre_completo: Optional[str] = None
     rol_id: Optional[int] = None
     activo: Optional[bool] = None
-    password: Optional[str] = None  # Solo si se quiere cambiar
-    modulo_ids: Optional[List[int]] = None  # Módulos específicos del usuario
+    password: Optional[str] = None
+    modulo_ids: Optional[List[int]] = None
+
+    @field_validator('email')
+    @classmethod
+    def email_must_be_corporate(cls, v):
+        return validate_corporate_email(v)
 
 
 class UsuarioResponse(UsuarioBase):
@@ -155,12 +176,21 @@ class SetupRequiredResponse(BaseModel):
 
 
 class TwoFactorInitializeRequest(BaseModel):
-    setup_token: str
+    qr_token: str
 
 
 class TwoFactorActivateRequest(BaseModel):
-    setup_token: str
+    qr_token: str
     code: str
+
+
+class EmailOTPVerifyRequest(BaseModel):
+    setup_token: str
+    otp_code: str
+
+
+class QRTokenResponse(BaseModel):
+    qr_token: str
 
 
 class TwoFactorVerifyRequest(BaseModel):

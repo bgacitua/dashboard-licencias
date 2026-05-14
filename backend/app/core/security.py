@@ -72,7 +72,7 @@ def decode_pre_auth_token(token: str) -> Optional[dict]:
 
 
 def create_setup_token(user_id: int, username: str) -> str:
-    """JWT vida corta (10 min) — usuario no tiene 2FA, debe configurarlo obligatoriamente."""
+    """JWT vida corta (10 min) — credenciales ok, debe verificar email OTP."""
     data = {"sub": username, "user_id": user_id, "token_type": "setup_2fa"}
     return create_access_token(data, expires_delta=timedelta(minutes=10))
 
@@ -80,6 +80,19 @@ def create_setup_token(user_id: int, username: str) -> str:
 def decode_setup_token(token: str) -> Optional[dict]:
     payload = decode_access_token(token)
     if payload is None or payload.get("token_type") != "setup_2fa":
+        return None
+    return payload
+
+
+def create_qr_token(user_id: int, username: str) -> str:
+    """JWT vida corta (10 min) — email OTP verificado, puede ver QR y activar TOTP."""
+    data = {"sub": username, "user_id": user_id, "token_type": "qr_setup"}
+    return create_access_token(data, expires_delta=timedelta(minutes=10))
+
+
+def decode_qr_token(token: str) -> Optional[dict]:
+    payload = decode_access_token(token)
+    if payload is None or payload.get("token_type") != "qr_setup":
         return None
     return payload
 
@@ -125,7 +138,7 @@ async def get_current_user(
     )
     
     payload = decode_access_token(token)
-    if payload is None or payload.get("token_type") in ("pre_2fa", "setup_2fa"):
+    if payload is None or payload.get("token_type") in ("pre_2fa", "setup_2fa", "qr_setup"):
         raise credentials_exception
 
     username: str = payload.get("sub")

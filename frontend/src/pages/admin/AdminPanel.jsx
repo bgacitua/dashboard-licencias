@@ -707,8 +707,16 @@ const AdminPanel = () => {
                             <FieldGroup label="Nombre Completo">
                                 <InputField value={newUser.nombre_completo} onChange={e => setNewUser({...newUser, nombre_completo: e.target.value})} placeholder="Ej: Juan Pérez" />
                             </FieldGroup>
-                            <FieldGroup label="Email">
-                                <InputField type="email" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="Ej: juan@empresa.cl" />
+                            <FieldGroup label="Email corporativo *">
+                                <InputField
+                                    type="email"
+                                    required
+                                    value={newUser.email}
+                                    onChange={e => setNewUser({...newUser, email: e.target.value})}
+                                    placeholder="usuario@cramer.cl"
+                                    pattern=".*@cramer\.cl$"
+                                    title="Debe ser un correo @cramer.cl"
+                                />
                             </FieldGroup>
                             <FieldGroup label="Rol *">
                                 <SelectField required value={newUser.rol_id} onChange={e => setNewUser({...newUser, rol_id: e.target.value})}>
@@ -738,8 +746,16 @@ const AdminPanel = () => {
                             <FieldGroup label="Nombre Completo">
                                 <InputField value={editingUser.nombre_completo || ''} onChange={e => setEditingUser({...editingUser, nombre_completo: e.target.value})} />
                             </FieldGroup>
-                            <FieldGroup label="Email">
-                                <InputField type="email" value={editingUser.email || ''} onChange={e => setEditingUser({...editingUser, email: e.target.value})} />
+                            <FieldGroup label="Email corporativo *">
+                                <InputField
+                                    type="email"
+                                    required
+                                    value={editingUser.email || ''}
+                                    onChange={e => setEditingUser({...editingUser, email: e.target.value})}
+                                    placeholder="usuario@cramer.cl"
+                                    pattern=".*@cramer\.cl$"
+                                    title="Debe ser un correo @cramer.cl"
+                                />
                             </FieldGroup>
                             <FieldGroup label="Rol">
                                 <SelectField value={editingUser.rol_id} onChange={e => setEditingUser({...editingUser, rol_id: e.target.value})}>
