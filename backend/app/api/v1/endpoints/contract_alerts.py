@@ -8,7 +8,9 @@ from typing import List, Dict, Any, Optional
 import httpx
 
 from app.core.config import settings
+from app.core.security import require_role
 from app.db.deps import get_db
+from app.models.auth import Usuario
 from app.services.contract_alerts_service import ContractAlertsService
 from app.services.email_token_service import save_tokens
 from app.core.logging_config import logger
@@ -192,7 +194,10 @@ def delete_cierre(cierre_id: int, db: Session = Depends(get_db)):
 # === Seguimiento ===
 
 @router.get("/tracking", response_model=List[Dict[str, Any]])
-def get_tracking(db: Session = Depends(get_db)):
+def get_tracking(
+    current_user: Usuario = Depends(require_role(["admin", "rrhh"])),
+    db: Session = Depends(get_db),
+):
     """Lista todos los registros de seguimiento de alertas enviadas."""
     service = ContractAlertsService(db)
     return service.get_tracking()
@@ -246,14 +251,22 @@ async def respond_confirm(token: str, answer: str, request: Request, db: Session
 
 
 @router.post("/followup")
-def send_followup(boss_email: Optional[str] = None, db: Session = Depends(get_db)):
+def send_followup(
+    boss_email: Optional[str] = None,
+    current_user: Usuario = Depends(require_role(["admin", "rrhh"])),
+    db: Session = Depends(get_db),
+):
     """Envía recordatorio a jefaturas sin respuesta. boss_email: filtrar a uno solo."""
     service = ContractAlertsService(db)
     return service.send_followup_emails(boss_email_filter=boss_email)
 
 
 @router.post("/tracking/{tracking_id}/sync-buk", response_model=Dict[str, Any])
-def sync_buk(tracking_id: int, db: Session = Depends(get_db)):
+def sync_buk(
+    tracking_id: int,
+    current_user: Usuario = Depends(require_role(["admin", "rrhh"])),
+    db: Session = Depends(get_db),
+):
     """Sincroniza respuesta de seguimiento a BUK vía PATCH."""
     service = ContractAlertsService(db)
     result = service.sync_to_buk(tracking_id)

@@ -172,8 +172,8 @@ async def get_current_active_user(
 
 
 def create_response_token(employee_id: int, rut: str, boss_email: str, alert_date: str) -> str:
-    """JWT sin expiración para links de respuesta en correos de alertas de contratos."""
-    payload = {
+    """JWT con expiración de 15 días para links de respuesta en correos de alertas de contratos."""
+    data = {
         "token_type": "contract_response",
         "employee_id": employee_id,
         "rut": rut,
@@ -181,14 +181,13 @@ def create_response_token(employee_id: int, rut: str, boss_email: str, alert_dat
         "alert_date": alert_date,
         "jti": str(uuid.uuid4()),
     }
-    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return create_access_token(data, expires_delta=timedelta(days=15))
 
 
 def decode_response_token(token: str) -> Optional[dict]:
-    """Decodifica token de respuesta. Retorna payload o None si inválido."""
+    """Decodifica token de respuesta. Retorna payload o None si inválido o expirado."""
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM],
-                             options={"verify_exp": False})
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         if payload.get("token_type") != "contract_response":
             return None
         return payload
