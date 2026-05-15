@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getAuthHeaders } from "./auth";
 
 const API_URL = "/api/v1";
 
@@ -93,7 +94,9 @@ export const deleteCalendarioCierre = async (id) => {
 
 export const getTracking = async () => {
   try {
-    const response = await axios.get(`${API_URL}/contract-alerts/tracking`);
+    const response = await axios.get(`${API_URL}/contract-alerts/tracking`, {
+      headers: getAuthHeaders(),
+    });
     return response.data;
   } catch (error) {
     console.error("Error al obtener seguimiento:", error);
@@ -103,7 +106,11 @@ export const getTracking = async () => {
 
 export const syncToBuk = async (trackingId) => {
   try {
-    const response = await axios.post(`${API_URL}/contract-alerts/tracking/${trackingId}/sync-buk`);
+    const response = await axios.post(
+      `${API_URL}/contract-alerts/tracking/${trackingId}/sync-buk`,
+      {},
+      { headers: getAuthHeaders() }
+    );
     return response.data;
   } catch (error) {
     console.error("Error al sincronizar con BUK:", error);
