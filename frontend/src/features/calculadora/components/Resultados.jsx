@@ -1,12 +1,24 @@
 import { useState } from 'react'
-import { ChevronDown, Shield, TrendingDown, TrendingUp, Calendar } from 'lucide-react'
+import { ChevronDown, Shield, TrendingDown, TrendingUp, Calendar, ListTree } from 'lucide-react'
 import { Card, CardContent } from './ui/card'
 import { Separator } from './ui/separator'
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group'
-import { formatCLP, formatUSD } from '../lib/utils'
+import { formatCLP, formatUSD, formatPEN } from '../lib/utils'
 
-export function Resultados({ modo, resultados, moneda, onMonedaChange, dolarValue }) {
+export function Resultados({
+  pais = 'chile',
+  modo,
+  resultados,
+  moneda,
+  onMonedaChange,
+  dolarValue,
+  afpData = {},
+  afp,
+  tasas = {},
+}) {
+  const esPeru = pais === 'peru'
   const [openSections, setOpenSections] = useState(new Set())
+  const [detallesOpen, setDetallesOpen] = useState(false)
 
   const toggle = (section) => {
     setOpenSections((prev) => {
@@ -19,15 +31,23 @@ export function Resultados({ modo, resultados, moneda, onMonedaChange, dolarValu
 
   const isOpen = (section) => openSections.has(section)
 
+  const monedasDisponibles = esPeru ? ['PEN', 'USD'] : ['CLP', 'USD']
+  const monedaLocal = esPeru ? 'PEN' : 'CLP'
+  const formatLocal = esPeru ? formatPEN : formatCLP
+
   const fmt = (v) =>
-    moneda === 'USD' && dolarValue > 0 ? formatUSD(v / dolarValue) : formatCLP(v)
+    moneda === 'USD' && dolarValue > 0
+      ? formatUSD(v / dolarValue)
+      : formatLocal(v)
 
   const headerColor = 'bg-[#0c1a3a]'
-
   const headerTitle =
     modo === 'base_a_liquido' ? 'BASE → LÍQUIDO' : 'LÍQUIDO → BASE'
 
   const { bonoNavidad, bonoFiestasPatrias, bonoEscolaridad, bonoEmpresaAnual } = resultados
+
+  // Tasa comisión AFP Peru (para etiqueta)
+  const tasaComisionAFP = esPeru ? (afpData[afp] ?? 0) : 0
 
   return (
     <Card className="sticky top-4">
@@ -43,7 +63,7 @@ export function Resultados({ modo, resultados, moneda, onMonedaChange, dolarValu
             onValueChange={(v) => v && onMonedaChange(v)}
             className="shrink-0 gap-1"
           >
-            {['CLP', 'USD'].map((cur) => (
+            {monedasDisponibles.map((cur) => (
               <ToggleGroupItem
                 key={cur}
                 value={cur}
@@ -56,7 +76,7 @@ export function Resultados({ modo, resultados, moneda, onMonedaChange, dolarValu
             ))}
           </ToggleGroup>
         </div>
-        <p className="text-xs text-white/60 mt-1">1 USD = {formatCLP(dolarValue)}</p>
+        <p className="text-xs text-white/60 mt-1">1 USD = {formatLocal(dolarValue)}</p>
       </div>
 
       <CardContent className="p-4 space-y-1 max-h-[calc(100vh-200px)] overflow-y-auto">
@@ -78,6 +98,27 @@ export function Resultados({ modo, resultados, moneda, onMonedaChange, dolarValu
 
         <Separator className="my-2" />
 
+        {/* Detalles (acordeón padre) */}
+        <div>
+          <button
+            onClick={() => setDetallesOpen((v) => !v)}
+            className="w-full flex items-center justify-between py-2 px-2 rounded-md bg-slate-100 dark:bg-slate-800/40 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <ListTree className="h-4 w-4 text-slate-500" />
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+                Detalles
+              </span>
+            </div>
+            <ChevronDown
+              className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${detallesOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          <div className={`grid transition-all duration-200 ease-in-out ${detallesOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+            <div className="overflow-hidden">
+              <div className="pt-2 space-y-1">
+
         {/* Haberes */}
         <AccordionSection
           icon={<TrendingUp className="h-4 w-4" />}
@@ -89,7 +130,12 @@ export function Resultados({ modo, resultados, moneda, onMonedaChange, dolarValu
           format={fmt}
         >
           <ResultRow label="Sueldo Base" value={resultados.sueldoBase} format={fmt} />
-          <ResultRow label="Gratificación" value={resultados.gratificacion} format={fmt} />
+          {!esPeru && resultados.gratificacion > 0 && (
+            <ResultRow label="Gratificación" value={resultados.gratificacion} format={fmt} />
+          )}
+          {esPeru && resultados.refrigerio > 0 && (
+            <ResultRow label="Refrigerio" value={resultados.refrigerio} format={fmt} />
+          )}
           {resultados.bonosImponibles > 0 && (
             <ResultRow label="Bonos Imponibles" value={resultados.bonosImponibles} format={fmt} />
           )}
@@ -111,11 +157,28 @@ export function Resultados({ modo, resultados, moneda, onMonedaChange, dolarValu
           onToggle={() => toggle('descuentos')}
           format={fmt}
         >
-          <ResultRow label="Cotización Previsional (AFP)" value={resultados.cotizacionPrevisional} format={fmt} />
-          <ResultRow label="Cotización Salud" value={resultados.cotizacionSalud} format={fmt} />
-          <ResultRow label="Seguro Cesantía" value={resultados.cesantia} format={fmt} />
-          {resultados.impuesto > 0 && (
-            <ResultRow label="Impuesto Único" value={resultados.impuesto} format={fmt} />
+          {esPeru ? (
+            <>
+              <ResultRow label="AFP (10% obligatorio)" value={resultados.afpObligatorio} format={fmt} />
+              <ResultRow
+                label={`Comisión AFP (${(tasaComisionAFP * 100).toFixed(2)}%)`}
+                value={resultados.comisionAFP}
+                format={fmt}
+              />
+              <ResultRow label="Seguro invalidez (1.37%)" value={resultados.seguroInvalidez} format={fmt} />
+              {resultados.impuesto > 0 && (
+                <ResultRow label="Imp. 5ta categoría" value={resultados.impuesto} format={fmt} />
+              )}
+            </>
+          ) : (
+            <>
+              <ResultRow label="Cotización Previsional (AFP)" value={resultados.cotizacionPrevisional} format={fmt} />
+              <ResultRow label="Cotización Salud" value={resultados.cotizacionSalud} format={fmt} />
+              <ResultRow label="Seguro Cesantía" value={resultados.cesantia} format={fmt} />
+              {resultados.impuesto > 0 && (
+                <ResultRow label="Impuesto Único" value={resultados.impuesto} format={fmt} />
+              )}
+            </>
           )}
         </AccordionSection>
 
@@ -131,17 +194,38 @@ export function Resultados({ modo, resultados, moneda, onMonedaChange, dolarValu
           onToggle={() => toggle('mensual')}
           format={fmt}
         >
-          <ResultRow label="Seguro Cesantía Empleador" value={resultados.cesantiaEmpleador} format={fmt} />
-          <ResultRow label="Mutual" value={resultados.mutual} format={fmt} />
-          <ResultRow label="SIS" value={resultados.sis} format={fmt} />
-          <ResultRow label="Cotización Expectativa Vida" value={resultados.expectativaVida} format={fmt} />
-          {resultados.afpEmpleador > 0 && (
-            <ResultRow label="Aporte AFP Empleador" value={resultados.afpEmpleador} format={fmt} />
+          {esPeru ? (
+            <>
+              <ResultRow label="Sueldo Base" value={resultados.sueldoBase} format={fmt} />
+              {resultados.refrigerio > 0 && (
+                <ResultRow label="Refrigerio" value={resultados.refrigerio} format={fmt} />
+              )}
+              {resultados.bonosImponibles > 0 && (
+                <ResultRow label="Bonos Imponibles" value={resultados.bonosImponibles} format={fmt} />
+              )}
+              {resultados.movilizacion > 0 && (
+                <ResultRow label="Movilización" value={resultados.movilizacion} format={fmt} />
+              )}
+              {resultados.bonosNoImponibles > 0 && (
+                <ResultRow label="Bonos No Imponibles" value={resultados.bonosNoImponibles} format={fmt} />
+              )}
+              <ResultRow label="EsSalud 9% (empleador)" value={resultados.essaludEmpleador} format={fmt} />
+            </>
+          ) : (
+            <>
+              <ResultRow label="Seguro Cesantía Empleador" value={resultados.cesantiaEmpleador} format={fmt} />
+              <ResultRow label="Mutual" value={resultados.mutual} format={fmt} />
+              <ResultRow label="SIS" value={resultados.sis} format={fmt} />
+              <ResultRow label="Cotización Expectativa Vida" value={resultados.expectativaVida} format={fmt} />
+              {resultados.afpEmpleador > 0 && (
+                <ResultRow label="Aporte AFP Empleador" value={resultados.afpEmpleador} format={fmt} />
+              )}
+              {resultados.seguroComplementario > 0 && (
+                <ResultRow label="Seguro Complementario Salud" value={resultados.seguroComplementario} format={fmt} />
+              )}
+              <ResultRow label="Total Costos Patronales" value={resultados.totalPatronal} variant="total" format={fmt} />
+            </>
           )}
-          {resultados.seguroComplementario > 0 && (
-            <ResultRow label="Seguro Complementario Salud" value={resultados.seguroComplementario} format={fmt} />
-          )}
-          <ResultRow label="Total Costos Patronales" value={resultados.totalPatronal} variant="total" format={fmt} />
         </AccordionSection>
 
         {/* Costo empresa anual */}
@@ -154,23 +238,69 @@ export function Resultados({ modo, resultados, moneda, onMonedaChange, dolarValu
           onToggle={() => toggle('anual')}
           format={fmt}
         >
-          <ResultRow
-            label="Costo mensual × 12"
-            value={resultados.costoTotalEmpresa * 12}
-            format={fmt}
-          />
-          <div className="mt-2 mb-1">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Bonos Anuales
+          <div className="flex items-center justify-between py-0.5">
+            <span className="text-xs text-muted-foreground">Costo mensual × 12</span>
+            <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
+              {fmt(resultados.costoTotalEmpresa * 12)}
             </span>
           </div>
-          <BonoAnualRow label="Bono Navidad" uf={7} bono={bonoNavidad} format={fmt} />
-          <BonoAnualRow label="Bono Fiestas Patrias" uf={6} bono={bonoFiestasPatrias} format={fmt} />
-          <BonoAnualRow label="Bono Escolaridad" uf={3} bono={bonoEscolaridad} format={fmt} />
-          {bonoEmpresaAnual.montoImponible > 0 && (
-            <BonoAnualRow label="Bono Empresa" bono={bonoEmpresaAnual} format={fmt} />
+          {esPeru ? (
+            <>
+              <div className="mt-2 mb-1">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Gratificaciones (Jul + Dic)
+                </span>
+              </div>
+              <div className="py-0.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    Gratificaciones <span className="text-violet-500 font-medium">(2 sueldos base)</span>
+                  </span>
+                  <span className="text-xs text-muted-foreground">{fmt(resultados.gratificacionesAnual)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground pl-3">→ EsSalud 9% sobre gratif.</span>
+                  <span className="text-xs text-muted-foreground">{fmt(resultados.essaludGratificaciones)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground pl-3">→ Costo empresa</span>
+                  <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
+                    {fmt(resultados.gratificacionesCostoAnual)}
+                  </span>
+                </div>
+              </div>
+              {bonoEmpresaAnual.montoImponible > 0 && (
+                <>
+                  <div className="mt-2 mb-1">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Bonos Anuales
+                    </span>
+                  </div>
+                  <BonoAnualRow label="Bono Empresa" bono={bonoEmpresaAnual} format={fmt} />
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="mt-2 mb-1">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Bonos Anuales
+                </span>
+              </div>
+              <BonoAnualRow label="Bono Navidad" uf={7} bono={bonoNavidad} format={fmt} />
+              <BonoAnualRow label="Bono Fiestas Patrias" uf={6} bono={bonoFiestasPatrias} format={fmt} />
+              <BonoAnualRow label="Bono Escolaridad" uf={3} bono={bonoEscolaridad} format={fmt} />
+              {bonoEmpresaAnual.montoImponible > 0 && (
+                <BonoAnualRow label="Bono Empresa" bono={bonoEmpresaAnual} format={fmt} />
+              )}
+            </>
           )}
         </AccordionSection>
+
+              </div>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )

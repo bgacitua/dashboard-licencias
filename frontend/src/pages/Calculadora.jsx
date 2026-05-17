@@ -9,13 +9,16 @@ import { Resultados } from '../features/calculadora/components/Resultados'
 import { useCalculator, useDarkMode } from '../features/calculadora/lib/hooks'
 import {
   AFP_DATA,
+  AFP_DATA_PERU,
   TASAS_CHILE,
+  TASAS_PERU,
   TAX_BRACKETS_CHILE,
   BONOS_ANUALES_UF_DEFAULT,
   BONOS_EMPRESA_DEFAULT,
+  BONOS_EMPRESA_PERU_DEFAULT,
 } from '../features/calculadora/lib/config'
 
-const FALLBACK_CONFIG = {
+const FALLBACK_CHILE = {
   afpData: AFP_DATA,
   ufValue: TASAS_CHILE.UF_VALUE,
   dolarValue: TASAS_CHILE.DOLAR_VALUE,
@@ -25,17 +28,37 @@ const FALLBACK_CONFIG = {
   tasas: TASAS_CHILE,
 }
 
-// Adaptador: el backend puede devolver `tasa` de bonos_empresa como número o array.
-// Aseguramos que `tasa` sea siempre array si está presente.
-function normalizeConfig(raw) {
-  if (!raw) return FALLBACK_CONFIG
+const FALLBACK_PERU = {
+  afpData: AFP_DATA_PERU,
+  ufValue: TASAS_PERU.UF_VALUE,
+  dolarValue: TASAS_PERU.DOLAR_VALUE,
+  taxBrackets: [],
+  bonosAnualesUF: BONOS_ANUALES_UF_DEFAULT,
+  bonosEmpresa: BONOS_EMPRESA_PERU_DEFAULT,
+  tasas: TASAS_PERU,
+}
+
+function getFallbackConfig(pais) {
+  if (pais === 'peru') return FALLBACK_PERU
+  return FALLBACK_CHILE
+}
+
+// Defaults por país para selectores que dependen del país
+const DEFAULTS_POR_PAIS = {
+  chile: { afp: 'Uno',     sistemaSalud: 'fonasa',  sueldo: '1.000.000', movilizacion: '40.000', bonoEmpresaTipo: 'empresa', bonoEmpresaMonto: '600.000' },
+  peru:  { afp: 'Integra', sistemaSalud: 'essalud', sueldo: '3.500',     movilizacion: '0',      bonoEmpresaTipo: 'empresa', bonoEmpresaMonto: '0' },
+}
+
+function normalizeConfig(raw, pais) {
+  const fallback = getFallbackConfig(pais)
+  if (!raw) return fallback
   return {
-    afpData: raw.afpData || {},
-    ufValue: Number(raw.ufValue) || 0,
-    dolarValue: Number(raw.dolarValue) || 0,
+    afpData: raw.afpData || fallback.afpData,
+    ufValue: Number(raw.ufValue) || fallback.ufValue,
+    dolarValue: Number(raw.dolarValue) || fallback.dolarValue,
     taxBrackets: raw.taxBrackets || [],
-    bonosAnualesUF: raw.bonosAnualesUF || FALLBACK_CONFIG.bonosAnualesUF,
-    bonosEmpresa: (raw.bonosEmpresa || []).map((b) => ({
+    bonosAnualesUF: raw.bonosAnualesUF || fallback.bonosAnualesUF,
+    bonosEmpresa: ((raw.bonosEmpresa && raw.bonosEmpresa.length > 0) ? raw.bonosEmpresa : fallback.bonosEmpresa).map((b) => ({
       ...b,
       tasa:
         b.tasa !== undefined && b.tasa !== null
@@ -44,7 +67,7 @@ function normalizeConfig(raw) {
             : [b.tasa]
           : undefined,
     })),
-    tasas: raw.tasas || FALLBACK_CONFIG.tasas,
+    tasas: raw.tasas || fallback.tasas,
   }
 }
 
@@ -52,7 +75,7 @@ export default function Calculadora() {
   const { darkMode, toggleDarkMode } = useDarkMode()
 
   const [pais, setPais] = useState('chile')
-  const [config, setConfig] = useState(FALLBACK_CONFIG)
+  const [config, setConfig] = useState(FALLBACK_CHILE)
   const [loadingConfig, setLoadingConfig] = useState(true)
   const [configError, setConfigError] = useState(null)
 
@@ -68,6 +91,21 @@ export default function Calculadora() {
   const [bonos, setBonos] = useState([])
   const [moneda, setMoneda] = useState('CLP')
 
+  const handlePaisChange = (nuevoPais) => {
+    if (nuevoPais === pais) return
+    const d = DEFAULTS_POR_PAIS[nuevoPais] || DEFAULTS_POR_PAIS.chile
+    setPais(nuevoPais)
+    setAfp(d.afp)
+    setSistemaSalud(d.sistemaSalud)
+    setSaludUF('')
+    setSueldo(d.sueldo)
+    setMovilizacion(d.movilizacion)
+    setBonoEmpresaTipo(d.bonoEmpresaTipo)
+    setBonoEmpresaTasaIdx(0)
+    setBonoEmpresaMonto(d.bonoEmpresaMonto)
+    setMoneda(nuevoPais === 'peru' ? 'PEN' : 'CLP')
+  }
+
   // Re-fetch de config cuando cambia el país
   useEffect(() => {
     let cancelled = false
@@ -76,7 +114,7 @@ export default function Calculadora() {
     CalculadoraService.getCountryConfig(pais)
       .then((data) => {
         if (cancelled) return
-        setConfig(normalizeConfig(data))
+        setConfig(normalizeConfig(data, pais))
         if (data?._meta?.warnings?.length) {
           console.warn(`[calculadora] ${pais}:`, data._meta.warnings)
         }
@@ -85,7 +123,7 @@ export default function Calculadora() {
         if (cancelled) return
         console.error('[calculadora] no se pudo cargar config:', err)
         setConfigError(err?.response?.data?.detail || err.message || 'Error de carga')
-        setConfig(FALLBACK_CONFIG)
+        setConfig(getFallbackConfig(pais))
       })
       .finally(() => {
         if (!cancelled) setLoadingConfig(false)
@@ -123,7 +161,7 @@ export default function Calculadora() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <Header
         pais={pais}
-        onPaisChange={setPais}
+        onPaisChange={handlePaisChange}
         darkMode={darkMode}
         onDarkModeToggle={toggleDarkMode}
       />
@@ -142,6 +180,7 @@ export default function Calculadora() {
             <ModoCalculo modo={modo} onModoChange={setModo} />
 
             <DatosPrincipales
+              pais={pais}
               modo={modo}
               sueldo={sueldo}
               onSueldoChange={setSueldo}
@@ -182,11 +221,15 @@ export default function Calculadora() {
               </div>
             ) : (
               <Resultados
+                pais={pais}
                 modo={modo}
                 resultados={resultados}
                 moneda={moneda}
                 onMonedaChange={setMoneda}
                 dolarValue={config.dolarValue}
+                afpData={config.afpData}
+                afp={afp}
+                tasas={config.tasas}
               />
             )}
           </div>

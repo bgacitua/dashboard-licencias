@@ -14,6 +14,7 @@ import {
 import { formatCLP, formatNumericInput } from '../lib/utils'
 
 export function DatosPrincipales({
+  pais = 'chile',
   modo,
   sueldo,
   onSueldoChange,
@@ -36,7 +37,9 @@ export function DatosPrincipales({
   afpData,
   ufValue,
 }) {
-  const tasaAFP = afpData[afp] || 0.1049
+  const esPeru = pais === 'peru'
+  const tasaAFPDefault = esPeru ? 0.0155 : 0.1049
+  const tasaAFP = afpData[afp] || tasaAFPDefault
   const tipoObj = bonosEmpresa.find((b) => b.id === bonoEmpresaTipo)
   const tasaArr = tipoObj?.tasa
   const esMontoFijo = !Array.isArray(tasaArr) || tasaArr.length === 0
@@ -72,7 +75,9 @@ export function DatosPrincipales({
 
         {/* AFP */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-slate-600">AFP</Label>
+          <Label className="text-xs font-semibold text-slate-600">
+            {esPeru ? 'AFP (Administradora)' : 'AFP'}
+          </Label>
           <div className="flex gap-2">
             <Select value={afp} onValueChange={onAfpChange}>
               <SelectTrigger className="flex-1 h-10">
@@ -90,46 +95,72 @@ export function DatosPrincipales({
               variant="secondary"
               className="h-10 px-3 flex items-center text-xs font-semibold bg-primary-soft text-primary border-0"
             >
-              {(tasaAFP * 100).toFixed(2)}%
+              {esPeru ? `10% + ${(tasaAFP * 100).toFixed(2)}%` : `${(tasaAFP * 100).toFixed(2)}%`}
             </Badge>
           </div>
+          {esPeru && (
+            <p className="text-[11px] text-slate-500">
+              Aporte obligatorio 10% + comisión variable de la AFP.
+            </p>
+          )}
         </div>
 
         {/* Sistema de Salud */}
         <div className="space-y-2">
           <Label className="text-xs font-semibold text-slate-600">Sistema de Salud</Label>
-          <RadioGroup
-            value={sistemaSalud}
-            onValueChange={(v) => onSistemaSaludChange(v)}
-            className="flex gap-4"
-          >
-            {[
-              { value: 'fonasa', label: 'Fonasa' },
-              { value: 'isapre', label: 'Isapre' },
-            ].map(({ value, label }) => (
-              <div key={value} className="flex items-center space-x-2">
-                <RadioGroupItem value={value} id={value} />
-                <Label htmlFor={value} className="cursor-pointer text-sm text-slate-700">
-                  {label}
-                </Label>
+          {esPeru ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 dark:bg-slate-800/40 px-3 py-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                  EsSalud
+                </span>
+                <Badge
+                  variant="secondary"
+                  className="text-[11px] font-semibold bg-primary-soft text-primary border-0"
+                >
+                  9% empleador
+                </Badge>
               </div>
-            ))}
-          </RadioGroup>
-
-          {sistemaSalud === 'isapre' && (
-            <div className="flex items-center gap-2 mt-2">
-              <Label className="text-xs font-medium text-slate-600 whitespace-nowrap">UF a pagar:</Label>
-              <Input
-                type="text"
-                value={saludUF}
-                onChange={(e) => onSaludUFChange(e.target.value)}
-                placeholder="Ej: 3.5"
-                className="w-24 h-9"
-              />
-              <span className="text-xs text-slate-500">
-                ({formatCLP(parseFloat(saludUF || '0') * (ufValue || 0))})
-              </span>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Cobertura obligatoria.
+              </p>
             </div>
+          ) : (
+            <>
+              <RadioGroup
+                value={sistemaSalud}
+                onValueChange={(v) => onSistemaSaludChange(v)}
+                className="flex gap-4"
+              >
+                {[
+                  { value: 'fonasa', label: 'Fonasa' },
+                  { value: 'isapre', label: 'Isapre' },
+                ].map(({ value, label }) => (
+                  <div key={value} className="flex items-center space-x-2">
+                    <RadioGroupItem value={value} id={value} />
+                    <Label htmlFor={value} className="cursor-pointer text-sm text-slate-700">
+                      {label}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+
+              {sistemaSalud === 'isapre' && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Label className="text-xs font-medium text-slate-600 whitespace-nowrap">UF a pagar:</Label>
+                  <Input
+                    type="text"
+                    value={saludUF}
+                    onChange={(e) => onSaludUFChange(e.target.value)}
+                    placeholder="Ej: 3.5"
+                    className="w-24 h-9"
+                  />
+                  <span className="text-xs text-slate-500">
+                    ({formatCLP(parseFloat(saludUF || '0') * (ufValue || 0))})
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -147,7 +178,9 @@ export function DatosPrincipales({
 
         {/* Bono Empresa */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-slate-600">Bono Empresa</Label>
+          <Label className="text-xs font-semibold text-slate-600">
+            {esPeru ? 'Bono Empresa (anual — utilidades / bono gestión)' : 'Bono Empresa'}
+          </Label>
           <Select value={bonoEmpresaTipo} onValueChange={onBonoEmpresaTipoChange}>
             <SelectTrigger className="h-10">
               <SelectValue placeholder="Tipo de bono" />
