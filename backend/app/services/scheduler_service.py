@@ -178,12 +178,83 @@ def start_scheduler() -> None:
         name="Recordatorios de seguimiento de contratos",
         replace_existing=True,
     )
+    if settings.RETORNO_SCHEDULER_ENABLED:
+        _scheduler.add_job(
+            _run_retorno_job,
+            trigger=CronTrigger(
+                hour=settings.RETORNO_SCHEDULER_HOUR,
+                minute=settings.RETORNO_SCHEDULER_MINUTE,
+                timezone=tz,
+            ),
+            id="retorno_seguimiento_job",
+            name="Reporte diario de retorno post-licencia",
+            replace_existing=True,
+        )
+        logger.info(
+            f"[Scheduler] Job retorno registrado — "
+            f"{settings.RETORNO_SCHEDULER_HOUR:02d}:{settings.RETORNO_SCHEDULER_MINUTE:02d} "
+            f"→ {settings.RETORNO_ALERT_EMAIL or '(sin email configurado)'}"
+        )
+
     _scheduler.start()
     logger.info(
         f"[Scheduler] Iniciado — job diario a las "
         f"{settings.ALERTS_SCHEDULER_HOUR:02d}:{settings.ALERTS_SCHEDULER_MINUTE:02d} "
         f"({settings.ALERTS_SCHEDULER_TIMEZONE}) — ejecuta lunes o cuando modo cierre activo"
     )
+
+
+def _run_retorno_job() -> None:
+    """Envía reporte diario de seguimiento de retorno post-licencia a RRHH."""
+    from app.db.session import SessionLocal
+    from app.db.session_marcas import MarcasSessionLocal
+    from app.services.retorno_service import RetornoService
+    from datetime import datetime
+
+    if not settings.RETORNO_ALERT_EMAIL:
+        logger.warning("[RetornoScheduler] RETORNO_ALERT_EMAIL no configurado — omitiendo envío.")
+        return
+
+    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    db = SessionLocal()
+    marcas_db = MarcasSessionLocal()
+    try:
+        service = RetornoService(db, marcas_db)
+        result = service.enviar_alerta_retorno(
+            recipient_email=settings.RETORNO_ALERT_EMAIL,
+            dias_atras=settings.RETORNO_DIAS_ATRAS,
+        )
+
+        if result.get("auth_required"):
+            logger.error("[RetornoScheduler] Token Microsoft expirado — re-autorizar en /auth/login.")
+            return
+
+        if not result.get("sent"):
+            logger.info(f"[RetornoScheduler] Sin envío — {result.get('message')}")
+            return
+
+        logger.info(
+            f"[RetornoScheduler] Reporte enviado a {settings.RETORNO_ALERT_EMAIL} — "
+            f"sin retorno: {result.get('total_sin_retorno', 0)}, "
+            f"retornaron: {result.get('total_con_retorno', 0)}"
+        )
+        _notify_n8n({
+            "tipo": "retorno_reporte_enviado",
+            "timestamp": timestamp,
+            "destinatario": settings.RETORNO_ALERT_EMAIL,
+            "sin_retorno": result.get("total_sin_retorno", 0),
+            "con_retorno": result.get("total_con_retorno", 0),
+        })
+    except Exception as e:
+        logger.error(f"[RetornoScheduler] Error inesperado: {e}", exc_info=True)
+        _notify_n8n({
+            "tipo": "retorno_error",
+            "timestamp": timestamp,
+            "mensaje": f"❌ Error en scheduler de retorno: {str(e)}",
+        })
+    finally:
+        db.close()
+        marcas_db.close()
 
 
 def stop_scheduler() -> None:
