@@ -34,7 +34,7 @@ export const useRetornoSeguimiento = (dias = 7) => {
       setAlertaResult(result);
       return result;
     } catch (err) {
-      const msg = err?.response?.data?.detail || "Error al enviar alerta";
+      const msg = err?.message || "Error al enviar alerta";
       setAlertaResult({ sent: false, message: msg });
       return { sent: false, message: msg };
     } finally {

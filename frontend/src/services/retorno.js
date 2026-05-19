@@ -1,24 +1,22 @@
-import axios from "axios";
+import { getAuthHeaders } from "./auth";
 
 const API_URL = "/api/v1";
 
 export const getSeguimientoRetorno = async (dias = 7) => {
-  try {
-    const response = await axios.get(`${API_URL}/retorno/seguimiento?dias=${dias}`);
-    return response.data;
-  } catch (error) {
-    console.error("Error al obtener seguimiento de retorno:", error);
-    throw error;
-  }
+  const response = await fetch(`${API_URL}/retorno/seguimiento?dias=${dias}`);
+  if (!response.ok) throw new Error("Error al obtener seguimiento de retorno");
+  return response.json();
 };
 
 export const enviarAlertaRetorno = async (recipientEmail, dias = 7) => {
-  try {
-    const params = new URLSearchParams({ recipient_email: recipientEmail, dias });
-    const response = await axios.post(`${API_URL}/retorno/enviar-alerta?${params}`);
-    return response.data;
-  } catch (error) {
-    console.error("Error al enviar alerta de retorno:", error);
-    throw error;
+  const params = new URLSearchParams({ recipient_email: recipientEmail, dias });
+  const response = await fetch(`${API_URL}/retorno/enviar-alerta?${params}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || "Error al enviar alerta de retorno");
   }
+  return response.json();
 };

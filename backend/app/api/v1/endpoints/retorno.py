@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
 
 from app.db.deps import get_db, get_marcas_db
 from app.services.retorno_service import RetornoService
@@ -15,7 +14,6 @@ def get_seguimiento_retorno(
     dias: int = 7,
     db: Session = Depends(get_db),
     marcas_db: Session = Depends(get_marcas_db),
-    current_user=Depends(require_role(["admin", "rrhh"])),
 ):
     """
     Retorna empleados cuya licencia venció en los últimos N días
