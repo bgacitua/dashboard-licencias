@@ -47,14 +47,14 @@ class ContractAlertsService:
             
             dias_al_cierre = (fecha_cierre - hoy).days
 
-            if dias_al_cierre <= 7:
+            if 0 <= dias_al_cierre <= 7:
                 # Modo cierre: buscar hasta fin de mes
                 ultimo_dia = calendar.monthrange(anio_actual, mes_actual)[1]
                 fecha_fin = date(anio_actual, mes_actual, ultimo_dia)
                 logger.info(f"Modo CIERRE: {dias_al_cierre} días al cierre ({fecha_cierre}). Rango: {hoy} → {fecha_fin}")
                 return hoy, fecha_fin, "cierre", fecha_cierre, dias_al_cierre
             else:
-                # Modo normal: buscar 9 días adelante
+                # Modo normal: buscar 9 días adelante (incluye días post-cierre con dias_al_cierre < 0)
                 fecha_fin = hoy + timedelta(days=9)
                 logger.info(f"Modo NORMAL: {dias_al_cierre} días al cierre ({fecha_cierre}). Rango: {hoy} → {fecha_fin}")
                 return hoy, fecha_fin, "normal", fecha_cierre, dias_al_cierre
