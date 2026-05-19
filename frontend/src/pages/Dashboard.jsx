@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useLicencias } from "../hooks/useLicencias";
 import { useVacaciones } from "../hooks/useVacaciones";
 import { useMarcas } from "../hooks/useMarcas";
+import { useRetornoSeguimiento } from "../hooks/useRetornoSeguimiento";
 import SidebarLayout from "../components/SidebarLayout";
 
 // Stats Card Component
@@ -205,6 +206,8 @@ const Dashboard = () => {
     loading: loadingVacaciones
   } = useVacaciones();
   
+  const { sinRetorno, loading: loadingRetorno } = useRetornoSeguimiento(7);
+
   const {
     marcas,
     loading: loadingMarcas,
@@ -287,9 +290,9 @@ const Dashboard = () => {
         </div>
 
         {/* Tarjetas de licencias médicas y vacaciones */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <Link to="/dashboard/licencias" target="_blank" className="cursor-pointer transition-transform hover:scale-[1.02]">
-                <StatCard 
+                <StatCard
                     title="Licencias activas"
                     value={resumen.vigentes}
                     subtext="Ver detalle completo"
@@ -300,12 +303,23 @@ const Dashboard = () => {
                 />
             </Link>
             <Link to="/dashboard/vacaciones" target="_blank" className="cursor-pointer transition-transform hover:scale-[1.02]">
-                <StatCard 
+                <StatCard
                     title="Vacaciones activas"
                     value={resumenVacaciones.total}
                     subtext="Ver detalle completo"
                     icon="beach_access"
                     color="#0ea5e9"
+                />
+            </Link>
+            <Link to="/dashboard/retorno" className="cursor-pointer transition-transform hover:scale-[1.02]">
+                <StatCard
+                    title="Retorno pendiente"
+                    value={loadingRetorno ? "…" : sinRetorno.length}
+                    subtext="Sin marcaje post-licencia"
+                    icon="assignment_late"
+                    color="#f59e0b"
+                    trend={sinRetorno.length > 0 ? "up" : undefined}
+                    trendValue={sinRetorno.length > 0 ? `${sinRetorno.length} sin marcar` : undefined}
                 />
             </Link>
         </div>

@@ -165,3 +165,36 @@ class MarcasRepository:
         except Exception as e:
             logger.error(f"Error al obtener marcas: {type(e).__name__}: {str(e)}")
             raise
+
+    def check_marcas_rut_en_rango(
+        self,
+        rut: str,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> bool:
+        """
+        Verifica si un RUT tiene al menos un marcaje entre fecha_inicio y fecha_fin.
+        Usa filtro de fecha + RUT simultáneamente (distinto al flujo normal que los excluye).
+        """
+        sql = text("""
+            SELECT TOP 1 1
+            FROM [dbo].[AccessLog] AS m
+            INNER JOIN [dbo].[BiometricDevice] AS bd ON m.[MORPHOACCESSID] = bd.[ID]
+            INNER JOIN [dbo].[User_] AS u ON m.[USERID] = u.[ID]
+            WHERE u.[EMPLOYEEID] LIKE :rut
+              AND CAST(m.[LOGDATETIME] AT TIME ZONE 'UTC' AT TIME ZONE 'Pacific SA Standard Time' AS DATE)
+                  BETWEEN :fecha_inicio AND :fecha_fin
+        """)
+        try:
+            result = self.db.execute(
+                sql,
+                {
+                    "rut": f"%{rut}%",
+                    "fecha_inicio": fecha_inicio.isoformat(),
+                    "fecha_fin": fecha_fin.isoformat(),
+                },
+            )
+            return result.fetchone() is not None
+        except Exception as e:
+            logger.error(f"Error en check_marcas_rut_en_rango para {rut}: {type(e).__name__}: {str(e)}")
+            raise

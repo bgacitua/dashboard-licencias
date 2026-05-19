@@ -32,6 +32,7 @@ const AdminPanel = lazy(() => import('./pages/admin/AdminPanel'));
 const Calculadora = lazy(() => import('./pages/Calculadora'));
 const ContractAlerts = lazy(() => import('./pages/ContractAlerts'));
 const Costos = lazy(() => import('./pages/Costos'));
+const RetornoSeguimiento = lazy(() => import('./pages/RetornoSeguimiento'));
 
 
 function App() {
@@ -100,13 +101,22 @@ function App() {
               } 
             />
 
-            <Route 
-              path="/dashboard/vacaciones" 
+            <Route
+              path="/dashboard/vacaciones"
               element={
                 <ProtectedRoute requiredModule="dashboard">
                   <VacacionesPage />
                 </ProtectedRoute>
-              } 
+              }
+            />
+
+            <Route
+              path="/dashboard/retorno"
+              element={
+                <ProtectedRoute requiredModule="dashboard">
+                  <RetornoSeguimiento />
+                </ProtectedRoute>
+              }
             />
 
             {/* Rutas legacy (redirigir a nuevas rutas) */}
