@@ -39,3 +39,10 @@ SELECT r.id, m.id
 FROM app.roles r, app.modulos m
 WHERE r.nombre = 'rrhh' AND m.codigo = 'seleccion'
 ON CONFLICT DO NOTHING;
+
+-- Asignar a rol seleccion
+INSERT INTO app.rol_modulos (rol_id, modulo_id)
+SELECT r.id, m.id
+FROM app.roles r, app.modulos m
+WHERE r.nombre = 'seleccion' AND m.codigo = 'seleccion'
+ON CONFLICT DO NOTHING;

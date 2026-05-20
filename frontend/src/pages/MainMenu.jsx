@@ -68,7 +68,7 @@ const menuItems = [
     accent: 'bg-emerald-50 text-emerald-600',
     bar: 'bg-emerald-500',
     moduleCode: 'seleccion',
-    requiredRole: ['rrhh', 'admin'],
+    requiredRole: ['rrhh', 'admin', 'seleccion'],
   },
   {
     id: 'admin',
