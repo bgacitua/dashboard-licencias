@@ -87,8 +87,9 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
     setError('');
     try {
       const payload = { ...form };
-      ['sueldo_base', 'bono', 'movilizacion'].forEach(k => {
-        payload[k] = payload[k] === '' ? null : Number(payload[k]);
+      payload.sueldo_base = payload.sueldo_base === '' ? null : Number(payload.sueldo_base);
+      ['bono', 'movilizacion'].forEach(k => {
+        if (payload[k] === '') payload[k] = null;
       });
       ['fecha_cierre', 'fecha_de_inicio'].forEach(k => {
         if (!payload[k]) payload[k] = null;
@@ -201,8 +202,8 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
           </div>
           {field('Fecha cierre proceso', 'fecha_cierre', 'date')}
           {field('Sueldo base ($)', 'sueldo_base', 'number')}
-          {field('Bono ($)', 'bono', 'number')}
-          {field('Movilización ($)', 'movilizacion', 'number')}
+          {field('Bono', 'bono')}
+          {field('Movilización', 'movilizacion')}
           {field('Correo analista', 'correo_analista', 'email')}
           {field('Estado', 'status', 'text', STATUS_OPTIONS)}
 
@@ -293,8 +294,8 @@ function DetalleCandidato({ candidato, onClose, onEdit, onDelete }) {
           {fila('Fecha de inicio', candidato.fecha_de_inicio)}
           {fila('Fecha cierre proceso', candidato.fecha_cierre)}
           {fila('Sueldo base', fmtMonto(candidato.sueldo_base))}
-          {fila('Bono', fmtMonto(candidato.bono))}
-          {fila('Movilización', fmtMonto(candidato.movilizacion))}
+          {fila('Bono', candidato.bono || '—')}
+          {fila('Movilización', candidato.movilizacion || '—')}
           {fila('Correo analista', candidato.correo_analista)}
         </div>
 
@@ -406,7 +407,8 @@ export default function Seleccion() {
         {c.status}
       </span>
     );
-    if (['sueldo_base', 'bono', 'movilizacion'].includes(key)) return fmtMonto(c[key]);
+    if (key === 'sueldo_base') return fmtMonto(c[key]);
+    if (['bono', 'movilizacion'].includes(key)) return c[key] || '—';
     if (key === 'fecha_de_inicio') return c[key] || <span className="text-slate-400 text-xs italic">Sin definir</span>;
     return c[key] || '—';
   };

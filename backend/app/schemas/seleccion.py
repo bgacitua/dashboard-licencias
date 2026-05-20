@@ -16,8 +16,8 @@ class CandidatoBase(BaseModel):
     fecha_de_inicio: Optional[date] = None
     gerencia: Optional[str] = None
     sueldo_base: Optional[Decimal] = None
-    bono: Optional[Decimal] = None
-    movilizacion: Optional[Decimal] = None
+    bono: Optional[str] = None
+    movilizacion: Optional[str] = None
     correo_analista: Optional[str] = None
     status: Optional[str] = "Pendiente"
 
@@ -38,8 +38,8 @@ class CandidatoUpdate(BaseModel):
     fecha_de_inicio: Optional[date] = None
     gerencia: Optional[str] = None
     sueldo_base: Optional[Decimal] = None
-    bono: Optional[Decimal] = None
-    movilizacion: Optional[Decimal] = None
+    bono: Optional[str] = None
+    movilizacion: Optional[str] = None
     correo_analista: Optional[str] = None
     status: Optional[str] = None
 
