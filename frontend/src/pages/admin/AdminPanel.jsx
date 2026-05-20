@@ -145,7 +145,7 @@ const AdminPanel = () => {
 
     // User modals
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const [newUser, setNewUser] = useState({ username: '', password: '', nombre_completo: '', email: '', rol_id: '', modulo_ids: [] });
+    const [newUser, setNewUser] = useState({ username: '', password: '', nombre_completo: '', email: '', rol_id: '', send_invite: false });
     const [showEditModal, setShowEditModal] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -194,7 +194,7 @@ const AdminPanel = () => {
                 throw new Error(err.detail || 'Error al crear usuario');
             }
             setShowCreateModal(false);
-            setNewUser({ username: '', password: '', nombre_completo: '', email: '', rol_id: '', modulo_ids: [] });
+            setNewUser({ username: '', password: '', nombre_completo: '', email: '', rol_id: '', send_invite: false });
             fetchData();
         } catch (err) { setTabError(err.message); }
     };
@@ -701,9 +701,6 @@ const AdminPanel = () => {
                             <FieldGroup label="Username *">
                                 <InputField required value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} placeholder="Ej: jperez" />
                             </FieldGroup>
-                            <FieldGroup label="Contraseña *">
-                                <InputField type="password" required value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="Mínimo 6 caracteres" minLength={6} />
-                            </FieldGroup>
                             <FieldGroup label="Nombre Completo">
                                 <InputField value={newUser.nombre_completo} onChange={e => setNewUser({...newUser, nombre_completo: e.target.value})} placeholder="Ej: Juan Pérez" />
                             </FieldGroup>
@@ -724,13 +721,33 @@ const AdminPanel = () => {
                                     {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
                                 </SelectField>
                             </FieldGroup>
-                            <FieldGroup label="Módulos Permitidos">
-                                <ModuleCheckboxList
-                                    modules={activeModules}
-                                    selectedIds={newUser.modulo_ids}
-                                    onChange={ids => setNewUser({...newUser, modulo_ids: ids})}
-                                />
-                            </FieldGroup>
+
+                            {/* Toggle: admin sets password vs invite */}
+                            <div className="rounded-xl border border-slate-200 overflow-hidden">
+                                <button
+                                    type="button"
+                                    onClick={() => setNewUser({...newUser, send_invite: false, password: ''})}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors text-left ${!newUser.send_invite ? 'bg-primary text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">lock</span>
+                                    Establecer contraseña ahora
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setNewUser({...newUser, send_invite: true, password: ''})}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors text-left border-t border-slate-200 ${newUser.send_invite ? 'bg-primary text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">mail</span>
+                                    Invitar por email — el usuario crea su contraseña
+                                </button>
+                            </div>
+
+                            {!newUser.send_invite && (
+                                <FieldGroup label="Contraseña *">
+                                    <InputField type="password" required={!newUser.send_invite} value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="Mínimo 6 caracteres" minLength={6} />
+                                </FieldGroup>
+                            )}
+
                             <ModalActions onCancel={() => setShowCreateModal(false)} submitLabel="Crear Usuario" />
                         </form>
                     </Modal>

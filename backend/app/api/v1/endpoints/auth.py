@@ -23,6 +23,7 @@ from app.schemas.auth import (
     TwoFactorActivateRequest,
     EmailOTPVerifyRequest,
     QRTokenResponse,
+    SetPasswordRequest,
 )
 from app.core.security import (
     get_current_user,
@@ -36,6 +37,21 @@ from app.core.security import (
 from app.models.auth import Usuario
 
 router = APIRouter()
+
+
+@router.post("/set-password", status_code=status.HTTP_204_NO_CONTENT)
+async def set_password_from_invite(
+    body: SetPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    """Endpoint público: establece contraseña usando token de invitación."""
+    if len(body.password) < 6:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La contraseña debe tener al menos 6 caracteres.")
+    auth_service = AuthService(db)
+    ok = auth_service.set_password_from_invite(body.token, body.password)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de invitación es inválido o ha expirado.")
+
 
 
 @router.post("/login")

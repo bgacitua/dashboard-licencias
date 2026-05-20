@@ -78,15 +78,17 @@ class AuthService:
     def create_user(
         self,
         username: str,
-        password: str,
+        password: Optional[str],
         rol_id: int,
         email: Optional[str] = None,
         nombre_completo: Optional[str] = None,
-        modulo_ids: Optional[List[int]] = None
+        modulo_ids: Optional[List[int]] = None,
+        send_invite: bool = False,
     ) -> Usuario:
-        """Crea un nuevo usuario con password hasheado."""
-        password_hash = get_password_hash(password)
-        
+        """Crea un nuevo usuario. Si send_invite=True genera token de invitación y envía email."""
+        placeholder = secrets.token_hex(32) if not password else password
+        password_hash = get_password_hash(placeholder)
+
         user = self.repository.create_user(
             username=username,
             password_hash=password_hash,
@@ -94,13 +96,106 @@ class AuthService:
             email=email,
             nombre_completo=nombre_completo
         )
-        
-        # Asignar módulos específicos si se proporcionan
+
         if modulo_ids:
             self.repository.set_user_modules(user, modulo_ids)
-        
+
+        if send_invite and email:
+            self._generate_and_send_invite(user)
+
         logger.info(f"Usuario creado: {username}")
         return user
+
+    def _generate_and_send_invite(self, user: Usuario) -> None:
+        """Genera token de invitación, lo guarda en DB y envía email al usuario."""
+        token = secrets.token_urlsafe(32)
+        user.invite_token = token
+        user.invite_token_expires_at = datetime.utcnow() + timedelta(hours=48)
+        self.repository.db.commit()
+        self._send_invite_email(user.email, user.nombre_completo or user.username, token)
+
+    def resend_invite(self, user_id: int) -> bool:
+        """Regenera y reenvía invitación a un usuario existente. Retorna False si no existe."""
+        user = self.repository.get_user_by_id(user_id)
+        if not user or not user.email:
+            return False
+        self._generate_and_send_invite(user)
+        return True
+
+    def set_password_from_invite(self, token: str, new_password: str) -> bool:
+        """Valida token de invitación y establece la contraseña. Retorna False si token inválido/expirado."""
+        user = (
+            self.repository.db.query(Usuario)
+            .filter(
+                Usuario.invite_token == token,
+                Usuario.invite_token_expires_at > datetime.utcnow(),
+            )
+            .first()
+        )
+        if not user:
+            return False
+        user.password_hash = get_password_hash(new_password)
+        user.invite_token = None
+        user.invite_token_expires_at = None
+        self.repository.db.commit()
+        logger.info(f"Contraseña establecida via invitación: {user.username}")
+        return True
+
+    def _send_invite_email(self, to_email: str, display_name: str, token: str) -> None:
+        """Envía email de invitación con link para establecer contraseña."""
+        import os
+        frontend_url = os.getenv("PUBLIC_URL", "http://localhost:5173")
+        invite_url = f"{frontend_url}/set-password?token={token}"
+
+        try:
+            access_token = get_access_token()
+        except AuthRequiredError as e:
+            logger.error(f"Graph API no autorizada para enviar invitación: {e}")
+            raise RuntimeError("El sistema de email no está configurado. Contacta al administrador.")
+
+        html_body = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+            <div style="background: #0c1a3a; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
+                <h1 style="color: white; font-size: 20px; margin: 0;">HR Portal — Bienvenido/a</h1>
+            </div>
+            <p style="color: #374151; font-size: 15px;">Hola <strong>{display_name}</strong>,</p>
+            <p style="color: #374151; font-size: 15px;">
+                Se ha creado una cuenta para ti en el Portal de RRHH de Cramer &amp; Asociados.
+                Haz clic en el botón para establecer tu contraseña:
+            </p>
+            <div style="text-align: center; margin: 32px 0;">
+                <a href="{invite_url}"
+                   style="background: #0c1a3a; color: white; text-decoration: none;
+                          padding: 14px 28px; border-radius: 8px; font-size: 15px; font-weight: bold;">
+                    Establecer contraseña
+                </a>
+            </div>
+            <p style="color: #6b7280; font-size: 13px;">
+                Este enlace expira en <strong>48 horas</strong>.<br>
+                Si no esperabas este mensaje, ignóralo.
+            </p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+            <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+                Portal RRHH — Cramer &amp; Asociados · Uso interno
+            </p>
+        </div>
+        """
+
+        resp = httpx.post(
+            "https://graph.microsoft.com/v1.0/me/sendMail",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "message": {
+                    "subject": "[HR Portal] Activa tu cuenta — Establece tu contraseña",
+                    "body": {"contentType": "HTML", "content": html_body},
+                    "toRecipients": [{"emailAddress": {"address": to_email}}],
+                }
+            },
+            timeout=15,
+        )
+        if resp.status_code not in (200, 202):
+            logger.error(f"Error enviando email de invitación: {resp.status_code} {resp.text}")
+            raise RuntimeError("Error al enviar el correo de invitación.")
     
     def update_user(
         self,

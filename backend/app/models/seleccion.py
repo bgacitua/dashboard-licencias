@@ -4,7 +4,7 @@ from app.db.base import Base
 
 class CandidatoSeleccion(Base):
     __tablename__ = "candidatos_seleccion"
-    __table_args__ = {"schema": "rh"}
+    __table_args__ = {"schema": "app"}
 
     id = Column(Integer, primary_key=True, index=True)
     empresa = Column(String(150), nullable=False)

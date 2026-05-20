@@ -100,7 +100,8 @@ class UsuarioBase(BaseModel):
 
 class UsuarioCreate(UsuarioBase):
     """Request para crear usuario"""
-    password: str
+    password: Optional[str] = None  # None cuando se envía invitación al usuario
+    send_invite: bool = False        # True → generar token e invitar por email
     rol_id: int
     email: str  # Obligatorio y debe ser @cramer.cl
     modulo_ids: Optional[List[int]] = None
@@ -109,6 +110,12 @@ class UsuarioCreate(UsuarioBase):
     @classmethod
     def email_must_be_corporate(cls, v):
         return validate_corporate_email(v)
+
+
+class SetPasswordRequest(BaseModel):
+    """Request para que el usuario establezca su contraseña via token de invitación"""
+    token: str
+    password: str
 
 
 class UsuarioUpdate(BaseModel):

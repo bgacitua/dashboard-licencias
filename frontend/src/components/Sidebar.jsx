@@ -10,7 +10,7 @@ const allMenuItems = [
   { icon: 'calculate',            label: 'Calculadora Sueldos',    path: '/calculadora',         module: 'calculadora' },
   { icon: 'wallet',               label: 'Costos por Área',        path: '/costos',              module: 'costos' },
   { icon: 'notifications_active', label: 'Alertas de Contratos',   path: '/contract-alerts',     module: 'contract_alerts' },
-  { icon: 'person_search',        label: 'Selección de Personal',  path: '/seleccion',           module: 'seleccion',      requiredRole: ['admin'] },
+  { icon: 'person_search',        label: 'Selección de Personal',  path: '/seleccion',           module: 'seleccion',      requiredRole: ['rrhh', 'admin'] },
   { icon: 'settings',             label: 'Administración',         path: '/admin',               module: 'admin',          requiredRole: ['admin'] },
 ];
 
