@@ -21,18 +21,20 @@ class AuthRepository:
         return (
             self.db.query(Usuario)
             .options(
-                joinedload(Usuario.rol).joinedload(Role.modulos)
+                joinedload(Usuario.rol).joinedload(Role.modulos),
+                joinedload(Usuario.modulos),
             )
             .filter(Usuario.username == username)
             .first()
         )
-    
+
     def get_user_by_id(self, user_id: int) -> Optional[Usuario]:
         """Obtiene un usuario por su ID."""
         return (
             self.db.query(Usuario)
             .options(
-                joinedload(Usuario.rol).joinedload(Role.modulos)
+                joinedload(Usuario.rol).joinedload(Role.modulos),
+                joinedload(Usuario.modulos),
             )
             .filter(Usuario.id == user_id)
             .first()

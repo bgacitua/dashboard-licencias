@@ -66,12 +66,23 @@ class AuthService:
     
     def get_user_modules(self, user: Usuario) -> List[Modulo]:
         """
-        Obtiene los módulos a los que el usuario tiene acceso.
+        Retorna módulos activos del rol del usuario + módulos directos asignados al usuario.
+        Los módulos directos (usuario_modulos) permiten excepciones fuera del rol.
         """
-        if not user.rol:
-            return []
-        
-        return [m for m in user.rol.modulos if m.activo]
+        seen_ids: set[int] = set()
+        result: List[Modulo] = []
+
+        for m in (user.rol.modulos if user.rol else []):
+            if m.activo and m.id not in seen_ids:
+                seen_ids.add(m.id)
+                result.append(m)
+
+        for m in user.modulos:
+            if m.activo and m.id not in seen_ids:
+                seen_ids.add(m.id)
+                result.append(m)
+
+        return result
     
     # === Gestión de usuarios (para admin) ===
     
