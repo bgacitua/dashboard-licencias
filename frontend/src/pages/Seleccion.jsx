@@ -122,7 +122,8 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
           onChange={handleChange}
           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
         >
-          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+          <option value="">Seleccionar...</option>
+        {opts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (
         <input
@@ -164,7 +165,7 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
             />
           </div>
 
-          {field('Empresa *', 'empresa')}
+          {field('Empresa *', 'empresa', 'text', EMPRESA)}
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Gerencia</label>
