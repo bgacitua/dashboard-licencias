@@ -4,19 +4,36 @@ import { getToken } from '../services/auth';
 
 const API = '/api/v1/seleccion';
 
+const EMPRESA = ['CARLOS CRAMER PRODUCTOS AROMÁTICOS S.A. C.I.', 'SABORES Y FRAGANCIAS.CL COMERCIAL LTDA.', 'SERVICIOS DE PRODUCCIÓN Y LOGÍSTICA CCPA LTDA.'];
 const STATUS_OPTIONS = ['Pendiente', 'Oferta enviada', 'Aceptado', 'Rechazado', 'En proceso'];
-const JORNADA_OPTIONS = ['Completa', 'Parcial', 'Por turnos', 'Mixta'];
-const CONTRATO_OPTIONS = ['Plazo fijo', 'Indefinido', 'Por obra', 'Honorarios'];
+const JORNADA_OPTIONS = ['Lunes a Viernes', 'Articulo 22', 'Mixto', 'Teletrabajo'];
+const CONTRATO_OPTIONS = ['Plazo Fijo (1 mes - 2 meses), Sujeto a Renovación', 'Indefinido'];
+const LUGAR_TRABAJO = ['Lucerna 4925, Cerrillos, Santiago', 'Las Encinas 268, Cerrillos, Santiago', 'Balmaceda 3050, Malloco'];
 
 const COLS = [
-  { key: 'nombre', label: 'Nombre' },
-  { key: 'rut', label: 'RUT' },
-  { key: 'cargo', label: 'Cargo' },
-  { key: 'empresa', label: 'Empresa' },
-  { key: 'fecha_de_inicio', label: 'Inicio' },
-  { key: 'tipo_de_contrato', label: 'Contrato' },
-  { key: 'status', label: 'Estado' },
+  { key: 'nombre',            label: 'Nombre' },
+  { key: 'rut',               label: 'RUT' },
+  { key: 'cargo',             label: 'Cargo' },
+  { key: 'gerencia',          label: 'Gerencia' },
+  { key: 'lugar_de_trabajo',  label: 'Lugar' },
+  { key: 'jornada_de_trabajo',label: 'Jornada' },
+  { key: 'tipo_de_contrato',  label: 'Contrato' },
+  { key: 'fecha_de_inicio',   label: 'Inicio' },
+  { key: 'fecha_cierre',      label: 'Cierre proceso' },
+  { key: 'sueldo_base',       label: 'Sueldo base' },
+  { key: 'bono',              label: 'Bono' },
+  { key: 'movilizacion',      label: 'Movilización' },
+  { key: 'correo_analista',   label: 'Analista' },
+  { key: 'status',            label: 'Estado' },
 ];
+
+const formatRut = (v) => {
+  const clean = v.replace(/[^0-9kK]/g, '');
+  if (clean.length < 2) return clean;
+  return clean.slice(0, -1) + '-' + clean.slice(-1).toUpperCase();
+};
+
+const fmtMonto = (v) => v != null && v !== '' ? `$${Number(v).toLocaleString('es-CL')}` : '—';
 
 const STATUS_COLORS = {
   'Pendiente':      'bg-yellow-100 text-yellow-800',
@@ -36,12 +53,17 @@ const emptyForm = {
 function CandidatoModal({ candidato, onClose, onSaved }) {
   const isEdit = !!candidato?.id;
   const [form, setForm] = useState(isEdit ? { ...candidato } : { ...emptyForm });
+  const [fechaSinDefinir, setFechaSinDefinir] = useState(isEdit ? !candidato?.fecha_de_inicio : false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    if (name === 'rut') {
+      setForm(prev => ({ ...prev, rut: formatRut(value) }));
+    } else {
+      setForm(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -56,6 +78,7 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
       ['fecha_cierre', 'fecha_de_inicio'].forEach(k => {
         if (!payload[k]) payload[k] = null;
       });
+      if (fechaSinDefinir) payload.fecha_de_inicio = null;
 
       const url = isEdit ? `${API}/${candidato.id}` : `${API}/`;
       const method = isEdit ? 'PUT' : 'POST';
@@ -115,10 +138,29 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
           {field('Cargo *', 'cargo')}
           {field('Empresa *', 'empresa')}
           {field('Gerencia', 'gerencia')}
-          {field('Lugar de trabajo', 'lugar_de_trabajo')}
+          {field('Lugar de trabajo', 'lugar_de_trabajo', 'text', LUGAR_TRABAJO)}
           {field('Jornada de trabajo', 'jornada_de_trabajo', 'text', JORNADA_OPTIONS)}
           {field('Tipo de contrato', 'tipo_de_contrato', 'text', CONTRATO_OPTIONS)}
-          {field('Fecha de inicio', 'fecha_de_inicio', 'date')}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Fecha de inicio</label>
+            <input
+              type="date"
+              name="fecha_de_inicio"
+              value={fechaSinDefinir ? '' : (form.fecha_de_inicio || '')}
+              onChange={handleChange}
+              disabled={fechaSinDefinir}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-slate-50 disabled:text-slate-400"
+            />
+            <label className="flex items-center gap-2 mt-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={fechaSinDefinir}
+                onChange={e => { setFechaSinDefinir(e.target.checked); if (e.target.checked) setForm(prev => ({ ...prev, fecha_de_inicio: '' })); }}
+                className="w-3.5 h-3.5 accent-emerald-600"
+              />
+              <span className="text-xs text-slate-500">Sin fecha definida</span>
+            </label>
+          </div>
           {field('Fecha cierre proceso', 'fecha_cierre', 'date')}
           {field('Sueldo base ($)', 'sueldo_base', 'number')}
           {field('Bono ($)', 'bono', 'number')}
@@ -184,8 +226,6 @@ function DetalleCandidato({ candidato, onClose, onEdit, onDelete }) {
       <span className="text-sm text-slate-700">{value || '—'}</span>
     </div>
   );
-
-  const fmtMonto = (v) => v != null ? `$${Number(v).toLocaleString('es-CL')}` : '—';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -313,6 +353,26 @@ export default function Seleccion() {
     enProceso: candidatos.filter(c => c.status === 'En proceso').length,
   };
 
+  const candidatosPorEmpresa = EMPRESA.reduce((acc, emp) => {
+    const lista = candidatosFiltrados.filter(c => c.empresa === emp);
+    if (lista.length > 0) acc[emp] = lista;
+    return acc;
+  }, {});
+  // Candidatos sin empresa reconocida
+  const sinEmpresa = candidatosFiltrados.filter(c => !EMPRESA.includes(c.empresa));
+  if (sinEmpresa.length > 0) candidatosPorEmpresa['Sin empresa'] = sinEmpresa;
+
+  const renderCell = (c, key) => {
+    if (key === 'status') return (
+      <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[c.status] || 'bg-slate-100 text-slate-600'}`}>
+        {c.status}
+      </span>
+    );
+    if (['sueldo_base', 'bono', 'movilizacion'].includes(key)) return fmtMonto(c[key]);
+    if (key === 'fecha_de_inicio') return c[key] || <span className="text-slate-400 text-xs italic">Sin definir</span>;
+    return c[key] || '—';
+  };
+
   return (
     <SidebarLayout>
       <div className="min-h-screen bg-slate-50 font-['Public_Sans']">
@@ -370,66 +430,69 @@ export default function Seleccion() {
             </select>
           </div>
 
-          {/* Tabla */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            {loading ? (
-              <div className="flex items-center justify-center py-20 text-slate-400">
-                <div className="w-8 h-8 border-4 border-slate-200 border-t-emerald-500 rounded-full animate-spin mr-3" />
-                Cargando candidatos...
-              </div>
-            ) : error ? (
-              <div className="text-center py-20 text-red-500">{error}</div>
-            ) : candidatosFiltrados.length === 0 ? (
-              <div className="text-center py-20 text-slate-400">
-                <span className="material-symbols-outlined text-5xl mb-3 block">person_search</span>
-                {busqueda || filtroStatus ? 'Sin resultados para los filtros aplicados.' : 'No hay candidatos registrados.'}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      {COLS.map(col => (
-                        <th key={col.key} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                          {col.label}
-                        </th>
-                      ))}
-                      <th className="px-4 py-3" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {candidatosFiltrados.map(c => (
-                      <tr
-                        key={c.id}
-                        className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
-                        onClick={() => { setSeleccionado(c); setModal('detalle'); }}
-                      >
-                        <td className="px-4 py-3 font-medium text-slate-800">{c.nombre}</td>
-                        <td className="px-4 py-3 text-slate-500">{c.rut || '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{c.cargo}</td>
-                        <td className="px-4 py-3 text-slate-500">{c.empresa}</td>
-                        <td className="px-4 py-3 text-slate-500">{c.fecha_de_inicio || '—'}</td>
-                        <td className="px-4 py-3 text-slate-500">{c.tipo_de_contrato || '—'}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[c.status] || 'bg-slate-100 text-slate-600'}`}>
-                            {c.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={e => { e.stopPropagation(); setSeleccionado(c); setModal('editar'); }}
-                            className="text-slate-400 hover:text-emerald-600 transition-colors"
+          {/* Tablas por empresa */}
+          {loading ? (
+            <div className="flex items-center justify-center py-20 text-slate-400">
+              <div className="w-8 h-8 border-4 border-slate-200 border-t-emerald-500 rounded-full animate-spin mr-3" />
+              Cargando candidatos...
+            </div>
+          ) : error ? (
+            <div className="text-center py-20 text-red-500">{error}</div>
+          ) : candidatosFiltrados.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm text-center py-20 text-slate-400">
+              <span className="material-symbols-outlined text-5xl mb-3 block">person_search</span>
+              {busqueda || filtroStatus ? 'Sin resultados para los filtros aplicados.' : 'No hay candidatos registrados.'}
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {Object.entries(candidatosPorEmpresa).map(([empresa, lista]) => (
+                <div key={empresa} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-5 py-3.5 border-b border-slate-100 bg-emerald-50 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-emerald-600 text-[18px]">business</span>
+                    <h2 className="text-sm font-bold text-emerald-800">{empresa}</h2>
+                    <span className="ml-auto text-xs text-emerald-600 font-medium">{lista.length} candidato{lista.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                          {COLS.map(col => (
+                            <th key={col.key} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                              {col.label}
+                            </th>
+                          ))}
+                          <th className="px-4 py-3" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lista.map(c => (
+                          <tr
+                            key={c.id}
+                            className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
+                            onClick={() => { setSeleccionado(c); setModal('detalle'); }}
                           >
-                            <span className="material-symbols-outlined text-[18px]">edit</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                            {COLS.map(col => (
+                              <td key={col.key} className={`px-4 py-3 whitespace-nowrap ${col.key === 'nombre' ? 'font-medium text-slate-800' : 'text-slate-500'}`}>
+                                {renderCell(c, col.key)}
+                              </td>
+                            ))}
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={e => { e.stopPropagation(); setSeleccionado(c); setModal('editar'); }}
+                                className="text-slate-400 hover:text-emerald-600 transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">edit</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
