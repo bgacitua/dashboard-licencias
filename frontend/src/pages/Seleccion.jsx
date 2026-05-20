@@ -1,6 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import SidebarLayout from '../components/SidebarLayout';
+import AutocompleteField from '../components/AutocompleteField';
 import { getToken } from '../services/auth';
+
+const authHeader = () => ({ Authorization: `Bearer ${getToken()}` });
+
+const fetchCargos = async (q) => {
+  const res = await fetch(`/api/v1/seleccion/catalogo/cargos?q=${encodeURIComponent(q)}`, { headers: authHeader() });
+  if (!res.ok) return [];
+  return res.json();
+};
+
+const fetchAreas = async (q) => {
+  const res = await fetch(`/api/v1/seleccion/catalogo/areas?q=${encodeURIComponent(q)}`, { headers: authHeader() });
+  if (!res.ok) return [];
+  return res.json();
+};
 
 const API = '/api/v1/seleccion';
 
@@ -135,9 +150,32 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
         <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           {field('Nombre completo *', 'nombre')}
           {field('RUT', 'rut')}
-          {field('Cargo *', 'cargo')}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Cargo *</label>
+            <AutocompleteField
+              name="cargo"
+              value={form.cargo}
+              onChange={handleChange}
+              placeholder="Escribe para buscar..."
+              fetchSuggestions={fetchCargos}
+              confirmNewMessage={(v) => `"${v}" no existe como cargo en el sistema. ¿Estás seguro que deseas agregar este nuevo cargo?`}
+            />
+          </div>
+
           {field('Empresa *', 'empresa')}
-          {field('Gerencia', 'gerencia')}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Gerencia</label>
+            <AutocompleteField
+              name="gerencia"
+              value={form.gerencia}
+              onChange={handleChange}
+              placeholder="Escribe para buscar área..."
+              fetchSuggestions={fetchAreas}
+              confirmNewMessage={(v) => `"${v}" no existe como área en el sistema. ¿Estás seguro que deseas agregar esta nueva gerencia?`}
+            />
+          </div>
           {field('Lugar de trabajo', 'lugar_de_trabajo', 'text', LUGAR_TRABAJO)}
           {field('Jornada de trabajo', 'jornada_de_trabajo', 'text', JORNADA_OPTIONS)}
           {field('Tipo de contrato', 'tipo_de_contrato', 'text', CONTRATO_OPTIONS)}

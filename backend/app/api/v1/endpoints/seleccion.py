@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -12,12 +13,64 @@ from app.core.logging_config import logger
 router = APIRouter()
 
 
+@router.get("/catalogo/cargos", response_model=List[str])
+def get_cargos(
+    q: str = Query("", description="Filtro de búsqueda"),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(["admin", "seleccion", "rrhh"])),
+):
+    """Retorna cargos únicos de rh.employees que contengan el texto buscado."""
+    rows = db.execute(
+        text("""
+            SELECT DISTINCT name_role
+            FROM rh.employees
+            WHERE name_role ILIKE :q
+              AND name_role IS NOT NULL
+            ORDER BY name_role
+            LIMIT 30
+        """),
+        {"q": f"%{q}%"},
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+@router.get("/catalogo/areas", response_model=List[str])
+def get_areas(
+    q: str = Query("", description="Filtro de búsqueda"),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(["admin", "seleccion", "rrhh"])),
+):
+    """Retorna áreas únicas (rh.areas.name) que tengan empleados y coincidan con la búsqueda."""
+    rows = db.execute(
+        text("""
+            SELECT DISTINCT a.name
+            FROM rh.employees e
+            LEFT JOIN rh.areas a ON a.id = e.area_id
+            WHERE a.name ILIKE :q
+              AND a.name IS NOT NULL
+            ORDER BY a.name
+            LIMIT 30
+        """),
+        {"q": f"%{q}%"},
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
 @router.get("/", response_model=List[CandidatoResponse])
 def get_candidatos(
     db: Session = Depends(get_db),
     current_user=Depends(require_role(["admin", "seleccion"])),
 ):
     return SeleccionService(db).get_all()
+
+
+@router.get("/rut/{rut}", response_model=List[CandidatoResponse])
+def get_candidatos_por_rut(
+    rut: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role(["admin", "seleccion"])),
+):
+    return SeleccionService(db).get_by_rut(rut)
 
 
 @router.get("/{candidato_id}", response_model=CandidatoResponse)
@@ -30,15 +83,6 @@ def get_candidato(
     if not candidato:
         raise HTTPException(status_code=404, detail="Candidato no encontrado")
     return candidato
-
-
-@router.get("/rut/{rut}", response_model=List[CandidatoResponse])
-def get_candidatos_por_rut(
-    rut: str,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role(["admin", "seleccion"])),
-):
-    return SeleccionService(db).get_by_rut(rut)
 
 
 @router.post("/", response_model=CandidatoResponse, status_code=201)
