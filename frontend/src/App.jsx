@@ -33,6 +33,7 @@ const Calculadora = lazy(() => import('./pages/Calculadora'));
 const ContractAlerts = lazy(() => import('./pages/ContractAlerts'));
 const Costos = lazy(() => import('./pages/Costos'));
 const RetornoSeguimiento = lazy(() => import('./pages/RetornoSeguimiento'));
+const Seleccion = lazy(() => import('./pages/Seleccion'));
 
 
 function App() {
@@ -189,6 +190,16 @@ function App() {
                   <ContractAlerts />
                 </ProtectedRoute>
               } 
+            />
+
+            {/* Módulo Selección de Personal */}
+            <Route
+              path="/seleccion"
+              element={
+                <ProtectedRoute requiredModule="seleccion">
+                  <Seleccion />
+                </ProtectedRoute>
+              }
             />
 
             {/* Ruta 404 - redirigir al menú */}

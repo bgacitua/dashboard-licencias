@@ -63,7 +63,7 @@ const menuItems = [
     id: 'seleccion',
     title: 'Selección de Personal',
     description: 'Administra candidatos, programa entrevistas y sigue procesos de reclutamiento.',
-    path: '#',
+    path: '/seleccion',
     icon: 'person_search',
     accent: 'bg-emerald-50 text-emerald-600',
     bar: 'bg-emerald-500',
