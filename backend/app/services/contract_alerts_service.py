@@ -445,6 +445,7 @@ class ContractAlertsService:
             _send_email_graph(
                 to=boss_email,
                 cc="",
+                bcc="jguinez@cramer.cl",
                 subject=f"[Confirmación] Decisión registrada: {answer_label} — {employee_name}",
                 html_body=html,
             )
@@ -613,7 +614,7 @@ def _parse_date_safe(date_str: str) -> datetime:
         return datetime.max
 
 
-def _send_email_graph(to: str, cc: str, subject: str, html_body: str) -> bool:
+def _send_email_graph(to: str, cc: str, subject: str, html_body: str, bcc: str = "") -> bool:
     """Envía un email vía Microsoft Graph API usando el refresh token almacenado.
     Lanza AuthRequiredError si no hay sesión activa."""
     import httpx
@@ -624,6 +625,11 @@ def _send_email_graph(to: str, cc: str, subject: str, html_body: str) -> bool:
     cc_recipients = [
         {"emailAddress": {"address": addr.strip()}}
         for addr in cc.split(";")
+        if addr.strip()
+    ]
+    bcc_recipients = [
+        {"emailAddress": {"address": addr.strip()}}
+        for addr in bcc.split(";")
         if addr.strip()
     ]
 
@@ -637,6 +643,7 @@ def _send_email_graph(to: str, cc: str, subject: str, html_body: str) -> bool:
                     "body": {"contentType": "HTML", "content": html_body},
                     "toRecipients": [{"emailAddress": {"address": to}}],
                     "ccRecipients": cc_recipients,
+                    "bccRecipients": bcc_recipients,
                 }
             },
             timeout=20,
