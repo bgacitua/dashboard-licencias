@@ -31,6 +31,8 @@ export const AuthProvider = ({ children }) => {
                     const data = await getCurrentUser();
                     setUser(data.user);
                     setModules(data.modulos);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    localStorage.setItem('modules', JSON.stringify(data.modulos));
                 } catch (err) {
                     // Si falla, usar datos almacenados localmente
                     const storedUser = getStoredUser();
