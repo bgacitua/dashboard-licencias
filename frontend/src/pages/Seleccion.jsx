@@ -115,7 +115,7 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
           {field('Nombre completo *', 'nombre')}
           {field('RUT', 'rut')}
           {field('Cargo *', 'cargo')}
-          {field('Empresa *', 'empresa', text, EMPRESA)}
+          {field('Empresa *', 'empresa', 'text', EMPRESA)}
           {field('Gerencia', 'gerencia')}
           {field('Lugar de trabajo', 'lugar_de_trabajo', 'text', LUGAR_TRABAJO)}
           {field('Jornada de trabajo', 'jornada_de_trabajo', 'text', JORNADA_OPTIONS)}
