@@ -210,7 +210,6 @@ const AdminPanel = () => {
                     nombre_completo: editingUser.nombre_completo,
                     email: editingUser.email,
                     rol_id: parseInt(editingUser.rol_id),
-                    modulo_ids: editingUser.modulo_ids,
                 }),
             });
             if (!res.ok) throw new Error('Error al actualizar usuario');
@@ -342,7 +341,7 @@ const AdminPanel = () => {
     };
 
     const openEditUser = (user) => {
-        setEditingUser({ ...user, rol_id: user.rol?.id || '', modulo_ids: user.modulos?.map(m => m.id) || [] });
+        setEditingUser({ ...user, rol_id: user.rol?.id || '' });
         setShowEditModal(true);
         setTabError('');
     };
@@ -779,13 +778,6 @@ const AdminPanel = () => {
                                     <option value="">Sin rol</option>
                                     {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
                                 </SelectField>
-                            </FieldGroup>
-                            <FieldGroup label="Módulos Permitidos">
-                                <ModuleCheckboxList
-                                    modules={activeModules}
-                                    selectedIds={editingUser.modulo_ids || []}
-                                    onChange={ids => setEditingUser({...editingUser, modulo_ids: ids})}
-                                />
                             </FieldGroup>
                             <ModalActions onCancel={() => setShowEditModal(false)} submitLabel="Guardar Cambios" />
                         </form>
