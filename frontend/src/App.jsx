@@ -16,6 +16,7 @@ const LoadingSpinner = () => (
 // Páginas públicas (carga inmediata - críticas para el primer render)
 import Login from './pages/Login';
 import MainMenu from './pages/MainMenu';
+import SetPassword from './pages/SetPassword';
 
 
 // Páginas protegidas con lazy loading (carga bajo demanda)
@@ -32,6 +33,8 @@ const AdminPanel = lazy(() => import('./pages/admin/AdminPanel'));
 const Calculadora = lazy(() => import('./pages/Calculadora'));
 const ContractAlerts = lazy(() => import('./pages/ContractAlerts'));
 const Costos = lazy(() => import('./pages/Costos'));
+const RetornoSeguimiento = lazy(() => import('./pages/RetornoSeguimiento'));
+const Seleccion = lazy(() => import('./pages/Seleccion'));
 
 
 function App() {
@@ -43,6 +46,7 @@ function App() {
             <Routes>
             {/* Rutas públicas */}
             <Route path="/login" element={<Login />} />
+            <Route path="/set-password" element={<SetPassword />} />
             
             {/* Redirigir raíz al menú */}
             <Route path="/" element={<Navigate to="/menu" replace />} />
@@ -100,13 +104,22 @@ function App() {
               } 
             />
 
-            <Route 
-              path="/dashboard/vacaciones" 
+            <Route
+              path="/dashboard/vacaciones"
               element={
                 <ProtectedRoute requiredModule="dashboard">
                   <VacacionesPage />
                 </ProtectedRoute>
-              } 
+              }
+            />
+
+            <Route
+              path="/dashboard/retorno"
+              element={
+                <ProtectedRoute requiredModule="dashboard">
+                  <RetornoSeguimiento />
+                </ProtectedRoute>
+              }
             />
 
             {/* Rutas legacy (redirigir a nuevas rutas) */}
@@ -179,6 +192,16 @@ function App() {
                   <ContractAlerts />
                 </ProtectedRoute>
               } 
+            />
+
+            {/* Módulo Selección de Personal */}
+            <Route
+              path="/seleccion"
+              element={
+                <ProtectedRoute requiredModule="seleccion">
+                  <Seleccion />
+                </ProtectedRoute>
+              }
             />
 
             {/* Ruta 404 - redirigir al menú */}

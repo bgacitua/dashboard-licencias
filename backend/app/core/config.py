@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     ALERTS_SCHEDULER_TIMEZONE: str = "America/Santiago"
     ALERTS_N8N_WEBHOOK_URL: str = ""     # webhook n8n para notificaciones Telegram
 
+    # === Scheduler de retorno post-licencia ===
+    RETORNO_SCHEDULER_ENABLED: bool = False
+    RETORNO_ALERT_EMAIL: str = ""        # destinatario del reporte diario de retorno
+    RETORNO_SCHEDULER_HOUR: int = 8
+    RETORNO_SCHEDULER_MINUTE: int = 10
+    RETORNO_DIAS_ATRAS: int = 7          # ventana de días hacia atrás para buscar licencias vencidas
+
     # === CORS (lista separada por comas) ===
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost"
 

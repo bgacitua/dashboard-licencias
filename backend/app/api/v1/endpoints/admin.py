@@ -53,17 +53,36 @@ async def create_user(
             detail=f"El usuario '{user_data.username}' ya existe"
         )
     
-    # Crea el usuario
+    if not user_data.password and not user_data.send_invite:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe proporcionar una contraseña o activar la opción de invitación por email."
+        )
+
     user = auth_service.create_user(
         username=user_data.username,
         password=user_data.password,
         rol_id=user_data.rol_id,
         email=user_data.email,
         nombre_completo=user_data.nombre_completo,
-        modulo_ids=user_data.modulo_ids
+        modulo_ids=user_data.modulo_ids,
+        send_invite=user_data.send_invite,
     )
-    
+
     return UsuarioResponse.model_validate(user)
+
+
+@router.post("/users/{user_id}/send-invite", status_code=status.HTTP_204_NO_CONTENT)
+async def send_user_invite(
+    user_id: int,
+    current_user: Usuario = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Regenera y reenvía el email de invitación a un usuario existente."""
+    auth_service = AuthService(db)
+    ok = auth_service.resend_invite(user_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado o sin email.")
 
 
 @router.get("/users/{user_id}", response_model=UsuarioResponse)
