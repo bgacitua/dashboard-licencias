@@ -204,10 +204,12 @@ def get_tracking(
 
 
 @router.get("/respond", response_class=HTMLResponse)
-def respond_preview(token: str, answer: str, db: Session = Depends(get_db)):
+def respond_preview(token: str, answer: str, request: Request, db: Session = Depends(get_db)):
     """Muestra página de confirmación. No guarda aún."""
+    ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
     service = ContractAlertsService(db)
-    result = service.preview_respond(token, answer)
+    result = service.preview_respond(token, answer, ip=ip, user_agent=user_agent)
 
     if not result.get("ok"):
         return HTMLResponse(content=_respond_html(False, error_msg=result.get("error", "Error desconocido")), status_code=400)
@@ -233,8 +235,9 @@ def respond_preview(token: str, answer: str, db: Session = Depends(get_db)):
 async def respond_confirm(token: str, answer: str, request: Request, db: Session = Depends(get_db)):
     """Guarda la respuesta confirmada por la jefatura."""
     responder_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
     service = ContractAlertsService(db)
-    result = service.respond(token, answer, responder_ip=responder_ip)
+    result = service.respond(token, answer, responder_ip=responder_ip, user_agent=user_agent)
 
     if not result.get("ok"):
         return HTMLResponse(content=_respond_html(False, error_msg=result.get("error", "Error desconocido")), status_code=400)

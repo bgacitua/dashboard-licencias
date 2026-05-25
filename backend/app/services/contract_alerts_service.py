@@ -342,7 +342,10 @@ class ContractAlertsService:
             return {}  # token legacy válido pero sin payload JWT
         return decode_response_token(token)  # None si JWT inválido
 
-    def preview_respond(self, token: str, answer: str) -> Dict[str, Any]:
+    def preview_respond(
+        self, token: str, answer: str,
+        ip: Optional[str] = None, user_agent: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Retorna datos del registro para mostrar página de confirmación. No guarda."""
         valid_answers = {"indefinido", "plazo_fijo", "no_renovar"}
         if answer not in valid_answers:
@@ -353,6 +356,13 @@ class ContractAlertsService:
         record = self.tracking.get_by_token(token)
         if not record:
             return {"ok": False, "error": "Token no válido"}
+        self.tracking.log_event(
+            tracking_id=record["id"],
+            event_type="link_opened",
+            answer=answer,
+            ip=ip,
+            user_agent=user_agent,
+        )
         return {
             "ok": True,
             "record": record,
@@ -361,7 +371,10 @@ class ContractAlertsService:
             "token_boss_email": jwt_payload.get("boss_email", ""),
         }
 
-    def respond(self, token: str, answer: str, responder_ip: str = None) -> Dict[str, Any]:
+    def respond(
+        self, token: str, answer: str,
+        responder_ip: str = None, user_agent: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Registra respuesta confirmada. Verifica JWT, guarda respuesta, envía email de confirmación."""
         valid_answers = {"indefinido", "plazo_fijo", "no_renovar"}
         if answer not in valid_answers:
@@ -381,13 +394,20 @@ class ContractAlertsService:
                 f"[respond] Mismatch boss_email: token={token_boss_email} "
                 f"db={record.get('boss_email')} employee={record.get('employee_name')} ip={responder_ip}"
             )
+        self.tracking.log_event(
+            tracking_id=record["id"],
+            event_type="confirm_submitted",
+            answer=answer,
+            ip=responder_ip,
+            user_agent=user_agent,
+        )
         ok = self.tracking.set_response(token, answer, responder_ip=responder_ip)
         if ok:
-            self._send_confirmation_email(record, answer, responder_ip)
+            self._send_confirmation_email(record, answer)
             return {"ok": True, "already_answered": False, "record": record, "answer": answer}
         return {"ok": False, "error": "Error al guardar respuesta"}
 
-    def _send_confirmation_email(self, record: Dict[str, Any], answer: str, responder_ip: Optional[str]) -> None:
+    def _send_confirmation_email(self, record: Dict[str, Any], answer: str) -> None:
         """Envía email al jefe confirmando la decisión registrada."""
         from app.core.config import settings
         boss_email = record.get("boss_email", "")
@@ -400,7 +420,6 @@ class ContractAlertsService:
             "no_renovar": "No Renovar",
         }.get(answer, answer)
         color = "#dc2626" if answer == "no_renovar" else "#16a34a"
-        ip_info = f"<p style='color:#94a3b8;font-size:12px'>IP registrada: {responder_ip or 'desconocida'}</p>" if responder_ip else ""
         html = f"""
         <html><head><meta charset="utf-8"></head>
         <body style="font-family:sans-serif;padding:20px;background:#f8f9fa">
@@ -417,7 +436,6 @@ class ContractAlertsService:
             <p style="color:#ef4444;font-size:14px">
               Si <strong>no fuiste tú</strong> quien realizó esta acción, contacta inmediatamente al área de Recursos Humanos.
             </p>
-            {ip_info}
             <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">
             <p style="color:#94a3b8;font-size:12px">Este es un correo automático del Sistema de Alertas de Contratos. No responder.</p>
           </div>
