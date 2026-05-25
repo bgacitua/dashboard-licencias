@@ -184,6 +184,31 @@ class TrackingRepository:
             logger.error(f"Error get_pending_followups: {e}")
             return []
 
+    def log_event(
+        self,
+        tracking_id: int,
+        event_type: str,
+        answer: Optional[str] = None,
+        ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> None:
+        query = text("""
+            INSERT INTO app.contract_alert_events (tracking_id, event_type, answer, ip, user_agent)
+            VALUES (:tracking_id, :event_type, :answer, :ip, :user_agent)
+        """)
+        try:
+            self.db.execute(query, {
+                "tracking_id": tracking_id,
+                "event_type": event_type,
+                "answer": answer,
+                "ip": ip,
+                "user_agent": user_agent,
+            })
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error log_event tracking_id={tracking_id} event={event_type}: {e}")
+
     def mark_buk_synced(self, tracking_id: int, error: Optional[str] = None) -> None:
         if error:
             query = text("""
