@@ -14,6 +14,21 @@ import {
   syncToBuk,
 } from '../services/contractAlerts';
 
+const buildPatchPreview = (row) => {
+  const [dd, mm, yyyy] = (row.alert_date || '01-01-2000').split('-');
+  const startDate = `${yyyy}-${mm}-01`;
+  const contractType = row.response === 'indefinido' ? 'Indefinido' : 'Plazo fijo';
+  return {
+    endpoint: `PATCH /employees/${row.employee_id}/jobs/{job_id}`,
+    body: {
+      start_date: startDate,
+      type_of_contract: contractType,
+      end_of_contract: row.response === 'plazo_fijo' ? '(desde BUK)' : '',
+      end_of_contract_2: '',
+    },
+  };
+};
+
 const ContractAlerts = () => {
   const [alerts, setAlerts] = useState([]);
   const [grouped, setGrouped] = useState([]);
@@ -150,6 +165,23 @@ const ContractAlerts = () => {
 
     return result;
   }, [alerts, filterType, searchTerm, sortColumn, sortDirection]);
+
+  const groupedTracking = useMemo(() => {
+    const ORDER = ['pendiente', 'indefinido', 'plazo_fijo', 'no_renovar'];
+    const groups = { pendiente: [], indefinido: [], plazo_fijo: [], no_renovar: [] };
+    tracking.forEach((row) => {
+      const key = row.response ?? 'pendiente';
+      groups[key].push(row);
+    });
+    ORDER.forEach((key) => {
+      groups[key].sort((a, b) => {
+        if (!a.first_sent_at) return 1;
+        if (!b.first_sent_at) return -1;
+        return a.first_sent_at.localeCompare(b.first_sent_at);
+      });
+    });
+    return ORDER.map((key) => ({ key, rows: groups[key] })).filter((g) => g.rows.length > 0);
+  }, [tracking]);
 
   // Manejar ordenamiento
   const handleSort = (column) => {
@@ -822,75 +854,148 @@ const ContractAlerts = () => {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b border-gray-100 dark:border-gray-800">
-                            {['Jefatura', 'Empleado', 'Cargo', 'Fecha Envío', 'Vencimiento', 'F. Ups', 'Respuesta', 'BUK'].map((h) => (
+                            {['Fecha Envío', 'Respuesta', 'Empleado', 'Cargo', 'Jefatura', 'Vencimiento', 'F. Ups', 'BUK Sync'].map((h) => (
                               <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
                             ))}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                          {tracking.map((row) => {
-                            const respConfig = {
-                              indefinido: { label: 'Indefinido', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-                              plazo_fijo: { label: 'Plazo Fijo', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-                              no_renovar: { label: 'No Renovar', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+                        <tbody>
+                          {groupedTracking.map(({ key, rows }) => {
+                            const groupConfig = {
+                              pendiente: {
+                                label: 'Pendiente',
+                                headerCls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-l-4 border-amber-400',
+                                rowCls: 'hover:bg-amber-50/60 dark:hover:bg-amber-900/10',
+                                icon: 'schedule',
+                              },
+                              indefinido: {
+                                label: 'Indefinido',
+                                headerCls: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400',
+                                rowCls: 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                                icon: 'check_circle',
+                              },
+                              plazo_fijo: {
+                                label: 'Plazo Fijo',
+                                headerCls: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400',
+                                rowCls: 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                                icon: 'event',
+                              },
+                              no_renovar: {
+                                label: 'No Renovar',
+                                headerCls: 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
+                                rowCls: 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                                icon: 'cancel',
+                              },
                             };
-                            const resp = respConfig[row.response];
-                            const canSync = row.response && row.response !== 'no_renovar' && !row.buk_synced;
+                            const gc = groupConfig[key];
+                            const respBadge = {
+                              indefinido: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                              plazo_fijo: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                              no_renovar: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                            };
                             return (
-                              <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                                <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{row.boss_name}</td>
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{row.employee_name}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{row.employee_role}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{row.first_sent_at || '—'}</td>
-                                <td className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.alert_date}</td>
-                                <td className="px-4 py-3 text-center">
-                                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-bold">
-                                    {row.followup_count}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  {resp ? (
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${resp.cls}`}>
-                                      {resp.label}
+                              <React.Fragment key={key}>
+                                {/* Cabecera de grupo */}
+                                <tr>
+                                  <td colSpan={8} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b border-gray-100 dark:border-gray-800 ${gc.headerCls}`}>
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="material-symbols-outlined text-sm">{gc.icon}</span>
+                                      {gc.label}
+                                      <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-white/60 dark:bg-black/20 text-xs font-bold">
+                                        {rows.length}
+                                      </span>
                                     </span>
-                                  ) : (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                                      Pendiente
-                                    </span>
-                                  )}
-                                  {row.responded_at && (
-                                    <p className="text-[10px] text-gray-400 mt-0.5">{row.responded_at}</p>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3">
-                                  {row.buk_synced ? (
-                                    <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
-                                      <span className="material-symbols-outlined text-sm">check_circle</span>
-                                      Sync
-                                    </span>
-                                  ) : canSync ? (
-                                    <button
-                                      onClick={() => handleSyncBuk(row.id)}
-                                      disabled={syncingId === row.id}
-                                      className="flex items-center gap-1 px-2.5 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors"
-                                    >
-                                      {syncingId === row.id ? (
-                                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                      ) : (
-                                        <span className="material-symbols-outlined text-sm">sync</span>
-                                      )}
-                                      BUK
-                                    </button>
-                                  ) : (
-                                    <span className="text-xs text-gray-400">—</span>
-                                  )}
-                                  {row.buk_sync_error && (
-                                    <p className="text-[10px] text-red-400 mt-0.5 max-w-[120px] truncate" title={row.buk_sync_error}>
-                                      {row.buk_sync_error}
-                                    </p>
-                                  )}
-                                </td>
-                              </tr>
+                                  </td>
+                                </tr>
+                                {/* Filas del grupo */}
+                                {rows.map((row) => {
+                                  const canSync = row.response && row.response !== 'no_renovar' && !row.buk_synced;
+                                  const isPending = key === 'pendiente';
+                                  const preview = canSync ? buildPatchPreview(row) : null;
+                                  return (
+                                    <tr key={row.id} className={`border-b border-gray-50 dark:border-gray-800 transition-colors ${gc.rowCls}`}>
+                                      {/* Fecha Envío */}
+                                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                        {row.first_sent_at || '—'}
+                                      </td>
+                                      {/* Respuesta */}
+                                      <td className="px-4 py-3">
+                                        {isPending ? (
+                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                            Pendiente
+                                          </span>
+                                        ) : (
+                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${respBadge[row.response]}`}>
+                                            {groupConfig[row.response]?.label}
+                                          </span>
+                                        )}
+                                        {row.responded_at && (
+                                          <p className="text-[10px] text-gray-400 mt-0.5">{row.responded_at}</p>
+                                        )}
+                                      </td>
+                                      {/* Empleado */}
+                                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{row.employee_name}</td>
+                                      {/* Cargo */}
+                                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{row.employee_role}</td>
+                                      {/* Jefatura */}
+                                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{row.boss_name}</td>
+                                      {/* Vencimiento */}
+                                      <td className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.alert_date}</td>
+                                      {/* F. Ups */}
+                                      <td className="px-4 py-3 text-center">
+                                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${row.followup_count > 0 ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500'}`}>
+                                          {row.followup_count}
+                                        </span>
+                                      </td>
+                                      {/* BUK Sync */}
+                                      <td className="px-4 py-3">
+                                        {row.buk_synced ? (
+                                          <div>
+                                            <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                                              <span className="material-symbols-outlined text-sm">check_circle</span>
+                                              Sincronizado
+                                            </span>
+                                            {row.buk_synced_at && (
+                                              <p className="text-[10px] text-gray-400 mt-0.5">{row.buk_synced_at}</p>
+                                            )}
+                                          </div>
+                                        ) : canSync ? (
+                                          <div className="relative group inline-block">
+                                            <button
+                                              onClick={() => handleSyncBuk(row.id)}
+                                              disabled={syncingId === row.id}
+                                              className="flex items-center gap-1 px-2.5 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                                            >
+                                              {syncingId === row.id ? (
+                                                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                              ) : (
+                                                <span className="material-symbols-outlined text-sm">sync</span>
+                                              )}
+                                              Sync BUK
+                                            </button>
+                                            {/* Tooltip debug PATCH preview */}
+                                            <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 p-3 bg-gray-900 text-white rounded-xl shadow-xl pointer-events-none">
+                                              <p className="text-gray-400 text-[10px] mb-1.5 font-sans">{preview.endpoint}</p>
+                                              <pre className="text-green-400 text-[11px] whitespace-pre-wrap font-mono leading-relaxed">{JSON.stringify(preview.body, null, 2)}</pre>
+                                              <p className="text-gray-500 text-[9px] mt-2 font-sans leading-tight">job_id y end_of_contract (plazo fijo) se resuelven en runtime desde BUK</p>
+                                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <span className="text-xs text-gray-400">—</span>
+                                        )}
+                                        {row.buk_sync_error && !row.buk_synced && (
+                                          <p className="text-[10px] text-red-400 mt-0.5 max-w-[140px] truncate" title={row.buk_sync_error}>
+                                            <span className="material-symbols-outlined text-[11px] align-middle mr-0.5">error</span>
+                                            {row.buk_sync_error}
+                                          </p>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </React.Fragment>
                             );
                           })}
                         </tbody>
