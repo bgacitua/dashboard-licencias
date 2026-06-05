@@ -444,8 +444,8 @@ class ContractAlertsService:
         try:
             _send_email_graph(
                 to=boss_email,
-                cc="",
-                bcc="jguinez@cramer.cl",
+                cc="grupodeseleccion@cramer.cl; rrhh@cramer.cl",
+                bcc="",
                 subject=f"[Confirmación] Decisión registrada: {answer_label} — {employee_name}",
                 html_body=html,
             )
