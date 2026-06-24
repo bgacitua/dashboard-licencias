@@ -1214,7 +1214,7 @@ const CrearFiniquito = () => {
 
   // Gratificación Legal = (Sueldo Base + Promedio Bonificaciones) * 25%
   // Tope = ((4.75/12) * Sueldo Mínimo) * 25%f
-  const sueldoMinimo = 539000;
+  const sueldoMinimo = 553553;
   const topeGratificacion = (4.75 / 12) * sueldoMinimo;
   const gratificacionLegal = Math.min(
     (salary + variableBonus) * 0.25,
