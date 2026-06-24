@@ -34,3 +34,6 @@ backend/dist/
 # --- Scripts utilitarios locales (no versionar) ---
 backend/scripts/diag_db.py
 backend/scripts/test_calculadora_endpoint.py
+
+# --- Entorno de desarrollo local (no subir al servidor) ---
+compose.dev.yml

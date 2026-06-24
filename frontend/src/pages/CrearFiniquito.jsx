@@ -1455,7 +1455,7 @@ const CrearFiniquito = () => {
 
       // Datos para generar Excel de auditoría desde el visualizador (descarga opcional)
       audit: (() => {
-        const sueldoMinimo = 539000;
+        const sueldoMinimo = 553553;
         const topeGrat = (4.75 / 12) * sueldoMinimo;
         const grat = Math.min((salary + variableBonus) * 0.25, topeGrat);
         const haberesVal = salary + variableBonus + grat + movilizacion;
