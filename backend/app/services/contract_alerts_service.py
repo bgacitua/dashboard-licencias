@@ -709,7 +709,12 @@ def _generate_email_html(
     Portado desde template_mails.py -> ReporteManager._generar_html_reporte_por_jefe
     """
     from app.core.config import settings
+    from pytz import timezone
     public_url = getattr(settings, "PUBLIC_URL", "").rstrip("/")
+
+    # Saludo según hora local de Santiago de Chile (>= 12:00 -> tardes)
+    hora_santiago = datetime.now(timezone("America/Santiago")).hour
+    saludo = "Buenas tardes" if hora_santiago >= 12 else "Buenos días"
 
     # Agrupar empleados por motivo
     empleados_por_motivo = {}
@@ -793,7 +798,7 @@ def _generate_email_html(
     </head>
     <body>
             <div class="jefe-info">
-                <p>{'<strong>⚠️ RECORDATORIO</strong> — ' if is_followup else ''}Buenos días {nombre_jefe}:</p>
+                <p>{'<strong>⚠️ RECORDATORIO</strong> — ' if is_followup else ''}{saludo} {nombre_jefe}:</p>
                 <p>Junto con saludar, {'le recordamos que aún tiene ' if is_followup else ''}notificamos los siguientes vencimientos de contrato{'<strong> pendientes de respuesta</strong>' if is_followup else ''}:</p>
                 <p>(*) Haga clic en el botón correspondiente para indicar su decisión de renovación.</p>
                 <p>Por favor contestar a la brevedad, por motivos de cierre de mes.</p>
