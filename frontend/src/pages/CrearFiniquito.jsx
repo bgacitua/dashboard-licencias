@@ -1579,10 +1579,9 @@ const CrearFiniquito = () => {
       const descuentosMesActualNum = parseFloat(descuentos) || 0;
 
       // Valores coherentes con sección "Cálculo indemnización"
-      const yearsIndemnityDisplay =
-        terminationReason === "mutuo_acuerdo"
-          ? yearsIndemnity - aporteCesantiaNum
-          : yearsIndemnity;
+      const yearsIndemnityDisplay = isMutuo
+        ? yearsIndemnity - aporteCesantiaNum
+        : yearsIndemnity;
 
       let totalHaberesTabla = 0;
       let totalDescuentosTabla = 0;
@@ -1691,7 +1690,7 @@ const CrearFiniquito = () => {
       });
 
       // Aporte Empleador Seguro Cesantía (independiente de la causal)
-      if (aporteCesantiaNum > 0 && terminationReason !== "mutuo_acuerdo") {
+      if (aporteCesantiaNum > 0 && !isMutuo) {
         descuentosLines.push(`Aporte Empleador Seguro Cesantía\t${fmtCurrency(aporteCesantiaNum)}`);
         totalDescuentosTabla += aporteCesantiaNum;
       }

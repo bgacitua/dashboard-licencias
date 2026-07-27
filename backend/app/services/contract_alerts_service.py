@@ -707,7 +707,7 @@ def _generate_email_html(
     """
     Genera el HTML completo del email de alertas para un jefe.
     Portado desde template_mails.py -> ReporteManager._generar_html_reporte_por_jefe
-    """
+    """ 
     from app.core.config import settings
     from pytz import timezone
     public_url = getattr(settings, "PUBLIC_URL", "").rstrip("/")
