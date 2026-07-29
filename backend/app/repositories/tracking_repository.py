@@ -121,27 +121,30 @@ class TrackingRepository:
     def get_all_tracking(self) -> List[Dict[str, Any]]:
         query = text("""
             SELECT
-                id,
-                employee_id,
-                rut,
-                employee_name,
-                employee_role,
-                boss_name,
-                boss_email,
-                TO_CHAR(alert_date, 'DD-MM-YYYY') AS alert_date,
-                alert_type,
-                alert_reason,
-                response_token::text AS response_token,
-                TO_CHAR(first_sent_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS first_sent_at,
-                TO_CHAR(last_followup_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS last_followup_at,
-                followup_count,
-                response,
-                TO_CHAR(responded_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS responded_at,
-                buk_synced,
-                TO_CHAR(buk_synced_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS buk_synced_at,
-                buk_sync_error
-            FROM app.contract_alert_tracking
-            ORDER BY alert_date ASC, employee_name ASC
+                t.id,
+                t.employee_id,
+                t.rut,
+                t.employee_name,
+                t.employee_role,
+                t.boss_name,
+                t.boss_email,
+                TO_CHAR(t.alert_date, 'DD-MM-YYYY') AS alert_date,
+                TO_CHAR(ca.employee_start_date, 'DD-MM-YYYY') AS employee_start_date,
+                t.alert_type,
+                t.alert_reason,
+                t.response_token::text AS response_token,
+                TO_CHAR(t.first_sent_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS first_sent_at,
+                TO_CHAR(t.last_followup_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS last_followup_at,
+                t.followup_count,
+                t.response,
+                TO_CHAR(t.responded_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS responded_at,
+                t.buk_synced,
+                TO_CHAR(t.buk_synced_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS buk_synced_at,
+                t.buk_sync_error
+            FROM app.contract_alert_tracking t
+            LEFT JOIN rh.contract_alerts ca
+                   ON ca.rut = t.rut AND ca.alert_date = t.alert_date
+            ORDER BY t.alert_date ASC, t.employee_name ASC
         """)
         try:
             result = self.db.execute(query)

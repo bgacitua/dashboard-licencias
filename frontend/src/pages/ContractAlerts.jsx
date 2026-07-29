@@ -374,7 +374,7 @@ const ContractAlerts = () => {
   return (
     <SidebarLayout>
       <main className="overflow-y-auto p-4 md:p-8">
-          <div className="max-w-7xl mx-auto">
+          <div className={`${activeTab === 'seguimiento' ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto`}>
             {/* Header */}
             <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-4">
@@ -851,11 +851,20 @@ const ContractAlerts = () => {
                 ) : (
                   <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full min-w-[1200px] table-fixed">
                         <thead>
                           <tr className="border-b border-gray-100 dark:border-gray-800">
-                            {['Fecha Envío', 'Respuesta', 'Empleado', 'Cargo', 'Jefatura', 'Vencimiento', 'F. Ups', 'BUK Sync'].map((h) => (
-                              <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                            {[
+                              { label: 'Fecha Envío', cls: 'w-40' },
+                              { label: 'Respuesta', cls: 'w-32' },
+                              { label: 'Empleado', cls: 'w-64' },
+                              { label: 'Cargo', cls: 'w-56' },
+                              { label: 'Jefatura', cls: 'w-56' },
+                              { label: 'Fecha Inicio', cls: 'w-36' },
+                              { label: 'Vencimiento', cls: 'w-36' },
+                              { label: 'BUK Sync', cls: 'w-44' },
+                            ].map((h) => (
+                              <th key={h.label} className={`px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap ${h.cls}`}>{h.label}</th>
                             ))}
                           </tr>
                         </thead>
@@ -888,11 +897,6 @@ const ContractAlerts = () => {
                               },
                             };
                             const gc = groupConfig[key];
-                            const respBadge = {
-                              indefinido: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-                              plazo_fijo: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-                              no_renovar: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-                            };
                             return (
                               <React.Fragment key={key}>
                                 {/* Cabecera de grupo */}
@@ -915,41 +919,34 @@ const ContractAlerts = () => {
                                   return (
                                     <tr key={row.id} className={`border-b border-gray-50 dark:border-gray-800 transition-colors ${gc.rowCls}`}>
                                       {/* Fecha Envío */}
-                                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                      <td className="px-6 py-3.5 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                                         {row.first_sent_at || '—'}
                                       </td>
-                                      {/* Respuesta */}
-                                      <td className="px-4 py-3">
+                                      {/* Respuesta (solo hora) */}
+                                      <td className="px-6 py-3.5 text-sm whitespace-nowrap">
                                         {isPending ? (
-                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                          <span className="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                                             Pendiente
                                           </span>
                                         ) : (
-                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${respBadge[row.response]}`}>
-                                            {groupConfig[row.response]?.label}
+                                          <span className="text-gray-500 dark:text-gray-400 font-mono text-xs">
+                                            {row.responded_at ? row.responded_at.split(' ')[1] : '—'}
                                           </span>
-                                        )}
-                                        {row.responded_at && (
-                                          <p className="text-[10px] text-gray-400 mt-0.5">{row.responded_at}</p>
                                         )}
                                       </td>
                                       {/* Empleado */}
-                                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{row.employee_name}</td>
+                                      <td className="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-white">{row.employee_name}</td>
                                       {/* Cargo */}
-                                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{row.employee_role}</td>
+                                      <td className="px-6 py-3.5 text-sm text-gray-500 dark:text-gray-400">{row.employee_role}</td>
                                       {/* Jefatura */}
-                                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{row.boss_name}</td>
+                                      <td className="px-6 py-3.5 text-sm text-gray-700 dark:text-gray-300">{row.boss_name}</td>
+                                      {/* Fecha Inicio */}
+                                      <td className="px-6 py-3.5 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{row.employee_start_date || '—'}</td>
                                       {/* Vencimiento */}
-                                      <td className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.alert_date}</td>
-                                      {/* F. Ups */}
-                                      <td className="px-4 py-3 text-center">
-                                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${row.followup_count > 0 ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500'}`}>
-                                          {row.followup_count}
-                                        </span>
-                                      </td>
+                                      <td className="px-6 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.alert_date}</td>
                                       {/* BUK Sync */}
-                                      <td className="px-4 py-3">
+                                      <td className="px-6 py-3.5">
                                         {row.buk_synced ? (
                                           <div>
                                             <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
