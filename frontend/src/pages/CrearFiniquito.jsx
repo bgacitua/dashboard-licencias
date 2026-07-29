@@ -389,6 +389,20 @@ const CrearFiniquito = () => {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState(null);
+  const [proceso, setProceso] = useState(null); // estado persistido de la desvinculación
+  const [tabActiva, setTabActiva] = useState(0); // solo UI: no se persiste
+
+  // Cambiar de paso vuelve al tope: si no, entras al paso nuevo a media altura.
+  const irATab = (i) => {
+    setTabActiva(i);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  // Toggles variables por aplicar. Es estado y no ref porque el proceso guardado y los items
+  // de la API llegan en orden impredecible: quien llegue segundo debe disparar el efecto.
+  const [variableActivePorAplicar, setVariableActivePorAplicar] = useState(null);
+  // Moneda elegida a mano por descuento ({ descripcion: 'UF' | 'CLP' }), pendiente de aplicar
+  // por el mismo motivo: los descuentos se recargan de la API en cada visita.
+  const [descuentosMonedaPorAplicar, setDescuentosMonedaPorAplicar] = useState(null);
 
   // Form State
   const [terminationReason, setTerminationReason] = useState("");
@@ -446,7 +460,7 @@ const CrearFiniquito = () => {
   const [variableCustomAdditions, setVariableCustomAdditions] = useState({}); // Custom manual additions for variable bonus: { [concepto]: [{ id, descripcion, amount, active }] }
   const [variableFilledActive, setVariableFilledActive] = useState({}); // Active state for filled (zero) months per concepto: { "Concepto-YYYY-MM": boolean }
   const [variableGroupsCollapsed, setVariableGroupsCollapsed] = useState({}); // Collapse state per group: { [concepto]: true } = collapsed
-  const [licenciasTableCollapsed, setLicenciasTableCollapsed] = useState(false); // Collapse state for Licencias recientes table
+  const [licenciasTableCollapsed, setLicenciasTableCollapsed] = useState(true); // Colapsada por defecto
   const [licenciasLimit, setLicenciasLimit] = useState(15); // TOP N (5, 10, 15, 20, 30, 50)
   const [licenciasOrder, setLicenciasOrder] = useState("desc"); // 'desc' = más recientes primero, 'asc' = ascendente
   const [newCustomItems, setNewCustomItems] = useState({}); // Temporary state for new manual item inputs per concept: { [concepto]: { description: '', amount: '' } }
@@ -650,6 +664,8 @@ const CrearFiniquito = () => {
               detalle: item.detalle || "",
               monto: item.monto || 0,
               cuotas: 1,
+              // El backend entrega el préstamo interno en UF. Si el usuario cambió la
+              // moneda antes, el efecto de más abajo restaura su elección.
               moneda: desc === "Préstamo Interno" ? "UF" : "CLP",
             };
           });
@@ -668,31 +684,99 @@ const CrearFiniquito = () => {
     }
   }, [rut, licenciasLimit, licenciasOrder, itemsLimit, itemsRefreshToken]);
 
-  // Restaurar datos del formulario cuando se navega de vuelta desde el visualizador
+  // Restaurar datos del formulario: primero el proceso guardado en BD (sobrevive al cierre
+  // del navegador), y si no hay, el sessionStorage que usa el visualizador como transporte.
   useEffect(() => {
-    if (location.state?.preserveData) {
-      const savedData = sessionStorage.getItem(`finiquito_${rut}`);
-      if (savedData) {
-        const data = JSON.parse(savedData);
-        // Restaurar valores del formulario
-        if (data.lastDayWork) setLastDayWork(data.lastDayWork);
-        if (data.terminationReason)
-          setTerminationReason(data.terminationReason);
-        if (data.noticeGiven !== undefined) setNoticeGiven(data.noticeGiven);
-        if (data.selectedManager?.id)
-          setSelectedManager(data.selectedManager.id);
-        if (data.vacationDays) setVacationDays(data.vacationDays);
-        if (data.yearsForIndemnity)
-          setYearsForIndemnity(data.yearsForIndemnity);
-        // Restaurar descuentos personalizados si existen
-        if (data.descuentosPersonalizados)
-          setDescuentosPersonalizados(data.descuentosPersonalizados);
-        if (data.aporteCesantia) setAporteCesantia(data.aporteCesantia);
-        if (data.ufValue) setUfValue(data.ufValue); // Restore stored UF
-        console.log("Datos del formulario restaurados desde sessionStorage");
+    const aplicar = (data) => {
+      if (!data) return false;
+      if (data.lastDayWork) setLastDayWork(data.lastDayWork);
+      if (data.terminationReason) setTerminationReason(data.terminationReason);
+      if (data.noticeGiven !== undefined) setNoticeGiven(data.noticeGiven);
+      if (data.selectedManager?.id) setSelectedManager(data.selectedManager.id);
+      if (data.vacationDays) setVacationDays(data.vacationDays);
+      if (data.yearsForIndemnity) setYearsForIndemnity(data.yearsForIndemnity);
+      if (data.descuentosPersonalizados)
+        setDescuentosPersonalizados(data.descuentosPersonalizados);
+      if (data.aporteCesantia) setAporteCesantia(data.aporteCesantia);
+      if (data.ufValue) setUfValue(data.ufValue);
+      if (data.variableCustomAdditions)
+        setVariableCustomAdditions(data.variableCustomAdditions);
+      if (data.variableFilledActive)
+        setVariableFilledActive(data.variableFilledActive);
+      // Los items fetched pueden no haber llegado de la API todavía; los aplica el efecto.
+      if (data.variableItemsActive)
+        setVariableActivePorAplicar(data.variableItemsActive);
+      if (data.descuentosMoneda)
+        setDescuentosMonedaPorAplicar(data.descuentosMoneda);
+      return true;
+    };
+
+    const restaurar = async () => {
+      try {
+        const proceso = await FiniquitosService.getProceso(rut);
+        setProceso(proceso);
+        if (aplicar(proceso?.payload_json)) {
+          console.log("Formulario restaurado desde el proceso guardado");
+          return;
+        }
+      } catch (e) {
+        console.warn("No se pudo leer el proceso guardado:", e);
       }
-    }
+      if (location.state?.preserveData) {
+        const savedData = sessionStorage.getItem(`finiquito_${rut}`);
+        if (savedData && aplicar(JSON.parse(savedData))) {
+          console.log("Formulario restaurado desde sessionStorage");
+        }
+      }
+    };
+
+    if (rut) restaurar();
   }, [location.state, rut]);
+
+  // Aplica los toggles guardados a los items variables cuando ya están ambos: el proceso
+  // restaurado y los items de la API. Se consume una sola vez para no pisar lo que el
+  // usuario toque después.
+  useEffect(() => {
+    if (!variableActivePorAplicar || variableItems.length === 0) return;
+    setVariableItems((prev) =>
+      prev.map((i) => {
+        const clave = `${i.concepto}|${i.periodo}`;
+        return clave in variableActivePorAplicar
+          ? { ...i, active: variableActivePorAplicar[clave] }
+          : i;
+      }),
+    );
+    setVariableActivePorAplicar(null);
+  }, [variableItems, variableActivePorAplicar]);
+
+  // Restaura la moneda que el usuario eligió para cada descuento, una vez que llegan de la API.
+  useEffect(() => {
+    if (!descuentosMonedaPorAplicar || descuentosPersonalizados.length === 0) return;
+    setDescuentosPersonalizados((prev) =>
+      prev.map((d) =>
+        d.descripcion in descuentosMonedaPorAplicar
+          ? { ...d, moneda: descuentosMonedaPorAplicar[d.descripcion] }
+          : d,
+      ),
+    );
+    setDescuentosMonedaPorAplicar(null);
+  }, [descuentosPersonalizados, descuentosMonedaPorAplicar]);
+
+  // Guarda el formulario y sella el hito ('carta' | 'finiquito'). Nunca lanza:
+  // registrar el proceso no debe impedir que el usuario obtenga su documento.
+  const persistirProceso = async (payload, hito, total) => {
+    try {
+      await FiniquitosService.guardarProceso(rut, {
+        causal: terminationReason,
+        fechaTermino: lastDayWork,
+        payload,
+        total,
+      });
+      setProceso(await FiniquitosService.marcarHito(rut, hito));
+    } catch (e) {
+      console.warn(`No se pudo registrar el hito '${hito}' del proceso:`, e);
+    }
+  };
 
   // Helper function: Parse date string as local date (avoids UTC timezone issues)
   // When parsing "2026-02-02", JS interprets as UTC midnight, which becomes previous day in local time
@@ -1196,10 +1280,37 @@ const CrearFiniquito = () => {
 
 
   if (loading) {
+    // ponytail: skeleton estático con animate-pulse; sin librería de skeletons
+    const bar = "bg-gray-200 rounded animate-pulse";
     return (
-      <div className="flex min-h-screen bg-[#f8f9fa] items-center justify-center">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
+      <SidebarLayout>
+        <main className="p-8">
+          <div className={`${bar} h-8 w-72 mb-2`} />
+          <p className="text-gray-500 mb-8">Lo bueno tarda en llegar...</p>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4">
+                  <div className={`${bar} h-5 w-48`} />
+                  <div className={`${bar} h-10 w-full`} />
+                  <div className={`${bar} h-10 w-full`} />
+                  <div className={`${bar} h-10 w-2/3`} />
+                </div>
+              ))}
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4 h-fit">
+              <div className={`${bar} h-5 w-32`} />
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex justify-between gap-4">
+                  <div className={`${bar} h-4 w-32`} />
+                  <div className={`${bar} h-4 w-20`} />
+                </div>
+              ))}
+              <div className={`${bar} h-12 w-full`} />
+            </div>
+          </div>
+        </main>
+      </SidebarLayout>
     );
   }
 
@@ -1398,6 +1509,19 @@ const CrearFiniquito = () => {
       terminationReason,
       noticeGiven,
 
+      // Toggles de remuneración variable. Los items "fetched" se vuelven a pedir a la API
+      // al recargar, así que su `active` se guarda por concepto+periodo y no por índice.
+      variableCustomAdditions,
+      variableFilledActive,
+      variableItemsActive: Object.fromEntries(
+        variableItems.map((i) => [`${i.concepto}|${i.periodo}`, i.active !== false]),
+      ),
+
+      // Moneda elegida por descuento, para que sobreviva a la recarga desde la API.
+      descuentosMoneda: Object.fromEntries(
+        descuentosPersonalizados.map((d) => [d.descripcion, d.moneda || "CLP"]),
+      ),
+
       // Dates
       lastDayWork,
       notaryDate: new Date(
@@ -1537,6 +1661,11 @@ const CrearFiniquito = () => {
       } catch (e) {
         console.warn("No se pudo guardar finiquito en sessionStorage:", e);
       }
+
+      // Persistir el proceso y sellar el hito. El registro no es requisito para generar
+      // el documento: si falla, el usuario ya tiene su carta.
+      // El total se congela aquí: es el monto de la carta que el usuario acaba de generar.
+      persistirProceso(finiquitoData, "carta", Math.round(totalSettlement));
     } catch (err) {
       console.error("Error al generar finiquito:", err);
       alert("Ocurrió un error al generar el finiquito. Revise la consola para más detalles.");
@@ -1867,6 +1996,9 @@ const CrearFiniquito = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(blobUrl);
+
+      // El documento ya está descargado; el registro va después y no lo condiciona.
+      persistirProceso(proceso?.payload_json || null, "finiquito");
     } catch (err) {
       console.error("Error al generar documento Word:", err);
       if (err?.properties?.errors?.length) {
@@ -1880,6 +2012,22 @@ const CrearFiniquito = () => {
       );
     }
   };
+
+  // Variación del total respecto al monto congelado al generar la última carta.
+  // null mientras no haya carta generada: sin referencia no hay nada que comparar.
+  const totalCongelado = proceso?.total_finiquito ?? null;
+  const variacionTotal =
+    totalCongelado != null ? Math.round(totalSettlement) - Math.round(totalCongelado) : 0;
+
+  // Pestañas del proceso. `listo` marca ✓ en la barra; hoy solo el primer paso tiene
+  // campos obligatorios (los mismos que valida handleGenerate).
+  const TABS = [
+    { nombre: "Datos y término", icono: "person", listo: !!lastDayWork && !!terminationReason },
+    { nombre: "Remuneración", icono: "payments", listo: variableItems.length > 0 },
+    { nombre: "Compensación", icono: "beach_access", listo: vacationValue > 0 },
+    { nombre: "Indemnización", icono: "calculate", listo: totalSettlement > 0 },
+    { nombre: "Generar", icono: "description", listo: !!proceso?.carta_generada_at },
+  ];
 
   return (
     <SidebarLayout>
@@ -1917,10 +2065,6 @@ const CrearFiniquito = () => {
               <p className="text-gray-500 mt-1">
                 Formulario de generación de finiquito
               </p>
-            </div>
-            <div className="bg-orange-50 text-orange-700 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 border border-orange-100">
-              <span className="material-symbols-outlined text-lg">warning</span>
-              Aprobación pendiente
             </div>
           </div>
         </div>
@@ -1961,6 +2105,57 @@ const CrearFiniquito = () => {
             </p>
           </div>
         </div>
+
+        {/* Barra de pestañas */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 flex overflow-x-auto">
+          {TABS.map((t, i) => (
+            <button
+              key={t.nombre}
+              onClick={() => irATab(i)}
+              className={`flex-1 min-w-[150px] px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition-colors ${
+                tabActiva === i
+                  ? "border-blue-600 text-blue-600 bg-blue-50/50"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">
+                {t.listo ? "check_circle" : t.icono}
+              </span>
+              <span className="whitespace-nowrap">
+                {i + 1}. {t.nombre}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Alerta de variación del monto. Fuera de las pestañas: el total puede cambiar
+            desde cualquier paso y el usuario tiene que verlo sin ir a buscarlo. */}
+        {variacionTotal !== 0 && (
+          <div className="bg-red-50 border border-red-200 p-4 rounded-xl mb-6 flex items-start gap-3">
+            <span className="material-symbols-outlined text-red-600">priority_high</span>
+            <div className="text-sm">
+              <p className="font-bold text-red-800">
+                El total cambió respecto a la carta generada
+              </p>
+              <p className="text-red-700 mt-1">
+                Carta del {new Date(proceso.carta_generada_at).toLocaleString("es-CL")}:{" "}
+                <strong>$ {Math.round(totalCongelado).toLocaleString("es-CL")}</strong> · Ahora:{" "}
+                <strong>$ {Math.round(totalSettlement).toLocaleString("es-CL")}</strong> ·
+                Diferencia:{" "}
+                <strong>
+                  {variacionTotal > 0 ? "+" : "−"} $
+                  {Math.abs(variacionTotal).toLocaleString("es-CL")}
+                </strong>
+              </p>
+              <p className="text-red-600 text-xs mt-1">
+                Genera la carta de nuevo para congelar el monto actual.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* --- Paso 1: Datos y término --- */}
+        <div hidden={tabActiva !== 0}>
 
         {/* Termination Details */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
@@ -2138,10 +2333,22 @@ const CrearFiniquito = () => {
           </div>
         </div>
 
+        </div>
+
+        {/* --- Paso 2: Remuneración --- */}
+        <div hidden={tabActiva !== 1}>
+
         {/* Recent Licenses Table (collapsible, shows all 15 from backend) */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+        {/* Colapsada solo necesita alto para el título: menos padding y sin margen inferior */}
+        <div
+          className={`bg-white rounded-xl shadow-sm border border-gray-100 mb-6 ${
+            licenciasTableCollapsed ? "px-6 py-3" : "p-6"
+          }`}
+        >
           <div
-            className="flex items-center gap-2 mb-6 cursor-pointer select-none"
+            className={`flex items-center gap-2 cursor-pointer select-none ${
+              licenciasTableCollapsed ? "" : "mb-6"
+            }`}
             onClick={() => setLicenciasTableCollapsed((c) => !c)}
             role="button"
             tabIndex={0}
@@ -2818,6 +3025,11 @@ const CrearFiniquito = () => {
           </div>
         </div>
 
+        </div>
+
+        {/* --- Paso 3: Compensación --- */}
+        <div hidden={tabActiva !== 2}>
+
         {/* Compensation & Vacation */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
           <div className="flex items-center gap-2 mb-6">
@@ -2832,15 +3044,26 @@ const CrearFiniquito = () => {
           <div className="grid grid-cols-2 gap-6 mb-6">
             <div>
               <div className="flex justify-between mb-2">
-                <label className="text-sm font-semibold text-gray-700">
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                   Días de Vacaciones Pendientes
+                  {/* Punto de respiración: recuerda revisar el valor antes de generar */}
+                  <span
+                    className="relative flex h-2.5 w-2.5"
+                    title="Recuerda ajustar"
+                  >
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75 animate-ping"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                  </span>
+                  <span className="text-xs font-normal text-orange-600">
+                    Recuerda ajustar
+                  </span>
                 </label>
               </div>
               <div className="relative">
                 <input
                   type="number"
                   step="0.01"
-                  className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900"
+                  className="w-full p-3 bg-white border-2 border-orange-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none font-medium text-gray-900"
                   value={vacationDays.toFixed(2)}
                   onChange={(e) => {
                     setVacationDays(parseFloat(e.target.value) || 0);
@@ -2959,6 +3182,11 @@ const CrearFiniquito = () => {
             Agregar items (en desarrollo)
           </button>
         </div>
+
+        </div>
+
+        {/* --- Paso 4: Indemnización --- */}
+        <div hidden={tabActiva !== 3}>
 
         {/* Indemnity Calculations */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
@@ -3335,8 +3563,68 @@ const CrearFiniquito = () => {
           </div>
         </div>
 
+        </div>
+
+        {/* --- Paso 5: Generar --- */}
+        <div hidden={tabActiva !== 4}>
+
+        {/* Recap: mismo totalSettlement que el paso 4, sin recalcular nada */}
+        <div className="bg-gray-900 text-white p-6 rounded-xl flex justify-between items-center shadow-lg mb-6">
+          <div>
+            <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">
+              Total finiquito
+            </p>
+            <p className="text-xs text-gray-500">
+              {employee?.nombre_trabajador} · {lastDayWork || "sin fecha de término"}
+            </p>
+          </div>
+          <p className="text-3xl font-bold font-mono">
+            $ {Math.round(totalSettlement).toLocaleString("es-CL")}
+          </p>
+        </div>
+
+        {/* Faltantes: los mismos que valida handleGenerate, avisados antes de intentar */}
+        {(!lastDayWork || !terminationReason) && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl mb-6 flex items-center gap-3">
+            <span className="material-symbols-outlined">warning</span>
+            <span className="text-sm">
+              Falta completar {!lastDayWork && "la fecha de término"}
+              {!lastDayWork && !terminationReason && " y "}
+              {!terminationReason && "la causal"} en el paso 1.
+            </span>
+          </div>
+        )}
+
+        {/* Estado del proceso guardado */}
+        {proceso && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Estado del proceso</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+              {[
+                ["Carta generada", proceso.carta_generada_at],
+                ["Finiquito generado", proceso.finiquito_generado_at],
+                ["Aviso a RRHH", proceso.correo_enviado_at],
+              ].map(([label, fecha]) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span
+                    className={`material-symbols-outlined ${fecha ? "text-green-600" : "text-gray-300"}`}
+                  >
+                    {fecha ? "check_circle" : "radio_button_unchecked"}
+                  </span>
+                  <div>
+                    <p className="font-medium text-gray-700">{label}</p>
+                    <p className="text-xs text-gray-500">
+                      {fecha ? new Date(fecha).toLocaleString("es-CL") : "Pendiente"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons */}
-        <div className="flex justify-end gap-4 pb-12">
+        <div className="flex justify-end gap-4 pb-6">
           <button
             onClick={() => navigate("/finiquitos")}
             className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
@@ -3356,6 +3644,34 @@ const CrearFiniquito = () => {
           >
             <span className="material-symbols-outlined">description</span>
             GENERAR CARTA
+          </button>
+        </div>
+
+        </div>
+
+        {/* Navegación entre pasos. `sticky bottom-0` la deja siempre en el mismo lugar,
+            visible sin importar cuánto mida el paso actual. */}
+        <div className="sticky bottom-0 -mx-8 px-8 py-4 bg-white/95 backdrop-blur border-t border-gray-200 flex items-center justify-between">
+          <button
+            onClick={() => irATab(tabActiva - 1)}
+            disabled={tabActiva === 0}
+            className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-lg">chevron_left</span>
+            Anterior
+          </button>
+
+          <span className="text-sm text-gray-500">
+            Paso {tabActiva + 1} de {TABS.length} · {TABS[tabActiva].nombre}
+          </span>
+
+          <button
+            onClick={() => irATab(tabActiva + 1)}
+            disabled={tabActiva === TABS.length - 1}
+            className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            Siguiente
+            <span className="material-symbols-outlined text-lg">chevron_right</span>
           </button>
         </div>
       </main>

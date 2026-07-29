@@ -3,11 +3,18 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 
 from app.db.deps import get_db
+from app.core.security import get_current_user
 from app.services.finiquitos_service import FiniquitosService
+from app.services.desvinculacion_service import DesvinculacionService, HITOS
 from app.schemas.finiquitos import (
-    FiniquitoCreate, 
-    FiniquitoResponse, 
+    FiniquitoCreate,
+    FiniquitoResponse,
     FiniquitoItemResponse
+)
+from app.schemas.desvinculacion import (
+    DesvinculacionUpsert,
+    DesvinculacionHito,
+    DesvinculacionResponse,
 )
 
 router = APIRouter()
@@ -24,6 +31,65 @@ def read_tres_meses_finiquitos(db: Session = Depends(get_db)):
     """Obtiene los items de los trabajadores de los últimos 5 meses."""
     service = FiniquitosService(db)
     return service.get_items_cinco_meses()
+
+# --- Estado del proceso de desvinculación -----------------------------------
+# Van antes de /{rut} por claridad; el sufijo las hace inconfundibles de todos modos.
+
+@router.get("/procesos", response_model=List[DesvinculacionResponse])
+def read_procesos(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Todos los procesos de desvinculación, para los resúmenes del listado."""
+    return DesvinculacionService(db).list_all()
+
+
+@router.get("/{rut}/proceso", response_model=DesvinculacionResponse)
+def read_proceso(
+    rut: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Estado guardado del proceso de desvinculación. 404 si aún no se ha iniciado."""
+    proceso = DesvinculacionService(db).get_by_rut(rut)
+    if not proceso:
+        raise HTTPException(status_code=404, detail="Sin proceso registrado para este RUT")
+    return proceso
+
+
+@router.put("/{rut}/proceso", response_model=DesvinculacionResponse)
+def upsert_proceso(
+    rut: str,
+    data: DesvinculacionUpsert,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Guarda el formulario completo. Reemplaza el sessionStorage del frontend."""
+    return DesvinculacionService(db).guardar(rut, data, created_by=current_user.username)
+
+
+@router.post("/{rut}/proceso/hito", response_model=DesvinculacionResponse)
+def marcar_hito_proceso(
+    rut: str,
+    data: DesvinculacionHito,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Sella el timestamp de un hito ('carta' | 'finiquito' | 'correo').
+    Sobrescribe si ya existía: se pueden generar varias cartas hasta la definitiva."""
+    if data.hito not in HITOS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Hito inválido. Valores aceptados: {', '.join(HITOS)}",
+        )
+    proceso = DesvinculacionService(db).marcar_hito(rut, data.hito)
+    if not proceso:
+        raise HTTPException(
+            status_code=404,
+            detail="Sin proceso registrado para este RUT; guarda el formulario primero",
+        )
+    return proceso
+
 
 @router.get("/{rut}", response_model=List[FiniquitoItemResponse])
 def read_rut_finiquitos(

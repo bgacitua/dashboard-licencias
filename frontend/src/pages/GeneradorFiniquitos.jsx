@@ -11,13 +11,58 @@ const GeneradorFiniquitos = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedEmployees, setSelectedEmployees] = useState([]);
-  const [selectedDepartamento, setSelectedDepartamento] = useState("");
+  const [selectedRut, setSelectedRut] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [procesos, setProcesos] = useState([]);
+  // null = sin filtro; si no, la clave de la tarjeta activa.
+  const [filtro, setFiltro] = useState(null);
+
+  // Tarjetas de resumen sobre los procesos de desvinculación guardados.
+  const RESUMEN = [
+    {
+      clave: "activos",
+      titulo: "Procesos activos",
+      // Activo = le falta al menos uno de los tres hitos (carta, finiquito, correo).
+      test: (p) =>
+        !(p.carta_generada_at && p.finiquito_generado_at && p.correo_enviado_at),
+      color: "border-blue-500",
+      icono: "pending_actions",
+    },
+    {
+      clave: "finiquitos",
+      titulo: "Finiquitos pendientes",
+      test: (p) => !p.finiquito_generado_at,
+      color: "border-amber-500",
+      icono: "description",
+    },
+    {
+      clave: "correos",
+      titulo: "Correos no enviados",
+      test: (p) => !p.correo_enviado_at,
+      color: "border-rose-500",
+      icono: "mail",
+    },
+  ];
+
+  // ponytail: fecha_ingreso llega como 'YYYY-MM-DD' o ISO; sin librería de fechas
+  const formatFecha = (fecha) => {
+    if (!fecha) return 'N/A';
+    const [y, m, d] = String(fecha).split('T')[0].split('-');
+    return d ? `${d}-${m}-${y}` : fecha;
+  };
 
   useEffect(() => {
     fetchEmployees();
+    fetchProcesos();
   }, []);
+
+  const fetchProcesos = async () => {
+    try {
+      setProcesos(await FiniquitosService.getProcesos());
+    } catch (error) {
+      console.error("Error fetching procesos:", error);
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
@@ -35,20 +80,6 @@ const GeneradorFiniquitos = () => {
     setCurrentPage(1); // Reset to first page on search
   };
 
-  const toggleSelection = (rut) => {
-    setSelectedEmployees(prev => 
-      prev.includes(rut) ? prev.filter(id => id !== rut) : [...prev, rut]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedEmployees.length === paginatedEmployees.length) {
-      setSelectedEmployees([]);
-    } else {
-      setSelectedEmployees(paginatedEmployees.map(e => e.rut_trabajador));
-    }
-  };
-
   // Normalize search term for flexible matching
   const normalizeText = (text) => {
     if (!text) return '';
@@ -57,15 +88,7 @@ const GeneradorFiniquitos = () => {
       .replace(/[^a-z0-9]/g, ''); // Remove special chars
   };
 
-  // Get unique departments from employees
-  const departments = [...new Set(employees.map(emp => emp.departamento).filter(Boolean))].sort();
-
   const filteredEmployees = employees.filter(emp => {
-    // Departamento filter
-    if (selectedDepartamento && emp.departamento !== selectedDepartamento) {
-      return false;
-    }
-    
     // Flexible search (name, RUT, cargo)
     if (searchTerm) {
       const searchNormalized = normalizeText(searchTerm);
@@ -83,11 +106,6 @@ const GeneradorFiniquitos = () => {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, filteredEmployees.length);
   const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
-
-  // Reset page when department filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedDepartamento]);
 
   // Build page numbers to display (smart range with ellipsis)
   const getPageNumbers = () => {
@@ -108,6 +126,13 @@ const GeneradorFiniquitos = () => {
     return pages;
   };
 
+  const nombrePorRut = Object.fromEntries(
+    employees.map((e) => [e.rut_trabajador, e.nombre_trabajador]),
+  );
+  const tarjetaActiva = RESUMEN.find((c) => c.clave === filtro);
+  const procesosFiltrados = tarjetaActiva ? procesos.filter(tarjetaActiva.test) : [];
+  const fmtHito = (ts) => (ts ? new Date(ts).toLocaleDateString("es-CL") : "—");
+
   return (
     <SidebarLayout>
       <main className="p-8">
@@ -118,6 +143,86 @@ const GeneradorFiniquitos = () => {
             <p className="text-gray-500">Selecciona los trabajadores para generar su finiquito.</p>
           </div>
         </div>
+
+        {/* Tarjetas de resumen: clic filtra, clic de nuevo quita el filtro */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          {RESUMEN.map((c) => (
+            <button
+              key={c.clave}
+              onClick={() => setFiltro(filtro === c.clave ? null : c.clave)}
+              aria-pressed={filtro === c.clave}
+              className={`text-left bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-l-4 ${c.color} hover:shadow-md transition-all ${
+                filtro === c.clave ? "ring-2 ring-blue-500" : ""
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500 font-medium">{c.titulo}</p>
+                <span className="material-symbols-outlined text-gray-400">{c.icono}</span>
+              </div>
+              <p className="text-3xl font-bold text-gray-900 mt-1">
+                {procesos.filter(c.test).length}
+              </p>
+            </button>
+          ))}
+        </div>
+
+        {/* Listado del filtro activo */}
+        {tarjetaActiva && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <h2 className="font-semibold text-gray-900">
+                {tarjetaActiva.titulo}{" "}
+                <span className="text-gray-400 font-normal">({procesosFiltrados.length})</span>
+              </h2>
+              <button
+                onClick={() => setFiltro(null)}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Limpiar filtro
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold">
+                    <th className="p-3">Nombre</th>
+                    <th className="p-3">RUT</th>
+                    <th className="p-3">Estado</th>
+                    <th className="p-3">Carta</th>
+                    <th className="p-3">Finiquito</th>
+                    <th className="p-3">Correo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {procesosFiltrados.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="p-6 text-center text-gray-500">
+                        Sin registros en esta categoría.
+                      </td>
+                    </tr>
+                  ) : (
+                    procesosFiltrados.map((p) => (
+                      <tr
+                        key={p.rut}
+                        onClick={() => navigate(`/finiquitos/crear/${p.rut}`)}
+                        className="cursor-pointer hover:bg-gray-50 transition-colors text-sm"
+                      >
+                        <td className="p-3 font-medium text-gray-900">
+                          {nombrePorRut[p.rut] || "—"}
+                        </td>
+                        <td className="p-3 font-mono text-gray-600">{p.rut}</td>
+                        <td className="p-3 text-gray-600">{p.estado}</td>
+                        <td className="p-3 text-gray-500">{fmtHito(p.carta_generada_at)}</td>
+                        <td className="p-3 text-gray-500">{fmtHito(p.finiquito_generado_at)}</td>
+                        <td className="p-3 text-gray-500">{fmtHito(p.correo_enviado_at)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Filters Bar */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center justify-between">
@@ -131,47 +236,31 @@ const GeneradorFiniquitos = () => {
               onChange={handleSearch}
             />
           </div>
-          <div className="flex gap-3">
-            <select 
-              className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 focus:outline-none focus:border-blue-500 cursor-pointer"
-              value={selectedDepartamento}
-              onChange={(e) => setSelectedDepartamento(e.target.value)}
-            >
-              <option value="">Todos los departamentos</option>
-              {departments.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* Selection Action Bar */}
-        {selectedEmployees.length > 0 && (
+        {selectedRut && (
           <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6 flex items-center justify-between animate-fade-in">
             <div className="flex items-center gap-3">
               <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
                 <span className="material-symbols-outlined text-sm">check</span>
               </div>
-              <span className="font-semibold text-gray-900">
-                {selectedEmployees.length} trabajador{selectedEmployees.length !== 1 ? 'es' : ''} seleccionado{selectedEmployees.length !== 1 ? 's' : ''}
-              </span>
+              <span className="font-semibold text-gray-900">Trabajador seleccionado</span>
               <span className="text-gray-400">•</span>
               <span className="text-gray-600 text-sm">
-                {filteredEmployees.find(e => e.rut_trabajador === selectedEmployees[0])?.nombre_trabajador}
-                {selectedEmployees.length > 1 && ` + ${selectedEmployees.length - 1} más`}
+                {employees.find(e => e.rut_trabajador === selectedRut)?.nombre_trabajador}
               </span>
             </div>
             <div className="flex gap-3">
               <button 
                 className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                onClick={() => setSelectedEmployees([])}
+                onClick={() => setSelectedRut(null)}
               >
                 Cancelar
               </button>
               <button 
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"
-                onClick={() => navigate(`/finiquitos/crear/${selectedEmployees[0]}`)}
-                disabled={selectedEmployees.length !== 1}
+                onClick={() => navigate(`/finiquitos/crear/${selectedRut}`)}
               >
                 <span className="material-symbols-outlined text-lg">description</span>
                 Generar finiquito
@@ -186,46 +275,33 @@ const GeneradorFiniquitos = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold">
-                  <th className="p-4 w-12 text-center">
-                    <input 
-                      type="checkbox" 
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      checked={selectedEmployees.length === paginatedEmployees.length && paginatedEmployees.length > 0}
-                      onChange={toggleSelectAll}
-                    />
-                  </th>
                   <th className="p-4">Nombre / Cargo</th>
                   <th className="p-4">RUT</th>
                   <th className="p-4">Supervisor</th>
                   <th className="p-4">RUT Supervisor</th>
                   <th className="p-4">Antigüedad</th>
                   <th className="p-4">Ingreso</th>
-                  <th className="p-4 text-right"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {loading ? (
                   <tr>
-                    <td colSpan="8" className="p-8 text-center text-gray-500">
+                    <td colSpan="6" className="p-8 text-center text-gray-500">
                       <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
                       Cargando trabajadores...
                     </td>
                   </tr>
                 ) : paginatedEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="p-8 text-center text-gray-500">No se encontraron trabajadores que coincidan con tu búsqueda.</td>
+                    <td colSpan="6" className="p-8 text-center text-gray-500">No se encontraron trabajadores que coincidan con tu búsqueda.</td>
                   </tr>
                 ) : (
                   paginatedEmployees.map((emp) => (
-                    <tr key={emp.rut_trabajador} className={`hover:bg-gray-50 transition-colors ${selectedEmployees.includes(emp.rut_trabajador) ? 'bg-blue-50/30' : ''}`}>
-                      <td className="p-4 text-center">
-                        <input 
-                          type="checkbox" 
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          checked={selectedEmployees.includes(emp.rut_trabajador)}
-                          onChange={() => toggleSelection(emp.rut_trabajador)}
-                        />
-                      </td>
+                    <tr
+                      key={emp.rut_trabajador}
+                      onClick={() => setSelectedRut(prev => prev === emp.rut_trabajador ? null : emp.rut_trabajador)}
+                      className={`cursor-pointer hover:bg-gray-50 transition-colors ${selectedRut === emp.rut_trabajador ? 'bg-blue-50' : ''}`}
+                    >
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
@@ -252,12 +328,7 @@ const GeneradorFiniquitos = () => {
                           {emp.duracion_empresa ? `${emp.duracion_empresa.toFixed(1)}y` : '0y'}
                         </span>
                       </td>
-                      <td className="p-4 text-sm text-gray-500">{emp.fecha_ingreso}</td>
-                      <td className="p-4 text-right">
-                        <button className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100">
-                          <span className="material-symbols-outlined">more_vert</span>
-                        </button>
-                      </td>
+                      <td className="p-4 text-sm text-gray-500">{formatFecha(emp.fecha_ingreso)}</td>
                     </tr>
                   ))
                 )}
