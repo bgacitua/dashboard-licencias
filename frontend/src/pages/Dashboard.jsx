@@ -155,17 +155,17 @@ const Dashboard = () => {
         <header className="flex items-center gap-2 text-sm text-gray-500 mb-8">
           <span className="material-symbols-outlined text-lg">home</span>
           <span>/</span>
-          <span className="text-gray-900 font-medium">Dashboard</span>
+          <span className="text-gray-900 font-medium">Torniquetes</span>
         </header>
 
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Gestión de Licencias y Asistencia</h1>
-          <p className="text-gray-500">Monitoreo en tiempo real de licencias médicas, vacaciones y control de asistencia.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Marcajes de Torniquetes</h1>
+          <p className="text-gray-500">Monitoreo en tiempo real de registros de torniquetes.</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-bold text-gray-900">Registro de Asistencia</h2>
+            <h2 className="text-lg font-bold text-gray-900">Registro de Torniquetes</h2>
             <div className="flex items-center gap-3">
               <select
                 className="text-sm border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"

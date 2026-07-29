@@ -22,7 +22,7 @@ const formatDate = (dateStr) => {
 };
 
 const MODULE_ICONS = {
-    dashboard: 'dashboard',
+    dashboard: 'sensor_door',
     finiquitos: 'description',
     calculadora: 'calculate',
     costos: 'wallet',
