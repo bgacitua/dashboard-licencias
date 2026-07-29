@@ -46,7 +46,7 @@ const DateFilter = ({ column }) => (
 );
 
 const Dashboard = () => {
-  const { marcas, loading, recargar } = useMarcas();
+  const { marcas, loading, recargar, dias, setDias, truncado } = useMarcas();
   const [sorting, setSorting] = useState([]);
 
   const relojes = useMemo(
@@ -166,14 +166,33 @@ const Dashboard = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-bold text-gray-900">Registro de Asistencia</h2>
-            <button
-              onClick={recargar}
-              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-              title="Actualizar tabla"
-            >
-              <span className="material-symbols-outlined">refresh</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <select
+                className="text-sm border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={dias}
+                onChange={(e) => setDias(Number(e.target.value))}
+                title="Rango de días a cargar"
+              >
+                <option value={1}>Hoy</option>
+                <option value={7}>Últimos 7 días</option>
+                <option value={14}>Últimas 2 semanas</option>
+                <option value={30}>Últimos 30 días</option>
+              </select>
+              <button
+                onClick={recargar}
+                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                title="Actualizar tabla"
+              >
+                <span className="material-symbols-outlined">refresh</span>
+              </button>
+            </div>
           </div>
+
+          {truncado && (
+            <p className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+              Rango recortado a las 2000 marcas más recientes. Reduce el rango de días para ver el detalle completo.
+            </p>
+          )}
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
