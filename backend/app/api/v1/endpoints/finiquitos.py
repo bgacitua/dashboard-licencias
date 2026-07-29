@@ -35,6 +35,15 @@ def read_tres_meses_finiquitos(db: Session = Depends(get_db)):
 # --- Estado del proceso de desvinculación -----------------------------------
 # Van antes de /{rut} por claridad; el sufijo las hace inconfundibles de todos modos.
 
+@router.get("/procesos", response_model=List[DesvinculacionResponse])
+def read_procesos(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Todos los procesos de desvinculación, para los resúmenes del listado."""
+    return DesvinculacionService(db).list_all()
+
+
 @router.get("/{rut}/proceso", response_model=DesvinculacionResponse)
 def read_proceso(
     rut: str,

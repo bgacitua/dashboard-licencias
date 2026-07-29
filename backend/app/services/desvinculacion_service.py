@@ -33,6 +33,9 @@ class DesvinculacionService:
         row = self.repo.get_by_rut(rut)
         return {**row, "estado": derivar_estado(row)} if row else None
 
+    def list_all(self) -> list[Dict[str, Any]]:
+        return [{**row, "estado": derivar_estado(row)} for row in self.repo.list_all()]
+
     def guardar(
         self, rut: str, data: DesvinculacionUpsert, created_by: Optional[str]
     ) -> Dict[str, Any]:

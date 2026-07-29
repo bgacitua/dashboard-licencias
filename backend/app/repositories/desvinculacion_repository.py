@@ -26,6 +26,19 @@ class DesvinculacionRepository:
         ).mappings().first()
         return dict(row) if row else None
 
+    def list_all(self) -> list[Dict[str, Any]]:
+        """Todos los procesos, sin payload_json (pesa y no se usa en los listados)."""
+        rows = self.db.execute(
+            text("""
+                SELECT rut, causal, fecha_termino, total_finiquito,
+                       carta_generada_at, finiquito_generado_at, correo_enviado_at,
+                       created_by, updated_at
+                FROM app.desvinculacion_proceso
+                ORDER BY updated_at DESC
+            """)
+        ).mappings().all()
+        return [dict(r) for r in rows]
+
     def upsert(
         self,
         rut: str,

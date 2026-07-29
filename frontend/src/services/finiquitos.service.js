@@ -33,6 +33,13 @@ const FiniquitosService = {
 
   // --- Estado del proceso de desvinculación ---
 
+  getProcesos: async () => {
+    const response = await axios.get(`${API_URL}/procesos`, {
+      headers: authHeaders(),
+    });
+    return response.data;
+  },
+
   // Devuelve null si aún no hay proceso guardado (404), en vez de reventar.
   getProceso: async (rut) => {
     try {
