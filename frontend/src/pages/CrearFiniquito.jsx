@@ -390,6 +390,9 @@ const CrearFiniquito = () => {
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState(null);
   const [proceso, setProceso] = useState(null); // estado persistido de la desvinculación
+  // Toggles variables por aplicar. Es estado y no ref porque el proceso guardado y los items
+  // de la API llegan en orden impredecible: quien llegue segundo debe disparar el efecto.
+  const [variableActivePorAplicar, setVariableActivePorAplicar] = useState(null);
 
   // Form State
   const [terminationReason, setTerminationReason] = useState("");
@@ -684,6 +687,13 @@ const CrearFiniquito = () => {
         setDescuentosPersonalizados(data.descuentosPersonalizados);
       if (data.aporteCesantia) setAporteCesantia(data.aporteCesantia);
       if (data.ufValue) setUfValue(data.ufValue);
+      if (data.variableCustomAdditions)
+        setVariableCustomAdditions(data.variableCustomAdditions);
+      if (data.variableFilledActive)
+        setVariableFilledActive(data.variableFilledActive);
+      // Los items fetched pueden no haber llegado de la API todavía; los aplica el efecto.
+      if (data.variableItemsActive)
+        setVariableActivePorAplicar(data.variableItemsActive);
       return true;
     };
 
@@ -708,6 +718,22 @@ const CrearFiniquito = () => {
 
     if (rut) restaurar();
   }, [location.state, rut]);
+
+  // Aplica los toggles guardados a los items variables cuando ya están ambos: el proceso
+  // restaurado y los items de la API. Se consume una sola vez para no pisar lo que el
+  // usuario toque después.
+  useEffect(() => {
+    if (!variableActivePorAplicar || variableItems.length === 0) return;
+    setVariableItems((prev) =>
+      prev.map((i) => {
+        const clave = `${i.concepto}|${i.periodo}`;
+        return clave in variableActivePorAplicar
+          ? { ...i, active: variableActivePorAplicar[clave] }
+          : i;
+      }),
+    );
+    setVariableActivePorAplicar(null);
+  }, [variableItems, variableActivePorAplicar]);
 
   // Guarda el formulario y sella el hito ('carta' | 'finiquito'). Nunca lanza:
   // registrar el proceso no debe impedir que el usuario obtenga su documento.
@@ -1454,6 +1480,14 @@ const CrearFiniquito = () => {
       // Form state to preserve on back navigation
       terminationReason,
       noticeGiven,
+
+      // Toggles de remuneración variable. Los items "fetched" se vuelven a pedir a la API
+      // al recargar, así que su `active` se guarda por concepto+periodo y no por índice.
+      variableCustomAdditions,
+      variableFilledActive,
+      variableItemsActive: Object.fromEntries(
+        variableItems.map((i) => [`${i.concepto}|${i.periodo}`, i.active !== false]),
+      ),
 
       // Dates
       lastDayWork,
