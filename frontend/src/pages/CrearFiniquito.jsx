@@ -400,6 +400,9 @@ const CrearFiniquito = () => {
   // Toggles variables por aplicar. Es estado y no ref porque el proceso guardado y los items
   // de la API llegan en orden impredecible: quien llegue segundo debe disparar el efecto.
   const [variableActivePorAplicar, setVariableActivePorAplicar] = useState(null);
+  // Moneda elegida a mano por descuento ({ descripcion: 'UF' | 'CLP' }), pendiente de aplicar
+  // por el mismo motivo: los descuentos se recargan de la API en cada visita.
+  const [descuentosMonedaPorAplicar, setDescuentosMonedaPorAplicar] = useState(null);
 
   // Form State
   const [terminationReason, setTerminationReason] = useState("");
@@ -656,22 +659,14 @@ const CrearFiniquito = () => {
             let desc = item.concepto || "";
             if (desc === "Prestamo Interno") desc = "Préstamo Interno";
             if (desc === "Descuento Por Planilla") desc = "Descuento por planilla";
-            // El backend entrega el préstamo interno expresado en UF. Lo mostramos en
-            // pesos por defecto, así que hay que convertir el monto además de la moneda;
-            // cambiar solo la moneda leería las UF como pesos.
-            const esPrestamoUF = desc === "Préstamo Interno";
-            const montoOriginal = item.monto || 0;
             return {
               descripcion: desc,
               detalle: item.detalle || "",
-              monto:
-                esPrestamoUF && ufValueResolved
-                  ? Math.round(montoOriginal * ufValueResolved)
-                  : montoOriginal,
+              monto: item.monto || 0,
               cuotas: 1,
-              // Sin valor UF no se puede convertir; en ese caso se deja en UF para no
-              // mostrar un monto falso, y el usuario cambia la moneda a mano.
-              moneda: esPrestamoUF && !ufValueResolved ? "UF" : "CLP",
+              // El backend entrega el préstamo interno en UF. Si el usuario cambió la
+              // moneda antes, el efecto de más abajo restaura su elección.
+              moneda: desc === "Préstamo Interno" ? "UF" : "CLP",
             };
           });
           setDescuentosPersonalizados(mappedDescuentos);
@@ -711,6 +706,8 @@ const CrearFiniquito = () => {
       // Los items fetched pueden no haber llegado de la API todavía; los aplica el efecto.
       if (data.variableItemsActive)
         setVariableActivePorAplicar(data.variableItemsActive);
+      if (data.descuentosMoneda)
+        setDescuentosMonedaPorAplicar(data.descuentosMoneda);
       return true;
     };
 
@@ -751,6 +748,19 @@ const CrearFiniquito = () => {
     );
     setVariableActivePorAplicar(null);
   }, [variableItems, variableActivePorAplicar]);
+
+  // Restaura la moneda que el usuario eligió para cada descuento, una vez que llegan de la API.
+  useEffect(() => {
+    if (!descuentosMonedaPorAplicar || descuentosPersonalizados.length === 0) return;
+    setDescuentosPersonalizados((prev) =>
+      prev.map((d) =>
+        d.descripcion in descuentosMonedaPorAplicar
+          ? { ...d, moneda: descuentosMonedaPorAplicar[d.descripcion] }
+          : d,
+      ),
+    );
+    setDescuentosMonedaPorAplicar(null);
+  }, [descuentosPersonalizados, descuentosMonedaPorAplicar]);
 
   // Guarda el formulario y sella el hito ('carta' | 'finiquito'). Nunca lanza:
   // registrar el proceso no debe impedir que el usuario obtenga su documento.
@@ -1505,6 +1515,11 @@ const CrearFiniquito = () => {
       variableFilledActive,
       variableItemsActive: Object.fromEntries(
         variableItems.map((i) => [`${i.concepto}|${i.periodo}`, i.active !== false]),
+      ),
+
+      // Moneda elegida por descuento, para que sobreviva a la recarga desde la API.
+      descuentosMoneda: Object.fromEntries(
+        descuentosPersonalizados.map((d) => [d.descripcion, d.moneda || "CLP"]),
       ),
 
       // Dates
@@ -2328,14 +2343,16 @@ const CrearFiniquito = () => {
         <div hidden={tabActiva !== 1}>
 
         {/* Recent Licenses Table (collapsible, shows all 15 from backend) */}
-        {/* Colapsada ocupa solo lo necesario; expandida vuelve al ancho completo por la tabla */}
+        {/* Colapsada solo necesita alto para el título: menos padding y sin margen inferior */}
         <div
-          className={`bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6 ${
-            licenciasTableCollapsed ? "max-w-md" : ""
+          className={`bg-white rounded-xl shadow-sm border border-gray-100 mb-6 ${
+            licenciasTableCollapsed ? "px-6 py-3" : "p-6"
           }`}
         >
           <div
-            className="flex items-center gap-2 mb-6 cursor-pointer select-none"
+            className={`flex items-center gap-2 cursor-pointer select-none ${
+              licenciasTableCollapsed ? "" : "mb-6"
+            }`}
             onClick={() => setLicenciasTableCollapsed((c) => !c)}
             role="button"
             tabIndex={0}
@@ -3026,24 +3043,31 @@ const CrearFiniquito = () => {
             <h3 className="text-lg font-bold text-gray-900">
               Compensación y Vacaciones
             </h3>
-            <span className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-medium">
-              <span className="material-symbols-outlined text-sm">info</span>
-              Recuerda ajustar
-            </span>
           </div>
 
           <div className="grid grid-cols-2 gap-6 mb-6">
             <div>
               <div className="flex justify-between mb-2">
-                <label className="text-sm font-semibold text-gray-700">
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                   Días de Vacaciones Pendientes
+                  {/* Punto de respiración: recuerda revisar el valor antes de generar */}
+                  <span
+                    className="relative flex h-2.5 w-2.5"
+                    title="Recuerda ajustar"
+                  >
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75 animate-ping"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                  </span>
+                  <span className="text-xs font-normal text-orange-600">
+                    Recuerda ajustar
+                  </span>
                 </label>
               </div>
               <div className="relative">
                 <input
                   type="number"
                   step="0.01"
-                  className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900"
+                  className="w-full p-3 bg-white border-2 border-orange-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none font-medium text-gray-900"
                   value={vacationDays.toFixed(2)}
                   onChange={(e) => {
                     setVacationDays(parseFloat(e.target.value) || 0);
