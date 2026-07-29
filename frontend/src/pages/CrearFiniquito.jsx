@@ -390,6 +390,7 @@ const CrearFiniquito = () => {
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState(null);
   const [proceso, setProceso] = useState(null); // estado persistido de la desvinculación
+  const [tabActiva, setTabActiva] = useState(0); // solo UI: no se persiste
   // Toggles variables por aplicar. Es estado y no ref porque el proceso guardado y los items
   // de la API llegan en orden impredecible: quien llegue segundo debe disparar el efecto.
   const [variableActivePorAplicar, setVariableActivePorAplicar] = useState(null);
@@ -1979,6 +1980,16 @@ const CrearFiniquito = () => {
     }
   };
 
+  // Pestañas del proceso. `listo` marca ✓ en la barra; hoy solo el primer paso tiene
+  // campos obligatorios (los mismos que valida handleGenerate).
+  const TABS = [
+    { nombre: "Datos y término", icono: "person", listo: !!lastDayWork && !!terminationReason },
+    { nombre: "Remuneración", icono: "payments", listo: variableItems.length > 0 },
+    { nombre: "Compensación", icono: "beach_access", listo: vacationValue > 0 },
+    { nombre: "Indemnización", icono: "calculate", listo: totalSettlement > 0 },
+    { nombre: "Generar", icono: "description", listo: !!proceso?.carta_generada_at },
+  ];
+
   return (
     <SidebarLayout>
       <main className="p-8">
@@ -2059,6 +2070,31 @@ const CrearFiniquito = () => {
             </p>
           </div>
         </div>
+
+        {/* Barra de pestañas */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 flex overflow-x-auto">
+          {TABS.map((t, i) => (
+            <button
+              key={t.nombre}
+              onClick={() => setTabActiva(i)}
+              className={`flex-1 min-w-[150px] px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition-colors ${
+                tabActiva === i
+                  ? "border-blue-600 text-blue-600 bg-blue-50/50"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">
+                {t.listo ? "check_circle" : t.icono}
+              </span>
+              <span className="whitespace-nowrap">
+                {i + 1}. {t.nombre}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* --- Paso 1: Datos y término --- */}
+        <div hidden={tabActiva !== 0}>
 
         {/* Termination Details */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
@@ -2235,6 +2271,11 @@ const CrearFiniquito = () => {
             </div>
           </div>
         </div>
+
+        </div>
+
+        {/* --- Paso 2: Remuneración --- */}
+        <div hidden={tabActiva !== 1}>
 
         {/* Recent Licenses Table (collapsible, shows all 15 from backend) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
@@ -2916,6 +2957,11 @@ const CrearFiniquito = () => {
           </div>
         </div>
 
+        </div>
+
+        {/* --- Paso 3: Compensación --- */}
+        <div hidden={tabActiva !== 2}>
+
         {/* Compensation & Vacation */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
           <div className="flex items-center gap-2 mb-6">
@@ -3057,6 +3103,11 @@ const CrearFiniquito = () => {
             Agregar items (en desarrollo)
           </button>
         </div>
+
+        </div>
+
+        {/* --- Paso 4: Indemnización --- */}
+        <div hidden={tabActiva !== 3}>
 
         {/* Indemnity Calculations */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
@@ -3433,6 +3484,66 @@ const CrearFiniquito = () => {
           </div>
         </div>
 
+        </div>
+
+        {/* --- Paso 5: Generar --- */}
+        <div hidden={tabActiva !== 4}>
+
+        {/* Recap: mismo totalSettlement que el paso 4, sin recalcular nada */}
+        <div className="bg-gray-900 text-white p-6 rounded-xl flex justify-between items-center shadow-lg mb-6">
+          <div>
+            <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">
+              Total finiquito
+            </p>
+            <p className="text-xs text-gray-500">
+              {employee?.nombre_trabajador} · {lastDayWork || "sin fecha de término"}
+            </p>
+          </div>
+          <p className="text-3xl font-bold font-mono">
+            $ {Math.round(totalSettlement).toLocaleString("es-CL")}
+          </p>
+        </div>
+
+        {/* Faltantes: los mismos que valida handleGenerate, avisados antes de intentar */}
+        {(!lastDayWork || !terminationReason) && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl mb-6 flex items-center gap-3">
+            <span className="material-symbols-outlined">warning</span>
+            <span className="text-sm">
+              Falta completar {!lastDayWork && "la fecha de término"}
+              {!lastDayWork && !terminationReason && " y "}
+              {!terminationReason && "la causal"} en el paso 1.
+            </span>
+          </div>
+        )}
+
+        {/* Estado del proceso guardado */}
+        {proceso && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Estado del proceso</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+              {[
+                ["Carta generada", proceso.carta_generada_at],
+                ["Finiquito generado", proceso.finiquito_generado_at],
+                ["Aviso a RRHH", proceso.correo_enviado_at],
+              ].map(([label, fecha]) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span
+                    className={`material-symbols-outlined ${fecha ? "text-green-600" : "text-gray-300"}`}
+                  >
+                    {fecha ? "check_circle" : "radio_button_unchecked"}
+                  </span>
+                  <div>
+                    <p className="font-medium text-gray-700">{label}</p>
+                    <p className="text-xs text-gray-500">
+                      {fecha ? new Date(fecha).toLocaleString("es-CL") : "Pendiente"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex justify-end gap-4 pb-12">
           <button
@@ -3455,6 +3566,8 @@ const CrearFiniquito = () => {
             <span className="material-symbols-outlined">description</span>
             GENERAR CARTA
           </button>
+        </div>
+
         </div>
       </main>
     </SidebarLayout>
