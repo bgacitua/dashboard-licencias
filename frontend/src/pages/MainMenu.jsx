@@ -6,10 +6,10 @@ import { useAuth } from '../context/AuthContext';
 const menuItems = [
   {
     id: 'dashboard',
-    title: 'Licencias Médicas',
-    description: 'Gestiona y visualiza el estado de las licencias médicas de todos los empleados.',
+    title: 'Torniquetes',
+    description: 'Consulta y filtra los marcajes de entrada y salida registrados en los torniquetes.',
     path: '/dashboard',
-    icon: 'medical_services',
+    icon: 'sensor_door',
     accent: 'bg-blue-50 text-primary',
     bar: 'bg-primary',
     moduleCode: 'dashboard',

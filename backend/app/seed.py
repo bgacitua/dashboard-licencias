@@ -10,7 +10,7 @@ from app.models.auth import Role, Usuario, Modulo
   db.flush()
 
   modulos = [
-      Modulo(codigo='dashboard', nombre='Dashboard', orden=1, activo=True),
+      Modulo(codigo='dashboard', nombre='Torniquetes', orden=1, activo=True),
       Modulo(codigo='finiquitos', nombre='Finiquitos', orden=2, activo=True),
       Modulo(codigo='admin', nombre='Administración', orden=3, activo=True),
   ]

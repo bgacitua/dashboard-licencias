@@ -36,7 +36,7 @@ def seed():
 
         # ── Módulos ────────────────────────────────────────────────────────────
         modulos_data = [
-            {"codigo": "dashboard",        "nombre": "Dashboard",         "icono": "dashboard",      "ruta": "/",                    "orden": 1},
+            {"codigo": "dashboard",        "nombre": "Torniquetes",       "icono": "sensor_door",    "ruta": "/",                    "orden": 1},
             {"codigo": "licencias",        "nombre": "Licencias",         "icono": "description",    "ruta": "/licencias",           "orden": 2},
             {"codigo": "vacaciones",       "nombre": "Vacaciones",        "icono": "beach_access",   "ruta": "/vacaciones",          "orden": 3},
             {"codigo": "finiquitos",       "nombre": "Finiquitos",        "icono": "assignment_turned_in", "ruta": "/finiquitos",   "orden": 4},

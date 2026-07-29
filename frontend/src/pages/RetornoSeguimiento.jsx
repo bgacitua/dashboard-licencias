@@ -57,7 +57,7 @@ const RetornoSeguimiento = () => {
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span className="material-symbols-outlined text-lg">home</span>
             <span>/</span>
-            <Link to="/dashboard" className="hover:text-gray-700">Dashboard</Link>
+            <Link to="/dashboard" className="hover:text-gray-700">Torniquetes</Link>
             <span>/</span>
             <span className="text-gray-900 font-medium">Retorno de Licencias</span>
           </div>

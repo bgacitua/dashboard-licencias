@@ -1,356 +1,299 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { useLicencias } from "../hooks/useLicencias";
-import { useVacaciones } from "../hooks/useVacaciones";
+import React, { useMemo, useState } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getSortedRowModel,
+  getPaginationRowModel,
+  flexRender,
+} from "@tanstack/react-table";
 import { useMarcas } from "../hooks/useMarcas";
-import { useRetornoSeguimiento } from "../hooks/useRetornoSeguimiento";
 import SidebarLayout from "../components/SidebarLayout";
 
-// Stats Card Component
-const StatCard = ({ title, value, subtext, icon, color, trend, trendValue, to }) => (
-  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between h-full relative overflow-hidden">
-    <div className={`absolute top-0 right-0 p-4 opacity-10`}>
-        <span className="material-symbols-outlined text-6xl" style={{ color }}>{icon}</span>
-    </div>
-    
-    <div className="flex justify-between items-start mb-4">
-      <div>
-        <h3 className="text-gray-500 text-sm font-medium mb-1">{title}</h3>
-        <span className="text-4xl font-bold text-gray-900">{value}</span>
-      </div>
-      <div className={`p-2 rounded-lg bg-${color}-50`}>
-         {/* Icon placeholder if needed, or just use the background color */}
-        <span className="material-symbols-outlined" style={{ color }}>{icon}</span>
-      </div>
-    </div>
+const inputClass =
+  "w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500";
 
-    <div className="flex items-center gap-2 mt-auto">
-      {trend && (
-        <span className={`text-xs font-medium px-2 py-1 rounded-full ${trend === 'up' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-          {trend === 'up' ? '↗' : '↘'} {trendValue}
-        </span>
-      )}
-      <span className="text-xs text-gray-400">{subtext}</span>
-    </div>
-    
-    {to && (
-        <Link to={to} className="absolute inset-0" />
-    )}
-  </div>
+const TextFilter = ({ column, placeholder }) => (
+  <input
+    type="text"
+    placeholder={placeholder}
+    className={inputClass}
+    value={column.getFilterValue() ?? ""}
+    onChange={(e) => column.setFilterValue(e.target.value)}
+  />
 );
 
-// Table Component
-const AsistenciaTable = ({ marcas, loading, hasMore, onLoadMore, loadingMore, filters, onFilterChange, relojes }) => {
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            {/* Column Headers */}
-            <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold">
-              <th className="px-6 py-3">Reloj</th>
-              <th className="px-6 py-3">Nombre</th>
-              <th className="px-6 py-3">RUT</th>
-              <th className="px-6 py-3">Fecha</th>
-              <th className="px-6 py-3">Hora Marca</th>
-              <th className="px-6 py-3">Tipo de Marca</th>
-            </tr>
-            {/* Filters Row */}
-            <tr className="bg-white border-b border-gray-100">
-                <td className="px-6 py-2">
-                    <select 
-                        className="w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        value={filters.reloj || ''}
-                        onChange={(e) => onFilterChange('reloj', e.target.value)}
-                    >
-                        <option value="">Todos</option>
-                        {relojes && relojes.map((r, idx) => (
-                            <option key={idx} value={r}>{r}</option>
-                        ))}
-                    </select>
-                </td>
-                <td className="px-6 py-2">
-                    <input 
-                        type="text" 
-                        placeholder="Filtrar nombre..."
-                        className="w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        value={filters.nombre || ''}
-                        onChange={(e) => onFilterChange('nombre', e.target.value)}
-                    />
-                </td>
-                <td className="px-6 py-2">
-                    <input 
-                        type="text" 
-                        placeholder="Filtrar RUT..."
-                        className="w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        value={filters.rut || ''}
-                        onChange={(e) => onFilterChange('rut', e.target.value)}
-                    />
-                </td>
-                <td className="px-6 py-2">
-                    <input 
-                        type="date" 
-                        className="w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        value={filters.fechaInicio || ''}
-                        onChange={(e) => {
-                            const date = e.target.value;
-                            // Set both start and end to same date to filter a specific day
-                            onFilterChange('fecha', date);
-                        }}
-                    />
-                </td>
-                <td className="px-6 py-2">
-                    {/* Time filter not requested, placeholder or empty */}
-                </td>
-                <td className="px-6 py-2">
-                    <select 
-                        className="w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        value={filters.tipoMarca || ''}
-                        onChange={(e) => onFilterChange('tipoMarca', e.target.value)}
-                    >
-                        <option value="">Todos</option>
-                        <option value="IN">Entrada (IN)</option>
-                        <option value="OUT">Salida (OUT)</option>
-                    </select>
-                </td>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {loading ? (
-               <tr>
-                 <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
-                   <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
-                   Cargando datos...
-                 </td>
-               </tr>
-            ) : marcas.length === 0 ? (
-                <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">No se encontraron registros.</td>
-                </tr>
-            ) : (
-              marcas.map((marca, idx) => (
-                <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-gray-600 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-gray-400 text-lg">watch</span>
-                    {marca.nombre_reloj}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
-                        {marca.nombre_completo.charAt(0)}
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">{marca.nombre_completo}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">
-                    {/* Clean RUT: split by '-' and keep first part */}
-                    {(marca.rut || '').split('-')[0]}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                    {(marca.fecha || '').split('-').reverse().join('/')}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">{marca.hora_marca}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      marca.tipo_marca === 'IN' ? 'bg-green-50 text-green-700' : 
-                      marca.tipo_marca === 'OUT' ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-700'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                         marca.tipo_marca === 'IN' ? 'bg-green-500' : 
-                         marca.tipo_marca === 'OUT' ? 'bg-gray-500' : 'bg-blue-500'
-                      }`}></span>
-                      {marca.tipo_marca === 'IN' ? 'Entrada' : marca.tipo_marca === 'OUT' ? 'Salida' : marca.tipo_marca}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      
-      {/* Pagination / Load More */}
-      <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-        <span className="text-sm text-gray-500">
-            Mostrando {marcas.length} resultados
-        </span>
-        <div className="flex gap-2">
-            {hasMore && (
-                <button 
-                    onClick={onLoadMore}
-                    disabled={loadingMore}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                >
-                    {loadingMore ? 'Cargando...' : 'Cargar más'}
-                </button>
-            )}
-        </div>
-      </div>
-    </div>
-  );
-};
+const SelectFilter = ({ column, options }) => (
+  <select
+    className={inputClass}
+    value={column.getFilterValue() ?? ""}
+    onChange={(e) => column.setFilterValue(e.target.value || undefined)}
+  >
+    <option value="">Todos</option>
+    {options.map(([value, label]) => (
+      <option key={value} value={value}>{label}</option>
+    ))}
+  </select>
+);
 
-
+const DateFilter = ({ column }) => (
+  <input
+    type="date"
+    className={inputClass}
+    value={column.getFilterValue() ?? ""}
+    onChange={(e) => column.setFilterValue(e.target.value || undefined)}
+  />
+);
 
 const Dashboard = () => {
-  const { 
-    resumen, 
-    vigentes, 
-    porVencer, 
-    vencidasRecientes,
-    loading: loadingLicencias 
-  } = useLicencias();
-  
-  const {
-    resumen: resumenVacaciones,
-    loading: loadingVacaciones
-  } = useVacaciones();
-  
-  const { sinRetorno, loading: loadingRetorno } = useRetornoSeguimiento(7);
+  const { marcas, loading, recargar, dias, setDias, desde, progreso } = useMarcas();
+  const [sorting, setSorting] = useState([]);
 
-  const {
-    marcas,
-    loading: loadingMarcas,
-    loadingMore,
-    hasMore,
-    cargarMas,
-    filters,
-    aplicarFiltros,
-    relojes,
-    recargar
-  } = useMarcas();
+  const relojes = useMemo(
+    () => [...new Set(marcas.map((m) => m.nombre_reloj).filter(Boolean))].sort(),
+    [marcas]
+  );
 
-  /* Removed handleSearch and searchTerm state */
-  
-  const handleFilterChange = (key, value) => {
-    // 'fecha' is a convenience key from the inline column filter
-    // that sets both fechaInicio and fechaFin to the same day
-    if (key === 'fecha') {
-      aplicarFiltros({ fechaInicio: value, fechaFin: value });
-      return;
-    }
-    aplicarFiltros({ [key]: value });
-  };
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "nombre_reloj",
+        header: "Reloj",
+        filterFn: "equalsString",
+        Filter: (col) => <SelectFilter column={col} options={relojes.map((r) => [r, r])} />,
+        cell: (info) => (
+          <span className="flex items-center gap-2 text-sm text-gray-600">
+            <span className="material-symbols-outlined text-gray-400 text-lg">watch</span>
+            {info.getValue()}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "nombre_completo",
+        header: "Nombre",
+        Filter: (col) => <TextFilter column={col} placeholder="Filtrar nombre..." />,
+        cell: (info) => (
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
+              {(info.getValue() || "").charAt(0)}
+            </div>
+            <span className="text-sm font-medium text-gray-900">{info.getValue()}</span>
+          </div>
+        ),
+      },
+      {
+        id: "rut",
+        accessorFn: (row) => (row.rut || "").split("-")[0],
+        header: "RUT",
+        Filter: (col) => <TextFilter column={col} placeholder="Filtrar RUT..." />,
+        cell: (info) => <span className="text-sm text-gray-500 font-mono">{info.getValue()}</span>,
+      },
+      {
+        accessorKey: "fecha",
+        header: "Fecha",
+        filterFn: "equalsString",
+        Filter: (col) => <DateFilter column={col} />,
+        cell: (info) => (
+          <span className="text-sm text-gray-900 font-medium">
+            {(info.getValue() || "").split("-").reverse().join("/")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "hora_marca",
+        header: "Hora Marca",
+        Filter: (col) => <TextFilter column={col} placeholder="Filtrar hora..." />,
+        cell: (info) => <span className="text-sm text-gray-900 font-medium">{info.getValue()}</span>,
+      },
+      {
+        accessorKey: "tipo_marca",
+        header: "Tipo de Marca",
+        filterFn: "equalsString",
+        Filter: (col) => (
+          <SelectFilter column={col} options={[["IN", "Entrada (IN)"], ["OUT", "Salida (OUT)"]]} />
+        ),
+        cell: (info) => {
+          const tipo = info.getValue();
+          return (
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                tipo === "IN" ? "bg-green-50 text-green-700" :
+                tipo === "OUT" ? "bg-gray-100 text-gray-700" : "bg-blue-50 text-blue-700"
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  tipo === "IN" ? "bg-green-500" : tipo === "OUT" ? "bg-gray-500" : "bg-blue-500"
+                }`}
+              ></span>
+              {tipo === "IN" ? "Entrada" : tipo === "OUT" ? "Salida" : tipo}
+            </span>
+          );
+        },
+      },
+    ],
+    [relojes]
+  );
+
+  const table = useReactTable({
+    data: marcas,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    initialState: { pagination: { pageSize: 50 } },
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
+  const totalFiltrado = table.getFilteredRowModel().rows.length;
+
+  // null mientras el backend no ha devuelto el total: barra indeterminada.
+  const pct = progreso.total
+    ? Math.min(100, Math.round((progreso.cargadas / progreso.total) * 100))
+    : null;
 
   return (
     <SidebarLayout>
       <main className="p-8">
-        {/* Top Header */}
-        <header className="flex justify-between items-center mb-8">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span className="material-symbols-outlined text-lg">home</span>
-                <span>/</span>
-                <span className="text-gray-900 font-medium">Dashboard</span>
-            </div>
-            <div className="flex items-center gap-4">
-                <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                    <span className="material-symbols-outlined">notifications</span>
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-                </button>
-                <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                    <span className="material-symbols-outlined">help</span>
-                </button>
-            </div>
+        <header className="flex items-center gap-2 text-sm text-gray-500 mb-8">
+          <span className="material-symbols-outlined text-lg">home</span>
+          <span>/</span>
+          <span className="text-gray-900 font-medium">Torniquetes</span>
         </header>
 
-        {/* Title Section */}
-        <div className="flex justify-between items-end mb-8">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">Gestión de Licencias y Asistencia</h1>
-                <p className="text-gray-500">Monitoreo en tiempo real de licencias médicas, vacaciones y control de asistencia.</p>
-            </div>
-            <div className="flex gap-3">
-                <div className="flex items-center gap-2">
-                    <div className="flex flex-col">
-                        <label className="text-[10px] text-gray-500 font-bold uppercase">Desde</label>
-                        <input 
-                            type="date" 
-                            className="bg-white border border-gray-200 rounded px-2 py-1 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            value={filters.fechaInicio || ''}
-                            onChange={(e) => handleFilterChange('fechaInicio', e.target.value)}
-                        />
-                    </div>
-                    <div className="flex flex-col">
-                        <label className="text-[10px] text-gray-500 font-bold uppercase">Hasta</label>
-                        <input 
-                            type="date" 
-                            className="bg-white border border-gray-200 rounded px-2 py-1 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            value={filters.fechaFin || ''}
-                            onChange={(e) => handleFilterChange('fechaFin', e.target.value)}
-                        />
-                    </div>
-                </div>
-                <div className="flex items-end">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 h-[38px]">
-                        <span className="material-symbols-outlined text-lg">download</span>
-                        Exportar Reporte
-                    </button>
-                </div>
-            </div>
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Marcajes de Torniquetes</h1>
+          <p className="text-gray-500">Monitoreo en tiempo real de registros de torniquetes.</p>
         </div>
 
-        {/* Tarjetas de licencias médicas y vacaciones */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Link to="/dashboard/licencias" target="_blank" className="cursor-pointer transition-transform hover:scale-[1.02]">
-                <StatCard
-                    title="Licencias activas"
-                    value={resumen.vigentes}
-                    subtext="Ver detalle completo"
-                    icon="check_circle"
-                    color="green"
-                    trend="up"
-                    trendValue={`${resumen.porVencer} por vencer`}
-                />
-            </Link>
-            <Link to="/dashboard/vacaciones" target="_blank" className="cursor-pointer transition-transform hover:scale-[1.02]">
-                <StatCard
-                    title="Vacaciones activas"
-                    value={resumenVacaciones.total}
-                    subtext="Ver detalle completo"
-                    icon="beach_access"
-                    color="#0ea5e9"
-                />
-            </Link>
-            <Link to="/dashboard/retorno" className="cursor-pointer transition-transform hover:scale-[1.02]">
-                <StatCard
-                    title="Retorno pendiente"
-                    value={loadingRetorno ? "…" : sinRetorno.length}
-                    subtext="Sin marcaje post-licencia"
-                    icon="assignment_late"
-                    color="#f59e0b"
-                    trend={sinRetorno.length > 0 ? "up" : undefined}
-                    trendValue={sinRetorno.length > 0 ? `${sinRetorno.length} sin marcar` : undefined}
-                />
-            </Link>
-        </div>
-
-
-
-        {/* Assistance Section */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-bold text-gray-900">Registro de Asistencia</h2>
-                <button 
-                    onClick={recargar}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                    title="Actualizar tabla"
-                >
-                    <span className="material-symbols-outlined">refresh</span>
-                </button>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-bold text-gray-900">Registro de Torniquetes</h2>
+            <div className="flex items-center gap-3">
+              <select
+                className="text-sm border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={dias}
+                onChange={(e) => setDias(Number(e.target.value))}
+                title="Rango de días a cargar"
+              >
+                <option value={0}>Hoy</option>
+                <option value={7}>Últimos 7 días</option>
+                <option value={14}>Últimas 2 semanas</option>
+                <option value={30}>Últimos 30 días</option>
+              </select>
+              <button
+                onClick={recargar}
+                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                title="Actualizar tabla"
+              >
+                <span className="material-symbols-outlined">refresh</span>
+              </button>
+            </div>
+          </div>
+
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <React.Fragment key={headerGroup.id}>
+                      <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold">
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            onClick={header.column.getToggleSortingHandler()}
+                            className="px-6 py-3 cursor-pointer select-none whitespace-nowrap"
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {{ asc: " ↑", desc: " ↓" }[header.column.getIsSorted()] ?? ""}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr className="bg-white border-b border-gray-100">
+                        {headerGroup.headers.map((header) => (
+                          <td key={header.id} className="px-6 py-2">
+                            {header.column.columnDef.Filter?.(header.column)}
+                          </td>
+                        ))}
+                      </tr>
+                    </React.Fragment>
+                  ))}
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={columns.length} className="px-6 py-10">
+                        <div className="max-w-sm mx-auto text-center">
+                          <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full bg-blue-600 rounded-full transition-[width] duration-300 ease-out ${
+                                pct === null ? "w-1/3 animate-pulse" : ""
+                              }`}
+                              style={pct === null ? undefined : { width: `${pct}%` }}
+                              role="progressbar"
+                              aria-valuenow={pct ?? undefined}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label="Cargando marcajes"
+                            ></div>
+                          </div>
+                          <p className="mt-3 text-sm text-gray-700 font-medium">
+                            {pct === null
+                              ? "Consultando marcajes…"
+                              : `${progreso.cargadas.toLocaleString("es-CL")} de ${progreso.total.toLocaleString("es-CL")} marcajes (${pct}%)`}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">Esto puede tardar unos minutos.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : table.getRowModel().rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={columns.length} className="px-6 py-8 text-center text-gray-500">
+                        No se encontraron registros.
+                      </td>
+                    </tr>
+                  ) : (
+                    table.getRowModel().rows.map((row) => (
+                      <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id} className="px-6 py-4">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
 
-            <AsistenciaTable 
-                marcas={marcas} 
-                loading={loadingMarcas} 
-                hasMore={hasMore} 
-                onLoadMore={cargarMas}
-                loadingMore={loadingMore}
-                filters={filters}
-                onFilterChange={handleFilterChange}
-                relojes={relojes}
-            />
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-sm text-gray-500">
+                {totalFiltrado} de {marcas.length} marcas desde el {desde}
+                {" · "}Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount() || 1}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => table.previousPage()}
+                  disabled={!table.getCanPreviousPage()}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Anterior
+                </button>
+                <button
+                  onClick={() => table.nextPage()}
+                  disabled={!table.getCanNextPage()}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-
       </main>
     </SidebarLayout>
   );

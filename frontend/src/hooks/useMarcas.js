@@ -1,133 +1,85 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { getMarcas, getRelojes } from '../services/marcas';
+import { useState, useEffect, useCallback } from 'react';
+import { getMarcas } from '../services/marcas';
 
-export const useMarcas = (initialLimit = 100) => {
-    const [marcas, setMarcas] = useState([]);
-    const [total, setTotal] = useState(0);
-    const [hasMore, setHasMore] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
+// El rango de fechas define cuántas marcas hay; se traen TODAS las del rango
+// paginando contra el backend, para que la UI muestre exactamente lo consultado.
+const PAGE_SIZE = 5000;
+
+// ponytail: caché de módulo, se pierde al recargar la página. Si hace falta que
+// sobreviva a F5 o compartirlo entre hooks, recién ahí TanStack Query.
+const TTL_MS = 5 * 60 * 1000;
+const cache = new Map(); // fechaInicio -> { marcas, ts }
+
+// Fecha local (no UTC): toISOString adelantaría un día en las tardes chilenas.
+const isoHace = (dias) => {
+    const d = new Date();
+    d.setDate(d.getDate() - dias);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const vigente = (fechaInicio) => {
+    const entrada = cache.get(fechaInicio);
+    return entrada && Date.now() - entrada.ts < TTL_MS ? entrada : null;
+};
+
+export const useMarcas = (diasIniciales = 14) => {
+    // Init desde el caché para no mostrar el spinner al volver al Dashboard.
+    const [marcas, setMarcas] = useState(() => vigente(isoHace(diasIniciales))?.marcas ?? []);
+    const [desde, setDesde] = useState(() => isoHace(diasIniciales));
+    const [dias, setDias] = useState(diasIniciales);
+    const [loading, setLoading] = useState(() => !vigente(isoHace(diasIniciales)));
     const [error, setError] = useState(null);
-    const [offset, setOffset] = useState(0);
-    const [relojes, setRelojes] = useState([]);
-    const [filters, setFilters] = useState({
-        fechaInicio: '',
-        fechaFin: '',
-        nombre: '',
-        rut: '',
-        reloj: '',
-        tipoMarca: ''
-    });
-    const limit = initialLimit;
+    const [progreso, setProgreso] = useState({ cargadas: 0, total: 0 });
 
-    // Keep a ref to always have the latest filters (avoids stale closures)
-    const filtersRef = useRef(filters);
-    filtersRef.current = filters;
+    const cargar = useCallback(async (rangoDias, { forzar = false } = {}) => {
+        const fechaInicio = isoHace(rangoDias);
+        setDesde(fechaInicio);
 
-    // Cargar lista de relojes al iniciar
-    useEffect(() => {
-        const cargarRelojes = async () => {
-            try {
-                const data = await getRelojes();
-                setRelojes(data);
-            } catch (err) {
-                console.error('Error cargando relojes:', err);
-            }
-        };
-        cargarRelojes();
-    }, []);
+        const cacheado = vigente(fechaInicio);
+        if (!forzar && cacheado) {
+            setMarcas(cacheado.marcas);
+            setError(null);
+            setLoading(false);
+            return;
+        }
 
-    const cargarMarcas = useCallback(async (filterOverride) => {
-        const activeFilters = filterOverride || filtersRef.current;
         try {
             setLoading(true);
             setError(null);
-            setOffset(0);
-            const response = await getMarcas({ 
-                limit, 
-                offset: 0,
-                fechaInicio: activeFilters.fechaInicio || undefined,
-                fechaFin: activeFilters.fechaFin || undefined,
-                nombre: activeFilters.nombre || undefined,
-                rut: activeFilters.rut || undefined,
-                reloj: activeFilters.reloj || undefined,
-                tipoMarca: activeFilters.tipoMarca || undefined
-            });
-            setMarcas(response.data);
-            setTotal(response.total);
-            setHasMore(response.has_more);
+
+            setProgreso({ cargadas: 0, total: 0 });
+
+            const todas = [];
+            let offset = 0;
+            let hayMas = true;
+            while (hayMas) {
+                const response = await getMarcas({ limit: PAGE_SIZE, offset, fechaInicio });
+                todas.push(...response.data);
+                offset += PAGE_SIZE;
+                hayMas = response.has_more;
+                setProgreso({ cargadas: todas.length, total: response.total });
+            }
+            cache.set(fechaInicio, { marcas: todas, ts: Date.now() });
+            setMarcas(todas);
         } catch (err) {
             setError(err.message);
         } finally {
             setLoading(false);
         }
-    }, [limit]);
-
-    const cargarMas = useCallback(async () => {
-        if (loadingMore || !hasMore) return;
-        
-        try {
-            setLoadingMore(true);
-            const newOffset = offset + limit;
-            const currentFilters = filtersRef.current;
-            const response = await getMarcas({ 
-                limit, 
-                offset: newOffset,
-                fechaInicio: currentFilters.fechaInicio || undefined,
-                fechaFin: currentFilters.fechaFin || undefined,
-                nombre: currentFilters.nombre || undefined,
-                rut: currentFilters.rut || undefined,
-                reloj: currentFilters.reloj || undefined,
-                tipoMarca: currentFilters.tipoMarca || undefined
-            });
-            setMarcas(prev => [...prev, ...response.data]);
-            setOffset(newOffset);
-            setHasMore(response.has_more);
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoadingMore(false);
-        }
-    }, [offset, limit, hasMore, loadingMore]);
-
-    const aplicarFiltros = useCallback((newFilters) => {
-        // Merge with current filters from ref to avoid stale state
-        const merged = { ...filtersRef.current, ...newFilters };
-        setFilters(merged);
-        filtersRef.current = merged;
-        cargarMarcas(merged);
-    }, [cargarMarcas]);
-
-    const limpiarFiltros = useCallback(() => {
-        const emptyFilters = {
-            fechaInicio: '',
-            fechaFin: '',
-            nombre: '',
-            rut: '',
-            reloj: '',
-            tipoMarca: ''
-        };
-        setFilters(emptyFilters);
-        filtersRef.current = emptyFilters;
-        cargarMarcas(emptyFilters);
-    }, [cargarMarcas]);
+    }, []);
 
     useEffect(() => {
-        cargarMarcas();
-    }, []);
+        cargar(dias);
+    }, [cargar, dias]);
 
     return {
         marcas,
-        total,
-        hasMore,
+        progreso,
+        desde,
+        dias,
+        setDias,
         loading,
-        loadingMore,
         error,
-        filters,
-        relojes,
-        recargar: () => cargarMarcas(filtersRef.current),
-        cargarMas,
-        aplicarFiltros,
-        limpiarFiltros
+        recargar: () => cargar(dias, { forzar: true }),
     };
 };

@@ -16,7 +16,7 @@ def read_relojes(db: Session = Depends(get_marcas_db)):
 
 @router.get("/")
 def read_marcas(
-    limit: int = Query(default=100, ge=1, le=500, description="Cantidad de registros"),
+    limit: int = Query(default=100, ge=1, le=25000, description="Cantidad de registros"),
     offset: int = Query(default=0, ge=0, description="Registros a saltar"),
     fecha_inicio: Optional[date] = Query(default=None, description="Fecha inicio del rango (YYYY-MM-DD)"),
     fecha_fin: Optional[date] = Query(default=None, description="Fecha fin del rango (YYYY-MM-DD)"),

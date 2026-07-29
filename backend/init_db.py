@@ -68,9 +68,9 @@ def seed_modules(db):
     modules_data = [
         {
             "codigo": "dashboard",
-            "nombre": "Dashboard",
-            "descripcion": "Panel de control con licencias y marcas",
-            "icono": "📊",
+            "nombre": "Torniquetes",
+            "descripcion": "Marcajes de entrada y salida registrados en los torniquetes",
+            "icono": "🚪",
             "ruta": "/dashboard",
             "orden": 1,
             "activo": True

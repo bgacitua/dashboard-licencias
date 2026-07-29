@@ -3,9 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const allMenuItems = [
-  { icon: 'dashboard',            label: 'Dashboard',              path: '/dashboard',           module: 'dashboard' },
-  { icon: 'medical_services',     label: 'Licencias Médicas',      path: '/dashboard/licencias', module: 'dashboard' },
-  { icon: 'beach_access',         label: 'Vacaciones Activas',     path: '/dashboard/vacaciones',module: 'dashboard' },
+  { icon: 'sensor_door',          label: 'Torniquetes',            path: '/dashboard',           module: 'dashboard' },
   { icon: 'description',          label: 'Generador Finiquitos',   path: '/finiquitos',          module: 'finiquitos' },
   { icon: 'calculate',            label: 'Calculadora Sueldos',    path: '/calculadora',         module: 'calculadora' },
   { icon: 'wallet',               label: 'Costos por Área',        path: '/costos',              module: 'costos' },
