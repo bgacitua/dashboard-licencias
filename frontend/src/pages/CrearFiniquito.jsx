@@ -1196,10 +1196,37 @@ const CrearFiniquito = () => {
 
 
   if (loading) {
+    // ponytail: skeleton estático con animate-pulse; sin librería de skeletons
+    const bar = "bg-gray-200 rounded animate-pulse";
     return (
-      <div className="flex min-h-screen bg-[#f8f9fa] items-center justify-center">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
+      <SidebarLayout>
+        <main className="p-8">
+          <div className={`${bar} h-8 w-72 mb-2`} />
+          <p className="text-gray-500 mb-8">Lo bueno tarda en llegar...</p>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4">
+                  <div className={`${bar} h-5 w-48`} />
+                  <div className={`${bar} h-10 w-full`} />
+                  <div className={`${bar} h-10 w-full`} />
+                  <div className={`${bar} h-10 w-2/3`} />
+                </div>
+              ))}
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4 h-fit">
+              <div className={`${bar} h-5 w-32`} />
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex justify-between gap-4">
+                  <div className={`${bar} h-4 w-32`} />
+                  <div className={`${bar} h-4 w-20`} />
+                </div>
+              ))}
+              <div className={`${bar} h-12 w-full`} />
+            </div>
+          </div>
+        </main>
+      </SidebarLayout>
     );
   }
 
