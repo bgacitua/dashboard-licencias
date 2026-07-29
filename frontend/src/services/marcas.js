@@ -20,16 +20,3 @@ export const getMarcas = async (params = {}) => {
     }
     return response.json();
 };
-
-export const getRelojes = async () => {
-    const response = await fetch(`${API_BASE_URL}/marcas/relojes`);
-    if (!response.ok) {
-        throw new Error('Error al obtener los relojes');
-    }
-    return response.json();
-};
-
-// Función legacy para compatibilidad
-export const getMarcasHoy = async (limit = 100, offset = 0) => {
-    return getMarcas({ limit, offset });
-};
