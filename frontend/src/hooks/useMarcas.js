@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getMarcas } from '../services/marcas';
 
-// ponytail: se traen las marcas de los últimos N días (máx. 2000, las más recientes)
-// y TanStack Table filtra en cliente. Si hace falta el histórico completo (~90k),
-// volver a filtrar en backend.
-const LIMIT = 2000;
+// ponytail: se traen las marcas de los últimos N días (máx. 25000, las más recientes)
+// y TanStack Table filtra en cliente. Si el rango típico llega a superar eso,
+// volver a filtrar en backend en vez de subir más el techo.
+const LIMIT = 25000;
 
 // Fecha local (no UTC): toISOString adelantaría un día en las tardes chilenas.
 const isoHace = (dias) => {
@@ -20,15 +20,20 @@ export const useMarcas = (diasIniciales = 14) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const cargar = useCallback(async (rango) => {
+    const [rango, setRango] = useState({ desde: '', hasta: '' });
+
+    const cargar = useCallback(async (dias) => {
+        const desde = isoHace(dias);
+        const hasta = isoHace(0);
         try {
             setLoading(true);
             setError(null);
+            setRango({ desde, hasta });
             const response = await getMarcas({
                 limit: LIMIT,
                 offset: 0,
-                fechaInicio: isoHace(rango),
-                fechaFin: isoHace(0),
+                fechaInicio: desde,
+                fechaFin: hasta,
             });
             setMarcas(response.data);
             setTotal(response.total);
@@ -46,6 +51,7 @@ export const useMarcas = (diasIniciales = 14) => {
     return {
         marcas,
         total,
+        rango,
         truncado: total > marcas.length,
         dias,
         setDias,

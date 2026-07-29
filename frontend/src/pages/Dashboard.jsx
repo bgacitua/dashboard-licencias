@@ -46,7 +46,7 @@ const DateFilter = ({ column }) => (
 );
 
 const Dashboard = () => {
-  const { marcas, loading, recargar, dias, setDias, truncado } = useMarcas();
+  const { marcas, loading, recargar, dias, setDias, truncado, rango } = useMarcas();
   const [sorting, setSorting] = useState([]);
 
   const relojes = useMemo(
@@ -173,7 +173,7 @@ const Dashboard = () => {
                 onChange={(e) => setDias(Number(e.target.value))}
                 title="Rango de días a cargar"
               >
-                <option value={1}>Hoy</option>
+                <option value={0}>Hoy</option>
                 <option value={7}>Últimos 7 días</option>
                 <option value={14}>Últimas 2 semanas</option>
                 <option value={30}>Últimos 30 días</option>
@@ -190,7 +190,7 @@ const Dashboard = () => {
 
           {truncado && (
             <p className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-              Rango recortado a las 2000 marcas más recientes. Reduce el rango de días para ver el detalle completo.
+              Rango recortado a las 25.000 marcas más recientes. Reduce el rango de días para ver el detalle completo.
             </p>
           )}
 
@@ -253,7 +253,8 @@ const Dashboard = () => {
 
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
               <span className="text-sm text-gray-500">
-                {totalFiltrado} resultados · Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount() || 1}
+                {totalFiltrado} de {marcas.length} marcas cargadas ({rango.desde} → {rango.hasta})
+                {" · "}Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount() || 1}
               </span>
               <div className="flex gap-2">
                 <button
