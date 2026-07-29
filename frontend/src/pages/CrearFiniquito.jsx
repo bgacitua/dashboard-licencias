@@ -457,7 +457,7 @@ const CrearFiniquito = () => {
   const [variableCustomAdditions, setVariableCustomAdditions] = useState({}); // Custom manual additions for variable bonus: { [concepto]: [{ id, descripcion, amount, active }] }
   const [variableFilledActive, setVariableFilledActive] = useState({}); // Active state for filled (zero) months per concepto: { "Concepto-YYYY-MM": boolean }
   const [variableGroupsCollapsed, setVariableGroupsCollapsed] = useState({}); // Collapse state per group: { [concepto]: true } = collapsed
-  const [licenciasTableCollapsed, setLicenciasTableCollapsed] = useState(false); // Collapse state for Licencias recientes table
+  const [licenciasTableCollapsed, setLicenciasTableCollapsed] = useState(true); // Colapsada por defecto
   const [licenciasLimit, setLicenciasLimit] = useState(15); // TOP N (5, 10, 15, 20, 30, 50)
   const [licenciasOrder, setLicenciasOrder] = useState("desc"); // 'desc' = más recientes primero, 'asc' = ascendente
   const [newCustomItems, setNewCustomItems] = useState({}); // Temporary state for new manual item inputs per concept: { [concepto]: { description: '', amount: '' } }
@@ -656,12 +656,22 @@ const CrearFiniquito = () => {
             let desc = item.concepto || "";
             if (desc === "Prestamo Interno") desc = "Préstamo Interno";
             if (desc === "Descuento Por Planilla") desc = "Descuento por planilla";
+            // El backend entrega el préstamo interno expresado en UF. Lo mostramos en
+            // pesos por defecto, así que hay que convertir el monto además de la moneda;
+            // cambiar solo la moneda leería las UF como pesos.
+            const esPrestamoUF = desc === "Préstamo Interno";
+            const montoOriginal = item.monto || 0;
             return {
               descripcion: desc,
               detalle: item.detalle || "",
-              monto: item.monto || 0,
+              monto:
+                esPrestamoUF && ufValueResolved
+                  ? Math.round(montoOriginal * ufValueResolved)
+                  : montoOriginal,
               cuotas: 1,
-              moneda: desc === "Préstamo Interno" ? "UF" : "CLP",
+              // Sin valor UF no se puede convertir; en ese caso se deja en UF para no
+              // mostrar un monto falso, y el usuario cambia la moneda a mano.
+              moneda: esPrestamoUF && !ufValueResolved ? "UF" : "CLP",
             };
           });
           setDescuentosPersonalizados(mappedDescuentos);
@@ -2318,7 +2328,12 @@ const CrearFiniquito = () => {
         <div hidden={tabActiva !== 1}>
 
         {/* Recent Licenses Table (collapsible, shows all 15 from backend) */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+        {/* Colapsada ocupa solo lo necesario; expandida vuelve al ancho completo por la tabla */}
+        <div
+          className={`bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6 ${
+            licenciasTableCollapsed ? "max-w-md" : ""
+          }`}
+        >
           <div
             className="flex items-center gap-2 mb-6 cursor-pointer select-none"
             onClick={() => setLicenciasTableCollapsed((c) => !c)}
@@ -3011,6 +3026,10 @@ const CrearFiniquito = () => {
             <h3 className="text-lg font-bold text-gray-900">
               Compensación y Vacaciones
             </h3>
+            <span className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-medium">
+              <span className="material-symbols-outlined text-sm">info</span>
+              Recuerda ajustar
+            </span>
           </div>
 
           <div className="grid grid-cols-2 gap-6 mb-6">
