@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getMarcas } from '../services/marcas';
 
-// ponytail: se traen las marcas de los últimos N días (máx. 25000, las más recientes)
-// y TanStack Table filtra en cliente. Si el rango típico llega a superar eso,
-// volver a filtrar en backend en vez de subir más el techo.
-const LIMIT = 25000;
+// El rango de fechas define cuántas marcas hay; se traen TODAS las del rango
+// paginando contra el backend, para que la UI muestre exactamente lo consultado.
+const PAGE_SIZE = 5000;
 
 // Fecha local (no UTC): toISOString adelantaría un día en las tardes chilenas.
 const isoHace = (dias) => {
@@ -15,28 +14,28 @@ const isoHace = (dias) => {
 
 export const useMarcas = (diasIniciales = 14) => {
     const [marcas, setMarcas] = useState([]);
-    const [total, setTotal] = useState(0);
+    const [desde, setDesde] = useState('');
     const [dias, setDias] = useState(diasIniciales);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const [rango, setRango] = useState({ desde: '', hasta: '' });
-
-    const cargar = useCallback(async (dias) => {
-        const desde = isoHace(dias);
-        const hasta = isoHace(0);
+    const cargar = useCallback(async (rangoDias) => {
+        const fechaInicio = isoHace(rangoDias);
         try {
             setLoading(true);
             setError(null);
-            setRango({ desde, hasta });
-            const response = await getMarcas({
-                limit: LIMIT,
-                offset: 0,
-                fechaInicio: desde,
-                fechaFin: hasta,
-            });
-            setMarcas(response.data);
-            setTotal(response.total);
+            setDesde(fechaInicio);
+
+            const todas = [];
+            let offset = 0;
+            let hayMas = true;
+            while (hayMas) {
+                const response = await getMarcas({ limit: PAGE_SIZE, offset, fechaInicio });
+                todas.push(...response.data);
+                offset += PAGE_SIZE;
+                hayMas = response.has_more;
+            }
+            setMarcas(todas);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -50,9 +49,7 @@ export const useMarcas = (diasIniciales = 14) => {
 
     return {
         marcas,
-        total,
-        rango,
-        truncado: total > marcas.length,
+        desde,
         dias,
         setDias,
         loading,
