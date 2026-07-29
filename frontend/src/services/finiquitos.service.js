@@ -1,6 +1,12 @@
 import axios from "axios";
+import { getToken } from "./auth";
 
 const API_URL = "/api/v1/finiquitos";
+
+const authHeaders = () => {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 const FiniquitosService = {
   getTrabajadoresGeneral: async () => {
@@ -22,6 +28,40 @@ const FiniquitosService = {
 
   getDescuentosByRut: async (rut) => {
     const response = await axios.get(`${API_URL}/${rut}/descuentos`);
+    return response.data;
+  },
+
+  // --- Estado del proceso de desvinculación ---
+
+  // Devuelve null si aún no hay proceso guardado (404), en vez de reventar.
+  getProceso: async (rut) => {
+    try {
+      const response = await axios.get(`${API_URL}/${rut}/proceso`, {
+        headers: authHeaders(),
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 404) return null;
+      throw error;
+    }
+  },
+
+  guardarProceso: async (rut, { causal, fechaTermino, payload }) => {
+    const response = await axios.put(
+      `${API_URL}/${rut}/proceso`,
+      { causal, fecha_termino: fechaTermino || null, payload_json: payload },
+      { headers: authHeaders() },
+    );
+    return response.data;
+  },
+
+  // hito: 'carta' | 'finiquito' | 'correo'
+  marcarHito: async (rut, hito) => {
+    const response = await axios.post(
+      `${API_URL}/${rut}/proceso/hito`,
+      { hito },
+      { headers: authHeaders() },
+    );
     return response.data;
   },
 

@@ -389,6 +389,7 @@ const CrearFiniquito = () => {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState(null);
+  const [proceso, setProceso] = useState(null); // estado persistido de la desvinculación
 
   // Form State
   const [terminationReason, setTerminationReason] = useState("");
@@ -668,31 +669,60 @@ const CrearFiniquito = () => {
     }
   }, [rut, licenciasLimit, licenciasOrder, itemsLimit, itemsRefreshToken]);
 
-  // Restaurar datos del formulario cuando se navega de vuelta desde el visualizador
+  // Restaurar datos del formulario: primero el proceso guardado en BD (sobrevive al cierre
+  // del navegador), y si no hay, el sessionStorage que usa el visualizador como transporte.
   useEffect(() => {
-    if (location.state?.preserveData) {
-      const savedData = sessionStorage.getItem(`finiquito_${rut}`);
-      if (savedData) {
-        const data = JSON.parse(savedData);
-        // Restaurar valores del formulario
-        if (data.lastDayWork) setLastDayWork(data.lastDayWork);
-        if (data.terminationReason)
-          setTerminationReason(data.terminationReason);
-        if (data.noticeGiven !== undefined) setNoticeGiven(data.noticeGiven);
-        if (data.selectedManager?.id)
-          setSelectedManager(data.selectedManager.id);
-        if (data.vacationDays) setVacationDays(data.vacationDays);
-        if (data.yearsForIndemnity)
-          setYearsForIndemnity(data.yearsForIndemnity);
-        // Restaurar descuentos personalizados si existen
-        if (data.descuentosPersonalizados)
-          setDescuentosPersonalizados(data.descuentosPersonalizados);
-        if (data.aporteCesantia) setAporteCesantia(data.aporteCesantia);
-        if (data.ufValue) setUfValue(data.ufValue); // Restore stored UF
-        console.log("Datos del formulario restaurados desde sessionStorage");
+    const aplicar = (data) => {
+      if (!data) return false;
+      if (data.lastDayWork) setLastDayWork(data.lastDayWork);
+      if (data.terminationReason) setTerminationReason(data.terminationReason);
+      if (data.noticeGiven !== undefined) setNoticeGiven(data.noticeGiven);
+      if (data.selectedManager?.id) setSelectedManager(data.selectedManager.id);
+      if (data.vacationDays) setVacationDays(data.vacationDays);
+      if (data.yearsForIndemnity) setYearsForIndemnity(data.yearsForIndemnity);
+      if (data.descuentosPersonalizados)
+        setDescuentosPersonalizados(data.descuentosPersonalizados);
+      if (data.aporteCesantia) setAporteCesantia(data.aporteCesantia);
+      if (data.ufValue) setUfValue(data.ufValue);
+      return true;
+    };
+
+    const restaurar = async () => {
+      try {
+        const proceso = await FiniquitosService.getProceso(rut);
+        setProceso(proceso);
+        if (aplicar(proceso?.payload_json)) {
+          console.log("Formulario restaurado desde el proceso guardado");
+          return;
+        }
+      } catch (e) {
+        console.warn("No se pudo leer el proceso guardado:", e);
       }
-    }
+      if (location.state?.preserveData) {
+        const savedData = sessionStorage.getItem(`finiquito_${rut}`);
+        if (savedData && aplicar(JSON.parse(savedData))) {
+          console.log("Formulario restaurado desde sessionStorage");
+        }
+      }
+    };
+
+    if (rut) restaurar();
   }, [location.state, rut]);
+
+  // Guarda el formulario y sella el hito ('carta' | 'finiquito'). Nunca lanza:
+  // registrar el proceso no debe impedir que el usuario obtenga su documento.
+  const persistirProceso = async (payload, hito) => {
+    try {
+      await FiniquitosService.guardarProceso(rut, {
+        causal: terminationReason,
+        fechaTermino: lastDayWork,
+        payload,
+      });
+      setProceso(await FiniquitosService.marcarHito(rut, hito));
+    } catch (e) {
+      console.warn(`No se pudo registrar el hito '${hito}' del proceso:`, e);
+    }
+  };
 
   // Helper function: Parse date string as local date (avoids UTC timezone issues)
   // When parsing "2026-02-02", JS interprets as UTC midnight, which becomes previous day in local time
@@ -1564,6 +1594,10 @@ const CrearFiniquito = () => {
       } catch (e) {
         console.warn("No se pudo guardar finiquito en sessionStorage:", e);
       }
+
+      // Persistir el proceso y sellar el hito. El registro no es requisito para generar
+      // el documento: si falla, el usuario ya tiene su carta.
+      persistirProceso(finiquitoData, "carta");
     } catch (err) {
       console.error("Error al generar finiquito:", err);
       alert("Ocurrió un error al generar el finiquito. Revise la consola para más detalles.");
@@ -1894,6 +1928,9 @@ const CrearFiniquito = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(blobUrl);
+
+      // El documento ya está descargado; el registro va después y no lo condiciona.
+      persistirProceso(proceso?.payload_json || null, "finiquito");
     } catch (err) {
       console.error("Error al generar documento Word:", err);
       if (err?.properties?.errors?.length) {
