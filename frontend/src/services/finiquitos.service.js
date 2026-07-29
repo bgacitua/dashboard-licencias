@@ -46,10 +46,16 @@ const FiniquitosService = {
     }
   },
 
-  guardarProceso: async (rut, { causal, fechaTermino, payload }) => {
+  // `total` se manda solo al generar la carta: omitirlo conserva el monto congelado.
+  guardarProceso: async (rut, { causal, fechaTermino, payload, total }) => {
     const response = await axios.put(
       `${API_URL}/${rut}/proceso`,
-      { causal, fecha_termino: fechaTermino || null, payload_json: payload },
+      {
+        causal,
+        fecha_termino: fechaTermino || null,
+        payload_json: payload,
+        total_finiquito: total ?? null,
+      },
       { headers: authHeaders() },
     );
     return response.data;

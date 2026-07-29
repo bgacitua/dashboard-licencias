@@ -9,7 +9,7 @@ from app.core.logging_config import logger
 # Columnas devueltas por todas las lecturas. Se listan explícitamente para que el
 # schema de respuesta no dependa del orden físico de la tabla.
 _COLUMNS = """
-    rut, causal, fecha_termino, payload_json,
+    rut, causal, fecha_termino, payload_json, total_finiquito,
     carta_generada_at, finiquito_generado_at, correo_enviado_at,
     created_by, updated_at
 """
@@ -33,20 +33,24 @@ class DesvinculacionRepository:
         fecha_termino: Optional[Any],
         payload_json: Optional[Dict[str, Any]],
         created_by: Optional[str],
+        total_finiquito: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Crea o actualiza el proceso del trabajador. `created_by` solo se fija en el INSERT:
         quien abrió el proceso no cambia porque otro usuario lo edite después."""
         query = text(f"""
             INSERT INTO app.desvinculacion_proceso
-                (rut, causal, fecha_termino, payload_json, created_by)
+                (rut, causal, fecha_termino, payload_json, total_finiquito, created_by)
             VALUES
-                (:rut, :causal, :fecha_termino, CAST(:payload_json AS jsonb), :created_by)
+                (:rut, :causal, :fecha_termino, CAST(:payload_json AS jsonb),
+                 :total_finiquito, :created_by)
             ON CONFLICT (rut) DO UPDATE SET
                 -- COALESCE: un campo omitido en el request conserva lo guardado en vez de
                 -- borrarlo. Para vaciar un campo hay que hacerlo desde el formulario.
                 causal        = COALESCE(EXCLUDED.causal, desvinculacion_proceso.causal),
                 fecha_termino = COALESCE(EXCLUDED.fecha_termino, desvinculacion_proceso.fecha_termino),
                 payload_json  = COALESCE(EXCLUDED.payload_json, desvinculacion_proceso.payload_json),
+                -- Solo se re-congela cuando el request trae un total nuevo (al generar carta).
+                total_finiquito = COALESCE(EXCLUDED.total_finiquito, desvinculacion_proceso.total_finiquito),
                 updated_at    = NOW()
             RETURNING {_COLUMNS}
         """)
@@ -57,6 +61,7 @@ class DesvinculacionRepository:
                 "causal": causal,
                 "fecha_termino": fecha_termino,
                 "payload_json": json.dumps(payload_json) if payload_json is not None else None,
+                "total_finiquito": total_finiquito,
                 "created_by": created_by,
             },
         ).mappings().first()

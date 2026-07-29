@@ -9,6 +9,8 @@ class DesvinculacionUpsert(BaseModel):
     causal: Optional[str] = None
     fecha_termino: Optional[date] = None
     payload_json: Optional[Dict[str, Any]] = None
+    # Total congelado al generar la carta. Omitirlo conserva el valor anterior.
+    total_finiquito: Optional[float] = None
 
 
 class DesvinculacionHito(BaseModel):
@@ -21,6 +23,7 @@ class DesvinculacionResponse(BaseModel):
     causal: Optional[str] = None
     fecha_termino: Optional[date] = None
     payload_json: Optional[Dict[str, Any]] = None
+    total_finiquito: Optional[float] = None
     carta_generada_at: Optional[datetime] = None
     finiquito_generado_at: Optional[datetime] = None
     correo_enviado_at: Optional[datetime] = None

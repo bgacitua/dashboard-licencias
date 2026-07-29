@@ -42,6 +42,7 @@ class DesvinculacionService:
             fecha_termino=data.fecha_termino,
             payload_json=data.payload_json,
             created_by=created_by,
+            total_finiquito=data.total_finiquito,
         )
         return {**row, "estado": derivar_estado(row)}
 

@@ -391,6 +391,12 @@ const CrearFiniquito = () => {
   const [employee, setEmployee] = useState(null);
   const [proceso, setProceso] = useState(null); // estado persistido de la desvinculación
   const [tabActiva, setTabActiva] = useState(0); // solo UI: no se persiste
+
+  // Cambiar de paso vuelve al tope: si no, entras al paso nuevo a media altura.
+  const irATab = (i) => {
+    setTabActiva(i);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   // Toggles variables por aplicar. Es estado y no ref porque el proceso guardado y los items
   // de la API llegan en orden impredecible: quien llegue segundo debe disparar el efecto.
   const [variableActivePorAplicar, setVariableActivePorAplicar] = useState(null);
@@ -738,12 +744,13 @@ const CrearFiniquito = () => {
 
   // Guarda el formulario y sella el hito ('carta' | 'finiquito'). Nunca lanza:
   // registrar el proceso no debe impedir que el usuario obtenga su documento.
-  const persistirProceso = async (payload, hito) => {
+  const persistirProceso = async (payload, hito, total) => {
     try {
       await FiniquitosService.guardarProceso(rut, {
         causal: terminationReason,
         fechaTermino: lastDayWork,
         payload,
+        total,
       });
       setProceso(await FiniquitosService.marcarHito(rut, hito));
     } catch (e) {
@@ -1632,7 +1639,8 @@ const CrearFiniquito = () => {
 
       // Persistir el proceso y sellar el hito. El registro no es requisito para generar
       // el documento: si falla, el usuario ya tiene su carta.
-      persistirProceso(finiquitoData, "carta");
+      // El total se congela aquí: es el monto de la carta que el usuario acaba de generar.
+      persistirProceso(finiquitoData, "carta", Math.round(totalSettlement));
     } catch (err) {
       console.error("Error al generar finiquito:", err);
       alert("Ocurrió un error al generar el finiquito. Revise la consola para más detalles.");
@@ -1980,6 +1988,12 @@ const CrearFiniquito = () => {
     }
   };
 
+  // Variación del total respecto al monto congelado al generar la última carta.
+  // null mientras no haya carta generada: sin referencia no hay nada que comparar.
+  const totalCongelado = proceso?.total_finiquito ?? null;
+  const variacionTotal =
+    totalCongelado != null ? Math.round(totalSettlement) - Math.round(totalCongelado) : 0;
+
   // Pestañas del proceso. `listo` marca ✓ en la barra; hoy solo el primer paso tiene
   // campos obligatorios (los mismos que valida handleGenerate).
   const TABS = [
@@ -2076,7 +2090,7 @@ const CrearFiniquito = () => {
           {TABS.map((t, i) => (
             <button
               key={t.nombre}
-              onClick={() => setTabActiva(i)}
+              onClick={() => irATab(i)}
               className={`flex-1 min-w-[150px] px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition-colors ${
                 tabActiva === i
                   ? "border-blue-600 text-blue-600 bg-blue-50/50"
@@ -2092,6 +2106,32 @@ const CrearFiniquito = () => {
             </button>
           ))}
         </div>
+
+        {/* Alerta de variación del monto. Fuera de las pestañas: el total puede cambiar
+            desde cualquier paso y el usuario tiene que verlo sin ir a buscarlo. */}
+        {variacionTotal !== 0 && (
+          <div className="bg-red-50 border border-red-200 p-4 rounded-xl mb-6 flex items-start gap-3">
+            <span className="material-symbols-outlined text-red-600">priority_high</span>
+            <div className="text-sm">
+              <p className="font-bold text-red-800">
+                El total cambió respecto a la carta generada
+              </p>
+              <p className="text-red-700 mt-1">
+                Carta del {new Date(proceso.carta_generada_at).toLocaleString("es-CL")}:{" "}
+                <strong>$ {Math.round(totalCongelado).toLocaleString("es-CL")}</strong> · Ahora:{" "}
+                <strong>$ {Math.round(totalSettlement).toLocaleString("es-CL")}</strong> ·
+                Diferencia:{" "}
+                <strong>
+                  {variacionTotal > 0 ? "+" : "−"} $
+                  {Math.abs(variacionTotal).toLocaleString("es-CL")}
+                </strong>
+              </p>
+              <p className="text-red-600 text-xs mt-1">
+                Genera la carta de nuevo para congelar el monto actual.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* --- Paso 1: Datos y término --- */}
         <div hidden={tabActiva !== 0}>
@@ -3545,7 +3585,7 @@ const CrearFiniquito = () => {
         )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-4 pb-12">
+        <div className="flex justify-end gap-4 pb-6">
           <button
             onClick={() => navigate("/finiquitos")}
             className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
@@ -3568,6 +3608,32 @@ const CrearFiniquito = () => {
           </button>
         </div>
 
+        </div>
+
+        {/* Navegación entre pasos. `sticky bottom-0` la deja siempre en el mismo lugar,
+            visible sin importar cuánto mida el paso actual. */}
+        <div className="sticky bottom-0 -mx-8 px-8 py-4 bg-white/95 backdrop-blur border-t border-gray-200 flex items-center justify-between">
+          <button
+            onClick={() => irATab(tabActiva - 1)}
+            disabled={tabActiva === 0}
+            className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-lg">chevron_left</span>
+            Anterior
+          </button>
+
+          <span className="text-sm text-gray-500">
+            Paso {tabActiva + 1} de {TABS.length} · {TABS[tabActiva].nombre}
+          </span>
+
+          <button
+            onClick={() => irATab(tabActiva + 1)}
+            disabled={tabActiva === TABS.length - 1}
+            className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            Siguiente
+            <span className="material-symbols-outlined text-lg">chevron_right</span>
+          </button>
         </div>
       </main>
     </SidebarLayout>
