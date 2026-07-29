@@ -14,7 +14,7 @@ export const getMarcas = async (params = {}) => {
     if (reloj) queryParams.append('reloj', reloj);
     if (tipoMarca) queryParams.append('tipo_marca', tipoMarca);
     
-    const response = await fetch(`${API_BASE_URL}/marcas?${queryParams.toString()}`);
+    const response = await fetch(`${API_BASE_URL}/marcas/?${queryParams.toString()}`);
     if (!response.ok) {
         throw new Error('Error al obtener las marcas');
     }
