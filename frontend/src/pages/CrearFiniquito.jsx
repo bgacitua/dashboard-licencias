@@ -2066,10 +2066,6 @@ const CrearFiniquito = () => {
                 Formulario de generación de finiquito
               </p>
             </div>
-            <div className="bg-orange-50 text-orange-700 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 border border-orange-100">
-              <span className="material-symbols-outlined text-lg">warning</span>
-              Aprobación pendiente
-            </div>
           </div>
         </div>
 

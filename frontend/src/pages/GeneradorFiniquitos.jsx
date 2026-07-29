@@ -13,6 +13,36 @@ const GeneradorFiniquitos = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRut, setSelectedRut] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [procesos, setProcesos] = useState([]);
+  // null = sin filtro; si no, la clave de la tarjeta activa.
+  const [filtro, setFiltro] = useState(null);
+
+  // Tarjetas de resumen sobre los procesos de desvinculación guardados.
+  const RESUMEN = [
+    {
+      clave: "activos",
+      titulo: "Procesos activos",
+      // Activo = le falta al menos uno de los tres hitos (carta, finiquito, correo).
+      test: (p) =>
+        !(p.carta_generada_at && p.finiquito_generado_at && p.correo_enviado_at),
+      color: "border-blue-500",
+      icono: "pending_actions",
+    },
+    {
+      clave: "finiquitos",
+      titulo: "Finiquitos pendientes",
+      test: (p) => !p.finiquito_generado_at,
+      color: "border-amber-500",
+      icono: "description",
+    },
+    {
+      clave: "correos",
+      titulo: "Correos no enviados",
+      test: (p) => !p.correo_enviado_at,
+      color: "border-rose-500",
+      icono: "mail",
+    },
+  ];
 
   // ponytail: fecha_ingreso llega como 'YYYY-MM-DD' o ISO; sin librería de fechas
   const formatFecha = (fecha) => {
@@ -23,7 +53,16 @@ const GeneradorFiniquitos = () => {
 
   useEffect(() => {
     fetchEmployees();
+    fetchProcesos();
   }, []);
+
+  const fetchProcesos = async () => {
+    try {
+      setProcesos(await FiniquitosService.getProcesos());
+    } catch (error) {
+      console.error("Error fetching procesos:", error);
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
@@ -87,6 +126,13 @@ const GeneradorFiniquitos = () => {
     return pages;
   };
 
+  const nombrePorRut = Object.fromEntries(
+    employees.map((e) => [e.rut_trabajador, e.nombre_trabajador]),
+  );
+  const tarjetaActiva = RESUMEN.find((c) => c.clave === filtro);
+  const procesosFiltrados = tarjetaActiva ? procesos.filter(tarjetaActiva.test) : [];
+  const fmtHito = (ts) => (ts ? new Date(ts).toLocaleDateString("es-CL") : "—");
+
   return (
     <SidebarLayout>
       <main className="p-8">
@@ -97,6 +143,86 @@ const GeneradorFiniquitos = () => {
             <p className="text-gray-500">Selecciona los trabajadores para generar su finiquito.</p>
           </div>
         </div>
+
+        {/* Tarjetas de resumen: clic filtra, clic de nuevo quita el filtro */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          {RESUMEN.map((c) => (
+            <button
+              key={c.clave}
+              onClick={() => setFiltro(filtro === c.clave ? null : c.clave)}
+              aria-pressed={filtro === c.clave}
+              className={`text-left bg-white p-4 rounded-xl shadow-sm border border-gray-100 border-l-4 ${c.color} hover:shadow-md transition-all ${
+                filtro === c.clave ? "ring-2 ring-blue-500" : ""
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500 font-medium">{c.titulo}</p>
+                <span className="material-symbols-outlined text-gray-400">{c.icono}</span>
+              </div>
+              <p className="text-3xl font-bold text-gray-900 mt-1">
+                {procesos.filter(c.test).length}
+              </p>
+            </button>
+          ))}
+        </div>
+
+        {/* Listado del filtro activo */}
+        {tarjetaActiva && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <h2 className="font-semibold text-gray-900">
+                {tarjetaActiva.titulo}{" "}
+                <span className="text-gray-400 font-normal">({procesosFiltrados.length})</span>
+              </h2>
+              <button
+                onClick={() => setFiltro(null)}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Limpiar filtro
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold">
+                    <th className="p-3">Nombre</th>
+                    <th className="p-3">RUT</th>
+                    <th className="p-3">Estado</th>
+                    <th className="p-3">Carta</th>
+                    <th className="p-3">Finiquito</th>
+                    <th className="p-3">Correo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {procesosFiltrados.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="p-6 text-center text-gray-500">
+                        Sin registros en esta categoría.
+                      </td>
+                    </tr>
+                  ) : (
+                    procesosFiltrados.map((p) => (
+                      <tr
+                        key={p.rut}
+                        onClick={() => navigate(`/finiquitos/crear/${p.rut}`)}
+                        className="cursor-pointer hover:bg-gray-50 transition-colors text-sm"
+                      >
+                        <td className="p-3 font-medium text-gray-900">
+                          {nombrePorRut[p.rut] || "—"}
+                        </td>
+                        <td className="p-3 font-mono text-gray-600">{p.rut}</td>
+                        <td className="p-3 text-gray-600">{p.estado}</td>
+                        <td className="p-3 text-gray-500">{fmtHito(p.carta_generada_at)}</td>
+                        <td className="p-3 text-gray-500">{fmtHito(p.finiquito_generado_at)}</td>
+                        <td className="p-3 text-gray-500">{fmtHito(p.correo_enviado_at)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Filters Bar */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center justify-between">
