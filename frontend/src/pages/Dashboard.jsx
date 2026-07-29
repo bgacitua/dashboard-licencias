@@ -46,7 +46,7 @@ const DateFilter = ({ column }) => (
 );
 
 const Dashboard = () => {
-  const { marcas, loading, recargar, dias, setDias, desde } = useMarcas();
+  const { marcas, loading, recargar, dias, setDias, desde, progreso } = useMarcas();
   const [sorting, setSorting] = useState([]);
 
   const relojes = useMemo(
@@ -149,6 +149,11 @@ const Dashboard = () => {
 
   const totalFiltrado = table.getFilteredRowModel().rows.length;
 
+  // null mientras el backend no ha devuelto el total: barra indeterminada.
+  const pct = progreso.total
+    ? Math.min(100, Math.round((progreso.cargadas / progreso.total) * 100))
+    : null;
+
   return (
     <SidebarLayout>
       <main className="p-8">
@@ -220,9 +225,28 @@ const Dashboard = () => {
                 <tbody className="divide-y divide-gray-50">
                   {loading ? (
                     <tr>
-                      <td colSpan={columns.length} className="px-6 py-8 text-center text-gray-500">
-                        <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
-                        Cargando datos...
+                      <td colSpan={columns.length} className="px-6 py-10">
+                        <div className="max-w-sm mx-auto text-center">
+                          <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full bg-blue-600 rounded-full transition-[width] duration-300 ease-out ${
+                                pct === null ? "w-1/3 animate-pulse" : ""
+                              }`}
+                              style={pct === null ? undefined : { width: `${pct}%` }}
+                              role="progressbar"
+                              aria-valuenow={pct ?? undefined}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label="Cargando marcajes"
+                            ></div>
+                          </div>
+                          <p className="mt-3 text-sm text-gray-700 font-medium">
+                            {pct === null
+                              ? "Consultando marcajes…"
+                              : `${progreso.cargadas.toLocaleString("es-CL")} de ${progreso.total.toLocaleString("es-CL")} marcajes (${pct}%)`}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">Esto puede tardar unos minutos.</p>
+                        </div>
                       </td>
                     </tr>
                   ) : table.getRowModel().rows.length === 0 ? (

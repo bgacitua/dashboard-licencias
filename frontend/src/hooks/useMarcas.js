@@ -29,6 +29,7 @@ export const useMarcas = (diasIniciales = 14) => {
     const [dias, setDias] = useState(diasIniciales);
     const [loading, setLoading] = useState(() => !vigente(isoHace(diasIniciales)));
     const [error, setError] = useState(null);
+    const [progreso, setProgreso] = useState({ cargadas: 0, total: 0 });
 
     const cargar = useCallback(async (rangoDias, { forzar = false } = {}) => {
         const fechaInicio = isoHace(rangoDias);
@@ -46,6 +47,8 @@ export const useMarcas = (diasIniciales = 14) => {
             setLoading(true);
             setError(null);
 
+            setProgreso({ cargadas: 0, total: 0 });
+
             const todas = [];
             let offset = 0;
             let hayMas = true;
@@ -54,6 +57,7 @@ export const useMarcas = (diasIniciales = 14) => {
                 todas.push(...response.data);
                 offset += PAGE_SIZE;
                 hayMas = response.has_more;
+                setProgreso({ cargadas: todas.length, total: response.total });
             }
             cache.set(fechaInicio, { marcas: todas, ts: Date.now() });
             setMarcas(todas);
@@ -70,6 +74,7 @@ export const useMarcas = (diasIniciales = 14) => {
 
     return {
         marcas,
+        progreso,
         desde,
         dias,
         setDias,
