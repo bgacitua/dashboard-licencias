@@ -925,12 +925,12 @@ const ContractAlerts = () => {
                                       {/* Respuesta (solo hora) */}
                                       <td className="px-6 py-3.5 text-sm whitespace-nowrap">
                                         {isPending ? (
-                                          <span className="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                                          <span className="inline-flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">
                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                                             Pendiente
                                           </span>
                                         ) : (
-                                          <span className="text-gray-500 dark:text-gray-400 font-mono text-xs">
+                                          <span className="text-sm text-gray-500 dark:text-gray-400">
                                             {row.responded_at ? row.responded_at.split(' ')[1] : '—'}
                                           </span>
                                         )}

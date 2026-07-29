@@ -129,7 +129,7 @@ class TrackingRepository:
                 t.boss_name,
                 t.boss_email,
                 TO_CHAR(t.alert_date, 'DD-MM-YYYY') AS alert_date,
-                TO_CHAR(ca.employee_start_date, 'DD-MM-YYYY') AS employee_start_date,
+                TO_CHAR(e.active_since, 'DD-MM-YYYY') AS employee_start_date,
                 t.alert_type,
                 t.alert_reason,
                 t.response_token::text AS response_token,
@@ -142,8 +142,7 @@ class TrackingRepository:
                 TO_CHAR(t.buk_synced_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS buk_synced_at,
                 t.buk_sync_error
             FROM app.contract_alert_tracking t
-            LEFT JOIN rh.contract_alerts ca
-                   ON ca.rut = t.rut AND ca.alert_date = t.alert_date
+            LEFT JOIN rh.employees e ON e.rut = t.rut
             ORDER BY t.alert_date ASC, t.employee_name ASC
         """)
         try:
