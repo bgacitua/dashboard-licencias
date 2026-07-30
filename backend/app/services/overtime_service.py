@@ -64,14 +64,25 @@ def _fmt(d: date) -> str:
     return d.strftime("%d-%m-%Y")
 
 
+def _destino(real: str) -> tuple:
+    """(destinatario, prefijo_asunto). Con OVERTIME_TEST_EMAIL todo se desvía a esa casilla."""
+    if settings.OVERTIME_TEST_EMAIL:
+        logger.warning(f"[Overtime] MODO PRUEBA — correo para {real} desviado a {settings.OVERTIME_TEST_EMAIL}")
+        return settings.OVERTIME_TEST_EMAIL, f"[PRUEBA → {real}] "
+    return real, ""
+
+
 class OvertimeService:
     def __init__(self, db: Session):
         self.db = db
         self.repo = OvertimeRepository(db)
 
     # ------------------------------------------------------------- envío
-    def send_weekly_requests(self) -> Dict[str, Any]:
-        """Agrupa trabajadores por jefe y envía a cada uno su link de selección."""
+    def send_weekly_requests(self, boss_rut_filter: Optional[str] = None) -> Dict[str, Any]:
+        """Agrupa trabajadores por jefe y envía a cada uno su link de selección.
+
+        boss_rut_filter: enviar solo a esa jefatura (pruebas).
+        """
         from app.services.email_token_service import AuthRequiredError
 
         if not settings.PUBLIC_URL:
@@ -81,6 +92,11 @@ class OvertimeService:
         workers = self.repo.get_workers_by_boss()
         if not workers:
             return {"sent": 0, "errors": 0, "message": "Sin trabajadores con jefe/correo"}
+
+        if boss_rut_filter:
+            workers = [w for w in workers if w["boss_rut"] == boss_rut_filter]
+            if not workers:
+                return {"sent": 0, "errors": 0, "message": f"Sin trabajadores para el jefe {boss_rut_filter}"}
 
         win = week_window()
         by_boss: Dict[str, List[Dict[str, Any]]] = {}
@@ -113,11 +129,12 @@ class OvertimeService:
 
             link = f"{settings.PUBLIC_URL}/api/v1/overtime/respond?token={token}"
             html = _request_email_html(boss_name, len(items), link, win)
+            destino, prefijo = _destino(boss_email)
             try:
                 ok = send_email_graph(
-                    to=boss_email,
+                    to=destino,
                     cc="",
-                    subject=f"Horas extras fin de semana {_fmt(win['sabado'])} — selección de trabajadores",
+                    subject=f"{prefijo}Horas extras fin de semana {_fmt(win['sabado'])} — selección de trabajadores",
                     html_body=html,
                 )
             except AuthRequiredError:
@@ -133,6 +150,25 @@ class OvertimeService:
             "errors": errors,
             "week_start": str(win["week_start"]),
             "deadline": win["deadline"].strftime("%d-%m-%Y %H:%M"),
+        }
+
+    def list_bosses(self) -> Dict[str, Any]:
+        """Jefaturas que recibirían el correo. Sirve para revisar la query antes de enviar."""
+        workers = self.repo.get_workers_by_boss()
+        jefes: Dict[str, Dict[str, Any]] = {}
+        for w in workers:
+            j = jefes.setdefault(w["boss_rut"], {
+                "boss_rut": w["boss_rut"],
+                "boss_name": w.get("boss_name"),
+                "boss_email": w.get("boss_email"),
+                "trabajadores": 0,
+            })
+            j["trabajadores"] += 1
+        return {
+            "total_trabajadores": len(workers),
+            "total_jefes": len(jefes),
+            "modo_prueba": bool(settings.OVERTIME_TEST_EMAIL),
+            "jefes": sorted(jefes.values(), key=lambda x: x["boss_name"] or ""),
         }
 
     # ---------------------------------------------------------- formulario
@@ -224,11 +260,13 @@ class OvertimeService:
 
         destinos = [d.strip() for d in settings.OVERTIME_SUMMARY_TO.split(";") if d.strip()]
         html = _summary_email_html(week_start, rows)
+        destino, prefijo = _destino(destinos[0])
+        cc = "" if settings.OVERTIME_TEST_EMAIL else ";".join(destinos[1:])
         try:
             ok = send_email_graph(
-                to=destinos[0],
-                cc=";".join(destinos[1:]),
-                subject=f"Consolidado horas extras fin de semana — semana del {_fmt(week_start)}",
+                to=destino,
+                cc=cc,
+                subject=f"{prefijo}Consolidado horas extras fin de semana — semana del {_fmt(week_start)}",
                 html_body=html,
             )
         except AuthRequiredError:

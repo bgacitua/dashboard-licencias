@@ -54,8 +54,21 @@ def send_summary(
 
 @router.post("/send-requests", response_model=Dict[str, Any])
 def send_requests(
+    boss_rut: Optional[str] = None,
     current_user: Usuario = Depends(require_role(["admin", "rrhh"])),
     db: Session = Depends(get_db),
 ):
-    """Dispara manualmente el envío de solicitudes a las jefaturas."""
-    return OvertimeService(db).send_weekly_requests()
+    """Dispara manualmente el envío de solicitudes a las jefaturas.
+
+    boss_rut: enviar solo a esa jefatura (útil para probar sin spamear).
+    """
+    return OvertimeService(db).send_weekly_requests(boss_rut_filter=boss_rut)
+
+
+@router.get("/bosses", response_model=Dict[str, Any])
+def list_bosses(
+    current_user: Usuario = Depends(require_role(["admin", "rrhh"])),
+    db: Session = Depends(get_db),
+):
+    """Jefaturas que recibirían el correo, con cuántos trabajadores tiene cada una."""
+    return OvertimeService(db).list_bosses()

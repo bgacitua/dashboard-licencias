@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     OVERTIME_DEADLINE_HOUR: int = 15
     OVERTIME_DEADLINE_MINUTE: int = 0
     OVERTIME_SUMMARY_TO: str = ""        # destinatarios del consolidado, separados por ;
+    # Modo prueba: si tiene valor, TODOS los correos de horas extras se desvían a esta
+    # dirección (con asunto [PRUEBA]) en vez de ir a las jefaturas reales. Vaciar en producción.
+    OVERTIME_TEST_EMAIL: str = ""
 
     # === CORS (lista separada por comas) ===
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost"
