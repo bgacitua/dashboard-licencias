@@ -59,10 +59,10 @@ class Settings(BaseSettings):
     # === Horas extras fin de semana ===
     OVERTIME_SCHEDULER_ENABLED: bool = False
     OVERTIME_SEND_DAY: str = "thu"       # día de envío del correo a las jefaturas
-    OVERTIME_SEND_HOUR: int = 9
+    OVERTIME_SEND_HOUR: int = 15
     OVERTIME_SEND_MINUTE: int = 0
     OVERTIME_DEADLINE_DAY: str = "fri"   # día de cierre del link
-    OVERTIME_DEADLINE_HOUR: int = 15
+    OVERTIME_DEADLINE_HOUR: int = 14
     OVERTIME_DEADLINE_MINUTE: int = 0
     OVERTIME_SUMMARY_TO: str = ""        # destinatarios del consolidado, separados por ;
     # Modo prueba: si tiene valor, TODOS los correos de horas extras se desvían a esta
