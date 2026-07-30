@@ -976,9 +976,9 @@ const ContractAlerts = () => {
                                             </button>
                                             {/* Tooltip debug PATCH preview */}
                                             <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 p-3 bg-gray-900 text-white rounded-xl shadow-xl pointer-events-none">
-                                              <p className="text-gray-400 text-[10px] mb-1.5 font-sans">{preview.endpoint}</p>
+                                              <p className="text-gray-400 text-[10px] mb-1.5 font-sans line-through">{preview.endpoint}</p>
                                               <pre className="text-green-400 text-[11px] whitespace-pre-wrap font-mono leading-relaxed">{JSON.stringify(preview.body, null, 2)}</pre>
-                                              <p className="text-gray-500 text-[9px] mt-2 font-sans leading-tight">job_id y end_of_contract (plazo fijo) se resuelven en runtime desde BUK</p>
+                                              <p className="text-amber-400 text-[9px] mt-2 font-sans leading-tight">PATCH a BUK deshabilitado: solo marca el registro como sincronizado en la DB. Sincroniza en BUK manualmente.</p>
                                               <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
                                             </div>
                                           </div>

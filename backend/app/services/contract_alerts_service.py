@@ -13,6 +13,10 @@ from app.repositories.contract_alerts_repository import ContractAlertsRepository
 from app.repositories.tracking_repository import TrackingRepository
 from app.core.logging_config import logger
 
+# ponytail: interruptor del PATCH real a BUK. False = "Sync BUK" solo marca el
+# registro en la DB (sincronización manual fuera del sistema).
+BUK_SYNC_ENABLED = False
+
 
 class ContractAlertsService:
     def __init__(self, db: Session):
@@ -486,6 +490,20 @@ class ContractAlertsService:
         employee_id = rec["employee_id"]
         alert_date: date = rec["alert_date"]
         response = rec["response"]
+        contract_type = "Indefinido" if response == "indefinido" else "Plazo fijo"
+
+        # ponytail: PATCH a BUK deshabilitado mientras se revisa el request.
+        # El botón solo marca el registro en DB. Reactivar: BUK_SYNC_ENABLED = True.
+        if not BUK_SYNC_ENABLED:
+            self.tracking.mark_buk_synced(tracking_id)
+            logger.info(f"BUK sync solo-DB: tracking_id={tracking_id} employee_id={employee_id} type={contract_type}")
+            return {
+                "ok": True,
+                "employee_id": employee_id,
+                "job_id": None,
+                "contract_type": contract_type,
+                "db_only": True,
+            }
 
         # Fetch employee data from BUK para obtener job_id y contract_finishing_date_2
         try:
