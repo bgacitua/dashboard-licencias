@@ -316,15 +316,28 @@ _SHELL = """<!doctype html><html lang="es"><head><meta charset="utf-8">
   .search {{ width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px;
              font-size:14px; margin-top:8px; }}
   .search:focus {{ outline:2px solid #bfdbfe; outline-offset:-1px; border-color:#2563eb; }}
-  .bar {{ position:sticky; top:0; z-index:5; background:#0f172a; color:#fff; border-radius:12px;
+  .bar {{ position:sticky; top:0; z-index:5; background:rgba(255,255,255,.92);
+          backdrop-filter:blur(6px); color:#0f172a; border:1px solid #e2e8f0; border-radius:12px;
           padding:14px 18px; display:flex; gap:28px; align-items:center; flex-wrap:wrap;
-          margin-bottom:16px; }}
-  .bar b {{ font-size:22px; display:block; line-height:1.1; }}
-  .bar span {{ font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; }}
+          margin-bottom:16px; box-shadow:0 1px 3px rgba(15,23,42,.06); }}
+  .bar b {{ font-size:24px; display:block; line-height:1.1; color:#2563eb; }}
+  .bar span {{ font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }}
   details {{ margin-top:10px; }}
-  summary {{ cursor:pointer; font-size:13px; color:#cbd5e1; }}
+  summary {{ cursor:pointer; font-size:13px; color:#2563eb; }}
   .chips {{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }}
-  .chip {{ background:#1e293b; color:#e2e8f0; border-radius:999px; padding:3px 10px; font-size:12px; }}
+  .chip {{ background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:999px;
+           padding:3px 10px; font-size:12px; }}
+  .link-btn {{ background:none; border:none; color:#b91c1c; font-size:13px; cursor:pointer;
+               padding:6px 10px; border-radius:7px; font-weight:500; }}
+  .link-btn:hover {{ background:#fef2f2; }}
+  .link-btn:disabled {{ color:#cbd5e1; cursor:default; background:none; }}
+  .rocket {{ font-size:56px; display:inline-block; animation:breathe 2.6s ease-in-out infinite;
+             transform-origin:center; }}
+  @keyframes breathe {{
+    0%, 100% {{ transform:scale(1) translateY(0); }}
+    50%      {{ transform:scale(1.12) translateY(-6px); }}
+  }}
+  @media (prefers-reduced-motion:reduce) {{ .rocket {{ animation:none; }} }}
   .warn {{ background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:8px;
            padding:12px 14px; font-size:14px; margin:14px 0; }}
   .info {{ background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px;
@@ -382,6 +395,7 @@ def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
                  'Esta vista es solo de consulta.</div>')
         boton = ""
         buscador = ""
+        limpiar = ""
     else:
         aviso = (f'<div class="info">Puedes volver a este mismo link y modificar tu selección '
                  f'hasta el <strong>{deadline_txt}</strong>.</div>')
@@ -389,9 +403,14 @@ def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
                  'Guardar selección</button></div>')
         buscador = ('<input type="search" id="q" class="search" autocomplete="off" '
                     'placeholder="Buscar trabajador por nombre…">')
+        limpiar = ('<button type="button" id="limpiar" class="link-btn">'
+                   'Limpiar selección</button>')
 
     body = f"""
-    <div id="resumen" class="bar"></div>
+    <div class="bar">
+      <div id="resumen" style="display:flex;gap:28px;align-items:center;flex-wrap:wrap;flex:1"></div>
+      {limpiar}
+    </div>
 
     <div class="card">
       <h1>Horas extras fin de semana</h1>
@@ -460,8 +479,23 @@ def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
           const on = [...tr.querySelectorAll('input:checked')].length > 0;
           tr.classList.toggle('on', on);
         }});
+        const lb = document.getElementById('limpiar');
+        if (lb) lb.disabled = (sab.length + dom.length) === 0;
       }}
       document.querySelectorAll('input[type=checkbox]').forEach(c => c.addEventListener('change', pintar));
+
+      // Desmarca todo. No guarda: hay que pulsar "Guardar selección" para que quede en la base.
+      const limpiarBtn = document.getElementById('limpiar');
+      if (limpiarBtn) {{
+        limpiarBtn.addEventListener('click', () => {{
+          const n = document.querySelectorAll('#tb input:checked').length;
+          if (!n) return;
+          if (!confirm('¿Desmarcar los ' + n + ' registros seleccionados?')) return;
+          document.querySelectorAll('#tb input:checked').forEach(c => c.checked = false);
+          pintar();
+        }});
+      }}
+
       pintar();
     </script>"""
     return _SHELL.format(title="Horas extras fin de semana", body=body)
@@ -482,9 +516,10 @@ def _page_saved(token, record, items) -> str:
 
     body = f"""
     <div class="card" style="text-align:center;padding:40px 24px">
-      <div style="font-size:44px">✅</div>
+      <div class="rocket" role="img" aria-label="Enviado">🚀</div>
       <h1 style="color:#15803d;margin:14px 0 6px">Selección registrada</h1>
       <p class="muted">Puedes modificarla hasta el <strong>{cierre}</strong>.</p>
+      <p class="muted">Si no tienes más cambios, cierra esta pestaña.</p>
       <div class="bar" style="position:static;display:block;text-align:left;margin-top:22px">
         {_bloque('Sábado', sab)}
         {_bloque('Domingo', dom)}
