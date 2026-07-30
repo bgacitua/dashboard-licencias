@@ -10,41 +10,26 @@ class ContractAlertsRepository:
         self.db = db
 
     def get_pending_alerts(self, end_date: Optional[date] = None) -> List[Dict[str, Any]]:
-        """Alertas pendientes en el rango de fechas."""
-        if end_date:
-            query = text("""
-                SELECT
-                    employee_id, employee_name, rut AS employee_rut, employee_role, email,
-                    boss_name, boss_email, boss_of_boss_email,
-                    TO_CHAR(alert_date, 'DD-MM-YYYY') AS alert_date,
-                    alert_date AS alert_date_raw,
-                    alert_reason, expiration, days_since_start,
-                    employee_start_date, alert_type
-                FROM rh.contract_alerts
-                WHERE
-                    NOT (alert_type = 'INDEFINIDO' AND second_alert_sent)
-                    AND NOT (alert_type = 'SEGUNDO_PLAZO' AND first_alert_sent)
-                    AND alert_date BETWEEN CURRENT_DATE AND :end_date
-                ORDER BY alert_date ASC
-            """)
-            params = {"end_date": end_date}
-        else:
-            query = text("""
-                SELECT
-                    employee_id, employee_name, rut AS employee_rut, employee_role, email,
-                    boss_name, boss_email, boss_of_boss_email,
-                    TO_CHAR(alert_date, 'DD-MM-YYYY') AS alert_date,
-                    alert_date AS alert_date_raw,
-                    alert_reason, expiration, days_since_start,
-                    employee_start_date, alert_type
-                FROM rh.contract_alerts
-                WHERE
-                    NOT (alert_type = 'INDEFINIDO' AND second_alert_sent)
-                    AND NOT (alert_type = 'SEGUNDO_PLAZO' AND first_alert_sent)
-                    AND alert_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '16 days'
-                ORDER BY alert_date ASC
-            """)
-            params = {}
+        """Alertas pendientes en el rango de fechas (solo empleados activos)."""
+        query = text("""
+            SELECT
+                ca.employee_id, ca.employee_name, ca.rut AS employee_rut, ca.employee_role, ca.email,
+                ca.boss_name, ca.boss_email, ca.boss_of_boss_email,
+                TO_CHAR(ca.alert_date, 'DD-MM-YYYY') AS alert_date,
+                ca.alert_date AS alert_date_raw,
+                ca.alert_reason, ca.expiration, ca.days_since_start,
+                ca.employee_start_date, ca.alert_type
+            FROM rh.contract_alerts ca
+            JOIN rh.employees e ON e.rut = ca.rut
+            WHERE
+                LOWER(e.status) = 'activo'
+                AND NOT (ca.alert_type = 'INDEFINIDO' AND ca.second_alert_sent)
+                AND NOT (ca.alert_type = 'SEGUNDO_PLAZO' AND ca.first_alert_sent)
+                AND ca.alert_date BETWEEN CURRENT_DATE
+                    AND COALESCE(:end_date, CURRENT_DATE + INTERVAL '16 days')
+            ORDER BY ca.alert_date ASC
+        """)
+        params = {"end_date": end_date}
 
         try:
             result = self.db.execute(query, params)
