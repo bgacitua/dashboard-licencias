@@ -632,46 +632,9 @@ def _parse_date_safe(date_str: str) -> datetime:
         return datetime.max
 
 
-def _send_email_graph(to: str, cc: str, subject: str, html_body: str, bcc: str = "") -> bool:
-    """Envía un email vía Microsoft Graph API usando el refresh token almacenado.
-    Lanza AuthRequiredError si no hay sesión activa."""
-    import httpx
-    from app.services.email_token_service import get_access_token, AuthRequiredError  # noqa: F401
-
-    access_token = get_access_token()  # puede lanzar AuthRequiredError
-
-    cc_recipients = [
-        {"emailAddress": {"address": addr.strip()}}
-        for addr in cc.split(";")
-        if addr.strip()
-    ]
-    bcc_recipients = [
-        {"emailAddress": {"address": addr.strip()}}
-        for addr in bcc.split(";")
-        if addr.strip()
-    ]
-
-    try:
-        resp = httpx.post(
-            "https://graph.microsoft.com/v1.0/me/sendMail",
-            headers={"Authorization": f"Bearer {access_token}"},
-            json={
-                "message": {
-                    "subject": subject,
-                    "body": {"contentType": "HTML", "content": html_body},
-                    "toRecipients": [{"emailAddress": {"address": to}}],
-                    "ccRecipients": cc_recipients,
-                    "bccRecipients": bcc_recipients,
-                }
-            },
-            timeout=20,
-        )
-        resp.raise_for_status()
-        logger.info(f"Email enviado exitosamente a {to}")
-        return True
-    except Exception as e:
-        logger.error(f"Error enviando email a {to}: {e}")
-        return False
+# Implementación movida a app/services/email_service.py para compartirla con horas extras.
+# Se mantiene el nombre local para no tocar las llamadas existentes.
+from app.services.email_service import send_email_graph as _send_email_graph  # noqa: E402
 
 
 def _generate_incidencias_html(rut: str, incidencias: List[Dict[str, Any]]) -> str:

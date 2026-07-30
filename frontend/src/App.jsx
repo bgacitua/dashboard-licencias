@@ -35,6 +35,7 @@ const ContractAlerts = lazy(() => import('./pages/ContractAlerts'));
 const Costos = lazy(() => import('./pages/Costos'));
 const RetornoSeguimiento = lazy(() => import('./pages/RetornoSeguimiento'));
 const Seleccion = lazy(() => import('./pages/Seleccion'));
+const HorasExtras = lazy(() => import('./pages/HorasExtras'));
 
 
 function App() {
@@ -118,6 +119,15 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="dashboard">
                   <RetornoSeguimiento />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/dashboard/horas-extras"
+              element={
+                <ProtectedRoute requiredModule="dashboard">
+                  <HorasExtras />
                 </ProtectedRoute>
               }
             />

@@ -56,6 +56,16 @@ class Settings(BaseSettings):
     RETORNO_SCHEDULER_MINUTE: int = 10
     RETORNO_DIAS_ATRAS: int = 7          # ventana de días hacia atrás para buscar licencias vencidas
 
+    # === Horas extras fin de semana ===
+    OVERTIME_SCHEDULER_ENABLED: bool = False
+    OVERTIME_SEND_DAY: str = "thu"       # día de envío del correo a las jefaturas
+    OVERTIME_SEND_HOUR: int = 9
+    OVERTIME_SEND_MINUTE: int = 0
+    OVERTIME_DEADLINE_DAY: str = "fri"   # día de cierre del link
+    OVERTIME_DEADLINE_HOUR: int = 15
+    OVERTIME_DEADLINE_MINUTE: int = 0
+    OVERTIME_SUMMARY_TO: str = ""        # destinatarios del consolidado, separados por ;
+
     # === CORS (lista separada por comas) ===
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost"
 

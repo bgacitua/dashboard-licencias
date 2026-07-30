@@ -195,6 +195,29 @@ def decode_response_token(token: str) -> Optional[dict]:
         return None
 
 
+def create_overtime_token(boss_rut: str, boss_email: str, week_start: str, expires_in: timedelta) -> str:
+    """JWT para el link de selección de horas extras. Expira exactamente en el deadline de cierre."""
+    data = {
+        "token_type": "overtime_selection",
+        "boss_rut": boss_rut,
+        "boss_email": boss_email,
+        "week_start": week_start,
+        "jti": str(uuid.uuid4()),
+    }
+    return create_access_token(data, expires_delta=expires_in)
+
+
+def decode_overtime_token(token: str) -> Optional[dict]:
+    """Decodifica token de horas extras. Retorna payload o None si inválido o expirado."""
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        if payload.get("token_type") != "overtime_selection":
+            return None
+        return payload
+    except JWTError:
+        return None
+
+
 def require_role(allowed_roles: list[str]):
     """
     Crea una dependencia que verifica si el usuario tiene uno de los roles permitidos.

@@ -147,37 +147,72 @@ def _run_followup_job() -> None:
 def start_scheduler() -> None:
     global _scheduler
 
-    if not settings.ALERTS_SCHEDULER_ENABLED:
+    if not (settings.ALERTS_SCHEDULER_ENABLED or settings.OVERTIME_SCHEDULER_ENABLED):
         logger.info("[Scheduler] Deshabilitado (ALERTS_SCHEDULER_ENABLED=False)")
         return
 
     tz = timezone(settings.ALERTS_SCHEDULER_TIMEZONE)
     _scheduler = BackgroundScheduler(timezone=tz)
-    _scheduler.add_job(
-        _run_alerts_job,
-        trigger=CronTrigger(
-            hour=settings.ALERTS_SCHEDULER_HOUR,
-            minute=settings.ALERTS_SCHEDULER_MINUTE,
-            timezone=tz,
-        ),
-        id="contract_alerts_job",
-        name="Envío automático de alertas de contratos",
-        replace_existing=True,
-    )
-    # Follow-up job: mismo horario, corre todos los días
-    followup_minute = (settings.ALERTS_SCHEDULER_MINUTE + 5) % 60
-    followup_hour = settings.ALERTS_SCHEDULER_HOUR + (1 if settings.ALERTS_SCHEDULER_MINUTE > 54 else 0)
-    _scheduler.add_job(
-        _run_followup_job,
-        trigger=CronTrigger(
-            hour=followup_hour,
-            minute=followup_minute,
-            timezone=tz,
-        ),
-        id="contract_followup_job",
-        name="Recordatorios de seguimiento de contratos",
-        replace_existing=True,
-    )
+
+    if settings.ALERTS_SCHEDULER_ENABLED:
+        _scheduler.add_job(
+            _run_alerts_job,
+            trigger=CronTrigger(
+                hour=settings.ALERTS_SCHEDULER_HOUR,
+                minute=settings.ALERTS_SCHEDULER_MINUTE,
+                timezone=tz,
+            ),
+            id="contract_alerts_job",
+            name="Envío automático de alertas de contratos",
+            replace_existing=True,
+        )
+        # Follow-up job: mismo horario, corre todos los días
+        followup_minute = (settings.ALERTS_SCHEDULER_MINUTE + 5) % 60
+        followup_hour = settings.ALERTS_SCHEDULER_HOUR + (1 if settings.ALERTS_SCHEDULER_MINUTE > 54 else 0)
+        _scheduler.add_job(
+            _run_followup_job,
+            trigger=CronTrigger(
+                hour=followup_hour,
+                minute=followup_minute,
+                timezone=tz,
+            ),
+            id="contract_followup_job",
+            name="Recordatorios de seguimiento de contratos",
+            replace_existing=True,
+        )
+
+    if settings.OVERTIME_SCHEDULER_ENABLED:
+        _scheduler.add_job(
+            _run_overtime_request_job,
+            trigger=CronTrigger(
+                day_of_week=settings.OVERTIME_SEND_DAY,
+                hour=settings.OVERTIME_SEND_HOUR,
+                minute=settings.OVERTIME_SEND_MINUTE,
+                timezone=tz,
+            ),
+            id="overtime_request_job",
+            name="Solicitud semanal de horas extras a jefaturas",
+            replace_existing=True,
+        )
+        _scheduler.add_job(
+            _run_overtime_summary_job,
+            trigger=CronTrigger(
+                day_of_week=settings.OVERTIME_DEADLINE_DAY,
+                hour=settings.OVERTIME_DEADLINE_HOUR,
+                minute=settings.OVERTIME_DEADLINE_MINUTE,
+                timezone=tz,
+            ),
+            id="overtime_summary_job",
+            name="Consolidado de horas extras al cierre del plazo",
+            replace_existing=True,
+        )
+        logger.info(
+            f"[Scheduler] Jobs horas extras — envío {settings.OVERTIME_SEND_DAY} "
+            f"{settings.OVERTIME_SEND_HOUR:02d}:{settings.OVERTIME_SEND_MINUTE:02d}, "
+            f"cierre {settings.OVERTIME_DEADLINE_DAY} "
+            f"{settings.OVERTIME_DEADLINE_HOUR:02d}:{settings.OVERTIME_DEADLINE_MINUTE:02d}"
+        )
+
     if settings.RETORNO_SCHEDULER_ENABLED:
         _scheduler.add_job(
             _run_retorno_job,
@@ -255,6 +290,75 @@ def _run_retorno_job() -> None:
     finally:
         db.close()
         marcas_db.close()
+
+
+def _run_overtime_request_job() -> None:
+    """Envía a cada jefatura su link de selección de horas extras del fin de semana."""
+    from app.db.session import SessionLocal
+    from app.services.overtime_service import OvertimeService
+    from datetime import datetime
+
+    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    db = SessionLocal()
+    try:
+        result = OvertimeService(db).send_weekly_requests()
+        if result.get("auth_required"):
+            logger.error("[Overtime] Token Microsoft expirado — re-autorizar en /auth/login.")
+            _notify_n8n({
+                "tipo": "overtime_error_auth",
+                "timestamp": timestamp,
+                "mensaje": "⚠️ Horas extras: token Microsoft expirado.",
+            })
+            return
+        logger.info(
+            f"[Overtime] Solicitudes — enviadas: {result.get('sent', 0)}, "
+            f"errores: {result.get('errors', 0)}"
+        )
+        _notify_n8n({
+            "tipo": "overtime_solicitudes",
+            "timestamp": timestamp,
+            "enviadas": result.get("sent", 0),
+            "errores": result.get("errors", 0),
+            "cierre": result.get("deadline"),
+        })
+    except Exception as e:
+        logger.error(f"[Overtime] Error inesperado: {e}", exc_info=True)
+        _notify_n8n({
+            "tipo": "overtime_error",
+            "timestamp": timestamp,
+            "mensaje": f"❌ Error en solicitudes de horas extras: {str(e)}",
+        })
+    finally:
+        db.close()
+
+
+def _run_overtime_summary_job() -> None:
+    """Al cerrar el plazo, envía el consolidado de horas extras al destinatario configurado."""
+    from app.db.session import SessionLocal
+    from app.services.overtime_service import OvertimeService, week_window
+    from datetime import datetime, timedelta
+
+    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    db = SessionLocal()
+    try:
+        # week_window() ya avanzó a la semana siguiente porque el deadline acaba de pasar;
+        # el consolidado corresponde a la semana que se está cerrando.
+        week_start = week_window()["week_start"] - timedelta(days=7)
+        result = OvertimeService(db).send_summary(week_start)
+        if result.get("auth_required"):
+            logger.error("[Overtime] Token Microsoft expirado — consolidado no enviado.")
+            return
+        logger.info(f"[Overtime] Consolidado — {result}")
+        _notify_n8n({
+            "tipo": "overtime_consolidado",
+            "timestamp": timestamp,
+            "enviado": result.get("sent", False),
+            "total": result.get("total", 0),
+        })
+    except Exception as e:
+        logger.error(f"[Overtime] Error en consolidado: {e}", exc_info=True)
+    finally:
+        db.close()
 
 
 def stop_scheduler() -> None:

@@ -8,6 +8,7 @@ const allMenuItems = [
   { icon: 'calculate',            label: 'Calculadora Sueldos',    path: '/calculadora',         module: 'calculadora' },
   { icon: 'wallet',               label: 'Costos por Área',        path: '/costos',              module: 'costos' },
   { icon: 'notifications_active', label: 'Alertas de Contratos',   path: '/contract-alerts',     module: 'contract_alerts' },
+  { icon: 'more_time',            label: 'Horas Extras',           path: '/dashboard/horas-extras', module: 'dashboard' },
   { icon: 'person_search',        label: 'Selección de Personal',  path: '/seleccion',           module: 'seleccion',      requiredRole: ['rrhh', 'admin', 'seleccion'] },
   { icon: 'settings',             label: 'Administración',         path: '/admin',               module: 'admin',          requiredRole: ['admin'] },
 ];

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import licencias, marcas, auth, admin, finiquitos, employees, calculadora, vacaciones, contract_alerts, costos, retorno, seleccion
+from app.api.v1.endpoints import licencias, marcas, auth, admin, finiquitos, employees, calculadora, vacaciones, contract_alerts, costos, retorno, seleccion, overtime
 
 
 api_router = APIRouter()
@@ -37,3 +37,5 @@ api_router.include_router(costos.router, prefix="/costos", tags=["costos"])
 api_router.include_router(retorno.router, prefix="/retorno", tags=["retorno"])
 
 api_router.include_router(seleccion.router, prefix="/seleccion", tags=["seleccion"])
+
+api_router.include_router(overtime.router, prefix="/overtime", tags=["overtime"])
