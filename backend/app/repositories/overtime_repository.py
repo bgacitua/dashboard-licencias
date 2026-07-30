@@ -31,15 +31,18 @@ class OvertimeRepository:
             LEFT JOIN rh.areas     a  ON e.area_id = a.id
             WHERE
                 e.status = 'activo' AND
-                a.second_level_name NOT IN ('Cárnica', 'Fragancias', 'Sabores', 'Administración') AND
+                a.second_level_name NOT IN ('Cárnica', 'Fragancias', 'Sabores') AND
                 a.name NOT IN ('Control De Calidad', 'Aseguramiento De Calidad', 'Administración Gral De Producción', 'Oper. Comerciales Internacionales',
-                                'Regulaciones Control Calidad', 'Control Y Gestión De Producción') AND -- En Administración Gral De Producción hay dos operarios
-                e.name_role NOT IN ('Jefe de Planta',
-                                    'Jefe de Medio Ambiente',
-                                    'Prevención y Normas de Calidad',
-                                    'Líder de Prevención',
-                                    'Jefe de Medio Ambiente, Prevención y Normas de Calidad',
-                                    'Facilitador de Excelencia Operativa') AND
+                    'Regulaciones Control Calidad', 'Control Y Gestión De Producción', 'Tesorería', 'Rol Privado', 'Contabilidad', 
+                    'Recursos Humanos', 'Informática', 'Crédito Y Cobranza', 'Control De Gestión', 'Compras Nacionales',
+                    'Compras Internacionales', 'Administracion Y Finanzas Sabores') AND -- En Administración Gral De Producción hay dos operarios
+                e.name_role NOT IN ('Jefe de Planta', 
+                    'Jefe de Medio Ambiente', 
+                    'Prevención y Normas de Calidad',
+                    'Líder de Prevención',
+                    'Jefe de Medio Ambiente, Prevención y Normas de Calidad',
+                    'Facilitador de Excelencia Operativa',
+                    'Líder de Servicios Generales')  AND
                 e2.email IS NOT NULL AND e2.email <> ''
             ORDER BY e2.full_name, a.name, e.name_role
         """)
