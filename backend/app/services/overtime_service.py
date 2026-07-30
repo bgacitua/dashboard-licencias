@@ -282,29 +282,76 @@ class OvertimeService:
 # HTML (f-strings, mismo patrón que contract_alerts)
 # ============================================================================
 
+_DIAS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+
+def _fecha_larga(dt) -> str:
+    """'viernes 31-07-2026 a las 15:00' (strftime('%A') devuelve inglés en el contenedor)."""
+    return f"{_DIAS_ES[dt.weekday()]} {dt.strftime('%d-%m-%Y')} a las {dt.strftime('%H:%M')}"
+
+
 _SHELL = """<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title}</title></head>
-<body style="font-family:system-ui,sans-serif;margin:0;background:#f8f9fa;color:#1e293b">
-<div style="max-width:820px;margin:0 auto;padding:24px 16px">{body}</div>
-</body></html>"""
+<title>{title}</title>
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin:0;
+         background:#f1f5f9; color:#0f172a; -webkit-text-size-adjust:100%; }}
+  .wrap {{ max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }}
+  .card {{ background:#fff; border-radius:14px; box-shadow:0 1px 3px rgba(15,23,42,.08);
+           border:1px solid #e2e8f0; padding:24px; }}
+  h1 {{ font-size:22px; margin:0 0 6px; letter-spacing:-.01em; }}
+  .muted {{ color:#64748b; font-size:14px; margin:4px 0; }}
+  table {{ width:100%; border-collapse:collapse; font-size:14px; }}
+  th {{ background:#f8fafc; color:#475569; font-size:12px; text-transform:uppercase;
+        letter-spacing:.04em; text-align:left; padding:10px 12px; border-bottom:1px solid #e2e8f0; }}
+  td {{ padding:12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }}
+  tbody tr:hover {{ background:#f8fafc; }}
+  tbody tr.on {{ background:#eff6ff; }}
+  input[type=checkbox] {{ width:22px; height:22px; accent-color:#2563eb; cursor:pointer; }}
+  input[type=checkbox]:disabled {{ cursor:default; opacity:.5; }}
+  .btn {{ background:#2563eb; color:#fff; border:none; padding:13px 30px; border-radius:9px;
+          font-size:15px; font-weight:600; cursor:pointer; }}
+  .btn:hover {{ background:#1d4ed8; }}
+  .search {{ width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px;
+             font-size:14px; margin-top:8px; }}
+  .search:focus {{ outline:2px solid #bfdbfe; outline-offset:-1px; border-color:#2563eb; }}
+  .bar {{ position:sticky; top:0; z-index:5; background:#0f172a; color:#fff; border-radius:12px;
+          padding:14px 18px; display:flex; gap:28px; align-items:center; flex-wrap:wrap;
+          margin-bottom:16px; }}
+  .bar b {{ font-size:22px; display:block; line-height:1.1; }}
+  .bar span {{ font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; }}
+  details {{ margin-top:10px; }}
+  summary {{ cursor:pointer; font-size:13px; color:#cbd5e1; }}
+  .chips {{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }}
+  .chip {{ background:#1e293b; color:#e2e8f0; border-radius:999px; padding:3px 10px; font-size:12px; }}
+  .warn {{ background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:8px;
+           padding:12px 14px; font-size:14px; margin:14px 0; }}
+  .info {{ background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px;
+           padding:12px 14px; font-size:14px; margin:14px 0; }}
+  @media (max-width:560px) {{
+    .card {{ padding:16px; }}
+    td, th {{ padding:10px 6px; }}
+  }}
+</style></head>
+<body><div class="wrap">{body}</div></body></html>"""
 
 
 def _page_error(msg: str) -> str:
     body = f"""
-    <div style="background:white;border-radius:12px;padding:40px;text-align:center;
-                box-shadow:0 2px 10px rgba(0,0,0,.08)">
-      <div style="font-size:48px">⚠️</div>
-      <h2 style="color:#dc2626;margin:16px 0 8px">No disponible</h2>
-      <p style="color:#6b7280">{escape(msg)}</p>
+    <div class="card" style="text-align:center;padding:48px 24px">
+      <div style="font-size:44px">⚠️</div>
+      <h1 style="color:#b91c1c;margin:14px 0 8px">No disponible</h1>
+      <p class="muted">{escape(msg)}</p>
     </div>"""
     return _SHELL.format(title="No disponible", body=body)
 
 
 def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
     boss_name = escape(record.get("boss_name") or "")
-    deadline_txt = record["deadline"].astimezone(_tz()).strftime("%A %d-%m-%Y a las %H:%M")
+    deadline_txt = _fecha_larga(record["deadline"].astimezone(_tz()))
     disabled = " disabled" if read_only else ""
+    total = len(workers)
 
     rows = ""
     for w in workers:
@@ -313,69 +360,106 @@ def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
         sab = " checked" if sel.get("sabado") else ""
         dom = " checked" if sel.get("domingo") else ""
         nombre = escape(w.get("employee_name") or "")
+        detalle = " · ".join(x for x in (w.get("cargo"), w.get("area")) if x)
         rows += f"""
-        <tr style="border-bottom:1px solid #e2e8f0">
-          <td style="padding:10px 8px">{nombre}<br>
-            <span style="color:#64748b;font-size:12px">{escape(w.get('cargo') or '')} · {escape(w.get('area') or '')}</span>
+        <tr data-buscar="{nombre.lower()}">
+          <td>
+            <div style="font-weight:500">{nombre}</div>
+            <div style="color:#64748b;font-size:12px">{escape(detalle)}</div>
           </td>
-          <td style="padding:10px 8px;text-align:center">
+          <td style="text-align:center">
             <input type="checkbox" name="sab_{escape(rut)}" data-dia="sab" data-name="{nombre}"
-                   style="width:20px;height:20px"{sab}{disabled}>
+                   aria-label="Sábado {nombre}"{sab}{disabled}>
           </td>
-          <td style="padding:10px 8px;text-align:center">
+          <td style="text-align:center">
             <input type="checkbox" name="dom_{escape(rut)}" data-dia="dom" data-name="{nombre}"
-                   style="width:20px;height:20px"{dom}{disabled}>
+                   aria-label="Domingo {nombre}"{dom}{disabled}>
           </td>
         </tr>"""
 
     if read_only:
-        aviso = ('<p style="color:#dc2626;font-weight:bold">El plazo ya se cerró. '
-                 'Esta vista es solo de consulta.</p>')
+        aviso = ('<div class="warn"><strong>El plazo ya se cerró.</strong> '
+                 'Esta vista es solo de consulta.</div>')
         boton = ""
+        buscador = ""
     else:
-        aviso = (f'<p style="color:#475569">Puedes volver a este mismo link y modificar tu '
-                 f'selección hasta el <strong>{deadline_txt}</strong>.</p>')
-        boton = """
-        <button type="submit" style="background:#2563eb;color:white;border:none;padding:12px 32px;
-                border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;margin-top:20px">
-          Guardar selección
-        </button>"""
+        aviso = (f'<div class="info">Puedes volver a este mismo link y modificar tu selección '
+                 f'hasta el <strong>{deadline_txt}</strong>.</div>')
+        boton = ('<div style="margin-top:22px"><button type="submit" class="btn">'
+                 'Guardar selección</button></div>')
+        buscador = ('<input type="search" id="q" class="search" autocomplete="off" '
+                    'placeholder="Buscar trabajador por nombre…">')
 
     body = f"""
-    <div style="background:white;border-radius:12px;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,.08)">
-      <h2 style="margin:0 0 8px">Horas extras fin de semana</h2>
-      <p style="color:#475569;margin:4px 0">Hola <strong>{boss_name}</strong>, marca quiénes de tu equipo
-      trabajarán el <strong>sábado {_fmt(win['sabado'])}</strong> y/o el
-      <strong>domingo {_fmt(win['domingo'])}</strong>.</p>
+    <div id="resumen" class="bar"></div>
+
+    <div class="card">
+      <h1>Horas extras fin de semana</h1>
+      <p class="muted">Hola <strong>{boss_name}</strong>, marca quiénes de tu equipo trabajarán el
+        <strong>sábado {_fmt(win['sabado'])}</strong> y/o el
+        <strong>domingo {_fmt(win['domingo'])}</strong>.</p>
+      <p class="muted">{total} trabajador(es) a tu cargo.</p>
       {aviso}
 
-      <div id="resumen" style="background:#f1f5f9;border-radius:8px;padding:16px;margin:20px 0"></div>
-
       <form method="post" action="/api/v1/overtime/respond/confirm?token={token}">
-        <table style="width:100%;border-collapse:collapse;font-size:14px">
-          <thead><tr style="background:#e2e8f0;text-align:left">
-            <th style="padding:10px 8px">Trabajador</th>
-            <th style="padding:10px 8px;text-align:center;width:110px">Sábado</th>
-            <th style="padding:10px 8px;text-align:center;width:110px">Domingo</th>
+        <table>
+          <thead><tr>
+            <th style="width:auto">Trabajador {buscador}</th>
+            <th style="text-align:center;width:96px">Sábado</th>
+            <th style="text-align:center;width:96px">Domingo</th>
           </tr></thead>
-          <tbody>{rows}</tbody>
+          <tbody id="tb">{rows}</tbody>
         </table>
+        <p id="vacio" class="muted" style="display:none;padding:16px 0">
+          Ningún trabajador coincide con la búsqueda.</p>
         {boton}
       </form>
     </div>
+
     <script>
       const box = document.getElementById('resumen');
-      function lista(dia) {{
+
+      // La búsqueda solo oculta filas (display:none). Los checkbox siguen en el
+      // formulario, así que filtrar nunca pierde una selección.
+      const q = document.getElementById('q');
+      if (q) {{
+        q.addEventListener('input', () => {{
+          const t = q.value.trim().toLowerCase();
+          let visibles = 0;
+          document.querySelectorAll('#tb tr').forEach(tr => {{
+            const ok = !t || tr.dataset.buscar.includes(t);
+            tr.style.display = ok ? '' : 'none';
+            if (ok) visibles++;
+          }});
+          document.getElementById('vacio').style.display = visibles ? 'none' : 'block';
+        }});
+      }}
+
+      function marcados(dia) {{
         return [...document.querySelectorAll('input[data-dia="' + dia + '"]:checked')]
-          .map(c => c.dataset.name);
+          .map(c => c.dataset.name).sort();
+      }}
+      function chips(nombres) {{
+        if (!nombres.length) return '<div class="muted" style="color:#64748b">Nadie seleccionado.</div>';
+        return '<div class="chips">' +
+          nombres.map(n => '<span class="chip">' + n + '</span>').join('') + '</div>';
       }}
       function pintar() {{
-        const sab = lista('sab'), dom = lista('dom');
+        const sab = marcados('sab'), dom = marcados('dom');
+        // Contadores siempre visibles; los nombres van plegados para que no
+        // se vuelva ilegible cuando el jefe tiene 20+ trabajadores.
         box.innerHTML =
-          '<strong>Sábado: ' + sab.length + ' trabajador(es)</strong><div style="color:#475569;font-size:13px;margin:4px 0 12px">'
-          + (sab.join(', ') || 'nadie seleccionado') + '</div>'
-          + '<strong>Domingo: ' + dom.length + ' trabajador(es)</strong><div style="color:#475569;font-size:13px;margin-top:4px">'
-          + (dom.join(', ') || 'nadie seleccionado') + '</div>';
+          '<div><span>Sábado</span><b>' + sab.length + '</b></div>' +
+          '<div><span>Domingo</span><b>' + dom.length + '</b></div>' +
+          '<div style="flex:1;min-width:200px">' +
+            '<details><summary>Ver nombres seleccionados</summary>' +
+            '<div style="margin-top:8px"><span>Sábado</span>' + chips(sab) + '</div>' +
+            '<div style="margin-top:10px"><span>Domingo</span>' + chips(dom) + '</div>' +
+            '</details></div>';
+        document.querySelectorAll('#tb tr').forEach(tr => {{
+          const on = [...tr.querySelectorAll('input:checked')].length > 0;
+          tr.classList.toggle('on', on);
+        }});
       }}
       document.querySelectorAll('input[type=checkbox]').forEach(c => c.addEventListener('change', pintar));
       pintar();
@@ -387,24 +471,33 @@ def _page_saved(token, record, items) -> str:
     sab = [i["employee_name"] for i in items if i["sabado"]]
     dom = [i["employee_name"] for i in items if i["domingo"]]
     back = f"/api/v1/overtime/respond?token={token}"
+    cierre = _fecha_larga(record["deadline"].astimezone(_tz()))
+
+    def _bloque(titulo, nombres):
+        if not nombres:
+            return f'<div style="margin-top:14px"><span>{titulo}</span><b>0</b></div>'
+        chips = "".join(f'<span class="chip">{escape(n or "")}</span>' for n in sorted(nombres))
+        return (f'<div style="margin-top:14px"><span>{titulo}</span><b>{len(nombres)}</b>'
+                f'<div class="chips">{chips}</div></div>')
+
     body = f"""
-    <div style="background:white;border-radius:12px;padding:40px;text-align:center;
-                box-shadow:0 2px 10px rgba(0,0,0,.08)">
-      <div style="font-size:48px">✅</div>
-      <h2 style="color:#16a34a;margin:16px 0 8px">Selección registrada</h2>
-      <div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:20px 0;text-align:left">
-        <p style="margin:4px 0"><strong>Sábado ({len(sab)}):</strong> {escape(', '.join(sab) or 'nadie')}</p>
-        <p style="margin:4px 0"><strong>Domingo ({len(dom)}):</strong> {escape(', '.join(dom) or 'nadie')}</p>
+    <div class="card" style="text-align:center;padding:40px 24px">
+      <div style="font-size:44px">✅</div>
+      <h1 style="color:#15803d;margin:14px 0 6px">Selección registrada</h1>
+      <p class="muted">Puedes modificarla hasta el <strong>{cierre}</strong>.</p>
+      <div class="bar" style="position:static;display:block;text-align:left;margin-top:22px">
+        {_bloque('Sábado', sab)}
+        {_bloque('Domingo', dom)}
       </div>
-      <p style="color:#64748b;font-size:14px">Puedes modificarla hasta el cierre del plazo.</p>
-      <a href="{back}" style="display:inline-block;margin-top:12px;padding:10px 24px;border:1px solid #cbd5e1;
-              border-radius:8px;color:#2563eb;text-decoration:none">Volver a editar</a>
+      <a href="{back}" style="display:inline-block;margin-top:18px;padding:11px 26px;
+              border:1px solid #cbd5e1;border-radius:9px;color:#2563eb;text-decoration:none;
+              font-weight:500">Volver a editar</a>
     </div>"""
     return _SHELL.format(title="Selección registrada", body=body)
 
 
 def _request_email_html(boss_name: str, total: int, link: str, win: Dict[str, Any]) -> str:
-    deadline_txt = win["deadline"].strftime("%d-%m-%Y a las %H:%M")
+    deadline_txt = _fecha_larga(win["deadline"])
     return f"""
     <div style="font-family:sans-serif;color:#1e293b">
       <p>Hola <strong>{escape(boss_name)}</strong>,</p>
