@@ -115,7 +115,7 @@ class OvertimeRepository:
 
     def get_selections(self, request_id: int) -> List[Dict[str, Any]]:
         query = text("""
-            SELECT employee_rut, employee_name, cargo, area, sabado, domingo
+            SELECT employee_rut, employee_name, cargo, area, sabado
             FROM app.overtime_selections
             WHERE request_id = :rid
             ORDER BY employee_name
@@ -138,9 +138,9 @@ class OvertimeRepository:
                 self.db.execute(
                     text("""
                         INSERT INTO app.overtime_selections
-                            (request_id, employee_rut, employee_name, cargo, area, sabado, domingo)
+                            (request_id, employee_rut, employee_name, cargo, area, sabado)
                         VALUES
-                            (:request_id, :employee_rut, :employee_name, :cargo, :area, :sabado, :domingo)
+                            (:request_id, :employee_rut, :employee_name, :cargo, :area, :sabado)
                     """),
                     [{"request_id": request_id, **item} for item in items],
                 )
@@ -166,8 +166,7 @@ class OvertimeRepository:
             SELECT
                 r.boss_rut, r.boss_name, r.boss_email,
                 TO_CHAR(r.responded_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS responded_at,
-                s.employee_rut, s.employee_name, s.cargo, s.area,
-                s.sabado, s.domingo
+                s.employee_rut, s.employee_name, s.cargo, s.area, s.sabado
             FROM app.overtime_requests r
             LEFT JOIN app.overtime_selections s ON s.request_id = r.id
             WHERE r.week_start = :week_start

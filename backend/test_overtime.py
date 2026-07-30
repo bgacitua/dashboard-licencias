@@ -42,19 +42,19 @@ def demo():
     rows = [
         {"boss_rut": "1-9", "boss_name": "Ana", "boss_email": "a@x.cl", "responded_at": "31-07-2026 10:00",
          "employee_rut": "2-7", "employee_name": "Juan", "cargo": "Op", "area": "Planta",
-         "sabado": True, "domingo": False},
+         "sabado": True},
         {"boss_rut": "1-9", "boss_name": "Ana", "boss_email": "a@x.cl", "responded_at": "31-07-2026 10:00",
          "employee_rut": "3-5", "employee_name": "Eva", "cargo": "Op", "area": "Planta",
-         "sabado": True, "domingo": True},
+         "sabado": True},
         {"boss_rut": "4-3", "boss_name": "Luis", "boss_email": "l@x.cl", "responded_at": None,
          "employee_rut": None, "employee_name": None, "cargo": None, "area": None,
-         "sabado": None, "domingo": None},
+         "sabado": None},
     ]
     html = _summary_email_html(w["week_start"], rows)
     assert "Sábado:</strong> 2" in html, html[:400]
-    assert "Domingo:</strong> 1" in html
     assert "Jefaturas sin responder:</strong> Luis" in html
     assert "Juan" in html and "Eva" in html
+    assert "Domingo" not in html, "el consolidado ya no debe hablar de domingo"
 
     print("OK — week_window y consolidado correctos")
 

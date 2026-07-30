@@ -3,7 +3,8 @@
 Flujo:
   1. El scheduler llama a send_weekly_requests() el día configurado.
   2. Cada jefe recibe un correo con link firmado (JWT) a un formulario web.
-  3. El jefe marca sábado/domingo por trabajador. Puede reeditar hasta el deadline.
+  3. El jefe marca qué trabajadores van el sábado. Puede reeditar hasta el deadline.
+     El domingo no se captura acá: se informa por correo.
   4. Al cerrar el plazo, send_summary() manda el consolidado a OVERTIME_SUMMARY_TO.
 """
 
@@ -223,16 +224,13 @@ class OvertimeService:
         items = []
         for w in data["workers"]:
             rut = w["employee_rut"]
-            sabado = form.get(f"sab_{rut}") is not None
-            domingo = form.get(f"dom_{rut}") is not None
-            if sabado or domingo:
+            if form.get(f"sab_{rut}") is not None:
                 items.append({
                     "employee_rut": rut,
                     "employee_name": w.get("employee_name"),
                     "cargo": w.get("cargo"),
                     "area": w.get("area"),
-                    "sabado": sabado,
-                    "domingo": domingo,
+                    "sabado": True,
                 })
 
         if not self.repo.save_selections(record["id"], items, responder_ip):
@@ -283,6 +281,8 @@ class OvertimeService:
 # ============================================================================
 
 _DIAS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+_AVISO_DOMINGO = "Cualquier actividad programada día domingo debe ser informada vía correo."
 
 
 def _fecha_larga(dt) -> str:
@@ -371,7 +371,6 @@ def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
         rut = w["employee_rut"]
         sel = selections.get(rut, {})
         sab = " checked" if sel.get("sabado") else ""
-        dom = " checked" if sel.get("domingo") else ""
         nombre = escape(w.get("employee_name") or "")
         detalle = " · ".join(x for x in (w.get("cargo"), w.get("area")) if x)
         rows += f"""
@@ -383,10 +382,6 @@ def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
           <td style="text-align:center">
             <input type="checkbox" name="sab_{escape(rut)}" data-dia="sab" data-name="{nombre}"
                    aria-label="Sábado {nombre}"{sab}{disabled}>
-          </td>
-          <td style="text-align:center">
-            <input type="checkbox" name="dom_{escape(rut)}" data-dia="dom" data-name="{nombre}"
-                   aria-label="Domingo {nombre}"{dom}{disabled}>
           </td>
         </tr>"""
 
@@ -415,17 +410,16 @@ def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
     <div class="card">
       <h1>Horas extras fin de semana</h1>
       <p class="muted">Hola <strong>{boss_name}</strong>, marca quiénes de tu equipo trabajarán el
-        <strong>sábado {_fmt(win['sabado'])}</strong> y/o el
-        <strong>domingo {_fmt(win['domingo'])}</strong>.</p>
+        <strong>sábado {_fmt(win['sabado'])}</strong>.</p>
       <p class="muted">{total} trabajador(es) a tu cargo.</p>
+      <div class="warn">{_AVISO_DOMINGO}</div>
       {aviso}
 
       <form method="post" action="/api/v1/overtime/respond/confirm?token={token}">
         <table>
           <thead><tr>
             <th style="width:auto">Trabajador {buscador}</th>
-            <th style="text-align:center;width:96px">Sábado</th>
-            <th style="text-align:center;width:96px">Domingo</th>
+            <th style="text-align:center;width:110px">Sábado</th>
           </tr></thead>
           <tbody id="tb">{rows}</tbody>
         </table>
@@ -464,23 +458,21 @@ def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
           nombres.map(n => '<span class="chip">' + n + '</span>').join('') + '</div>';
       }}
       function pintar() {{
-        const sab = marcados('sab'), dom = marcados('dom');
-        // Contadores siempre visibles; los nombres van plegados para que no
+        const sab = marcados('sab');
+        // Contador siempre visible; los nombres van plegados para que no
         // se vuelva ilegible cuando el jefe tiene 20+ trabajadores.
         box.innerHTML =
           '<div><span>Sábado</span><b>' + sab.length + '</b></div>' +
-          '<div><span>Domingo</span><b>' + dom.length + '</b></div>' +
           '<div style="flex:1;min-width:200px">' +
             '<details><summary>Ver nombres seleccionados</summary>' +
-            '<div style="margin-top:8px"><span>Sábado</span>' + chips(sab) + '</div>' +
-            '<div style="margin-top:10px"><span>Domingo</span>' + chips(dom) + '</div>' +
+            '<div style="margin-top:8px">' + chips(sab) + '</div>' +
             '</details></div>';
         document.querySelectorAll('#tb tr').forEach(tr => {{
           const on = [...tr.querySelectorAll('input:checked')].length > 0;
           tr.classList.toggle('on', on);
         }});
         const lb = document.getElementById('limpiar');
-        if (lb) lb.disabled = (sab.length + dom.length) === 0;
+        if (lb) lb.disabled = sab.length === 0;
       }}
       document.querySelectorAll('input[type=checkbox]').forEach(c => c.addEventListener('change', pintar));
 
@@ -503,7 +495,6 @@ def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
 
 def _page_saved(token, record, items) -> str:
     sab = [i["employee_name"] for i in items if i["sabado"]]
-    dom = [i["employee_name"] for i in items if i["domingo"]]
     back = f"/api/v1/overtime/respond?token={token}"
     cierre = _fecha_larga(record["deadline"].astimezone(_tz()))
 
@@ -522,8 +513,8 @@ def _page_saved(token, record, items) -> str:
       <p class="muted">Si no tienes más cambios, cierra esta pestaña.</p>
       <div class="bar" style="position:static;display:block;text-align:left;margin-top:22px">
         {_bloque('Sábado', sab)}
-        {_bloque('Domingo', dom)}
       </div>
+      <p class="muted" style="margin-top:16px">{_AVISO_DOMINGO}</p>
       <a href="{back}" style="display:inline-block;margin-top:18px;padding:11px 26px;
               border:1px solid #cbd5e1;border-radius:9px;color:#2563eb;text-decoration:none;
               font-weight:500">Volver a editar</a>
@@ -536,22 +527,22 @@ def _request_email_html(boss_name: str, total: int, link: str, win: Dict[str, An
     return f"""
     <div style="font-family:sans-serif;color:#1e293b">
       <p>Hola <strong>{escape(boss_name)}</strong>,</p>
-      <p>Necesitamos que indiques qué trabajadores de tu equipo harán horas extras este fin de semana
-         (<strong>sábado {_fmt(win['sabado'])}</strong> y <strong>domingo {_fmt(win['domingo'])}</strong>).</p>
-      <p>Tienes {total} trabajador(es) a cargo. Ingresa al siguiente link, marca los días y guarda:</p>
+      <p>Necesitamos que indiques qué trabajadores de tu equipo harán horas extras el
+         <strong>sábado {_fmt(win['sabado'])}</strong>.</p>
+      <p>Tienes {total} trabajador(es) a cargo. Ingresa al siguiente link, marca a quiénes corresponda y guarda:</p>
       <p style="margin:24px 0">
         <a href="{link}" style="background:#2563eb;color:white;padding:12px 28px;border-radius:6px;
            text-decoration:none;font-weight:bold">Seleccionar trabajadores</a>
       </p>
       <p style="color:#dc2626"><strong>El link se cierra el {deadline_txt}.</strong>
          Puedes entrar las veces que necesites y modificar tu selección hasta esa hora.</p>
+      <p><strong>{_AVISO_DOMINGO}</strong></p>
       <p style="color:#94a3b8;font-size:12px">Correo automático — Dashboard de Personas.</p>
     </div>"""
 
 
 def _summary_email_html(week_start: date, rows: List[Dict[str, Any]]) -> str:
     sabado = week_start + timedelta(days=5)
-    domingo = week_start + timedelta(days=6)
     seleccionados = [r for r in rows if r.get("employee_rut")]
     sin_respuesta = sorted({
         r["boss_name"] or r["boss_rut"] for r in rows if not r.get("responded_at")
@@ -559,7 +550,6 @@ def _summary_email_html(week_start: date, rows: List[Dict[str, Any]]) -> str:
 
     filas = ""
     for r in seleccionados:
-        dias = ", ".join(d for d, on in (("Sábado", r["sabado"]), ("Domingo", r["domingo"])) if on)
         filas += f"""
         <tr>
           <td style="padding:8px;border:1px solid #e2e8f0">{escape(r.get('employee_name') or '')}</td>
@@ -567,11 +557,10 @@ def _summary_email_html(week_start: date, rows: List[Dict[str, Any]]) -> str:
           <td style="padding:8px;border:1px solid #e2e8f0">{escape(r.get('cargo') or '')}</td>
           <td style="padding:8px;border:1px solid #e2e8f0">{escape(r.get('area') or '')}</td>
           <td style="padding:8px;border:1px solid #e2e8f0">{escape(r.get('boss_name') or '')}</td>
-          <td style="padding:8px;border:1px solid #e2e8f0"><strong>{dias}</strong></td>
         </tr>"""
 
     if not filas:
-        filas = ('<tr><td colspan="6" style="padding:12px;border:1px solid #e2e8f0;color:#64748b">'
+        filas = ('<tr><td colspan="5" style="padding:12px;border:1px solid #e2e8f0;color:#64748b">'
                  'Ningún trabajador fue seleccionado.</td></tr>')
 
     pendientes = ""
@@ -582,13 +571,11 @@ def _summary_email_html(week_start: date, rows: List[Dict[str, Any]]) -> str:
         )
 
     total_sab = sum(1 for r in seleccionados if r["sabado"])
-    total_dom = sum(1 for r in seleccionados if r["domingo"])
 
     return f"""
     <div style="font-family:sans-serif;color:#1e293b">
-      <h2>Horas extras fin de semana — {_fmt(sabado)} / {_fmt(domingo)}</h2>
-      <p><strong>Sábado:</strong> {total_sab} trabajador(es) &nbsp;·&nbsp;
-         <strong>Domingo:</strong> {total_dom} trabajador(es)</p>
+      <h2>Horas extras sábado {_fmt(sabado)}</h2>
+      <p><strong>Sábado:</strong> {total_sab} trabajador(es)</p>
       {pendientes}
       <table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:16px">
         <thead><tr style="background:#e2e8f0">
@@ -597,7 +584,6 @@ def _summary_email_html(week_start: date, rows: List[Dict[str, Any]]) -> str:
           <th style="padding:8px;border:1px solid #cbd5e1;text-align:left">Cargo</th>
           <th style="padding:8px;border:1px solid #cbd5e1;text-align:left">Área</th>
           <th style="padding:8px;border:1px solid #cbd5e1;text-align:left">Jefatura</th>
-          <th style="padding:8px;border:1px solid #cbd5e1;text-align:left">Días</th>
         </tr></thead>
         <tbody>{filas}</tbody>
       </table>

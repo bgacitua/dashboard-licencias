@@ -50,7 +50,6 @@ const HorasExtras = () => {
 
   const seleccionados = rows.filter((r) => r.employee_rut);
   const totalSabado = seleccionados.filter((r) => r.sabado).length;
-  const totalDomingo = seleccionados.filter((r) => r.domingo).length;
   const sinResponder = [
     ...new Set(rows.filter((r) => !r.responded_at).map((r) => r.boss_name || r.boss_rut)),
   ];
@@ -110,14 +109,10 @@ const HorasExtras = () => {
           <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-800 text-sm">{error}</div>
         )}
 
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <p className="text-xs text-gray-500 uppercase font-bold">Sábado</p>
             <p className="text-2xl font-bold text-gray-900">{totalSabado}</p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 uppercase font-bold">Domingo</p>
-            <p className="text-2xl font-bold text-gray-900">{totalDomingo}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <p className="text-xs text-gray-500 uppercase font-bold">Jefaturas sin responder</p>
@@ -135,15 +130,14 @@ const HorasExtras = () => {
                 <th className="px-4 py-3">Cargo</th>
                 <th className="px-4 py-3">Área</th>
                 <th className="px-4 py-3">Jefatura</th>
-                <th className="px-4 py-3">Días</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={6} className="px-4 py-6 text-gray-500">Cargando…</td></tr>
+                <tr><td colSpan={5} className="px-4 py-6 text-gray-500">Cargando…</td></tr>
               )}
               {!loading && seleccionados.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-gray-500">
+                <tr><td colSpan={5} className="px-4 py-6 text-gray-500">
                   Sin trabajadores seleccionados para esta semana.
                 </td></tr>
               )}
@@ -154,9 +148,6 @@ const HorasExtras = () => {
                   <td className="px-4 py-3 text-gray-500">{r.cargo}</td>
                   <td className="px-4 py-3 text-gray-500">{r.area}</td>
                   <td className="px-4 py-3 text-gray-500">{r.boss_name}</td>
-                  <td className="px-4 py-3 font-medium">
-                    {[r.sabado && "Sábado", r.domingo && "Domingo"].filter(Boolean).join(", ")}
-                  </td>
                 </tr>
               ))}
             </tbody>

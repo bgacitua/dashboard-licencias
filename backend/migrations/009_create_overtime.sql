@@ -27,7 +27,6 @@ CREATE TABLE IF NOT EXISTS app.overtime_selections (
     cargo         TEXT,
     area          TEXT,
     sabado        BOOLEAN NOT NULL DEFAULT FALSE,
-    domingo       BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT uq_overtime_sel UNIQUE (request_id, employee_rut)
 );
 
