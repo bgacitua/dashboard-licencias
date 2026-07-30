@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PizZip from 'pizzip';
+import Docxtemplater from 'docxtemplater';
 
 import SidebarLayout from '../components/SidebarLayout';
 import FiniquitosService from '../services/finiquitos.service';
@@ -16,6 +18,17 @@ const GeneradorFiniquitos = () => {
   const [procesos, setProcesos] = useState([]);
   // null = sin filtro; si no, la clave de la tarjeta activa.
   const [filtro, setFiltro] = useState(null);
+  // Modo comparendo: oculta listado, deja solo buscador y genera un .docx por plantilla.
+  const [modoComparendo, setModoComparendo] = useState(false);
+  const [fechaComparendo, setFechaComparendo] = useState("");
+  const [docBlob, setDocBlob] = useState(null);
+  const [generando, setGenerando] = useState(false);
+
+  // ponytail: para sumar documentos, agregar la ruta de la plantilla a este array.
+  const PLANTILLAS_COMPARENDO = [
+    "/Poder Simple Empleador Cramer Formato.docx",
+    "/Declaraciones Juradas Cramer Formato.docx",
+  ];
 
   // Tarjetas de resumen sobre los procesos de desvinculación guardados.
   const RESUMEN = [
@@ -133,6 +146,84 @@ const GeneradorFiniquitos = () => {
   const procesosFiltrados = tarjetaActiva ? procesos.filter(tarjetaActiva.test) : [];
   const fmtHito = (ts) => (ts ? new Date(ts).toLocaleDateString("es-CL") : "—");
 
+  const empleadoSeleccionado = employees.find((e) => e.rut_trabajador === selectedRut);
+
+  const salirModoComparendo = () => {
+    setModoComparendo(false);
+    setSelectedRut(null);
+    setFechaComparendo("");
+    setDocBlob(null);
+  };
+
+  // Rellena las plantillas .docx con los datos del trabajador y la fecha elegida.
+  const generarComparendo = async () => {
+    if (!empleadoSeleccionado || !fechaComparendo) return;
+    setGenerando(true);
+    try {
+      const [anio, mes, dia] = fechaComparendo.split("-");
+      const contexto = {
+        nombre_trabajador: empleadoSeleccionado.nombre_trabajador || "",
+        rut_trabajador: empleadoSeleccionado.rut_trabajador || "",
+        cargo: empleadoSeleccionado.cargo || "",
+        nombre_empresa: empleadoSeleccionado.nombre_empresa || "",
+        nombre_jefe: empleadoSeleccionado.nombre_jefe || "",
+        rut_jefe: empleadoSeleccionado.rut_jefe || "",
+        fecha_ingreso: formatFecha(empleadoSeleccionado.fecha_ingreso),
+        fecha: `${dia}-${mes}-${anio}`,
+        fecha_comparendo: `${dia}-${mes}-${anio}`,
+        dia,
+        mes,
+        anio,
+      };
+
+      const generados = [];
+      for (const url of PLANTILLAS_COMPARENDO) {
+        const res = await fetch(encodeURI(`${url}?v=${Date.now()}`), { cache: "no-store" });
+        if (!res.ok) throw new Error(`No se pudo cargar la plantilla ${url}. Debe existir en /public.`);
+        const arrayBuffer = await res.arrayBuffer();
+        // Un .docx es un ZIP; un .doc renombrado no lo es y rompe docxtemplater.
+        const b = new Uint8Array(arrayBuffer);
+        const esZip = b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b;
+        if (!esZip) throw new Error(`${url} no es un .docx válido. Guárdalo desde Word como Word 2007+.`);
+
+        const doc = new Docxtemplater(new PizZip(arrayBuffer), {
+          paragraphLoop: true,
+          linebreaks: true,
+          nullGetter: () => "",
+          delimiters: { start: "{{", end: "}}" }, // mismas llaves que las plantillas de finiquito
+        });
+        doc.setData(contexto);
+        doc.render();
+
+        const blob = doc.getZip().generate({
+          type: "blob",
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+        const base = url.split("/").pop().replace(/\s*Formato\.docx$/i, "").replace(/\.docx$/i, "");
+        generados.push({ nombre: `${base} - ${contexto.rut_trabajador}.docx`, blob });
+      }
+      setDocBlob(generados);
+    } catch (err) {
+      console.error("Error al generar documentos:", err);
+      alert(err?.message || String(err));
+    } finally {
+      setGenerando(false);
+    }
+  };
+
+  const descargarComparendo = () => {
+    (docBlob || []).forEach(({ nombre, blob }) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = nombre;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+  };
+
   return (
     <SidebarLayout>
       <main className="p-8">
@@ -140,10 +231,32 @@ const GeneradorFiniquitos = () => {
         <div className="flex justify-between items-start mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Generador de Finiquitos</h1>
-            <p className="text-gray-500">Selecciona los trabajadores para generar su finiquito.</p>
+            <p className="text-gray-500">
+              {modoComparendo
+                ? "Busca al trabajador y genera sus documentos de comparendo."
+                : "Selecciona los trabajadores para generar su finiquito."}
+            </p>
           </div>
+          <button
+            onClick={() => (modoComparendo ? salirModoComparendo() : setModoComparendo(true))}
+            aria-pressed={modoComparendo}
+            className={`px-4 py-2 rounded-lg font-medium border transition-colors flex items-center gap-2 ${
+              modoComparendo
+                ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            <span className="material-symbols-outlined text-lg">gavel</span>
+            Modo Comparendo
+          </button>
         </div>
 
+        {/* ponytail: colapso con max-height; sin librería de animación */}
+        <div
+          className={`transition-all duration-300 overflow-hidden ${
+            modoComparendo ? "max-h-0 opacity-0" : "max-h-[4000px] opacity-100"
+          }`}
+        >
         {/* Tarjetas de resumen: clic filtra, clic de nuevo quita el filtro */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {RESUMEN.map((c) => (
@@ -223,6 +336,7 @@ const GeneradorFiniquitos = () => {
             </div>
           </div>
         )}
+        </div>
 
         {/* Filters Bar */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center justify-between">
@@ -235,6 +349,25 @@ const GeneradorFiniquitos = () => {
               value={searchTerm}
               onChange={handleSearch}
             />
+            {/* En modo comparendo no hay tabla: se elige desde los resultados del buscador */}
+            {modoComparendo && searchTerm && !selectedRut && (
+              <ul className="absolute z-10 mt-1 w-full max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                {filteredEmployees.slice(0, 20).map((emp) => (
+                  <li key={emp.rut_trabajador}>
+                    <button
+                      onClick={() => setSelectedRut(emp.rut_trabajador)}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                    >
+                      <p className="font-medium text-gray-900 text-sm">{emp.nombre_trabajador}</p>
+                      <p className="text-xs text-gray-500 font-mono">{emp.rut_trabajador} · {emp.cargo}</p>
+                    </button>
+                  </li>
+                ))}
+                {filteredEmployees.length === 0 && (
+                  <li className="px-4 py-3 text-sm text-gray-500">Sin coincidencias.</li>
+                )}
+              </ul>
+            )}
           </div>
         </div>
 
@@ -251,25 +384,60 @@ const GeneradorFiniquitos = () => {
                 {employees.find(e => e.rut_trabajador === selectedRut)?.nombre_trabajador}
               </span>
             </div>
-            <div className="flex gap-3">
-              <button 
+            <div className="flex gap-3 items-center">
+              {modoComparendo && (
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  Fecha:
+                  <input
+                    type="date"
+                    value={fechaComparendo}
+                    onChange={(e) => { setFechaComparendo(e.target.value); setDocBlob(null); }}
+                    className="px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+              )}
+              <button
                 className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                onClick={() => setSelectedRut(null)}
+                onClick={() => { setSelectedRut(null); setDocBlob(null); }}
               >
                 Cancelar
               </button>
-              <button 
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"
-                onClick={() => navigate(`/finiquitos/crear/${selectedRut}`)}
-              >
-                <span className="material-symbols-outlined text-lg">description</span>
-                Generar finiquito
-              </button>
+              {!modoComparendo ? (
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"
+                  onClick={() => navigate(`/finiquitos/crear/${selectedRut}`)}
+                >
+                  <span className="material-symbols-outlined text-lg">description</span>
+                  Generar finiquito
+                </button>
+              ) : docBlob ? (
+                <button
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-2"
+                  onClick={descargarComparendo}
+                >
+                  <span className="material-symbols-outlined text-lg">download</span>
+                  Descargar documentos
+                </button>
+              ) : (
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!fechaComparendo || generando}
+                  onClick={generarComparendo}
+                >
+                  <span className="material-symbols-outlined text-lg">description</span>
+                  {generando ? "Generando..." : "Generar documentos"}
+                </button>
+              )}
             </div>
           </div>
         )}
 
         {/* Table */}
+        <div
+          className={`transition-all duration-300 overflow-hidden ${
+            modoComparendo ? "max-h-0 opacity-0" : "max-h-[6000px] opacity-100"
+          }`}
+        >
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -377,6 +545,7 @@ const GeneradorFiniquitos = () => {
               </div>
             </div>
           )}
+        </div>
         </div>
 
       </main>
