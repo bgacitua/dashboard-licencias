@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     ALERTS_SCHEDULER_MINUTE: int = 0     # minuto de ejecución
     ALERTS_SCHEDULER_TIMEZONE: str = "America/Santiago"
     ALERTS_N8N_WEBHOOK_URL: str = ""     # webhook n8n para notificaciones Telegram
+    # n8n usa un certificado self-signed: ruta al .pem para validarlo.
+    ALERTS_N8N_CA_BUNDLE: str = ""       # ej: /app/data/n8n-cert.pem
 
     # === Scheduler de retorno post-licencia ===
     RETORNO_SCHEDULER_ENABLED: bool = False

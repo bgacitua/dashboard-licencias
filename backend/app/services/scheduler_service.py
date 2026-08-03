@@ -21,7 +21,10 @@ def _notify_n8n(payload: dict) -> None:
         return
     try:
         import httpx
-        httpx.post(settings.ALERTS_N8N_WEBHOOK_URL, json=payload, timeout=10)
+        # n8n tiene certificado self-signed: se valida contra su .pem, no se
+        # desactiva la verificación.
+        verify = settings.ALERTS_N8N_CA_BUNDLE or True
+        httpx.post(settings.ALERTS_N8N_WEBHOOK_URL, json=payload, timeout=10, verify=verify)
     except Exception as e:
         logger.warning(f"[Scheduler] No se pudo notificar a n8n: {e}")
 
