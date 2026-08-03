@@ -19,9 +19,12 @@ services:
     env_file: ./backend/.env
     volumes:
       - ./data:/app/data
-    # Necesario para alcanzar el PostgreSQL instalado directamente en la VPS
+    # host.docker.internal: alcanzar el PostgreSQL instalado directamente en la VPS.
+    # n8n.cramer.cl: el DNS interno no llega al contenedor, y usar la IP en la URL
+    # rompe la validación del certificado del webhook.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "n8n.cramer.cl:192.9.200.12"
     networks:
       - internal
     expose:
