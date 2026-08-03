@@ -6,6 +6,7 @@ del flujo de renovación, por lo que es la vía segura mientras el PATCH está
 deshabilitado.
 """
 import logging
+import threading
 from contextlib import contextmanager
 
 from app.core.config import settings
@@ -14,6 +15,13 @@ logger = logging.getLogger(__name__)
 
 LOGIN_URL = "/users/sign_in"
 TIPO_LABEL = {"indefinido": "Indefinido", "plazo_fijo": "Plazo Fijo"}
+
+
+# ponytail: lock global en vez de cola. Evita dos sesiones BUK simultáneas
+# (respuesta automática + click manual al mismo tiempo). Si aparece renovación
+# masiva o más de una réplica del backend, esto se queda corto y corresponde
+# una cola real (tabla de jobs + worker) con estado async en la UI.
+_lock = threading.Lock()
 
 
 class BukScraperError(Exception):
@@ -56,6 +64,15 @@ def renovar_contrato(employee_id: int, response: str) -> dict:
     if not tipo:
         raise BukScraperError(f"Tipo de renovación no soportado: {response}")
 
+    if not _lock.acquire(timeout=180):
+        raise BukScraperError("Otra renovación sigue en curso, reintenta en unos minutos")
+    try:
+        return _renovar(employee_id, tipo, PlaywrightTimeout)
+    finally:
+        _lock.release()
+
+
+def _renovar(employee_id: int, tipo: str, PlaywrightTimeout) -> dict:
     with _browser() as ctx:
         page = ctx.new_page()
         page.set_default_timeout(20000)

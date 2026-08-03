@@ -457,10 +457,32 @@ class ContractAlertsService:
         except Exception as e:
             logger.error(f"[confirm-email] Error enviando a {boss_email}: {e}")
 
-    def sync_to_buk(self, tracking_id: int) -> Dict[str, Any]:
+    def _notify_sync(self, rec: Dict[str, Any], ok: bool, detail: str, trigger: str) -> None:
+        """Notifica el resultado de la renovación a Telegram vía n8n. No propaga errores."""
+        from app.services.scheduler_service import _notify_n8n
+
+        tipo = "Indefinido" if rec["response"] == "indefinido" else "Plazo Fijo"
+        estado = "✅ Renovación aplicada en BUK" if ok else "❌ Falló la renovación en BUK"
+        _notify_n8n({
+            "tipo": "buk_sync",
+            "ok": ok,
+            "trigger": trigger,  # 'auto' | 'manual'
+            "tracking_id": rec["id"],
+            "employee_id": rec["employee_id"],
+            "mensaje": (
+                f"{estado}\n"
+                f"Empleado: {rec.get('employee_name') or rec['employee_id']}\n"
+                f"Jefatura: {rec.get('boss_name') or '—'}\n"
+                f"Tipo: {tipo}\n"
+                f"Vencimiento: {rec['alert_date']}\n"
+                f"Detalle: {detail}"
+            ),
+        })
+
+    def sync_to_buk(self, tracking_id: int, trigger: str = "manual") -> Dict[str, Any]:
         """
-        Sincroniza respuesta a BUK vía PATCH.
-        Fetcha job_id y contract_finishing_date_2 desde BUK antes del PATCH.
+        Sincroniza la respuesta a BUK ejecutando el flujo de renovación en la web.
+        trigger: 'manual' (botón Sync BUK) o 'auto' (al responder la jefatura).
         """
         import httpx
         from app.core.config import settings
@@ -469,7 +491,8 @@ class ContractAlertsService:
         from sqlalchemy import text
         row = self.tracking.db.execute(
             text("""
-                SELECT id, employee_id, alert_date, alert_type, response, buk_synced
+                SELECT id, employee_id, alert_date, alert_type, response, buk_synced,
+                       employee_name, boss_name
                 FROM app.contract_alert_tracking
                 WHERE id = :id
             """),
@@ -477,14 +500,21 @@ class ContractAlertsService:
         ).fetchone()
 
         if not row:
+            logger.warning(f"[sync_to_buk] tracking_id={tracking_id} no existe")
             return {"ok": False, "error": "Registro no encontrado"}
 
-        rec = dict(zip(["id", "employee_id", "alert_date", "alert_type", "response", "buk_synced"], row))
+        rec = dict(zip(
+            ["id", "employee_id", "alert_date", "alert_type", "response", "buk_synced",
+             "employee_name", "boss_name"],
+            row,
+        ))
 
         if not rec["response"] or rec["response"] == "no_renovar":
+            logger.info(f"[sync_to_buk] tracking_id={tracking_id} response={rec['response']!r}, no aplica")
             return {"ok": False, "error": "Solo se sincronizan respuestas de renovación"}
 
         if rec["buk_synced"]:
+            logger.info(f"[sync_to_buk] tracking_id={tracking_id} ya sincronizado")
             return {"ok": False, "error": "Ya sincronizado con BUK"}
 
         employee_id = rec["employee_id"]
@@ -502,8 +532,10 @@ class ContractAlertsService:
                 err = f"Error renovando en BUK web employee={employee_id}: {e}"
                 logger.error(err)
                 self.tracking.mark_buk_synced(tracking_id, error=err)
+                self._notify_sync(rec, ok=False, detail=str(e), trigger=trigger)
                 return {"ok": False, "error": err}
             self.tracking.mark_buk_synced(tracking_id)
+            self._notify_sync(rec, ok=True, detail=f"job {res['job_id']}", trigger=trigger)
             return {
                 "ok": True,
                 "employee_id": employee_id,

@@ -1,6 +1,6 @@
 import urllib.parse
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
@@ -235,8 +235,33 @@ def respond_preview(token: str, answer: str, request: Request, db: Session = Dep
     ))
 
 
+def _auto_sync_buk(tracking_id: int) -> None:
+    """
+    Ejecuta la renovación en BUK tras la respuesta de la jefatura.
+    Corre en background: el scraper tarda ~20s y el jefe no debe esperarlo.
+    Sesión propia porque la del request ya se cerró.
+    """
+    from app.db.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        logger.info(f"[auto-sync-buk] iniciando tracking_id={tracking_id}")
+        res = ContractAlertsService(db).sync_to_buk(tracking_id, trigger="auto")
+        logger.info(f"[auto-sync-buk] resultado tracking_id={tracking_id}: {res}")
+    except Exception as e:
+        logger.error(f"[auto-sync-buk] tracking_id={tracking_id}: {e}")
+    finally:
+        db.close()
+
+
 @router.post("/respond/confirm", response_class=HTMLResponse)
-async def respond_confirm(token: str, answer: str, request: Request, db: Session = Depends(get_db)):
+async def respond_confirm(
+    token: str,
+    answer: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """Guarda la respuesta confirmada por la jefatura."""
     responder_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
@@ -248,11 +273,21 @@ async def respond_confirm(token: str, answer: str, request: Request, db: Session
 
     record = result.get("record", {})
     already = result.get("already_answered", False)
+    final_answer = result.get("answer") or record.get("response")
     answer_label = {
         "indefinido": "Renovar - Contrato Indefinido",
         "plazo_fijo": "Renovar - Plazo Fijo",
         "no_renovar": "No Renovar",
-    }.get(result.get("answer") or record.get("response"), "")
+    }.get(final_answer, "")
+
+    # Renovación automática: solo en la primera respuesta y si es de renovación.
+    if not already and final_answer in ("indefinido", "plazo_fijo") and record.get("id"):
+        background_tasks.add_task(_auto_sync_buk, record["id"])
+    else:
+        logger.info(
+            f"[auto-sync-buk] omitido: already={already} answer={final_answer} "
+            f"record_id={record.get('id')}"
+        )
 
     return HTMLResponse(content=_respond_html(True, already_answered=already, answer_label=answer_label, record=record))
 
