@@ -26,7 +26,11 @@ from app.schemas.contract_alerts import (
 
 router = APIRouter()
 
-_SCOPES = "https://graph.microsoft.com/Mail.Send offline_access"
+_SCOPES = (
+    "https://graph.microsoft.com/Mail.Send "
+    "https://graph.microsoft.com/Mail.Send.Shared "  # enviar desde buzones compartidos
+    "offline_access"
+)
 
 
 # === OAuth2 Microsoft ===

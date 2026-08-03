@@ -5,13 +5,18 @@ from typing import List, Dict, Any
 from app.db.deps import get_db
 from app.core.security import get_current_user
 from app.services.finiquitos_service import FiniquitosService
-from app.services.desvinculacion_service import DesvinculacionService, HITOS
+from app.services.desvinculacion_service import (
+    DesvinculacionService,
+    HITOS,
+    enviar_correo_salida,
+)
 from app.schemas.finiquitos import (
     FiniquitoCreate,
     FiniquitoResponse,
     FiniquitoItemResponse
 )
 from app.schemas.desvinculacion import (
+    CorreoSalidaRequest,
     DesvinculacionUpsert,
     DesvinculacionHito,
     DesvinculacionResponse,
@@ -89,6 +94,33 @@ def marcar_hito_proceso(
             detail="Sin proceso registrado para este RUT; guarda el formulario primero",
         )
     return proceso
+
+
+@router.post("/{rut}/correo-salida")
+def enviar_correo_salida_personal(
+    rut: str,
+    data: CorreoSalidaRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Envía el aviso de salida de personal y sella el hito 'correo' si hay proceso."""
+    from app.services.email_token_service import AuthRequiredError
+
+    try:
+        enviado = enviar_correo_salida(rut, data)
+    except AuthRequiredError:
+        raise HTTPException(
+            status_code=401,
+            detail="Sin sesión de correo activa. Vuelve a autenticar Microsoft.",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if not enviado:
+        raise HTTPException(status_code=502, detail="El correo no pudo enviarse")
+
+    # El aviso puede mandarse sin haber guardado el formulario: el hito es opcional.
+    proceso = DesvinculacionService(db).marcar_hito(rut, "correo")
+    return {"enviado": True, "proceso": proceso}
 
 
 @router.get("/{rut}", response_model=List[FiniquitoItemResponse])

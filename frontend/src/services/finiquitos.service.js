@@ -78,6 +78,21 @@ const FiniquitosService = {
     return response.data;
   },
 
+  // motivo: 'renuncia' | 'desvinculacion'. Sella el hito 'correo' en el backend.
+  enviarCorreoSalida: async (rut, { nombre, cargo, fechaSalida, motivo }) => {
+    const response = await axios.post(
+      `${API_URL}/${rut}/correo-salida`,
+      {
+        nombre_trabajador: nombre,
+        cargo: cargo || null,
+        fecha_salida: fechaSalida,
+        motivo,
+      },
+      { headers: authHeaders() },
+    );
+    return response.data;
+  },
+
   getIndicatorUF: async () => {
     try {
       const response = await axios.get("https://mindicador.cl/api/uf");

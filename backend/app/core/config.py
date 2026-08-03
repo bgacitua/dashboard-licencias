@@ -69,6 +69,13 @@ class Settings(BaseSettings):
     # dirección (con asunto [PRUEBA]) en vez de ir a las jefaturas reales. Vaciar en producción.
     OVERTIME_TEST_EMAIL: str = ""
 
+    # === Aviso de salida de personal (desde el generador de finiquitos) ===
+    SALIDA_PERSONAL_TO: str = ""         # destinatario principal
+    SALIDA_PERSONAL_CC: str = ""         # copias, separadas por ;
+    # Casilla remitente. Vacío = la cuenta autenticada en Graph.
+    # Con otra casilla se requiere permiso SendAs en Exchange para esa cuenta.
+    SALIDA_PERSONAL_FROM: str = ""
+
     # === CORS (lista separada por comas) ===
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost"
 
