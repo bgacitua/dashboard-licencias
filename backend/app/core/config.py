@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     BUK_API_KEY: str
     BUK_RENOVACIONES_KEY: str = ""  # token con permisos PATCH para renovaciones
 
+    # === BUK Web (scraping de renovaciones, reemplaza al PATCH) ===
+    BUK_WEB_BASE_URL: str = "https://cramer.buk.cl"
+    BUK_WEB_USER: str = ""
+    BUK_WEB_PASSWORD: str = ""
+    BUK_WEB_HEADLESS: bool = True
+
     # === Azure App / Graph API (envío de correos) ===
     AZURE_TENANT_ID: str = ""
     AZURE_CLIENT_ID: str = ""

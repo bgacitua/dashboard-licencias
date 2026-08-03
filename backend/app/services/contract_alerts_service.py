@@ -492,17 +492,24 @@ class ContractAlertsService:
         response = rec["response"]
         contract_type = "Indefinido" if response == "indefinido" else "Plazo fijo"
 
-        # ponytail: PATCH a BUK deshabilitado mientras se revisa el request.
-        # El botón solo marca el registro en DB. Reactivar: BUK_SYNC_ENABLED = True.
+        # PATCH a BUK deshabilitado: la renovación se hace por la UI de BUK
+        # (Playwright), que aplica las reglas de negocio del flujo real.
         if not BUK_SYNC_ENABLED:
+            from app.services.buk_scraper import renovar_contrato
+            try:
+                res = renovar_contrato(employee_id, response)
+            except Exception as e:
+                err = f"Error renovando en BUK web employee={employee_id}: {e}"
+                logger.error(err)
+                self.tracking.mark_buk_synced(tracking_id, error=err)
+                return {"ok": False, "error": err}
             self.tracking.mark_buk_synced(tracking_id)
-            logger.info(f"BUK sync solo-DB: tracking_id={tracking_id} employee_id={employee_id} type={contract_type}")
             return {
                 "ok": True,
                 "employee_id": employee_id,
-                "job_id": None,
-                "contract_type": contract_type,
-                "db_only": True,
+                "job_id": res["job_id"],
+                "contract_type": res["contract_type"],
+                "via": "web",
             }
 
         # Fetch employee data from BUK para obtener job_id y contract_finishing_date_2
