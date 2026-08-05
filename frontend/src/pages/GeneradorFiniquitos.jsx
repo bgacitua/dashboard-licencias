@@ -467,7 +467,7 @@ const GeneradorFiniquitos = () => {
                     <option value="renuncia">Ha renunciado</option>
                     <option value="desvinculacion">Se ha desvinculado a</option>
                     <option value="mutuo_acuerdo">Se ha acogido al beneficio del mutuo acuerdo</option>
-                    <option value="jubilacion">Ha jubilado don/a</option>
+                    <option value="jubilacion">Se ha acogido al beneficio de jubilación don/a</option>
                   </select>
                   <label className="flex items-center gap-2 text-sm text-gray-700">
                     Fecha de salida:

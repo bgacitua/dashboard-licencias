@@ -11,7 +11,7 @@ MOTIVOS_SALIDA = {
     "renuncia": "ha renunciado",
     "desvinculacion": "se ha desvinculado a",
     "mutuo_acuerdo": "se ha acogido al beneficio del mutuo acuerdo",
-    "jubilacion": "ha jubilado don/a",
+    "jubilacion": "se ha acogido al beneficio de jubilación don/a",
 }
 
 # Lista blanca hito -> columna. El nombre de columna se interpola en el SQL del
