@@ -10,6 +10,8 @@ from app.services.email_service import send_email_graph
 MOTIVOS_SALIDA = {
     "renuncia": "ha renunciado",
     "desvinculacion": "se ha desvinculado a",
+    "mutuo_acuerdo": "se ha acogido al beneficio del mutuo acuerdo",
+    "jubilacion": "ha jubilado don/a",
 }
 
 # Lista blanca hito -> columna. El nombre de columna se interpola en el SQL del
