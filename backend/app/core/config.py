@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     BUK_API_KEY: str
     BUK_RENOVACIONES_KEY: str = ""  # token con permisos PATCH para renovaciones
 
+    # === BUK Web (scraping de renovaciones, reemplaza al PATCH) ===
+    BUK_WEB_BASE_URL: str = "https://cramer.buk.cl"
+    BUK_WEB_USER: str = ""
+    BUK_WEB_PASSWORD: str = ""
+    BUK_WEB_HEADLESS: bool = True
+
     # === Azure App / Graph API (envío de correos) ===
     AZURE_TENANT_ID: str = ""
     AZURE_CLIENT_ID: str = ""
@@ -48,6 +54,8 @@ class Settings(BaseSettings):
     ALERTS_SCHEDULER_MINUTE: int = 0     # minuto de ejecución
     ALERTS_SCHEDULER_TIMEZONE: str = "America/Santiago"
     ALERTS_N8N_WEBHOOK_URL: str = ""     # webhook n8n para notificaciones Telegram
+    # n8n usa un certificado self-signed: ruta al .pem para validarlo.
+    ALERTS_N8N_CA_BUNDLE: str = ""       # ej: /app/data/n8n-cert.pem
 
     # === Scheduler de retorno post-licencia ===
     RETORNO_SCHEDULER_ENABLED: bool = False
@@ -68,6 +76,13 @@ class Settings(BaseSettings):
     # Modo prueba: si tiene valor, TODOS los correos de horas extras se desvían a esta
     # dirección (con asunto [PRUEBA]) en vez de ir a las jefaturas reales. Vaciar en producción.
     OVERTIME_TEST_EMAIL: str = ""
+
+    # === Aviso de salida de personal (desde el generador de finiquitos) ===
+    SALIDA_PERSONAL_TO: str = ""         # destinatario principal
+    SALIDA_PERSONAL_CC: str = ""         # copias, separadas por ;
+    # Casilla remitente. Vacío = la cuenta autenticada en Graph.
+    # Con otra casilla se requiere permiso SendAs en Exchange para esa cuenta.
+    SALIDA_PERSONAL_FROM: str = ""
 
     # === CORS (lista separada por comas) ===
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost"

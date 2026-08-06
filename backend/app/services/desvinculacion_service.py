@@ -2,8 +2,17 @@ from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.repositories.desvinculacion_repository import DesvinculacionRepository
-from app.schemas.desvinculacion import DesvinculacionUpsert
+from app.schemas.desvinculacion import CorreoSalidaRequest, DesvinculacionUpsert
+from app.services.email_service import send_email_graph
+
+MOTIVOS_SALIDA = {
+    "renuncia": "ha renunciado",
+    "desvinculacion": "se ha desvinculado a",
+    "mutuo_acuerdo": "se ha acogido al beneficio del mutuo acuerdo",
+    "jubilacion": "se ha acogido al beneficio de jubilación don/a",
+}
 
 # Lista blanca hito -> columna. El nombre de columna se interpola en el SQL del
 # repositorio, así que este mapa es la única fuente de nombres válidos.
@@ -23,6 +32,29 @@ def derivar_estado(row: Dict[str, Any]) -> str:
     if row.get("carta_generada_at"):
         return "carta_generada"
     return "borrador"
+
+
+def enviar_correo_salida(rut: str, data: CorreoSalidaRequest) -> bool:
+    """Envía el aviso de salida de personal a los destinatarios configurados."""
+    if not settings.SALIDA_PERSONAL_TO:
+        raise ValueError("SALIDA_PERSONAL_TO no está configurado")
+
+    fecha = data.fecha_salida.strftime("%d-%m-%Y")
+    cargo = f" ({data.cargo})" if data.cargo else ""
+    cuerpo = (
+        f"<p>Estimados.</p>"
+        f"<p>&nbsp;&nbsp;&nbsp;&nbsp;Se les informa que con fecha de {fecha}, "
+        f"{MOTIVOS_SALIDA[data.motivo]} {data.nombre_trabajador}, "
+        f"Rut: {rut}{cargo}.</p>"
+        f"<p>Atte.</p>"
+    )
+    return send_email_graph(
+        to=settings.SALIDA_PERSONAL_TO,
+        cc=settings.SALIDA_PERSONAL_CC,
+        subject=f"Salida de personal - {data.nombre_trabajador}",
+        html_body=cuerpo,
+        sender=settings.SALIDA_PERSONAL_FROM,
+    )
 
 
 class DesvinculacionService:

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import date, datetime
-from typing import Optional, Any, Dict
+from typing import Literal, Optional, Any, Dict
 
 
 class DesvinculacionUpsert(BaseModel):
@@ -16,6 +16,15 @@ class DesvinculacionUpsert(BaseModel):
 class DesvinculacionHito(BaseModel):
     """Hito alcanzado. Ver HITOS en el servicio para los valores aceptados."""
     hito: str
+
+
+class CorreoSalidaRequest(BaseModel):
+    """Aviso de salida de personal. Los datos del trabajador vienen del listado
+    que ya tiene el frontend; el RUT va en la URL."""
+    nombre_trabajador: str
+    cargo: Optional[str] = None
+    fecha_salida: date
+    motivo: Literal["renuncia", "desvinculacion", "mutuo_acuerdo", "jubilacion"]
 
 
 class DesvinculacionResponse(BaseModel):

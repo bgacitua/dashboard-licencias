@@ -14,20 +14,9 @@ import {
   syncToBuk,
 } from '../services/contractAlerts';
 
-const buildPatchPreview = (row) => {
-  const [dd, mm, yyyy] = (row.alert_date || '01-01-2000').split('-');
-  const startDate = `${yyyy}-${mm}-01`;
-  const contractType = row.response === 'indefinido' ? 'Indefinido' : 'Plazo fijo';
-  return {
-    endpoint: `PATCH /employees/${row.employee_id}/jobs/{job_id}`,
-    body: {
-      start_date: startDate,
-      type_of_contract: contractType,
-      end_of_contract: row.response === 'plazo_fijo' ? '(desde BUK)' : '',
-      end_of_contract_2: '',
-    },
-  };
-};
+const buildPatchPreview = (row) => ({
+  contractType: row.response === 'indefinido' ? 'Indefinido' : 'Plazo Fijo',
+});
 
 const ContractAlerts = () => {
   const [alerts, setAlerts] = useState([]);
@@ -971,11 +960,12 @@ const ContractAlerts = () => {
                                               )}
                                               Sync BUK
                                             </button>
-                                            {/* Tooltip debug PATCH preview */}
+                                            {/* Tooltip: qué hace el botón */}
                                             <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 p-3 bg-gray-900 text-white rounded-xl shadow-xl pointer-events-none">
-                                              <p className="text-gray-400 text-[10px] mb-1.5 font-sans line-through">{preview.endpoint}</p>
-                                              <pre className="text-green-400 text-[11px] whitespace-pre-wrap font-mono leading-relaxed">{JSON.stringify(preview.body, null, 2)}</pre>
-                                              <p className="text-amber-400 text-[9px] mt-2 font-sans leading-tight">PATCH a BUK deshabilitado: solo marca el registro como sincronizado en la DB. Sincroniza en BUK manualmente.</p>
+                                              <p className="text-[11px] font-sans leading-relaxed">
+                                                Ejecuta el flujo <strong>Renovar contrato</strong> en la web de BUK y selecciona{' '}
+                                                <strong>{preview.contractType}</strong>. Puede tardar unos segundos.
+                                              </p>
                                               <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
                                             </div>
                                           </div>

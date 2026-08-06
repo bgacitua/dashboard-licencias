@@ -40,7 +40,8 @@ def get_access_token() -> str:
             "client_id": settings.AZURE_CLIENT_ID,
             "client_secret": settings.AZURE_CLIENT_SECRET,
             "refresh_token": refresh_token,
-            "scope": "https://graph.microsoft.com/Mail.Send offline_access",
+            # Mail.Send.Shared permite enviar desde buzones compartidos (SendAs).
+            "scope": "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.Send.Shared offline_access",
         },
         timeout=15,
     )

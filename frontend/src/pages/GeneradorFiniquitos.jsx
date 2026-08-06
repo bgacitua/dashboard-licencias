@@ -23,6 +23,14 @@ const GeneradorFiniquitos = () => {
   const [fechaComparendo, setFechaComparendo] = useState("");
   const [docBlob, setDocBlob] = useState(null);
   const [generando, setGenerando] = useState(false);
+  // Modo salida: mismo buscador, pero envía el correo de aviso de salida de personal.
+  const [modoSalida, setModoSalida] = useState(false);
+  const [fechaSalida, setFechaSalida] = useState("");
+  const [motivoSalida, setMotivoSalida] = useState("renuncia");
+  const [enviando, setEnviando] = useState(false);
+
+  // Modos que ocultan tablas y usan el buscador con autocompletado.
+  const modoBusqueda = modoComparendo || modoSalida;
 
   // ponytail: para sumar documentos, agregar la ruta de la plantilla a este array.
   const PLANTILLAS_COMPARENDO = [
@@ -155,6 +163,35 @@ const GeneradorFiniquitos = () => {
     setDocBlob(null);
   };
 
+  const salirModoSalida = () => {
+    setModoSalida(false);
+    setSelectedRut(null);
+    setFechaSalida("");
+    setMotivoSalida("renuncia");
+  };
+
+  const enviarCorreoSalida = async () => {
+    if (!empleadoSeleccionado || !fechaSalida) return;
+    setEnviando(true);
+    try {
+      await FiniquitosService.enviarCorreoSalida(empleadoSeleccionado.rut_trabajador, {
+        nombre: empleadoSeleccionado.nombre_trabajador,
+        cargo: empleadoSeleccionado.cargo,
+        fechaSalida,
+        motivo: motivoSalida,
+      });
+      alert("Correo de salida enviado.");
+      fetchProcesos();
+      setSelectedRut(null);
+      setFechaSalida("");
+    } catch (err) {
+      console.error("Error al enviar el correo de salida:", err);
+      alert(err?.response?.data?.detail || err?.message || String(err));
+    } finally {
+      setEnviando(false);
+    }
+  };
+
   // Rellena las plantillas .docx con los datos del trabajador y la fecha elegida.
   const generarComparendo = async () => {
     if (!empleadoSeleccionado || !fechaComparendo) return;
@@ -234,27 +271,51 @@ const GeneradorFiniquitos = () => {
             <p className="text-gray-500">
               {modoComparendo
                 ? "Busca al trabajador y genera sus documentos de comparendo."
+                : modoSalida
+                ? "Busca al trabajador y envía el aviso de salida de personal."
                 : "Selecciona los trabajadores para generar su finiquito."}
             </p>
           </div>
-          <button
-            onClick={() => (modoComparendo ? salirModoComparendo() : setModoComparendo(true))}
-            aria-pressed={modoComparendo}
-            className={`px-4 py-2 rounded-lg font-medium border transition-colors flex items-center gap-2 ${
-              modoComparendo
-                ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
-                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            <span className="material-symbols-outlined text-lg">gavel</span>
-            Modo Comparendo
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                if (modoSalida) return salirModoSalida();
+                salirModoComparendo();
+                setModoSalida(true);
+              }}
+              aria-pressed={modoSalida}
+              className={`px-4 py-2 rounded-lg font-medium border transition-colors flex items-center gap-2 ${
+                modoSalida
+                  ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">mail</span>
+              Correo de salida
+            </button>
+            <button
+              onClick={() => {
+                if (modoComparendo) return salirModoComparendo();
+                salirModoSalida();
+                setModoComparendo(true);
+              }}
+              aria-pressed={modoComparendo}
+              className={`px-4 py-2 rounded-lg font-medium border transition-colors flex items-center gap-2 ${
+                modoComparendo
+                  ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">gavel</span>
+              Modo Comparendo
+            </button>
+          </div>
         </div>
 
         {/* ponytail: colapso con max-height; sin librería de animación */}
         <div
           className={`transition-all duration-300 overflow-hidden ${
-            modoComparendo ? "max-h-0 opacity-0" : "max-h-[4000px] opacity-100"
+            modoBusqueda ? "max-h-0 opacity-0" : "max-h-[4000px] opacity-100"
           }`}
         >
         {/* Tarjetas de resumen: clic filtra, clic de nuevo quita el filtro */}
@@ -350,7 +411,7 @@ const GeneradorFiniquitos = () => {
               onChange={handleSearch}
             />
             {/* En modo comparendo no hay tabla: se elige desde los resultados del buscador */}
-            {modoComparendo && searchTerm && !selectedRut && (
+            {modoBusqueda && searchTerm && !selectedRut && (
               <ul className="absolute z-10 mt-1 w-full max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
                 {filteredEmployees.slice(0, 20).map((emp) => (
                   <li key={emp.rut_trabajador}>
@@ -396,13 +457,45 @@ const GeneradorFiniquitos = () => {
                   />
                 </label>
               )}
+              {modoSalida && (
+                <>
+                  <select
+                    value={motivoSalida}
+                    onChange={(e) => setMotivoSalida(e.target.value)}
+                    className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="renuncia">Ha renunciado</option>
+                    <option value="desvinculacion">Se ha desvinculado a</option>
+                    <option value="mutuo_acuerdo">Se ha acogido al beneficio del mutuo acuerdo</option>
+                    <option value="jubilacion">Se ha acogido al beneficio de jubilación don/a</option>
+                  </select>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    Fecha de salida:
+                    <input
+                      type="date"
+                      value={fechaSalida}
+                      onChange={(e) => setFechaSalida(e.target.value)}
+                      className="px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </label>
+                </>
+              )}
               <button
                 className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
                 onClick={() => { setSelectedRut(null); setDocBlob(null); }}
               >
                 Cancelar
               </button>
-              {!modoComparendo ? (
+              {modoSalida ? (
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!fechaSalida || enviando}
+                  onClick={enviarCorreoSalida}
+                >
+                  <span className="material-symbols-outlined text-lg">send</span>
+                  {enviando ? "Enviando..." : "Enviar correo"}
+                </button>
+              ) : !modoComparendo ? (
                 <button
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"
                   onClick={() => navigate(`/finiquitos/crear/${selectedRut}`)}
@@ -435,7 +528,7 @@ const GeneradorFiniquitos = () => {
         {/* Table */}
         <div
           className={`transition-all duration-300 overflow-hidden ${
-            modoComparendo ? "max-h-0 opacity-0" : "max-h-[6000px] opacity-100"
+            modoBusqueda ? "max-h-0 opacity-0" : "max-h-[6000px] opacity-100"
           }`}
         >
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

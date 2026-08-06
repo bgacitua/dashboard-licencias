@@ -109,7 +109,7 @@ export const syncToBuk = async (trackingId) => {
     const response = await axios.post(
       `${API_URL}/contract-alerts/tracking/${trackingId}/sync-buk`,
       {},
-      { headers: getAuthHeaders() }
+      { headers: getAuthHeaders(), timeout: 120000 } // el scraper abre un navegador
     );
     return response.data;
   } catch (error) {
