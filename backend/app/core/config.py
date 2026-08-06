@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     OVERTIME_SEND_HOUR: int = 9
     OVERTIME_SEND_MINUTE: int = 0
     OVERTIME_DEADLINE_DAY: str = "fri"   # día de cierre del link
-    OVERTIME_DEADLINE_HOUR: int = 15
+    OVERTIME_DEADLINE_HOUR: int = 14
     OVERTIME_DEADLINE_MINUTE: int = 0
     OVERTIME_SUMMARY_TO: str = ""        # destinatarios del consolidado, separados por ;
     # Modo prueba: si tiene valor, TODOS los correos de horas extras se desvían a esta
