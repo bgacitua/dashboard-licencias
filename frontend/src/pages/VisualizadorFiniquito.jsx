@@ -128,7 +128,6 @@ const VisualizadorFiniquito = () => {
     const audit = finiquitoData?.audit;
     if (!audit || !employeeData) return;
     const lastDayWork = finiquitoData.lastDayWork || '';
-    const fmt = (n) => `$ ${Math.round(n).toLocaleString('es-CL')}.-`;
     const fmtNum = (n) => Math.round(Number(n) || 0);
     const ws = {};
     const setRow = (row, label, value) => {
@@ -208,8 +207,10 @@ const VisualizadorFiniquito = () => {
       audit.vacationCalendarDays != null && audit.vacationCalendarDays > 0
         ? ` (${Number(audit.vacationCalendarDays).toFixed(1)} días)`
         : '';
+    // ponytail: fmtNum (número) como el resto de las filas de monto; con fmt()
+    // esta celda quedaba como texto y no sumaba en Excel
     const vacacionesVal =
-      audit.vacationIndemnityResult != null && audit.vacationIndemnityResult > 0 ? fmt(audit.vacationIndemnityResult) : '';
+      audit.vacationIndemnityResult != null && audit.vacationIndemnityResult > 0 ? fmtNum(audit.vacationIndemnityResult) : '';
     setRow(24, `Vacaciones pendientes${vacacionesDiasStr}`, vacacionesVal || '');
     setRow(25, 'Mes de aviso', audit.noticeIndemnityResult != null && audit.noticeIndemnityResult > 0 ? fmtNum(audit.noticeIndemnityResult) : '');
     setRow(26, 'Remuneración adeudada', audit.liquidacionMesActual != null && Number(audit.liquidacionMesActual) > 0 ? fmtNum(audit.liquidacionMesActual) : '');
@@ -358,6 +359,16 @@ const VisualizadorFiniquito = () => {
   const vacaciones = finiquitoData.vacationIndemnity || 0;
   const liquidacionMesActual = finiquitoData.liquidacionMesActual || 0;
   
+  // Deuda total de un descuento personalizado, con la misma conversión UF y el
+  // mismo orden de redondeo que usa CrearFiniquito para armar totalDescuentos.
+  const deudaDescuentoCustom = (d) => {
+    const monto = parseFloat(d.monto) || 0;
+    const cuotas = parseInt(d.cuotas) || 1;
+    const uf = finiquitoData.ufValue || 0;
+    const enUF = (d.moneda || 'CLP') === 'UF' && uf > 0;
+    return Math.round(enUF ? monto * uf : monto) * cuotas;
+  };
+
   const aporteCesantia = finiquitoData.aporteCesantia || 0;
   const prestamoInterno = finiquitoData.prestamoInterno || 0;
   const totalDescuentos = aporteCesantia + prestamoInterno;
@@ -731,7 +742,7 @@ const VisualizadorFiniquito = () => {
                 {finiquitoData.descuentosPersonalizados?.filter(d => parseFloat(d.monto) > 0 && !d.descripcion?.toLowerCase().includes('préstamo')).map((d, idx) => (
                   <div key={`custom-${idx}`} className="flex justify-between">
                     <span>{d.descripcion} {d.detalle ? `${d.detalle}` : ''}</span>
-                    <span>{formatCurrency(parseFloat(d.monto) * (parseInt(d.cuotas) || 1))}</span>
+                    <span>{formatCurrency(deudaDescuentoCustom(d))}</span>
                   </div>
                 ))}
                 <div className="flex justify-between font-bold text-[9pt]">

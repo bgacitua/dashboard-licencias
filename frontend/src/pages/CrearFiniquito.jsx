@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+﻿import React, { useState, useEffect, useMemo } from "react";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import * as XLSX from "xlsx";
 import SidebarLayout from "../components/SidebarLayout";
 import FiniquitosService from "../services/finiquitos.service";
 import EmployeesService from "../services/employees.service";
@@ -1159,124 +1158,6 @@ const CrearFiniquito = () => {
     }
   }, [lastDayWork, employee]);
 
-  // ── AUDITORÍA DE CÁLCULO (EXCEL) ───────────────────────────────────────────
-  // Genera y descarga un archivo Excel con los parámetros del finiquito en las
-  // filas indicadas (columna A = etiqueta, columna B = valor). Se llama al
-  // momento de generar el documento.
-  const downloadAuditFile = ({
-    causalLabel,
-    managerName,
-    haberes,
-    gratificacion,
-    noticeIndemnityResult,
-    yearsIndemnityResult,
-    vacationIndemnityResult,
-    vacationCalendarDays,
-    liquidacionMesActual,
-    otrosDescuentos,
-    aporteCesantiaVal,
-    totalSettlementResult,
-    variableDetails,
-    variableItemsDetail,
-  }) => {
-    const fmt = (n) => `$ ${Math.round(n).toLocaleString("es-CL")}.-`;
-    const fmtNum = (n) => Math.round(Number(n) || 0);
-
-    const ws = {};
-    // Columna A = etiqueta, Columna B = valor
-    const setRow = (row, label, value) => {
-      ws[`A${row}`] = { t: "s", v: label };
-      const hasValue = value !== undefined && value !== null && value !== "";
-      const isNum = typeof value === "number";
-      if (hasValue || value === 0) {
-        ws[`B${row}`] = isNum ? { t: "n", v: value } : { t: "s", v: String(value ?? "") };
-      } else {
-        ws[`B${row}`] = { t: "s", v: "" };
-      }
-    };
-
-    setRow(2, "Causal de término del contrato", causalLabel || "");
-    setRow(4, "Nombre trabajador", employee?.nombre_trabajador || "");
-    setRow(5, "Cargo del trabajador", employee?.cargo || "");
-    setRow(9, "Fecha de ingreso del trabajador", employee?.fecha_ingreso || "");
-    setRow(10, "Fecha de salida", lastDayWork || "");
-    // Calcular duración exacta en "Años, meses y días" usando lastDayWork y fecha_ingreso
-    const formatYearsMonthsDays = (startDate, endDate) => {
-      if (!startDate || !endDate) return "";
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      if (isNaN(start) || isNaN(end)) return "";
-      let years = end.getFullYear() - start.getFullYear();
-      let months = end.getMonth() - start.getMonth();
-      let days = end.getDate() - start.getDate();
-
-      if (days < 0) {
-        // Borrow days from previous month
-        months -= 1;
-        const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
-        days += prevMonth.getDate();
-      }
-      if (months < 0) {
-        years -= 1;
-        months += 12;
-      }
-      let result = [];
-      if (years > 0) result.push(`${years} año${years > 1 ? 's' : ''}`);
-      if (months > 0) result.push(`${months} mes${months > 1 ? 'es' : ''}`);
-      if (days > 0) result.push(`${days} día${days > 1 ? 's' : ''}`);
-      return result.length ? result.join(', ') : "0 días";
-    };
-    setRow(
-      11,
-      "Duración empresa",
-      employee?.fecha_ingreso && lastDayWork
-        ? formatYearsMonthsDays(employee.fecha_ingreso, lastDayWork)
-        : ""
-    );
-    setRow(15, "Sueldo base del trabajador", fmtNum(salary));
-    setRow(16, "Promedio remuneración variable", fmtNum(variableBonus));
-    setRow(17, "Gratificación legal", fmtNum(gratificacion));
-    setRow(18, "Movilización", fmtNum(movilizacion));
-    setRow(20, "Total haber", fmtNum(haberes));
-
-    // Indemnización por Años de Servicio (si corresponde)
-    setRow(
-      23,
-      `Indemnización por Años de Servicio${yearsForIndemnity != null ? ` (${yearsForIndemnity})` : ""}`,
-      yearsIndemnityResult != null && yearsIndemnityResult > 0 ? fmtNum(yearsIndemnityResult) : ""
-    );
-
-    // Vacaciones pendientes: en columna A solo "Vacaciones pendientes (X.X días)" para que quepa la leyenda; en B el monto
-    const vacacionesDiasStr =
-      vacationCalendarDays != null && vacationCalendarDays > 0
-        ? ` (${Number(vacationCalendarDays).toFixed(1)} días)`
-        : "";
-    const vacacionesVal = vacationIndemnityResult != null && vacationIndemnityResult > 0 ? fmt(vacationIndemnityResult) : "";
-    setRow(24, `Vacaciones pendientes${vacacionesDiasStr}`, vacacionesVal || "");
-
-    // Mes de aviso (si corresponde)
-    setRow(25, "Mes de aviso", noticeIndemnityResult != null && noticeIndemnityResult > 0 ? fmtNum(noticeIndemnityResult) : "");
-
-    // Remuneración adeudada (si corresponde)
-    setRow(26, "Remuneración adeudada", liquidacionMesActual != null && Number(liquidacionMesActual) > 0 ? fmtNum(liquidacionMesActual) : "");
-
-    // Otros descuentos (si corresponde)
-    setRow(27, "Otros descuentos", otrosDescuentos != null && otrosDescuentos > 0 ? `-${fmtNum(otrosDescuentos)}` : "");
-
-    // Aporte Empleador Seguro Cesantía (si corresponde)
-    setRow(28, "Aporte Empleador Seguro Cesantía", aporteCesantiaVal != null && aporteCesantiaVal > 0 ? `-${fmtNum(aporteCesantiaVal)}` : "");
-
-    setRow(30, "Total a pagar", fmtNum(totalSettlementResult));
-
-    // A2:D30 para incluir detalle de variable en columna D15
-    ws["!ref"] = "A2:D30";
-    ws["!cols"] = [{ wch: 38 }, { wch: 24 }, { wch: 8 }, { wch: 40 }];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Finiquito");
-    XLSX.writeFile(wb, `auditoria_finiquito_${employee?.rut_trabajador || "rut"}_${lastDayWork || "fecha"}.xlsx`);
-  };
-  // ── FIN AUDITORÍA ─────────────────────────────────────────────────────────
 
 
   if (loading) {
@@ -1321,20 +1202,24 @@ const CrearFiniquito = () => {
   // Calculations
   // yearsOfService and yearsForIndemnity are now state variables
   // Daily Salary Base = (Sueldo Base + Promedio Bonificaciones) / 30
-  const dailySalary = ((salary + variableBonus) / 30).toFixed(0);
+  // ponytail: redondeo a peso una sola vez, en el origen de cada monto.
+  // Antes cada consumidor (pantalla, Excel, carta, persistirProceso) hacía su
+  // propio Math.round sobre floats, y las sumas de redondeados no coincidían
+  // con el redondeo de la suma (±1-2 pesos de diferencia).
+  const dailySalary = Math.round((salary + variableBonus) / 30);
 
   // Gratificación Legal = (Sueldo Base + Promedio Bonificaciones) * 25%
   // Tope = ((4.75/12) * Sueldo Mínimo) * 25%f
   const sueldoMinimo = 553553;
   const topeGratificacion = (4.75 / 12) * sueldoMinimo;
-  const gratificacionLegal = Math.min(
-    (salary + variableBonus) * 0.25,
-    topeGratificacion,
+  const gratificacionLegal = Math.round(
+    Math.min((salary + variableBonus) * 0.25, topeGratificacion),
   );
 
   // Total Haberes = Sueldo Base + Promedio Bonificaciones + Gratificación Legal + Movilización
-  const totalHaberes =
-    salary + variableBonus + gratificacionLegal + movilizacion;
+  const totalHaberes = Math.round(
+    salary + variableBonus + gratificacionLegal + movilizacion,
+  );
 
   // 1. Vacation Indemnity = (Sueldo Base + Total Bonificaciones / 30) * días corridos
   // vacationValue ya está calculado en el useEffect con la fórmula de días corridos
@@ -1440,6 +1325,7 @@ const CrearFiniquito = () => {
       yearsIndemnity = yearsForIndemnity * totalHaberes;
     }
   }
+  yearsIndemnity = Math.round(yearsIndemnity);
 
   // 3. Notice Month = Total Haberes (si no se dio aviso de 30 días)
   // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso), mutuo_acuerdo_especial (como necesidades)
@@ -1452,10 +1338,10 @@ const CrearFiniquito = () => {
     noticeIndemnityApplies && noticeGiven ? totalHaberes : 0;
 
   // Total Settlement = (Mes de Aviso + Indemnización por Años de Servicio + Vacaciones Proporcionales) - Todos los Descuentos
-  const descuentosNum = parseFloat(descuentos) || 0;
-  const aporteCesantiaNum = parseFloat(aporteCesantia) || 0;
+  const descuentosNum = Math.round(parseFloat(descuentos) || 0);
+  const aporteCesantiaNum = Math.round(parseFloat(aporteCesantia) || 0);
   const descuentosAutomaticos = descuentosItems.reduce(
-    (sum, d) => sum + (d.monto || 0),
+    (sum, d) => sum + Math.round(d.monto || 0),
     0,
   );
 
@@ -1464,10 +1350,10 @@ const CrearFiniquito = () => {
     const cuotas = parseInt(d.cuotas) || 1;
 
     if ((d.moneda || "CLP") === "UF" && ufValue > 0) {
-      monto = Math.round(monto * ufValue);
+      monto = monto * ufValue;
     }
 
-    return sum + monto * cuotas;
+    return sum + Math.round(monto) * cuotas;
   }, 0);
 
   const totalDescuentos =
@@ -1475,13 +1361,28 @@ const CrearFiniquito = () => {
     aporteCesantiaNum +
     descuentosAutomaticos +
     descuentosCustom;
-  const liquidacionMesActualNum = parseFloat(liquidacionMesActual) || 0;
+  const liquidacionMesActualNum = Math.round(
+    parseFloat(liquidacionMesActual) || 0,
+  );
   const totalSettlement =
     noticeIndemnity +
     yearsIndemnity +
     vacationIndemnity +
     liquidacionMesActualNum -
     totalDescuentos;
+
+  // ponytail: guardia en dev. Si algún monto vuelve a quedar con decimales,
+  // la pantalla y el Excel se desalinean otra vez; esto lo avisa al tiro.
+  if (import.meta.env.DEV && !Number.isInteger(totalSettlement)) {
+    console.error("Finiquito: monto con decimales", {
+      noticeIndemnity,
+      yearsIndemnity,
+      vacationIndemnity,
+      liquidacionMesActualNum,
+      totalDescuentos,
+      totalSettlement,
+    });
+  }
 
   // Handle generate document - navigate to visualizer with all data
   const handleGenerate = () => {
@@ -1533,17 +1434,17 @@ const CrearFiniquito = () => {
       // Manager
       selectedManager: managerObj,
 
-      // Haberes
-      noticeIndemnity: Math.round(noticeIndemnity),
-      yearsIndemnity: Math.round(yearsIndemnity),
-      vacationIndemnity: Math.round(vacationIndemnity),
-      totalHaberes: Math.round(totalHaberes),
+      // Haberes (ya redondeados en el origen)
+      noticeIndemnity,
+      yearsIndemnity,
+      vacationIndemnity,
+      totalHaberes,
       yearsForIndemnity,
       vacationDays,
       vacationCalendarDays: lastDayWork
         ? calculateDiasCorridos(parseLocalDate(lastDayWork), vacationDays)
         : 0,
-      liquidacionMesActual: parseFloat(liquidacionMesActual) || 0,
+      liquidacionMesActual: liquidacionMesActualNum,
 
       // Descuentos - find specific types
       aporteCesantia: aporteCesantiaNum,
@@ -1556,12 +1457,12 @@ const CrearFiniquito = () => {
         let val = parseFloat(loanItem.monto) || 0;
         const cuotas = parseInt(loanItem.cuotas) || 1;
 
-        if ((loanItem.moneda || "CLP") === "UF" && ufValue > 0) val = Math.round(val * ufValue);
+        if ((loanItem.moneda || "CLP") === "UF" && ufValue > 0) val = val * ufValue;
 
         // Return Total Debt: Monthly * Cuotas
-        return val * cuotas;
+        return Math.round(val) * cuotas;
       })(),
-      totalDescuentos: Math.round(totalDescuentos),
+      totalDescuentos,
 
       ufValue, // Pass UF to visualizer if needed
 
@@ -1569,20 +1470,14 @@ const CrearFiniquito = () => {
       descuentosItems,
       descuentosPersonalizados,
 
-      // Total - Sum of rounded components to match Visualizer display
-      totalSettlement:
-        Math.round(noticeIndemnity) +
-        Math.round(yearsIndemnity) +
-        Math.round(vacationIndemnity) +
-        (parseFloat(liquidacionMesActual) || 0) -
-        Math.round(totalDescuentos),
+      // Total - componentes ya redondeados, misma cifra en pantalla y en Excel
+      totalSettlement,
 
       // Datos para generar Excel de auditoría desde el visualizador (descarga opcional)
       audit: (() => {
-        const sueldoMinimo = 553553;
-        const topeGrat = (4.75 / 12) * sueldoMinimo;
-        const grat = Math.min((salary + variableBonus) * 0.25, topeGrat);
-        const haberesVal = salary + variableBonus + grat + movilizacion;
+        // ponytail: reutiliza los montos ya redondeados en vez de recalcularlos
+        const grat = gratificacionLegal;
+        const haberesVal = totalHaberes;
         const variableConcepts = Object.keys(expandedVariableGroups || {});
         const variableDetails = variableConcepts.length
           ? variableConcepts.join(", ")
@@ -1622,7 +1517,7 @@ const CrearFiniquito = () => {
           vencimiento_plazo: "Art. 159 N°4 - Vencimiento del plazo",
           termino_anticipado: "Art. 159 N°4 - Término anticipado",
         };
-        const otrosDesc = Math.max(0, Math.round(totalDescuentos) - aporteCesantiaNum);
+        const otrosDesc = Math.max(0, totalDescuentos - aporteCesantiaNum);
         const vacCalendarDays = lastDayWork
           ? calculateDiasCorridos(parseLocalDate(lastDayWork), vacationDays)
           : 0;
@@ -1631,16 +1526,14 @@ const CrearFiniquito = () => {
           managerName: managerObj?.name || "",
           haberes: haberesVal,
           gratificacion: grat,
-          noticeIndemnityResult: Math.round(noticeIndemnity),
-          yearsIndemnityResult: Math.round(yearsIndemnity),
-          vacationIndemnityResult: Math.round(vacationIndemnity),
+          noticeIndemnityResult: noticeIndemnity,
+          yearsIndemnityResult: yearsIndemnity,
+          vacationIndemnityResult: vacationIndemnity,
           vacationCalendarDays: vacCalendarDays,
-          liquidacionMesActual: parseFloat(liquidacionMesActual) || 0,
+          liquidacionMesActual: liquidacionMesActualNum,
           otrosDescuentos: otrosDesc > 0 ? otrosDesc : 0,
           aporteCesantiaVal: aporteCesantiaNum,
-          totalSettlementResult:
-            Math.round(noticeIndemnity) + Math.round(yearsIndemnity) + Math.round(vacationIndemnity) +
-            (parseFloat(liquidacionMesActual) || 0) - Math.round(totalDescuentos),
+          totalSettlementResult: totalSettlement,
           yearsForIndemnity,
           salary,
           variableBonus,
@@ -1704,8 +1597,8 @@ const CrearFiniquito = () => {
         terminationReason === "mutuo_acuerdo_especial";
       const isRenuncia = terminationReason === "renuncia";
 
-      const liquidacionMesActualNum = parseFloat(liquidacionMesActual) || 0;
-      const descuentosMesActualNum = parseFloat(descuentos) || 0;
+      // ponytail: usa los montos ya redondeados del cálculo principal
+      const descuentosMesActualNum = descuentosNum;
 
       // Valores coherentes con sección "Cálculo indemnización"
       const yearsIndemnityDisplay = isMutuo
@@ -1794,7 +1687,7 @@ const CrearFiniquito = () => {
 
       // Agregar descuentos automáticos del backend (independiente de la causal)
       descuentosItems.forEach((d) => {
-        const monto = d.monto || 0;
+        const monto = Math.round(d.monto || 0);
         if (monto > 0) {
           let label = d.concepto || "Descuento";
           if (label === "Prestamo Interno") label = "Préstamo Interno";
@@ -1809,9 +1702,9 @@ const CrearFiniquito = () => {
         let monto = parseFloat(d.monto) || 0;
         const cuotas = parseInt(d.cuotas) || 1;
         if ((d.moneda || "CLP") === "UF" && ufValue > 0) {
-          monto = Math.round(monto * ufValue);
+          monto = monto * ufValue;
         }
-        const total = monto * cuotas;
+        const total = Math.round(monto) * cuotas;
         if (total > 0) {
           descuentosLines.push(`${d.descripcion || "Descuento"}\t${fmtCurrency(total)}`);
           totalDescuentosTabla += total;
@@ -1822,6 +1715,20 @@ const CrearFiniquito = () => {
       if (aporteCesantiaNum > 0 && !isMutuo) {
         descuentosLines.push(`Aporte Empleador Seguro Cesantía\t${fmtCurrency(aporteCesantiaNum)}`);
         totalDescuentosTabla += aporteCesantiaNum;
+      }
+
+      // ponytail: guardia en dev. La tabla del Word y el "total a pagar" se
+      // arman por caminos distintos; deben dar exactamente lo mismo.
+      if (
+        import.meta.env.DEV &&
+        totalHaberesTabla - totalDescuentosTabla !== totalSettlement
+      ) {
+        console.error("Finiquito: tabla Word no cuadra con el total", {
+          totalHaberesTabla,
+          totalDescuentosTabla,
+          diferencia: totalHaberesTabla - totalDescuentosTabla - totalSettlement,
+          totalSettlement,
+        });
       }
 
       haberesLines.push(`Total haberes\t${fmtCurrency(totalHaberesTabla)}`);
@@ -1932,13 +1839,7 @@ const CrearFiniquito = () => {
         remuneracion_adeudada: fmtCurrency(liquidacionMesActualNum),
         total_haberes: fmtCurrency(totalHaberes),
         total_descuentos: fmtCurrency(totalDescuentos),
-        total_a_pagar: fmtCurrency(
-          (Number(noticeIndemnity) || 0) +
-            (Number(yearsIndemnity) || 0) +
-            (Number(vacationIndemnity) || 0) +
-            liquidacionMesActualNum -
-            (Number(totalDescuentos) || 0),
-        ),
+        total_a_pagar: fmtCurrency(totalSettlement),
       };
 
       // IMPORTANTE: la plantilla debe ser .docx para funcionar con docxtemplater
@@ -3227,7 +3128,9 @@ const CrearFiniquito = () => {
               <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">
                 (Sueldo base + Bonificaciones) / 30
               </p>
-              <p className="text-xl font-bold text-gray-900">$ {dailySalary}</p>
+              <p className="text-xl font-bold text-gray-900">
+                $ {dailySalary.toLocaleString("es-CL")}
+              </p>
             </div>
           </div>
 
@@ -3392,10 +3295,13 @@ const CrearFiniquito = () => {
               let displayMonto = montoVal;
 
               if (isUF && ufValue > 0) {
-                totalDebt = Math.round(montoVal * ufValue * cuotasVal);
+                // ponytail: redondear la cuota primero y luego multiplicar,
+                // igual que el cálculo de descuentosCustom
                 displayMonto = Math.round(montoVal * ufValue);
+                totalDebt = displayMonto * cuotasVal;
               } else {
-                totalDebt = montoVal * cuotasVal;
+                displayMonto = Math.round(montoVal);
+                totalDebt = displayMonto * cuotasVal;
               }
 
               return (
