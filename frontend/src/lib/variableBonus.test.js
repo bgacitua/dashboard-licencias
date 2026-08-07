@@ -7,8 +7,8 @@ import {
 } from "./variableBonus.js";
 
 const item = (concepto, periodo, monto) => ({ concepto, periodo, monto });
-const expand = (items, licencias = [], filledActive = {}) =>
-  getExpandedVariableGroups(items, {}, licencias, filledActive);
+const expand = (items, licencias = [], filledActive = {}, fechaTermino) =>
+  getExpandedVariableGroups(items, {}, licencias, filledActive, fechaTermino);
 // No se compara `periodo` formateado: el ICU de node no pad-ea el mes como el del browser.
 const periodosDe = (grupo) =>
   grupo.map((i) => {
@@ -87,4 +87,33 @@ const periodosDe = (grupo) =>
   assert.equal(calculateTotalFromExpandedGroups(groups), 200000);
 }
 
-console.log("variableBonus: 4/4 OK");
+// 5. REGRESIÓN: TODOS los conceptos paran en mayo pero el término es en julio.
+// El tope lo marca la fecha de término, no el último dato. Antes faltaban junio y julio.
+{
+  const items = [
+    item("Bono Turno", "03-2025", 300000),
+    item("Bono Turno", "04-2025", 300000),
+    item("Bono Turno", "05-2025", 300000),
+  ];
+  const groups = expand(items, [], {}, "2025-07-15");
+  const rellenos = groups["Bono Turno"].filter((i) => i.type === "filled");
+  assert.deepEqual(
+    rellenos.map((i) => `${i.year}-${i.month}`),
+    ["2025-6", "2025-7"]
+  );
+  // Más recientes válidos: julio(0), junio(0), mayo(300000) => 100000
+  assert.equal(calculateTotalFromExpandedGroups(groups), 100000);
+}
+
+// 6. Fecha de término anterior al último dato no recorta nada.
+{
+  const groups = expand(
+    [item("Bono Turno", "03-2025", 300000), item("Bono Turno", "06-2025", 300000)],
+    [],
+    {},
+    "2025-04-30"
+  );
+  assert.equal(groups["Bono Turno"].length, 4); // mar, abr(0), may(0), jun
+}
+
+console.log("variableBonus: 6/6 OK");

@@ -349,9 +349,10 @@ const CrearFiniquito = () => {
         variableItems,
         variableCustomAdditions,
         licencias,
-        variableFilledActive
+        variableFilledActive,
+        lastDayWork
       ),
-    [variableItems, variableCustomAdditions, licencias, variableFilledActive]
+    [variableItems, variableCustomAdditions, licencias, variableFilledActive, lastDayWork]
   );
 
   // Recalculate variable bonus when expanded groups change

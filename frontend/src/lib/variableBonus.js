@@ -53,26 +53,38 @@ export function formatPeriodoDisplay(year, month) {
     .replace("/", "-");
 }
 
+// "YYYY-MM-DD" del <input type="date">. Se parsea a mano para no caer en el UTC de
+// new Date("2025-07-01"), que en Chile retrocede al mes anterior.
+export function parseFechaTermino(fecha) {
+  if (!fecha || typeof fecha !== "string") return null;
+  const m = fecha.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? { year: parseInt(m[1], 10), month: parseInt(m[2], 10) } : null;
+}
+
 export function getExpandedVariableGroups(
   variableItems,
   variableCustomAdditions,
   licencias,
-  variableFilledActive
+  variableFilledActive,
+  fechaTermino
 ) {
   const groups = {};
-  // Tope común: el mes más reciente con datos de CUALQUIER concepto. Sin esto, un concepto
-  // que dejó de pagarse los últimos meses no genera filas en 0 y el promedio se infla.
+  // Tope común: el mes más reciente con datos de CUALQUIER concepto, o el mes de término
+  // si es posterior. Sin esto, un concepto que dejó de pagarse los últimos meses no genera
+  // filas en 0 y el promedio se infla; y si TODOS los conceptos pararon antes del término,
+  // los meses finales tampoco aparecían.
   // ponytail: solo se extiende el máximo, no el mínimo (un bono que empezó después no debe
   // aparecer en 0 hacia atrás).
   let globalMaxY = -Infinity,
     globalMaxM = 1;
-  variableItems.forEach((item) => {
-    const p = parsePeriodo(item.periodo);
+  const bumpGlobalMax = (p) => {
     if (p && (p.year > globalMaxY || (p.year === globalMaxY && p.month > globalMaxM))) {
       globalMaxY = p.year;
       globalMaxM = p.month;
     }
-  });
+  };
+  variableItems.forEach((item) => bumpGlobalMax(parsePeriodo(item.periodo)));
+  bumpGlobalMax(parseFechaTermino(fechaTermino));
   variableItems.forEach((item, idx) => {
     const key = item.concepto || "Sin Concepto";
     if (!groups[key]) groups[key] = [];
