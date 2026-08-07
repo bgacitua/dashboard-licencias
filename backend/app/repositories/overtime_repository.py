@@ -33,16 +33,19 @@ class OvertimeRepository:
                 e.status = 'activo' AND
                 a.second_level_name NOT IN ('Cárnica', 'Fragancias', 'Sabores') AND
                 a.name NOT IN ('Control De Calidad', 'Aseguramiento De Calidad', 'Administración Gral De Producción', 'Oper. Comerciales Internacionales',
-                    'Regulaciones Control Calidad', 'Control Y Gestión De Producción', 'Tesorería', 'Rol Privado', 'Contabilidad', 
+                    'Regulaciones Control Calidad', 'Tesorería', 'Rol Privado', 'Contabilidad', 
                     'Recursos Humanos', 'Informática', 'Crédito Y Cobranza', 'Control De Gestión', 'Compras Nacionales',
-                    'Compras Internacionales', 'Administracion Y Finanzas Sabores') AND -- En Administración Gral De Producción hay dos operarios
+                    'Compras Internacionales', 'Administracion Y Finanzas Sabores') AND -- En Administración Gral De Producción hay dos operarios // En Control y Gestión de Producción hay gente. 
                 e.name_role NOT IN ('Jefe de Planta', 
                     'Jefe de Medio Ambiente', 
                     'Prevención y Normas de Calidad',
                     'Líder de Prevención',
                     'Jefe de Medio Ambiente, Prevención y Normas de Calidad',
                     'Facilitador de Excelencia Operativa',
-                    'Líder de Servicios Generales')  AND
+                    'Líder de Servicios Generales',
+                    'Ingeniero de Expansión e Infraestructura',
+                    'Jefe De Mantención',
+                    'Gestor de Proyectos de Infraestructura')  AND
                 e2.email IS NOT NULL AND e2.email <> ''
             ORDER BY e2.full_name, a.name, e.name_role
         """)
