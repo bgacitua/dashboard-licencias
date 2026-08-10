@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import Sidebar from './Sidebar';
+import TestModeBanner from './TestModeBanner';
 
 const STORAGE_KEY = 'hr-sidebar-collapsed';
 
@@ -24,6 +25,7 @@ const SidebarLayout = ({ children }) => {
         className="transition-[margin-left] duration-200 ease-in-out"
         style={{ marginLeft: collapsed ? '4rem' : '16rem' }}
       >
+        <TestModeBanner />
         {children}
       </div>
     </div>

@@ -166,6 +166,10 @@ class MeResponse(BaseModel):
     """Respuesta del endpoint /me"""
     user: UsuarioResponse
     modulos: List[ModuloResponse]
+    # Casilla a la que se desvía todo el correo saliente. Vacío = envío normal.
+    # La UI muestra un aviso mientras tenga valor, para que nadie crea que los
+    # correos llegaron a las jefaturas.
+    email_test_redirect: str = ""
 
 
 # === Schemas de 2FA ===

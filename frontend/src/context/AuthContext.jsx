@@ -21,6 +21,10 @@ export const AuthProvider = ({ children }) => {
     const [modules, setModules] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    // Casilla de desvío de correo. Solo la informa /auth/me, así que no se
+    // cachea en localStorage: si el backend se reinicia sin la variable, el
+    // aviso tiene que desaparecer solo.
+    const [emailTestRedirect, setEmailTestRedirect] = useState('');
 
     // Verificar sesión existente al cargar
     useEffect(() => {
@@ -31,6 +35,7 @@ export const AuthProvider = ({ children }) => {
                     const data = await getCurrentUser();
                     setUser(data.user);
                     setModules(data.modulos);
+                    setEmailTestRedirect(data.email_test_redirect || '');
                     localStorage.setItem('user', JSON.stringify(data.user));
                     localStorage.setItem('modules', JSON.stringify(data.modulos));
                 } catch (err) {
@@ -121,6 +126,7 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         setModules([]);
         setError(null);
+        setEmailTestRedirect('');
     }, []);
 
     /**
@@ -144,6 +150,7 @@ export const AuthProvider = ({ children }) => {
         modules,
         loading,
         error,
+        emailTestRedirect,
         isAuthenticated: !!user,
         login,
         verify2FA,

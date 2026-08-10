@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.deps import get_db
 from app.services.auth_service import AuthService
 from app.schemas.auth import (
@@ -306,7 +307,8 @@ async def get_current_user_info(
 
     return MeResponse(
         user=UsuarioResponse.model_validate(current_user),
-        modulos=[ModuloResponse.model_validate(m) for m in modules]
+        modulos=[ModuloResponse.model_validate(m) for m in modules],
+        email_test_redirect=settings.EMAIL_TEST_REDIRECT,
     )
 
 
