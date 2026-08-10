@@ -19,9 +19,10 @@ def send_email_graph(
 
     access_token = get_access_token()  # puede lanzar AuthRequiredError
 
-    # Interruptor de pruebas: con EMAIL_TEST_REDIRECT configurado, TODO correo que
-    # salga por acá se desvía a esa casilla y se vacían CC/BCC. Es el único punto
-    # de salida a Graph, así que ningún destinatario real puede recibir nada.
+    # Interruptor de pruebas: con EMAIL_TEST_REDIRECT configurado, todo correo que
+    # salga por acá se desvía a esa casilla y se vacían CC/BCC.
+    # Ojo: auth_service (OTP e invitación) no pasa por esta función y sigue enviando
+    # a su destinatario real.
     from app.core.config import settings
     redirect = getattr(settings, "EMAIL_TEST_REDIRECT", "")
     if redirect:

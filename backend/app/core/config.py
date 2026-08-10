@@ -85,9 +85,13 @@ class Settings(BaseSettings):
     SALIDA_PERSONAL_FROM: str = ""
 
     # === Modo prueba global de correo ===
-    # Con valor, TODO correo enviado por email_service.send_email_graph se desvía a
-    # esta casilla y se vacían CC/BCC. Cubre alertas de contratos, horas extras,
-    # avisos de salida y retorno. VACIAR EN PRODUCCIÓN.
+    # Con valor, los correos que salen por email_service.send_email_graph se desvían a
+    # esta casilla y se vacían CC/BCC: alertas de contratos, horas extras, avisos de
+    # salida y retorno.
+    # NO cubre auth_service (OTP de 2FA e invitación de cuenta): esos llaman a Graph
+    # directo y van al propio usuario que inicia la acción, así que desviarlos dejaría
+    # a la gente sin poder entrar.
+    # VACIAR EN PRODUCCIÓN.
     EMAIL_TEST_REDIRECT: str = ""
 
     # === CORS (lista separada por comas) ===
