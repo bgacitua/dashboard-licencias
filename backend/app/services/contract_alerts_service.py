@@ -689,8 +689,8 @@ def _generate_incidencias_html(rut: str, incidencias: List[Dict[str, Any]]) -> s
     inc_empleado = [i for i in incidencias if i.get("rut_empleado") == rut]
 
     if not inc_empleado:
-        return (f"<p style='margin:6px 0 14px 20px;color:{T.C.MUTED};font-style:italic;"
-                f"font-size:13px'>Este colaborador/a no registra ausencias, permisos o "
+        return (f'<p style="{T.MUTED};margin:6px 0 14px 20px;font-style:italic;'
+                f'font-size:13px">Este colaborador/a no registra ausencias, permisos o '
                 f"licencias activas.</p>")
 
     filas = "".join(
@@ -704,7 +704,7 @@ def _generate_incidencias_html(rut: str, incidencias: List[Dict[str, Any]]) -> s
 
     return f"""
     <div style="margin:8px 0 18px 20px">
-        <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:{T.C.TEXT};
+        <p style="{T.P};margin:0 0 6px;font-size:13px;font-weight:600;
                   border-left:3px solid {T.C.PRIMARY};padding-left:9px">
             Permisos y licencias encontradas:
         </p>

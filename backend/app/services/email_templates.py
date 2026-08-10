@@ -37,19 +37,26 @@ class C:
     WHITE = "#ffffff"
 
 
-FONT = "'Segoe UI', -apple-system, system-ui, Tahoma, sans-serif"
+FONT = "'Segoe UI', -apple-system, system-ui, Tahoma, Arial, sans-serif"
+
+# Word (Outlook escritorio) NO hereda font-family a través de tablas anidadas: el
+# elemento que no la declara cae a Times New Roman. Por eso `_F` va en TODOS los
+# tokens de texto, no solo en el body.
+# `mso-line-height-rule:exactly` hace que Word respete el line-height en px; sin
+# esto lo recalcula y el interlineado queda apretado.
+_F = f"font-family:{FONT};mso-line-height-rule:exactly"
 
 # ---------------------------------------------------- estilos inline sueltos
 # Interlineado generoso y tamaños fijos (14/24, 18/28, 24/32): el correo se lee
 # de corrido, no se escanea como una app.
-P = f"margin:0 0 16px;font-size:14px;line-height:24px;color:{C.TEXT}"
-MUTED = f"margin:0 0 16px;font-size:14px;line-height:24px;color:{C.MUTED}"
-H2 = f"margin:0 0 8px;font-size:18px;line-height:28px;font-weight:600;color:{C.TEXT}"
+P = f"{_F};margin:0 0 16px;font-size:14px;line-height:24px;color:{C.TEXT}"
+MUTED = f"{_F};margin:0 0 16px;font-size:14px;line-height:24px;color:{C.MUTED}"
+H2 = f"{_F};margin:0 0 8px;font-size:18px;line-height:28px;font-weight:600;color:{C.TEXT}"
 
-TH = (f"padding:12px 14px;text-align:left;font-size:12px;font-weight:600;"
+TH = (f"{_F};padding:12px 14px;text-align:left;font-size:12px;font-weight:600;"
       f"text-transform:uppercase;letter-spacing:.04em;color:{C.MUTED};"
       f"border-bottom:1px solid {C.BORDER}")
-TD = (f"padding:14px;font-size:14px;line-height:24px;color:{C.TEXT};"
+TD = (f"{_F};padding:14px;font-size:14px;line-height:24px;color:{C.TEXT};"
       f"border-bottom:1px solid {C.BORDER_SOFT}")
 
 TABLE = (f"width:100%;border-collapse:collapse;font-family:{FONT};"
@@ -59,8 +66,8 @@ def panel(html: str) -> str:
     """Bloque gris de datos. Tabla por el mismo motivo que `callout`."""
     return (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
             f'border="0" style="width:100%;margin:0 0 24px"><tr>'
-            f'<td bgcolor="{C.SURFACE}" style="background:{C.SURFACE};border-radius:8px;'
-            f'padding:20px;font-family:{FONT}">{html}</td></tr></table>')
+            f'<td bgcolor="{C.SURFACE}" style="{_F};background:{C.SURFACE};'
+            f'border-radius:8px;padding:20px">{html}</td></tr></table>')
 
 
 def button(href: str, label: str, bg: str = None, small: bool = False) -> str:
@@ -84,7 +91,7 @@ def button(href: str, label: str, bg: str = None, small: bool = False) -> str:
         f"{label}</a></td></tr></table>"
     )
 
-CHIP = (f"display:inline-block;background:{C.INFO_BG};color:{C.INFO_TEXT};"
+CHIP = (f"{_F};display:inline-block;background:{C.INFO_BG};color:{C.INFO_TEXT};"
         f"border:1px solid {C.INFO_BORDER};border-radius:999px;"
         f"padding:4px 12px;font-size:12px;line-height:16px;margin:0 4px 4px 0")
 
@@ -101,9 +108,9 @@ def callout(html: str, kind: str = "info") -> str:
         bg, border, color = C.INFO_BG, C.INFO_BORDER, C.INFO_TEXT
     return (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
             f'border="0" style="width:100%;margin:0 0 24px"><tr>'
-            f'<td bgcolor="{bg}" style="background:{bg};border:1px solid {border};'
+            f'<td bgcolor="{bg}" style="{_F};background:{bg};border:1px solid {border};'
             f'border-radius:8px;padding:14px 16px;color:{color};font-size:14px;'
-            f'line-height:24px;font-family:{FONT}">{html}</td></tr></table>')
+            f'line-height:24px">{html}</td></tr></table>')
 
 
 # ------------------------------------------------------------------ shell
@@ -150,16 +157,16 @@ def email_shell(title: str, body: str, footer: str = _FOOTER_DEFAULT,
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
            style="width:100%;max-width:{width}px;background:{C.WHITE};border-radius:8px">
       <tr><td bgcolor="{C.WHITE}" style="background:{C.WHITE};padding:40px 24px 24px">
-        <h1 style="margin:0 0 42px;font-size:24px;line-height:32px;font-weight:600;
-                   color:{C.TEXT};text-align:center;font-family:{FONT}">{title}</h1>
+        <h1 style="{_F};margin:0 0 42px;font-size:24px;line-height:32px;
+                   font-weight:600;color:{C.TEXT};text-align:center">{title}</h1>
         {body}
       </td></tr>
     </table>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
            style="width:100%;max-width:{width}px">
       <tr><td style="padding:20px 24px 0;text-align:center">
-        <p style="margin:0;font-size:12px;line-height:20px;color:{C.FAINT};
-                  font-family:{FONT}">{footer}</p>
+        <p style="{_F};margin:0;font-size:12px;line-height:20px;
+                  color:{C.FAINT}">{footer}</p>
       </td></tr>
     </table>
     {mso_close}
@@ -187,6 +194,13 @@ def check_outlook_safe(html: str) -> None:
     assert html.count("<table") == html.count("</table>"), "tablas descuadradas"
     assert html.count("<!--[if mso]>") == html.count("<![endif]-->"), \
         "comentarios condicionales descuadrados"
+    # Word no hereda fuentes a través de tablas: todo elemento con texto debe
+    # declarar font-family o cae a Times New Roman.
+    for tag in re.findall(r"<(?:td|p|h1|h2|div|span|a)\b[^>]*style=[^>]*>", html):
+        if "display:none" in tag:  # preview de bandeja: no se ve, no importa la fuente
+            continue
+        if "font-size" in tag or "line-height" in tag:
+            assert "font-family" in tag, f"texto sin font-family (Times en Word): {tag[:90]}"
 
 
 if __name__ == "__main__":
