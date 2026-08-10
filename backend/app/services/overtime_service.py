@@ -19,6 +19,8 @@ from app.core.config import settings
 from app.core.logging_config import logger
 from app.core.security import create_overtime_token, decode_overtime_token
 from app.repositories.overtime_repository import OvertimeRepository
+from app.services import email_templates as T
+from app.services import web_pages as W
 from app.services.email_service import send_email_graph
 
 _DAYS = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
@@ -282,7 +284,8 @@ class OvertimeService:
 
 _DIAS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 
-_AVISO_DOMINGO = "Cualquier actividad programada día domingo debe ser informada vía correo."
+_AVISO_DOMINGO = ("Cualquier actividad programada día domingo debe ser informada vía correo "
+                  "a GRUPO SERVICIOS GENERALES.")
 
 
 def _fecha_larga(dt) -> str:
@@ -290,74 +293,9 @@ def _fecha_larga(dt) -> str:
     return f"{_DIAS_ES[dt.weekday()]} {dt.strftime('%d-%m-%Y')} a las {dt.strftime('%H:%M')}"
 
 
-_SHELL = """<!doctype html><html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title}</title>
-<style>
-  * {{ box-sizing: border-box; }}
-  body {{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin:0;
-         background:#f1f5f9; color:#0f172a; -webkit-text-size-adjust:100%; }}
-  .wrap {{ max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }}
-  .card {{ background:#fff; border-radius:14px; box-shadow:0 1px 3px rgba(15,23,42,.08);
-           border:1px solid #e2e8f0; padding:24px; }}
-  h1 {{ font-size:22px; margin:0 0 6px; letter-spacing:-.01em; }}
-  .muted {{ color:#64748b; font-size:14px; margin:4px 0; }}
-  table {{ width:100%; border-collapse:collapse; font-size:14px; }}
-  th {{ background:#f8fafc; color:#475569; font-size:12px; text-transform:uppercase;
-        letter-spacing:.04em; text-align:left; padding:10px 12px; border-bottom:1px solid #e2e8f0; }}
-  td {{ padding:12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }}
-  tbody tr:hover {{ background:#f8fafc; }}
-  tbody tr.on {{ background:#eff6ff; }}
-  input[type=checkbox] {{ width:22px; height:22px; accent-color:#2563eb; cursor:pointer; }}
-  input[type=checkbox]:disabled {{ cursor:default; opacity:.5; }}
-  .btn {{ background:#2563eb; color:#fff; border:none; padding:13px 30px; border-radius:9px;
-          font-size:15px; font-weight:600; cursor:pointer; }}
-  .btn:hover {{ background:#1d4ed8; }}
-  .search {{ width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px;
-             font-size:14px; margin-top:8px; }}
-  .search:focus {{ outline:2px solid #bfdbfe; outline-offset:-1px; border-color:#2563eb; }}
-  .bar {{ position:sticky; top:0; z-index:5; background:rgba(255,255,255,.92);
-          backdrop-filter:blur(6px); color:#0f172a; border:1px solid #e2e8f0; border-radius:12px;
-          padding:14px 18px; display:flex; gap:28px; align-items:center; flex-wrap:wrap;
-          margin-bottom:16px; box-shadow:0 1px 3px rgba(15,23,42,.06); }}
-  .bar b {{ font-size:24px; display:block; line-height:1.1; color:#2563eb; }}
-  .bar span {{ font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }}
-  details {{ margin-top:10px; }}
-  summary {{ cursor:pointer; font-size:13px; color:#2563eb; }}
-  .chips {{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }}
-  .chip {{ background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:999px;
-           padding:3px 10px; font-size:12px; }}
-  .link-btn {{ background:none; border:none; color:#b91c1c; font-size:13px; cursor:pointer;
-               padding:6px 10px; border-radius:7px; font-weight:500; }}
-  .link-btn:hover {{ background:#fef2f2; }}
-  .link-btn:disabled {{ color:#cbd5e1; cursor:default; background:none; }}
-  .rocket {{ font-size:56px; display:inline-block; animation:breathe 2.6s ease-in-out infinite;
-             transform-origin:center; }}
-  @keyframes breathe {{
-    0%, 100% {{ transform:scale(1) translateY(0); }}
-    50%      {{ transform:scale(1.12) translateY(-6px); }}
-  }}
-  @media (prefers-reduced-motion:reduce) {{ .rocket {{ animation:none; }} }}
-  .warn {{ background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:8px;
-           padding:12px 14px; font-size:14px; margin:14px 0; }}
-  .info {{ background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px;
-           padding:12px 14px; font-size:14px; margin:14px 0; }}
-  @media (max-width:560px) {{
-    .card {{ padding:16px; }}
-    td, th {{ padding:10px 6px; }}
-  }}
-</style></head>
-<body><div class="wrap">{body}</div></body></html>"""
-
-
 def _page_error(msg: str) -> str:
-    body = f"""
-    <div class="card" style="text-align:center;padding:48px 24px">
-      <div style="font-size:44px">⚠️</div>
-      <h1 style="color:#b91c1c;margin:14px 0 8px">No disponible</h1>
-      <p class="muted">{escape(msg)}</p>
-    </div>"""
-    return _SHELL.format(title="No disponible", body=body)
+    return W.status_page("⚠️", "No disponible",
+                         f'<p class="muted">{escape(msg)}</p>', T.C.DANGER_TEXT)
 
 
 def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
@@ -490,7 +428,7 @@ def _page_form(token, record, workers, selections, win, read_only: bool) -> str:
 
       pintar();
     </script>"""
-    return _SHELL.format(title="Horas extras fin de semana", body=body)
+    return W.page("Horas extras fin de semana", body)
 
 
 def _page_saved(token, record, items) -> str:
@@ -505,40 +443,32 @@ def _page_saved(token, record, items) -> str:
         return (f'<div style="margin-top:14px"><span>{titulo}</span><b>{len(nombres)}</b>'
                 f'<div class="chips">{chips}</div></div>')
 
-    body = f"""
-    <div class="card" style="text-align:center;padding:40px 24px">
-      <div class="rocket" role="img" aria-label="Enviado">🚀</div>
-      <h1 style="color:#15803d;margin:14px 0 6px">Selección registrada</h1>
+    detalle = f"""
       <p class="muted">Puedes modificarla hasta el <strong>{cierre}</strong>.</p>
       <p class="muted">Si no tienes más cambios, cierra esta pestaña.</p>
       <div class="bar" style="position:static;display:block;text-align:left;margin-top:22px">
         {_bloque('Sábado', sab)}
       </div>
-      <p class="muted" style="margin-top:16px">{_AVISO_DOMINGO}</p>
-      <a href="{back}" style="display:inline-block;margin-top:18px;padding:11px 26px;
-              border:1px solid #cbd5e1;border-radius:9px;color:#2563eb;text-decoration:none;
-              font-weight:500">Volver a editar</a>
-    </div>"""
-    return _SHELL.format(title="Selección registrada", body=body)
+      <div class="warn" style="margin-top:16px">{_AVISO_DOMINGO}</div>
+      <p style="margin-top:18px"><a href="{back}" class="btn ghost">Volver a editar</a></p>"""
+    body = W.card('<span class="rocket" role="img" aria-label="Enviado">🚀</span>',
+                  "Selección registrada", detalle, T.C.OK)
+    return W.page("Selección registrada", body, narrow=True)
 
 
 def _request_email_html(boss_name: str, total: int, link: str, win: Dict[str, Any]) -> str:
     deadline_txt = _fecha_larga(win["deadline"])
-    return f"""
-    <div style="font-family:sans-serif;color:#1e293b">
-      <p>Hola <strong>{escape(boss_name)}</strong>,</p>
-      <p>Necesitamos que indiques qué trabajadores de tu equipo harán horas extras el
-         <strong>sábado {_fmt(win['sabado'])}</strong>.</p>
-      <p>Tienes {total} trabajador(es) a cargo. Ingresa al siguiente link, marca a quiénes corresponda y guarda:</p>
-      <p style="margin:24px 0">
-        <a href="{link}" style="background:#2563eb;color:white;padding:12px 28px;border-radius:6px;
-           text-decoration:none;font-weight:bold">Seleccionar trabajadores</a>
-      </p>
-      <p style="color:#dc2626"><strong>El link se cierra el {deadline_txt}.</strong>
-         Puedes entrar las veces que necesites y modificar tu selección hasta esa hora.</p>
-      <p><strong>{_AVISO_DOMINGO}</strong></p>
-      <p style="color:#94a3b8;font-size:12px">Correo automático — Dashboard de Personas.</p>
-    </div>"""
+    body = f"""
+      <p style="{T.P}">Hola <strong>{escape(boss_name)}</strong>,</p>
+      <p style="{T.P}">Necesitamos que indiques qué trabajadores de tu equipo harán horas
+         extras el <strong>sábado {_fmt(win['sabado'])}</strong>.</p>
+      <p style="{T.P}">Tienes {total} trabajador(es) a cargo. Ingresa al siguiente link,
+         marca a quiénes corresponda y guarda:</p>
+      <div style="margin:22px 0">{T.button(link, "Seleccionar trabajadores")}</div>
+      {T.callout(f'<strong>El link se cierra el {deadline_txt}.</strong> Puedes entrar las '
+                 'veces que necesites y modificar tu selección hasta esa hora.', 'warn')}
+      {T.callout(f'<strong>{_AVISO_DOMINGO}</strong>')}"""
+    return T.email_shell("Horas extras fin de semana", body)
 
 
 def _summary_email_html(week_start: date, rows: List[Dict[str, Any]]) -> str:
@@ -552,40 +482,38 @@ def _summary_email_html(week_start: date, rows: List[Dict[str, Any]]) -> str:
     for r in seleccionados:
         filas += f"""
         <tr>
-          <td style="padding:8px;border:1px solid #e2e8f0">{escape(r.get('employee_name') or '')}</td>
-          <td style="padding:8px;border:1px solid #e2e8f0">{escape(r.get('employee_rut') or '')}</td>
-          <td style="padding:8px;border:1px solid #e2e8f0">{escape(r.get('cargo') or '')}</td>
-          <td style="padding:8px;border:1px solid #e2e8f0">{escape(r.get('area') or '')}</td>
-          <td style="padding:8px;border:1px solid #e2e8f0">{escape(r.get('boss_name') or '')}</td>
+          <td style="{T.TD}">{escape(r.get('employee_name') or '')}</td>
+          <td style="{T.TD}">{escape(r.get('employee_rut') or '')}</td>
+          <td style="{T.TD}">{escape(r.get('cargo') or '')}</td>
+          <td style="{T.TD}">{escape(r.get('area') or '')}</td>
+          <td style="{T.TD}">{escape(r.get('boss_name') or '')}</td>
         </tr>"""
 
     if not filas:
-        filas = ('<tr><td colspan="5" style="padding:12px;border:1px solid #e2e8f0;color:#64748b">'
+        filas = (f'<tr><td colspan="5" style="{T.TD};color:{T.C.MUTED}">'
                  'Ningún trabajador fue seleccionado.</td></tr>')
 
     pendientes = ""
     if sin_respuesta:
-        pendientes = (
-            '<p style="color:#dc2626"><strong>Jefaturas sin responder:</strong> '
-            + escape(", ".join(sin_respuesta)) + "</p>"
+        pendientes = T.callout(
+            "<strong>Jefaturas sin responder:</strong> " + escape(", ".join(sin_respuesta)),
+            "warn",
         )
 
     total_sab = sum(1 for r in seleccionados if r["sabado"])
 
-    return f"""
-    <div style="font-family:sans-serif;color:#1e293b">
-      <h2>Horas extras sábado {_fmt(sabado)}</h2>
-      <p><strong>Sábado:</strong> {total_sab} trabajador(es)</p>
+    body = f"""
+      <p style="{T.H2}">Sábado {_fmt(sabado)}</p>
+      <p style="{T.P}"><strong>Sábado:</strong> {total_sab} trabajador(es)</p>
       {pendientes}
-      <table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:16px">
-        <thead><tr style="background:#e2e8f0">
-          <th style="padding:8px;border:1px solid #cbd5e1;text-align:left">Trabajador</th>
-          <th style="padding:8px;border:1px solid #cbd5e1;text-align:left">RUT</th>
-          <th style="padding:8px;border:1px solid #cbd5e1;text-align:left">Cargo</th>
-          <th style="padding:8px;border:1px solid #cbd5e1;text-align:left">Área</th>
-          <th style="padding:8px;border:1px solid #cbd5e1;text-align:left">Jefatura</th>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="{T.TABLE}">
+        <thead><tr>
+          <th style="{T.TH}">Trabajador</th>
+          <th style="{T.TH}">RUT</th>
+          <th style="{T.TH}">Cargo</th>
+          <th style="{T.TH}">Área</th>
+          <th style="{T.TH}">Jefatura</th>
         </tr></thead>
         <tbody>{filas}</tbody>
-      </table>
-      <p style="color:#94a3b8;font-size:12px">Correo automático — Dashboard de Personas.</p>
-    </div>"""
+      </table>"""
+    return T.email_shell("Consolidado horas extras", body)

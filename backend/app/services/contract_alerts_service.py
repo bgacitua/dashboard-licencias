@@ -423,28 +423,20 @@ class ContractAlertsService:
             "plazo_fijo": "Renovar - Plazo Fijo",
             "no_renovar": "No Renovar",
         }.get(answer, answer)
-        color = "#dc2626" if answer == "no_renovar" else "#16a34a"
-        html = f"""
-        <html><head><meta charset="utf-8"></head>
-        <body style="font-family:sans-serif;padding:20px;background:#f8f9fa">
-          <div style="max-width:480px;margin:0 auto;background:white;padding:32px;border-radius:10px;
-                      box-shadow:0 2px 8px rgba(0,0,0,.08)">
-            <h2 style="color:#1e293b;margin-top:0">Confirmación de decisión registrada</h2>
-            <p style="color:#475569">Hola <strong>{boss_name}</strong>,</p>
-            <p style="color:#475569">Se ha registrado la siguiente decisión en el sistema de alertas de contratos:</p>
-            <div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:20px 0">
-              <p style="margin:4px 0;color:#334155"><strong>Empleado:</strong> {employee_name}</p>
-              <p style="margin:4px 0;color:#334155"><strong>Vencimiento:</strong> {alert_date}</p>
-              <p style="margin:4px 0;color:{color};font-weight:bold"><strong>Decisión:</strong> {answer_label}</p>
-            </div>
-            <p style="color:#ef4444;font-size:14px">
-              Si <strong>no fuiste tú</strong> quien realizó esta acción, contacta inmediatamente al área de Recursos Humanos.
-            </p>
-            <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">
-            <p style="color:#94a3b8;font-size:12px">Este es un correo automático del Sistema de Alertas de Contratos. No responder.</p>
-          </div>
-        </body></html>
-        """
+        color = T.C.DANGER if answer == "no_renovar" else T.C.OK
+        body = f"""
+            <p style="{T.P}">Hola <strong>{boss_name}</strong>,</p>
+            <p style="{T.P}">Se ha registrado la siguiente decisión en el sistema de alertas
+               de contratos:</p>
+            {T.panel(
+                f'<p style="{T.P};margin:6px 0"><strong>Empleado:</strong> {employee_name}</p>'
+                f'<p style="{T.P};margin:6px 0"><strong>Vencimiento:</strong> {alert_date}</p>'
+                f'<p style="{T.P};margin:6px 0;color:{color};font-weight:bold">'
+                f'<strong>Decisión:</strong> {answer_label}</p>'
+            )}
+            {T.callout('Si <strong>no fuiste tú</strong> quien realizó esta acción, contacta '
+                       'inmediatamente al área de Recursos Humanos.', 'warn')}"""
+        html = T.email_shell("Confirmación de decisión registrada", body)
         try:
             _send_email_graph(
                 to=boss_email,
@@ -674,6 +666,7 @@ def _parse_date_safe(date_str: str) -> datetime:
 # Implementación movida a app/services/email_service.py para compartirla con horas extras.
 # Se mantiene el nombre local para no tocar las llamadas existentes.
 from app.services.email_service import send_email_graph as _send_email_graph  # noqa: E402
+from app.services import email_templates as T  # noqa: E402
 
 
 def _generate_incidencias_html(rut: str, incidencias: List[Dict[str, Any]]) -> str:
@@ -681,40 +674,35 @@ def _generate_incidencias_html(rut: str, incidencias: List[Dict[str, Any]]) -> s
     inc_empleado = [i for i in incidencias if i.get("rut_empleado") == rut]
 
     if not inc_empleado:
-        return "<p style='margin-left: 20px; color: #6c757d; font-style: italic; font-size: 13px; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding-top: 5px; padding-bottom: 5px;'>Este colaborador/a no registra ausencias, permisos o licencias activas.</p>"
+        return (f"<p style='margin:6px 0 14px 20px;color:{T.C.MUTED};font-style:italic;"
+                f"font-size:13px'>Este colaborador/a no registra ausencias, permisos o "
+                f"licencias activas.</p>")
 
-    html = """
-    <div style='margin-left: 20px; margin-top: 10px; margin-bottom: 20px;'>
-        <h4 style='color: #2c3e50; border-left: 4px solid #f39c12; padding-left: 10px; font-size: 14px; margin-bottom: 10px;'>
-            Permisos y Licencias Encontradas:
-        </h4>
-        <table style='width: 95%; border-collapse: collapse; margin-top: 5px; font-size: 12px; border: 1px solid #e0e0e0;'>
-            <thead>
-                <tr style='background-color: #34495e;'>
-                    <th style='padding: 8px 12px; border: 1px solid #ccc; color: #333; text-align: left;'>Tipo de Permiso</th>
-                    <th style='padding: 8px 12px; border: 1px solid #ccc; color: #333; text-align: left;'>Fecha Inicio</th>
-                    <th style='padding: 8px 12px; border: 1px solid #ccc; color: #333; text-align: left;'>Fecha Fin</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
+    filas = "".join(
+        f"""<tr>
+                <td style="{T.TD};font-size:13px">{row.get('tipo_permiso', '')}</td>
+                <td style="{T.TD};font-size:13px">{row.get('fecha_inicio_formato', '')}</td>
+                <td style="{T.TD};font-size:13px">{row.get('fecha_fin_formato', '')}</td>
+            </tr>"""
+        for row in inc_empleado
+    )
 
-    for i, row in enumerate(inc_empleado):
-        row_style = "background-color: #f9f9f9;" if i % 2 == 0 else "background-color: white;"
-        html += f"""
-                <tr style='{row_style}'>
-                    <td style='padding: 8px 12px; border: 1px solid #e0e0e0;'>{row.get('tipo_permiso', '')}</td>
-                    <td style='padding: 8px 12px; border: 1px solid #e0e0e0;'>{row.get('fecha_inicio_formato', '')}</td>
-                    <td style='padding: 8px 12px; border: 1px solid #e0e0e0;'>{row.get('fecha_fin_formato', '')}</td>
-                </tr>
-        """
-
-    html += """
-            </tbody>
+    return f"""
+    <div style="margin:8px 0 18px 20px">
+        <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:{T.C.TEXT};
+                  border-left:3px solid {T.C.PRIMARY};padding-left:9px">
+            Permisos y licencias encontradas:
+        </p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+               style="{T.TABLE};width:95%;margin:0">
+            <thead><tr>
+                <th style="{T.TH}">Tipo de Permiso</th>
+                <th style="{T.TH}">Fecha Inicio</th>
+                <th style="{T.TH}">Fecha Fin</th>
+            </tr></thead>
+            <tbody>{filas}</tbody>
         </table>
-    </div>
-    """
-    return html
+    </div>"""
 
 
 def _generate_email_html(
@@ -744,99 +732,33 @@ def _generate_email_html(
             empleados_por_motivo[motivo] = []
         empleados_por_motivo[motivo].append(emp)
 
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Alertas de Contratos</title>
-        <style>
-            body {{
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                margin: 0;
-                padding: 20px;
-                background-color: #f8f9fa;
-            }}
-            .container {{
-                max-width: 800px;
-                margin: 0 auto;
-                background: white;
-                padding: 30px;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }}
-            .group-title {{
-                background: #2e43ff;
-                width: fit-content;
-                color: white; 
-                font-weight: bold;
-                font-size: 1.1em;
-                border: 2px solid #adb5bd;
-                margin-top: 30px;
-                padding: 15px 0;
-                text-align: center;
-            }}
-            .alerta-tabla {{
-                width: fit-content;
-                border-collapse: collapse;
-                margin-top: 5px; 
-                margin-bottom: 10px; 
-                border: 1px solid #ccc;
-            }}
-            .alerta-tabla th, .alerta-tabla td {{
-                padding: 6px 25px;
-                text-align: left;
-                border: 1px solid #ddd;
-            }}
-            .alerta-tabla th {{
-                background-color: transparent;
-                color: #333;
-                font-weight: bold;
-            }}
-            .alerta-tabla tr:nth-child(odd) {{
-                background-color: #ffffff;
-            }}
-            .alerta-tabla tr:nth-child(even) {{
-                background-color: #f8f9fa;
-            }}
-            .urgente {{
-                background-color: #f7f7f7 !important;
-            }}
-            .incidencia-row td {{
-                padding: 0;
-                border: none;
-                background-color: #f8f9fa; 
-            }}
-            .header {{ text-align: center; border-bottom: 3px solid #007bff; padding-bottom: 20px; margin-bottom: 30px; }}
-            .header h1 {{ color: #2e43ff; margin: 0; font-size: 28px; }}
-            .jefe-info {{ background: #f7f8f8; padding: 15px; border-radius: 6px; margin-bottom: 25px; }}
-            .jefe-info h2 {{ margin: 0; color: #2e43ff; }}
-            .footer {{ margin-top: 30px; padding-top: 20px; border-top: 2px solid #dee2e6; text-align: center; color: #6c757d; font-size: 14px; }}
-        </style>
-    </head>
-    <body>
-            <div class="jefe-info">
-                <p>{'<strong>⚠️ RECORDATORIO</strong> — ' if is_followup else ''}{saludo} {nombre_jefe}:</p>
-                <p>Junto con saludar, {'le recordamos que aún tiene ' if is_followup else ''}notificamos los siguientes vencimientos de contrato{'<strong> pendientes de respuesta</strong>' if is_followup else ''}:</p>
-                <p>(*) Haga clic en el botón correspondiente para indicar su decisión de renovación.</p>
-                <p>Por favor contestar a la brevedad, por motivos de cierre de mes.</p>
-            </div>
-    """
+    intro = "".join([
+        f'<p style="{T.P}">{"<strong>⚠️ RECORDATORIO</strong> — " if is_followup else ""}'
+        f'{saludo} {nombre_jefe}:</p>',
+        f'<p style="{T.P}">Junto con saludar, '
+        f'{"le recordamos que aún tiene " if is_followup else ""}notificamos los siguientes '
+        f'vencimientos de contrato'
+        f'{"<strong> pendientes de respuesta</strong>" if is_followup else ""}:</p>',
+        f'<p style="{T.P}">(*) Haga clic en el botón correspondiente para indicar su '
+        f'decisión de renovación.</p>',
+        T.callout("Por favor contestar a la brevedad, por motivos de cierre de mes.", "warn"),
+    ])
+
+    body = intro
 
     for motivo in sorted(empleados_por_motivo.keys()):
         grupo_empleados = empleados_por_motivo[motivo]
 
-        html += f"""
-            <h3 class="group-title">{motivo}</h3>
-            <table class="alerta-tabla">
+        body += f"""
+            <p style="{T.H2};margin:26px 0 0">{motivo}</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+                   style="{T.TABLE}">
                 <thead>
                     <tr>
-                        <th style="width: 35%;">Empleado</th>
-                        <th style="width: 25%;">Cargo</th>
-                        <th style="width: 15%;">Fecha Vencimiento</th>
-                        <th style="width: 25%;">Renovar (*)</th>
+                        <th style="{T.TH};width:35%">Empleado</th>
+                        <th style="{T.TH};width:22%">Cargo</th>
+                        <th style="{T.TH};width:16%">Fecha Vencimiento</th>
+                        <th style="{T.TH};width:27%">Renovar (*)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -844,53 +766,44 @@ def _generate_email_html(
 
         for emp in grupo_empleados:
             rut_empleado = emp.get("rut", "")
-            clase_fila = "urgente" if emp["tipo_alerta"] == "INDEFINIDO" else ""
+            # INDEFINIDO se destaca: es el caso que no admite otra salida que renovar.
+            fila_bg = f";background:{T.C.SURFACE}" if emp["tipo_alerta"] == "INDEFINIDO" else ""
             token = (token_map or {}).get(rut_empleado, "")
 
             if token and public_url:
                 base = f"{public_url}/api/v1/contract-alerts/respond?token={token}&answer="
                 renovar_answer = "indefinido" if emp["tipo_alerta"] == "INDEFINIDO" else "plazo_fijo"
                 renovar_cell = f"""
-                    <td style="width: 25%; padding: 4px 8px;">
-                        <a href="{base}{renovar_answer}" style="display:inline-block;margin:2px;padding:4px 8px;background:#16a34a;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✓ Renovar</a>
-                        <a href="{base}no_renovar" style="display:inline-block;margin:2px;padding:4px 8px;background:#dc2626;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✗ No Renovar</a>
+                    <td style="{T.TD}{fila_bg}">
+                        {T.button(f'{base}{renovar_answer}', '✓ Renovar', T.C.OK, small=True)}
+                        {T.button(f'{base}no_renovar', '✗ No Renovar', T.C.DANGER, small=True)}
                     </td>
                 """
             else:
-                renovar_cell = '<td style="width: 25%; background-color: #FFDDC1;"></td>'
+                renovar_cell = f'<td style="{T.TD};background:{T.C.DANGER_BG}"></td>'
 
-            html += f"""
-                <tr class="{clase_fila}">
-                    <td style="width: 35%;"><strong>{emp['empleado']}</strong></td>
-                    <td style="width: 25%;">{emp['cargo']}</td>
-                    <td style="width: 15%;">{emp['fecha_alerta']}</td>
+            body += f"""
+                <tr>
+                    <td style="{T.TD}{fila_bg};font-weight:600">{emp['empleado']}</td>
+                    <td style="{T.TD}{fila_bg}">{emp['cargo']}</td>
+                    <td style="{T.TD}{fila_bg}">{emp['fecha_alerta']}</td>
                     {renovar_cell}
                 </tr>
             """
 
             # Subtabla de incidencias
-            tabla_incidencias_html = _generate_incidencias_html(rut_empleado, incidencias)
-            html += f"""
-                <tr class="incidencia-row">
-                    <td colspan="4" style="padding: 0; border: none;"> 
-                        {tabla_incidencias_html}
+            body += f"""
+                <tr>
+                    <td colspan="4" style="padding:0;border:1px solid {T.C.BORDER};
+                                           border-top:none;background:{T.C.WHITE}">
+                        {_generate_incidencias_html(rut_empleado, incidencias)}
                     </td>
                 </tr>
             """
 
-        html += """
+        body += """
                 </tbody>
             </table>
         """
 
-    html += """
-            <div class="footer">
-                <p>Correo generado por el Sistema de Alertas de Contratos</p>
-                <hr>
-                <small>Para consultas, contacte al área de Recursos Humanos o responda este correo.</small>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    return html
+    return T.email_shell("Alertas de contratos", body)

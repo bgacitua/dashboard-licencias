@@ -1,4 +1,5 @@
 import urllib.parse
+from html import escape
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -11,7 +12,9 @@ from app.core.config import settings
 from app.core.security import require_role
 from app.db.deps import get_db
 from app.models.auth import Usuario
+from app.services import web_pages as W
 from app.services.contract_alerts_service import ContractAlertsService
+from app.services.email_templates import C
 from app.services.email_token_service import save_tokens
 from app.core.logging_config import logger
 from app.schemas.contract_alerts import (
@@ -90,32 +93,18 @@ def microsoft_callback(code: str = None, error: str = None):
 
 def _auth_html(success: bool, error_msg: str = "") -> str:
     if success:
-        return """
-        <html><head><title>Autorización exitosa</title></head>
-        <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
-                     height:100vh;margin:0;background:#f8f9fa">
-          <div style="text-align:center;padding:40px;background:white;border-radius:12px;
-                      box-shadow:0 2px 10px rgba(0,0,0,.1)">
-            <div style="font-size:48px">✅</div>
-            <h2 style="color:#16a34a;margin:16px 0 8px">¡Autorización exitosa!</h2>
-            <p style="color:#6b7280">Ya puedes cerrar esta ventana y enviar los correos.</p>
-            <script>setTimeout(() => window.close(), 2000)</script>
-          </div>
-        </body></html>
-        """
-    return f"""
-    <html><head><title>Error de autorización</title></head>
-    <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
-                 height:100vh;margin:0;background:#f8f9fa">
-      <div style="text-align:center;padding:40px;background:white;border-radius:12px;
-                  box-shadow:0 2px 10px rgba(0,0,0,.1)">
-        <div style="font-size:48px">❌</div>
-        <h2 style="color:#dc2626;margin:16px 0 8px">Error de autorización</h2>
-        <p style="color:#6b7280">{error_msg}</p>
-        <p style="color:#9ca3af;font-size:14px">Puedes cerrar esta ventana e intentarlo de nuevo.</p>
-      </div>
-    </body></html>
-    """
+        return W.status_page(
+            "✅", "¡Autorización exitosa!",
+            '<p class="muted">Ya puedes cerrar esta ventana y enviar los correos.</p>'
+            "<script>setTimeout(() => window.close(), 2000)</script>",
+            C.OK,
+        )
+    return W.status_page(
+        "❌", "Error de autorización",
+        f'<p class="muted">{escape(error_msg)}</p>'
+        '<p class="fine">Puedes cerrar esta ventana e intentarlo de nuevo.</p>',
+        C.DANGER,
+    )
 
 
 # === Alertas ===
@@ -321,41 +310,28 @@ def _confirm_html(token: str, answer: str, answer_label: str, record: dict, toke
     employee_name = record.get("employee_name", "")
     boss_name = record.get("boss_name", "")
     alert_date = record.get("alert_date", "")
-    directed_to = f'<p style="color:#64748b;font-size:13px">Este link fue enviado a: <strong>{token_boss_email}</strong></p>' if token_boss_email else ""
+    directed_to = (f'<p class="fine">Este link fue enviado a: '
+                   f'<strong>{escape(token_boss_email)}</strong></p>') if token_boss_email else ""
     confirm_url = f"/api/v1/contract-alerts/respond/confirm?token={token}&answer={answer}"
-    cancel_url = "javascript:window.close()"
-    color = "#dc2626" if answer == "no_renovar" else "#16a34a"
+    color = C.DANGER if answer == "no_renovar" else C.OK
     icon = "✗" if answer == "no_renovar" else "✓"
-    return f"""
-    <html><head><meta charset="utf-8"><title>Confirmar decisión</title></head>
-    <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
-                 height:100vh;margin:0;background:#f8f9fa">
-      <div style="text-align:center;padding:40px;background:white;border-radius:12px;
-                  box-shadow:0 2px 10px rgba(0,0,0,.1);max-width:440px;width:90%">
-        <div style="font-size:48px">{icon}</div>
-        <h2 style="color:#1e293b;margin:16px 0 8px">Confirmar decisión</h2>
-        <p style="color:#475569;margin:8px 0">Hola <strong>{boss_name}</strong>,</p>
-        <p style="color:#475569;margin:8px 0">Estás a punto de registrar la siguiente decisión:</p>
-        <div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:20px 0;text-align:left">
-          <p style="margin:4px 0;color:#334155"><strong>Empleado:</strong> {employee_name}</p>
-          <p style="margin:4px 0;color:#334155"><strong>Vencimiento:</strong> {alert_date}</p>
-          <p style="margin:4px 0;color:{color};font-weight:bold"><strong>Decisión:</strong> {answer_label}</p>
+    cuerpo = f"""
+        <p class="muted">Hola <strong>{escape(boss_name)}</strong>,</p>
+        <p class="muted">Estás a punto de registrar la siguiente decisión:</p>
+        <div class="datos">
+          <p><strong>Empleado:</strong> {escape(employee_name)}</p>
+          <p><strong>Vencimiento:</strong> {alert_date}</p>
+          <p style="color:{color};font-weight:bold"><strong>Decisión:</strong> {answer_label}</p>
         </div>
         {directed_to}
-        <p style="color:#94a3b8;font-size:13px;margin-bottom:24px">Esta acción quedará registrada y no podrá modificarse. Recibirás un correo de confirmación.</p>
+        <p class="fine" style="margin-bottom:24px">Esta acción quedará registrada y no podrá
+           modificarse. Recibirás un correo de confirmación.</p>
         <form method="post" action="{confirm_url}" style="display:inline">
-          <button type="submit" style="background:{color};color:white;border:none;padding:10px 28px;
-                  border-radius:6px;font-size:15px;font-weight:bold;cursor:pointer;margin-right:8px">
-            Confirmar
-          </button>
+          <button type="submit" class="btn{' danger' if answer == 'no_renovar' else ''}"
+                  style="margin-right:8px">Confirmar</button>
         </form>
-        <a href="{cancel_url}" style="display:inline-block;padding:10px 28px;border:1px solid #cbd5e1;
-                border-radius:6px;font-size:15px;color:#64748b;text-decoration:none">
-          Cancelar
-        </a>
-      </div>
-    </body></html>
-    """
+        <a href="javascript:window.close()" class="btn ghost">Cancelar</a>"""
+    return W.status_page(icon, "Confirmar decisión", cuerpo)
 
 
 def _respond_html(
@@ -370,46 +346,26 @@ def _respond_html(
     alert_date = record.get("alert_date", "")
 
     if not success:
-        return f"""
-        <html><head><meta charset="utf-8"><title>Error</title></head>
-        <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
-                     height:100vh;margin:0;background:#f8f9fa">
-          <div style="text-align:center;padding:40px;background:white;border-radius:12px;
-                      box-shadow:0 2px 10px rgba(0,0,0,.1);max-width:400px">
-            <div style="font-size:48px">❌</div>
-            <h2 style="color:#dc2626;margin:16px 0 8px">Link inválido</h2>
-            <p style="color:#6b7280">{error_msg}</p>
-          </div>
-        </body></html>
-        """
+        return W.status_page("❌", "Link inválido",
+                             f'<p class="muted">{escape(error_msg)}</p>', C.DANGER)
 
     if already_answered:
-        return f"""
-        <html><head><meta charset="utf-8"><title>Ya respondido</title></head>
-        <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
-                     height:100vh;margin:0;background:#f8f9fa">
-          <div style="text-align:center;padding:40px;background:white;border-radius:12px;
-                      box-shadow:0 2px 10px rgba(0,0,0,.1);max-width:400px">
-            <div style="font-size:48px">ℹ️</div>
-            <h2 style="color:#2563eb;margin:16px 0 8px">Ya fue respondido</h2>
-            <p style="color:#6b7280">La decisión para <strong>{employee_name}</strong> ya fue registrada anteriormente.</p>
-          </div>
-        </body></html>
-        """
+        return W.status_page(
+            "ℹ️", "Ya fue respondido",
+            f'<p class="muted">La decisión para <strong>{escape(employee_name)}</strong> '
+            f"ya fue registrada anteriormente.</p>",
+            C.PRIMARY,
+        )
 
-    color = "#16a34a" if "No" not in answer_label else "#dc2626"
-    return f"""
-    <html><head><meta charset="utf-8"><title>Respuesta registrada</title></head>
-    <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
-                 height:100vh;margin:0;background:#f8f9fa">
-      <div style="text-align:center;padding:40px;background:white;border-radius:12px;
-                  box-shadow:0 2px 10px rgba(0,0,0,.1);max-width:400px">
-        <div style="font-size:48px">✅</div>
-        <h2 style="color:{color};margin:16px 0 8px">¡Respuesta registrada!</h2>
-        <p style="color:#374151">Empleado: <strong>{employee_name}</strong></p>
-        <p style="color:#374151">Vencimiento: <strong>{alert_date}</strong></p>
-        <p style="color:{color};font-weight:bold;font-size:18px">{answer_label}</p>
-        <p style="color:#9ca3af;font-size:13px;margin-top:16px">Puede cerrar esta ventana.</p>
-      </div>
-    </body></html>
-    """
+    color = C.OK if "No" not in answer_label else C.DANGER
+    return W.status_page(
+        "✅", "¡Respuesta registrada!",
+        f"""
+        <div class="datos" style="text-align:center">
+          <p>Empleado: <strong>{escape(employee_name)}</strong></p>
+          <p>Vencimiento: <strong>{alert_date}</strong></p>
+          <p style="color:{color};font-weight:bold;font-size:18px">{answer_label}</p>
+        </div>
+        <p class="fine">Puede cerrar esta ventana.</p>""",
+        color,
+    )

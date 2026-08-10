@@ -84,6 +84,12 @@ class Settings(BaseSettings):
     # Con otra casilla se requiere permiso SendAs en Exchange para esa cuenta.
     SALIDA_PERSONAL_FROM: str = ""
 
+    # === Modo prueba global de correo ===
+    # Con valor, TODO correo enviado por email_service.send_email_graph se desvía a
+    # esta casilla y se vacían CC/BCC. Cubre alertas de contratos, horas extras,
+    # avisos de salida y retorno. VACIAR EN PRODUCCIÓN.
+    EMAIL_TEST_REDIRECT: str = ""
+
     # === CORS (lista separada por comas) ===
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost"
 
