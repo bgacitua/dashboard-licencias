@@ -140,16 +140,22 @@ class ContractAlertsService:
             "bosses_to_notify": bosses,
         }
 
-    def send_alerts_by_boss(self, bosses_filter: List[Dict[str, str]]) -> Dict[str, Any]:
+    def send_alerts_by_boss(
+        self, bosses_filter: List[Dict[str, str]], days_override: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """
         Envía alertas agrupadas por jefe vía Outlook COM.
         bosses_filter: [{"boss_name": "...", "boss_email": "..."}]
+        days_override: mismo rango que el listado. Sin él se recalcula el rango
+        dinámico, que puede ser más corto y dejar fuera lo que el usuario ve.
         """
-        _, fecha_fin, _, _, _ = self._calculate_search_range()
+        fecha_fin = self._get_end_date(days_override)
+        logger.info(f"[Envío] Buscando alertas hasta {fecha_fin} (override={days_override})")
         alerts = self.repository.get_pending_alerts(end_date=fecha_fin)
         incidencias = self.repository.get_all_incidencias()
 
         if not alerts:
+            logger.warning(f"[Envío] Sin alertas pendientes hasta {fecha_fin}: no se envía nada.")
             return {
                 "bosses_successful": 0,
                 "bosses_failed": 0,
@@ -171,6 +177,10 @@ class ContractAlertsService:
                 alertas_pendientes.append(alert)
 
         if not alertas_pendientes:
+            logger.warning(
+                f"[Envío] Las {len(alerts)} alertas del rango ya están marcadas como "
+                f"procesadas (o sin alert_type): no se envía nada."
+            )
             return {
                 "bosses_successful": 0,
                 "bosses_failed": 0,
@@ -188,6 +198,11 @@ class ContractAlertsService:
             ]
 
         if not alertas_pendientes:
+            logger.warning(
+                f"[Envío] Ninguna alerta pendiente coincide con los {len(bosses_filter)} "
+                f"jefe(s) seleccionado(s): {[d.get('boss_email') for d in bosses_filter]}. "
+                f"Rango usado: hasta {fecha_fin}."
+            )
             return {
                 "bosses_successful": 0,
                 "bosses_failed": 0,

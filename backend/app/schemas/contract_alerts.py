@@ -51,6 +51,9 @@ class AlertStatsResponse(BaseModel):
 class SendAlertsRequest(BaseModel):
     """Request para enviar alertas a jefes seleccionados"""
     bosses: List[dict]  # [{"boss_name": "...", "boss_email": "..."}]
+    # Mismo override de rango que usa el listado. Sin esto el envío recalcula su
+    # propio rango y puede no encontrar las alertas que el usuario tiene en pantalla.
+    days: Optional[int] = None
 
 
 class SendAlertsResponse(BaseModel):

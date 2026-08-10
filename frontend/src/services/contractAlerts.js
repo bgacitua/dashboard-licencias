@@ -36,10 +36,13 @@ export const getContractAlertStats = async (days = null) => {
   }
 };
 
-export const sendContractAlerts = async (bosses) => {
+// `days` debe ser el mismo override con que se listó: si no, el backend recalcula
+// su propio rango y puede no encontrar las alertas que están en pantalla.
+export const sendContractAlerts = async (bosses, days = null) => {
   try {
     const response = await axios.post(`${API_URL}/contract-alerts/send`, {
       bosses,
+      days,
     });
     return response.data;
   } catch (error) {

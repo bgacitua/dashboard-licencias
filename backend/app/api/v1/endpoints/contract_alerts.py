@@ -141,7 +141,7 @@ def get_schedule_info(db: Session = Depends(get_db)):
 def send_alerts(request: SendAlertsRequest, db: Session = Depends(get_db)):
     """Envía alertas a los jefes seleccionados vía Outlook"""
     service = ContractAlertsService(db)
-    return service.send_alerts_by_boss(request.bosses)
+    return service.send_alerts_by_boss(request.bosses, days_override=request.days)
 
 
 # === Calendario de Cierres ===

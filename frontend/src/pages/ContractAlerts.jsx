@@ -225,7 +225,7 @@ const ContractAlerts = () => {
     setSendResult(null);
     setAuthRequired(false);
     try {
-      const result = await sendContractAlerts(selectedBosses);
+      const result = await sendContractAlerts(selectedBosses, customDays);
       if (result.auth_required) {
         setAuthRequired(true);
         return;
