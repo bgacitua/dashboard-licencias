@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     # Con otra casilla se requiere permiso SendAs en Exchange para esa cuenta.
     SALIDA_PERSONAL_FROM: str = ""
 
+    # Carpeta donde el scraper de BUK deja screenshot + HTML cuando falla.
+    BUK_WEB_DEBUG_DIR: str = "/tmp/buk_scraper"
+
     # === Modo prueba global de correo ===
     # Con valor, los correos que salen por email_service.send_email_graph se desvían a
     # esta casilla y se vacían CC/BCC: alertas de contratos, horas extras, avisos de
