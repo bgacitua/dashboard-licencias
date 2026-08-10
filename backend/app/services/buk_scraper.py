@@ -52,6 +52,55 @@ def _login(page):
     page.wait_for_url(lambda url: "/users/sign_in" not in url, timeout=30000)
 
 
+# Botón de cerrar del modal, acotado al header: la ficha tiene muchos otros
+# `data-name-icon` (content_copy, keyboard_arrow_left) que no cierran nada.
+_CERRAR_POPUP = (
+    ".modal-header button.close[data-dismiss='modal'], "
+    ".modal-header button:has([data-name-icon='close'])"
+)
+
+# BUK bloquea la plataforma por facturas impagas con un modal igual a los demás.
+# Se detecta por texto para no confundirlo con un aviso inocuo.
+_TEXTO_BLOQUEO = "restringió tu acceso"
+
+
+def _hay_bloqueo_facturacion(page) -> bool:
+    """True si el modal visible es el de acceso restringido por deuda."""
+    try:
+        modal = page.locator(".modal-content:visible").first
+        if modal.count() == 0:
+            return False
+        return _TEXTO_BLOQUEO in modal.inner_text(timeout=2000)
+    except Exception:
+        return False
+
+
+def _cerrar_popups(page, intentos: int = 3) -> int:
+    """Cierra los modales que BUK abre al entrar a la ficha. Devuelve cuántos cerró.
+
+    Tolerante a propósito: si no hay popup no pasa nada. El problema real es que
+    el overlay intercepta los clicks siguientes, así que conviene llamarlo después
+    de cada carga de la ficha, no solo la primera vez.
+    """
+    cerrados = 0
+    for _ in range(intentos):
+        boton = page.locator(_CERRAR_POPUP).first
+        try:
+            boton.wait_for(state="visible", timeout=2000)
+        except Exception:
+            break  # no hay (más) popups: caso normal
+        try:
+            boton.click(timeout=2000)
+            cerrados += 1
+            page.wait_for_timeout(300)  # deja terminar la animación de cierre
+        except Exception as e:
+            logger.warning(f"BUK scraper: no se pudo cerrar el popup ({e})")
+            break
+    if cerrados:
+        logger.info(f"BUK scraper: {cerrados} popup(s) cerrado(s)")
+    return cerrados
+
+
 def renovar_contrato(employee_id: int, response: str) -> dict:
     """
     Abre la ficha del empleado, dispara "Renovar contrato" y selecciona el tipo.
@@ -80,6 +129,16 @@ def _renovar(employee_id: int, tipo: str, PlaywrightTimeout) -> dict:
 
         page.goto(f"{settings.BUK_WEB_BASE_URL}/employees/{employee_id}", wait_until="domcontentloaded")
 
+        # Si BUK bloqueó la cuenta por deuda, se corta acá: seguir solo produciría
+        # un "no apareció el botón Renovar contrato" que oculta la causa real.
+        if _hay_bloqueo_facturacion(page):
+            raise BukScraperError(
+                "BUK restringió el acceso por facturas vencidas sin pagar. "
+                "La renovación no se puede aplicar hasta regularizar la deuda "
+                "(contacto: cobranza@buk.cl)."
+            )
+        _cerrar_popups(page)
+
         boton = page.locator("a[href*='/renovar_contrato']").first
         try:
             boton.wait_for(state="visible", timeout=20000)
@@ -89,7 +148,14 @@ def _renovar(employee_id: int, tipo: str, PlaywrightTimeout) -> dict:
                 "(¿ya renovado, contrato no vencido, o sin permisos?)"
             )
         job_id = boton.get_attribute("href").split("/")[2]
-        boton.click()
+        try:
+            boton.click(timeout=10000)
+        except PlaywrightTimeout:
+            # El popup puede aparecer tarde y quedar tapando el botón: Playwright
+            # espera a que sea clickeable y expira. Se cierra y se reintenta una vez.
+            if not _cerrar_popups(page):
+                raise
+            boton.click(timeout=10000)
 
         # select2: el <select> nativo está oculto, hay que operar el widget.
         page.wait_for_selector("#select2-renovar_contrato_tipo_contrato-container", timeout=20000)
@@ -106,6 +172,7 @@ def _renovar(employee_id: int, tipo: str, PlaywrightTimeout) -> dict:
         # ponytail: éxito = el botón de renovar ya no está disponible tras recargar
         # la ficha. Si BUK expone un flash de confirmación estable, cambiar por eso.
         page.goto(f"{settings.BUK_WEB_BASE_URL}/employees/{employee_id}", wait_until="load")
+        _cerrar_popups(page)
         if page.locator(f"a[href='/jobs/{job_id}/renovar_contrato']").count() > 0:
             raise BukScraperError(
                 f"Renovación no aplicada: el botón sigue presente para job {job_id}"
