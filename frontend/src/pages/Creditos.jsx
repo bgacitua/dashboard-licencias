@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SidebarLayout from '../components/SidebarLayout';
 import {
-  listarCreditos, buscarTrabajadores, crearCredito, eliminarCredito,
+  listarCreditos, buscarTrabajadores, crearCredito, actualizarCredito, eliminarCredito,
   subirDocumento, iniciarFirma, verificarFirma, crearCreditoBuk,
   verificarCreditoBuk, abrirPagare,
 } from '../services/creditos';
@@ -54,6 +54,7 @@ const Creditos = () => {
   const [error, setError] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [modal, setModal] = useState(false);
+  const [editando, setEditando] = useState(null);
   const [form, setForm] = useState(FORM_INICIAL);
   const [saving, setSaving] = useState(false);
   const [sugerencias, setSugerencias] = useState([]);
@@ -90,24 +91,59 @@ const Creditos = () => {
     setSugerencias([]);
   };
 
+  const abrirNuevo = () => {
+    setEditando(null);
+    setForm(FORM_INICIAL);
+    setSugerencias([]);
+    setModal(true);
+  };
+
+  const abrirEdicion = (c) => {
+    setEditando(c);
+    const opciones = c.firmas_requeridas?._opciones || {};
+    setForm({
+      ...FORM_INICIAL,
+      ...c,
+      monto_original: c.monto_original ?? '',
+      equivalente_pesos: c.equivalente_pesos ?? '',
+      comentario: c.comentario ?? '',
+      dia_uf: c.dia_uf ?? '',
+      visible: opciones.visible ?? true,
+      overwrite: opciones.overwrite ?? false,
+      path: opciones.path ?? '',
+      reviewer_id: opciones.reviewer_id ?? '',
+      signable_by_employee: c.firmas_requeridas?.employee_sign ?? true,
+      signable_by_legal_agent: c.firmas_requeridas?.legal_agent_sign ?? true,
+      signable_by_second_legal_agent: c.firmas_requeridas?.second_legal_agent_sign ?? false,
+    });
+    setSugerencias([]);
+    setModal(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.employee_id) return alert('Selecciona un trabajador de la lista.');
     setSaving(true);
+    const payload = {
+      ...form,
+      employee_id: Number(form.employee_id),
+      amount: Number(form.amount),
+      duracion: Number(form.duracion),
+      cuota_actual: Number(form.cuota_actual),
+      monto_original: form.monto_original ? Number(form.monto_original) : null,
+      equivalente_pesos: form.equivalente_pesos ? Number(form.equivalente_pesos) : null,
+      reviewer_id: form.reviewer_id ? Number(form.reviewer_id) : null,
+      path: form.path || null,
+      dia_uf: form.moneda === 'uf' ? form.dia_uf || null : null,
+    };
     try {
-      await crearCredito({
-        ...form,
-        employee_id: Number(form.employee_id),
-        amount: Number(form.amount),
-        duracion: Number(form.duracion),
-        cuota_actual: Number(form.cuota_actual),
-        monto_original: form.monto_original ? Number(form.monto_original) : null,
-        equivalente_pesos: form.equivalente_pesos ? Number(form.equivalente_pesos) : null,
-        reviewer_id: form.reviewer_id ? Number(form.reviewer_id) : null,
-        path: form.path || null,
-        dia_uf: form.moneda === 'uf' ? form.dia_uf || null : null,
-      });
+      if (editando) {
+        await actualizarCredito(editando.id, payload);
+      } else {
+        await crearCredito(payload);
+      }
       setModal(false);
+      setEditando(null);
       setForm(FORM_INICIAL);
       await cargar();
     } catch (err) {
@@ -164,7 +200,7 @@ const Creditos = () => {
               <p className="text-sm text-slate-500 mt-0.5">Pagaré, firma en BUK y carga del crédito al trabajador</p>
             </div>
             <button
-              onClick={() => { setForm(FORM_INICIAL); setModal(true); }}
+              onClick={abrirNuevo}
               className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 shadow-sm"
             >
               <span className="material-symbols-outlined text-[18px]">add</span>
@@ -247,6 +283,15 @@ const Creditos = () => {
                                   {cargando ? 'Procesando...' : accion.label}
                                 </button>
                               )}
+                              {!c.buk_file_id && (
+                                <button
+                                  onClick={() => abrirEdicion(c)}
+                                  title="Editar"
+                                  className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                                </button>
+                              )}
                               {!c.buk_credit_id && (
                                 <button
                                   onClick={() => handleEliminar(c)}
@@ -272,7 +317,9 @@ const Creditos = () => {
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-xl">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                <h2 className="text-lg font-bold text-slate-900">Nuevo crédito</h2>
+                <h2 className="text-lg font-bold text-slate-900">
+                  {editando ? `Editar crédito #${editando.id}` : 'Nuevo crédito'}
+                </h2>
                 <button onClick={() => setModal(false)} className="text-slate-400 hover:text-slate-700">
                   <span className="material-symbols-outlined">close</span>
                 </button>
@@ -424,7 +471,7 @@ const Creditos = () => {
                   </button>
                   <button type="submit" disabled={saving}
                     className="px-5 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 disabled:opacity-50">
-                    {saving ? 'Guardando...' : 'Crear borrador'}
+                    {saving ? 'Guardando...' : editando ? 'Guardar cambios' : 'Crear borrador'}
                   </button>
                 </div>
               </form>

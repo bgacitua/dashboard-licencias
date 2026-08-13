@@ -65,15 +65,25 @@ class CreditosService:
     def get_by_id(self, credito_id: int) -> Optional[Credito]:
         return self.db.query(Credito).filter(Credito.id == credito_id).first()
 
+    OPCIONES_DOC = ("visible", "overwrite", "path", "reviewer_id")
+
+    def _separar_opciones(self, payload: dict, base: Optional[dict] = None) -> dict:
+        """Saca del payload los flags de firma y las opciones de subida (no son
+        columnas) y los devuelve como el JSON que se guarda en firmas_requeridas."""
+        firmas = dict(base or {})
+        opciones = dict(firmas.get("_opciones") or {})
+        for flag, api_key in FLAGS_FIRMA.items():
+            if flag in payload:
+                firmas[api_key] = payload.pop(flag)
+        for clave in self.OPCIONES_DOC:
+            if clave in payload:
+                opciones[clave] = payload.pop(clave)
+        firmas["_opciones"] = opciones
+        return firmas
+
     def create(self, data: CreditoCreate, created_by: Optional[str] = None) -> Credito:
         payload = data.model_dump()
-        firmas_requeridas = {
-            api_key: payload.pop(flag)
-            for flag, api_key in FLAGS_FIRMA.items()
-        }
-        # Parámetros de subida que no son columnas de la tabla
-        opciones = {k: payload.pop(k) for k in ("visible", "overwrite", "path", "reviewer_id")}
-        firmas_requeridas["_opciones"] = opciones
+        firmas_requeridas = self._separar_opciones(payload)
 
         credito = Credito(**payload, firmas_requeridas=firmas_requeridas, created_by=created_by)
         self.db.add(credito)
@@ -85,9 +95,13 @@ class CreditosService:
         credito = self.get_by_id(credito_id)
         if not credito:
             return None
-        if credito.estado != BORRADOR:
-            raise CreditoFlowError("Solo se puede editar un crédito en estado borrador")
-        for field, value in data.model_dump(exclude_unset=True).items():
+        if credito.estado != BORRADOR or credito.buk_file_id:
+            raise CreditoFlowError(
+                "El documento ya fue subido a BUK; el crédito no se puede editar"
+            )
+        payload = data.model_dump(exclude_unset=True)
+        credito.firmas_requeridas = self._separar_opciones(payload, credito.firmas_requeridas)
+        for field, value in payload.items():
             setattr(credito, field, value)
         self.db.commit()
         self.db.refresh(credito)
@@ -106,10 +120,11 @@ class CreditosService:
     def buscar_trabajadores(self, q: str) -> List[Dict[str, Any]]:
         rows = self.db.execute(
             text("""
-                SELECT e.person_id, e.rut, e.full_name
+                -- e.id es el employee_id que usa la API de BUK (person_id es otro id y da 404)
+                SELECT e.id, e.rut, e.full_name
                 FROM rh.employees e
                 WHERE e.status = 'activo'
-                  AND e.person_id IS NOT NULL
+                  AND e.id IS NOT NULL
                   AND (e.full_name ILIKE :q OR e.rut ILIKE :q)
                 ORDER BY e.full_name
                 LIMIT 20
@@ -117,6 +132,29 @@ class CreditosService:
             {"q": f"%{q}%"},
         ).fetchall()
         return [{"employee_id": r[0], "rut": r[1], "full_name": r[2]} for r in rows]
+
+    async def _buk_empleado(self, credito: Credito, method: str, sufijo: str, **kwargs) -> Dict[str, Any]:
+        """Llama a /employees/{id}{sufijo}, reintentando con el RUT si el id da 404.
+
+        ponytail: BUK acepta tanto el employee_id como el RUT en esa ruta, y qué
+        id trae la réplica local varía por empresa. Reintentar es más barato que
+        mantener un mapeo id↔rut al día.
+        """
+        identificadores = [credito.employee_id]
+        if credito.rut and credito.rut != str(credito.employee_id):
+            identificadores.append(credito.rut)
+
+        for i, identificador in enumerate(identificadores):
+            try:
+                return await _buk(method, f"/employees/{identificador}{sufijo}", **kwargs)
+            except BukError as e:
+                ultimo = i == len(identificadores) - 1
+                if ultimo or "404" not in str(e):
+                    raise
+                logger.warning(
+                    f"BUK 404 para employee_id={identificador}; reintentando con RUT {credito.rut}"
+                )
+        return {}
 
     async def datos_empleado(self, credito: Credito) -> Dict[str, Any]:
         """Cargo, empresa y datos bancarios que pide el comprobante, desde BUK.
@@ -127,13 +165,21 @@ class CreditosService:
         nombre real a la lista de alias correspondiente.
         """
         try:
-            data = await _buk("GET", f"/employees/{credito.employee_id}")
+            data = await self._buk_empleado(credito, "GET", "")
         except BukError as e:
             logger.warning(f"No se pudieron traer los datos del empleado {credito.employee_id}: {e}")
             return {}
 
         emp = data.get("data", data)
         job = emp.get("current_job") or {}
+
+        # Si la réplica local tenía otro id, guardamos el de BUK: /credits/create
+        # solo acepta el employee_id numérico y ahí no sirve el RUT.
+        id_buk = emp.get("id") or emp.get("employee_id")
+        if isinstance(id_buk, int) and id_buk != credito.employee_id:
+            logger.info(f"employee_id corregido {credito.employee_id} → {id_buk} (BUK)")
+            credito.employee_id = id_buk
+            self.db.commit()
 
         def primero(origen: Dict[str, Any], *claves):
             for clave in claves:
@@ -144,7 +190,7 @@ class CreditosService:
                     return valor
             return None
 
-        return {
+        datos = {
             "full_name": primero(emp, "full_name", "name"),
             "rut": emp.get("rut"),
             "cargo": primero(job, "role", "name_role", "position") or primero(emp, "name_role"),
@@ -154,6 +200,14 @@ class CreditosService:
             "tipo_cuenta": emp.get("account_type"),
             "cuenta": emp.get("account_number"),
         }
+
+        faltantes = [k for k, v in datos.items() if not v]
+        if faltantes:
+            logger.warning(
+                f"Empleado {credito.employee_id}: BUK no trajo {faltantes}. "
+                f"Claves disponibles: {sorted(emp.keys())} | current_job: {sorted(job.keys())}"
+            )
+        return datos
 
     async def generar_pdf(self, credito: Credito) -> bytes:
         return generar_pagare(credito, await self.datos_empleado(credito))
@@ -181,9 +235,10 @@ class CreditosService:
 
         nombre_archivo = f"comprobante_prestamo_{credito.id}.pdf"
         pdf = await self.generar_pdf(credito)
-        data = await _buk(
+        data = await self._buk_empleado(
+            credito,
             "POST",
-            f"/employees/{credito.employee_id}/docs",
+            "/docs",
             params=params,
             files={"file": (nombre_archivo, pdf, "application/pdf")},
         )
@@ -213,7 +268,7 @@ class CreditosService:
         if not credito.buk_file_id:
             raise CreditoFlowError("Primero debes subir el documento a BUK")
 
-        data = await _buk("GET", f"/employees/{credito.employee_id}/docs/{credito.buk_file_id}")
+        data = await self._buk_empleado(credito, "GET", f"/docs/{credito.buk_file_id}")
         doc = data.get("data", data)
         firmas_estado = doc.get("settings") or {}
 

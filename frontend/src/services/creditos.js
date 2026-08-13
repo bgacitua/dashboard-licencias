@@ -22,6 +22,9 @@ export const buscarTrabajadores = (q) =>
 export const crearCredito = (data) =>
   request("/", { method: "POST", body: JSON.stringify(data) });
 
+export const actualizarCredito = (id, data) =>
+  request(`/${id}`, { method: "PUT", body: JSON.stringify(data) });
+
 export const eliminarCredito = (id) => request(`/${id}`, { method: "DELETE" });
 
 export const subirDocumento = (id) => request(`/${id}/documento`, { method: "POST" });

@@ -61,6 +61,24 @@ def _fecha_larga(f: date) -> str:
     return f"{f.day} de {MESES[f.month - 1]} de {f.year}"
 
 
+def _fila(pdf, ancho: float, etiqueta: str, valor) -> None:
+    """Una línea 'Etiqueta: valor'.
+
+    ponytail: cell + ln explícito en vez de multi_cell porque multi_cell con
+    texto vacío no avanza la línea y monta las filas siguientes encima.
+    Valor largo se recorta antes de desbordar la columna.
+    """
+    texto = str(valor).strip() if valor not in (None, "") else "-"
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(45, 7, f"{etiqueta}:")
+    pdf.set_font("Helvetica", size=10)
+    ancho_valor = ancho - 45
+    while texto and pdf.get_string_width(texto) > ancho_valor - 2:
+        texto = texto[:-1]
+    pdf.cell(ancho_valor, 7, texto)
+    pdf.ln(7)
+
+
 def generar_pagare(credito, empleado: dict | None = None) -> bytes:
     """Recibe un app.models.creditos.Credito y los datos del empleado traídos
     de BUK (cargo, empresa, banco, cuenta). Devuelve los bytes del PDF."""
@@ -74,12 +92,15 @@ def generar_pagare(credito, empleado: dict | None = None) -> bytes:
 
     # --- Encabezado ---
     pdf.set_font("Helvetica", "B", 15)
-    pdf.multi_cell(ancho, 9, TITULO, align="C")
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.multi_cell(ancho, 6, emp.get("empresa") or "", align="C")
+    pdf.cell(ancho, 9, TITULO, align="C")
+    pdf.ln(9)
+    if emp.get("empresa"):
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(ancho, 6, str(emp["empresa"]), align="C")
+        pdf.ln(6)
     pdf.set_font("Helvetica", size=10)
-    pdf.multi_cell(ancho, 6, f"Fecha: {_fecha_larga(date.today())}", align="C")
-    pdf.ln(8)
+    pdf.cell(ancho, 6, f"Fecha: {_fecha_larga(date.today())}", align="C")
+    pdf.ln(14)
 
     # --- Datos del empleado ---
     filas_empleado = [
@@ -90,10 +111,7 @@ def generar_pagare(credito, empleado: dict | None = None) -> bytes:
         ("Fecha de inicio", _fecha(credito.start_date)),
     ]
     for etiqueta, valor in filas_empleado:
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(45, 7, f"{etiqueta}:")
-        pdf.set_font("Helvetica", size=10)
-        pdf.multi_cell(ancho - 45, 7, str(valor))
+        _fila(pdf, ancho, etiqueta, valor)
     pdf.ln(6)
 
     # --- Detalle del préstamo ---
@@ -107,8 +125,8 @@ def generar_pagare(credito, empleado: dict | None = None) -> bytes:
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_fill_color(*GRIS)
     pdf.cell(col_izq, 8, "  Concepto", border=1, fill=True)
-    pdf.cell(col_der, 8, "Valor", border=1, align="R", fill=True)
-    pdf.ln()
+    pdf.cell(col_der, 8, "Valor  ", border=1, align="R", fill=True)
+    pdf.ln(8)
 
     filas_detalle = [
         ("Monto Original", _monto(credito.monto_original, credito.moneda)),
@@ -119,8 +137,8 @@ def generar_pagare(credito, empleado: dict | None = None) -> bytes:
     pdf.set_font("Helvetica", size=10)
     for concepto, valor in filas_detalle:
         pdf.cell(col_izq, 8, f"  {concepto}", border=1)
-        pdf.cell(col_der, 8, f"{valor}  ", border=1, align="R")
-        pdf.ln()
+        pdf.cell(col_der, 8, f"{valor or '-'}  ", border=1, align="R")
+        pdf.ln(8)
     pdf.ln(8)
 
     # --- Datos bancarios ---
@@ -128,14 +146,11 @@ def generar_pagare(credito, empleado: dict | None = None) -> bytes:
     pdf.multi_cell(ancho, 7, "Datos bancarios")
     pdf.ln(1)
     for etiqueta, valor in [
-        ("Tipo de cuenta", emp.get("tipo_cuenta") or ""),
-        ("Banco", emp.get("banco") or ""),
-        ("N° de cuenta", emp.get("cuenta") or ""),
+        ("Tipo de cuenta", emp.get("tipo_cuenta")),
+        ("Banco", emp.get("banco")),
+        ("N° de cuenta", emp.get("cuenta")),
     ]:
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(45, 7, f"{etiqueta}:")
-        pdf.set_font("Helvetica", size=10)
-        pdf.multi_cell(ancho - 45, 7, str(valor))
+        _fila(pdf, ancho, etiqueta, valor)
     pdf.ln(6)
 
     if credito.moneda == "uf":

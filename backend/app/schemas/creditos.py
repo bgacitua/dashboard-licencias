@@ -38,6 +38,10 @@ class CreditoCreate(CreditoBase):
 
 
 class CreditoUpdate(BaseModel):
+    """Todo editable mientras el crédito siga en borrador (sin documento en BUK)."""
+    employee_id: Optional[int] = None
+    rut: Optional[str] = None
+    nombre_trabajador: Optional[str] = None
     nombre: Optional[str] = None
     tipo: Optional[TipoCredito] = None
     start_date: Optional[date] = None
@@ -48,6 +52,16 @@ class CreditoUpdate(BaseModel):
     monto_original: Optional[Decimal] = None
     equivalente_pesos: Optional[int] = None
     comentario: Optional[str] = None
+    dia_uf: Optional[str] = None
+
+    # Opciones del documento en BUK
+    visible: Optional[bool] = None
+    signable_by_employee: Optional[bool] = None
+    signable_by_legal_agent: Optional[bool] = None
+    signable_by_second_legal_agent: Optional[bool] = None
+    overwrite: Optional[bool] = None
+    path: Optional[str] = None
+    reviewer_id: Optional[int] = None
     dia_uf: Optional[str] = None
 
 

@@ -7,6 +7,7 @@ Ejecutar dentro del contenedor backend:
 """
 
 import asyncio
+import re
 from datetime import date
 
 from app.services.creditos_service import (
@@ -51,6 +52,26 @@ class _FakeCredito:
         self.__dict__.update(kw)
 
 
+def _texto_pdf(credito, empleado) -> str:
+    """Texto visible del PDF. Desactiva la compresión para leer el stream sin
+    dependencias extra (poppler/pypdf no están instalados)."""
+    import app.services.pagare_pdf as P
+
+    original = P.FPDF
+
+    class FPDFPlano(original):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            self.set_compression(False)
+
+    P.FPDF = FPDFPlano
+    try:
+        raw = P.generar_pagare(credito, empleado).decode("latin-1")
+    finally:
+        P.FPDF = original
+    return " ".join(re.findall(r"\((.*?)\) *Tj", raw))
+
+
 def _raises(fn, mensaje):
     try:
         asyncio.run(fn())
@@ -79,6 +100,23 @@ def demo():
     c = _FakeCredito(buk_file_id=999, estado=DOCUMENTO_SUBIDO)
     _raises(lambda: service.subir_documento(c), "subir_documento debe fallar si ya hay file_id sin overwrite")
 
+    # Se puede editar mientras no haya documento en BUK; después no
+    from app.schemas.creditos import CreditoUpdate
+    c = _FakeCredito()
+    service.get_by_id = lambda _id: c
+    service.update(1, CreditoUpdate(amount=80000, signable_by_legal_agent=False))
+    assert c.amount == 80000, c.amount
+    assert c.firmas_requeridas["legal_agent_sign"] is False, c.firmas_requeridas
+    assert "signable_by_legal_agent" not in c.__dict__, "el flag no es columna"
+
+    c = _FakeCredito(buk_file_id=999, estado=DOCUMENTO_SUBIDO)
+    service.get_by_id = lambda _id: c
+    try:
+        service.update(1, CreditoUpdate(amount=1))
+        raise AssertionError("update debe fallar si el documento ya está en BUK")
+    except CreditoFlowError:
+        pass
+
     # Un crédito ya cargado en BUK no se borra desde el dashboard
     c = _FakeCredito(estado=CREDITO_CREADO, buk_credit_id=77)
     service.get_by_id = lambda _id: c
@@ -97,6 +135,14 @@ def demo():
         pdf = generar_pagare(_FakeCredito(), datos)
         assert pdf[:4] == b"%PDF", pdf[:20]
         assert len(pdf) > 1000, len(pdf)
+
+    # Regresión: con campos vacíos las filas se montaban entre sí y desaparecían
+    for datos in (empleado, {}):
+        texto = _texto_pdf(_FakeCredito(), datos)
+        faltan = [e for e in ("Empleado", "Rut", "Cargo", "Fecha de inicio",
+                              "Tipo de cuenta", "Banco", "de cuenta",
+                              "Monto Original", "Valor de la cuota") if e not in texto]
+        assert not faltan, faltan
 
     # El comprobante en UF también renderiza (incluye la nota de ajuste)
     pdf_uf = generar_pagare(_FakeCredito(moneda="uf", amount=2, monto_original=24.5), empleado)
