@@ -1,0 +1,70 @@
+# Build fuera de la VPS, deploy dentro. El downtime deja de ser el tiempo de build
+# (minutos: ODBC + Playwright/Chromium) y pasa a ser el de recrear el contenedor
+# con la imagen ya descargada (segundos).
+#
+# Requisitos en la VPS, una sola vez:
+#   1. Runner self-hosted con label `vps` (Settings > Actions > Runners > New self-hosted).
+#      La VPS es solo red interna: el runner sale hacia GitHub, GitHub nunca entra.
+#   2. El runner debe correr en el directorio del repo o tener acceso a él (ver `working-directory`).
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BASE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}-${{ matrix.service }}:latest
+            ${{ env.IMAGE_BASE }}-${{ matrix.service }}:${{ github.sha }}
+          # Cache en el registry: las capas de ODBC y Chromium no se rebuildean
+          # salvo que cambie el Dockerfile o requirements.txt.
+          cache-from: type=registry,ref=${{ env.IMAGE_BASE }}-${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_BASE }}-${{ matrix.service }}:buildcache,mode=max
+
+  deploy:
+    needs: build
+    runs-on: [self-hosted, vps]
+    # Ruta del checkout del repo en la VPS: ahí viven compose.yml y backend/.env.
+    defaults:
+      run:
+        working-directory: /opt/etl-bd/proyectos-rrhh/dashboard-licencias
+    steps:
+      - name: Login a GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      # El repo de la VPS sigue siendo la fuente de compose.yml y del .env (que no está en git).
+      - name: Actualizar compose y migraciones
+        run: git fetch --depth=1 origin main && git checkout -f origin/main
+      - name: Pull de imágenes
+        run: docker compose pull
+      # --wait espera el healthcheck del backend: si la imagen nueva no levanta,
+      # el job falla y queda visible en vez de dejar el servicio caído en silencio.
+      - name: Recrear contenedores
+        run: docker compose up -d --wait --remove-orphans
+      - name: Limpiar imágenes viejas
+        run: docker image prune -f
