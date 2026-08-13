@@ -11,7 +11,7 @@ from app.core.logging_config import logger
 _COLUMNS = """
     rut, causal, fecha_termino, payload_json, total_finiquito,
     carta_generada_at, finiquito_generado_at, correo_enviado_at,
-    created_by, updated_at
+    salida_fecha, salida_motivo, created_by, updated_at
 """
 
 
@@ -32,7 +32,7 @@ class DesvinculacionRepository:
             text("""
                 SELECT rut, causal, fecha_termino, total_finiquito,
                        carta_generada_at, finiquito_generado_at, correo_enviado_at,
-                       created_by, updated_at
+                       salida_fecha, salida_motivo, created_by, updated_at
                 FROM app.desvinculacion_proceso
                 ORDER BY updated_at DESC
             """)
@@ -80,6 +80,35 @@ class DesvinculacionRepository:
         ).mappings().first()
         self.db.commit()
         logger.info(f"Proceso de desvinculación guardado para {rut}")
+        return dict(row)
+
+    def registrar_correo_salida(
+        self, rut: str, fecha_salida: Any, motivo: str, created_by: Optional[str]
+    ) -> Dict[str, Any]:
+        """Sella el hito 'correo' y guarda fecha y motivo de salida. Hace INSERT si el
+        trabajador aún no tiene proceso: el aviso puede enviarse sin llenar el formulario."""
+        query = text(f"""
+            INSERT INTO app.desvinculacion_proceso
+                (rut, salida_fecha, salida_motivo, correo_enviado_at, created_by)
+            VALUES (:rut, :fecha_salida, :motivo, NOW(), :created_by)
+            ON CONFLICT (rut) DO UPDATE SET
+                salida_fecha     = EXCLUDED.salida_fecha,
+                salida_motivo    = EXCLUDED.salida_motivo,
+                correo_enviado_at = NOW(),
+                updated_at       = NOW()
+            RETURNING {_COLUMNS}
+        """)
+        row = self.db.execute(
+            query,
+            {
+                "rut": rut,
+                "fecha_salida": fecha_salida,
+                "motivo": motivo,
+                "created_by": created_by,
+            },
+        ).mappings().first()
+        self.db.commit()
+        logger.info(f"Correo de salida registrado para {rut}")
         return dict(row)
 
     def marcar_hito(self, rut: str, columna: str) -> Optional[Dict[str, Any]]:

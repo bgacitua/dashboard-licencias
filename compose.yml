@@ -11,6 +11,9 @@ networks:
 
 services:
   backend:
+    # `image` sin tag propio: en la VPS `docker compose pull` baja lo que construyó
+    # el workflow; en local `docker compose build` sigue funcionando igual.
+    image: ghcr.io/bgacitua/dashboard-licencias-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -36,6 +39,7 @@ services:
       retries: 3
 
   frontend:
+    image: ghcr.io/bgacitua/dashboard-licencias-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile

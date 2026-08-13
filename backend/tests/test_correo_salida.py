@@ -1,7 +1,7 @@
 """Verifica el cuerpo del aviso de salida de personal sin enviar nada.
 
 Ejecutar desde backend/:
-    python test_correo_salida.py
+    python -m tests.test_correo_salida
 """
 import os
 from datetime import date

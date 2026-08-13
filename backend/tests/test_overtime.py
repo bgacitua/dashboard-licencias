@@ -1,7 +1,7 @@
 """Self-check de la lógica de semana/cierre de horas extras.
 
 Ejecutar dentro del contenedor backend (necesita .env para cargar settings):
-    python test_overtime.py
+    python -m tests.test_overtime
 """
 
 from datetime import datetime, timedelta

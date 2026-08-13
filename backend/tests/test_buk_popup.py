@@ -3,7 +3,7 @@
 Corre contra HTML local, sin tocar BUK. Requiere playwright + chromium, así que
 va dentro del contenedor:
 
-    docker compose exec backend python test_buk_popup.py
+    docker compose exec backend python -m tests.test_buk_popup
 """
 from app.services.buk_scraper import _cerrar_popups, _hay_bloqueo_facturacion
 

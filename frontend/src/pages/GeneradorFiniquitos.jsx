@@ -8,6 +8,14 @@ import FiniquitosService from '../services/finiquitos.service';
 
 const ITEMS_PER_PAGE = 50;
 
+// Mismas claves que MOTIVOS_SALIDA en el backend; alimenta el select y el historial.
+const MOTIVOS_SALIDA = {
+  renuncia: "Ha renunciado",
+  desvinculacion: "Se ha desvinculado a",
+  mutuo_acuerdo: "Se ha acogido al beneficio del mutuo acuerdo",
+  jubilacion: "Se ha acogido al beneficio de jubilación don/a",
+};
+
 const GeneradorFiniquitos = () => {
   const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
@@ -155,6 +163,12 @@ const GeneradorFiniquitos = () => {
   const fmtHito = (ts) => (ts ? new Date(ts).toLocaleDateString("es-CL") : "—");
 
   const empleadoSeleccionado = employees.find((e) => e.rut_trabajador === selectedRut);
+
+  // ponytail: el historial sale de correo_enviado_at; no hay tabla de envíos.
+  // Si hace falta motivo/fecha de salida por envío, hay que persistirlos en el backend.
+  const historialCorreos = procesos
+    .filter((p) => p.correo_enviado_at)
+    .sort((a, b) => new Date(b.correo_enviado_at) - new Date(a.correo_enviado_at));
 
   const salirModoComparendo = () => {
     setModoComparendo(false);
@@ -464,10 +478,9 @@ const GeneradorFiniquitos = () => {
                     onChange={(e) => setMotivoSalida(e.target.value)}
                     className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="renuncia">Ha renunciado</option>
-                    <option value="desvinculacion">Se ha desvinculado a</option>
-                    <option value="mutuo_acuerdo">Se ha acogido al beneficio del mutuo acuerdo</option>
-                    <option value="jubilacion">Se ha acogido al beneficio de jubilación don/a</option>
+                    {Object.entries(MOTIVOS_SALIDA).map(([valor, texto]) => (
+                      <option key={valor} value={valor}>{texto}</option>
+                    ))}
                   </select>
                   <label className="flex items-center gap-2 text-sm text-gray-700">
                     Fecha de salida:
@@ -521,6 +534,56 @@ const GeneradorFiniquitos = () => {
                   {generando ? "Generando..." : "Generar documentos"}
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Historial de correos de salida enviados */}
+        {modoSalida && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <h2 className="font-semibold text-gray-900">
+                Correos de salida enviados{" "}
+                <span className="text-gray-400 font-normal">({historialCorreos.length})</span>
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold">
+                    <th className="p-3">Nombre</th>
+                    <th className="p-3">RUT</th>
+                    <th className="p-3">Fecha de salida</th>
+                    <th className="p-3">Motivo</th>
+                    <th className="p-3">Enviado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {historialCorreos.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="p-6 text-center text-gray-500">
+                        Aún no se ha enviado ningún correo de salida.
+                      </td>
+                    </tr>
+                  ) : (
+                    historialCorreos.map((p) => (
+                      <tr key={p.rut} className="text-sm">
+                        <td className="p-3 font-medium text-gray-900">
+                          {nombrePorRut[p.rut] || "—"}
+                        </td>
+                        <td className="p-3 font-mono text-gray-600">{p.rut}</td>
+                        <td className="p-3 text-gray-500">{formatFecha(p.salida_fecha)}</td>
+                        <td className="p-3 text-gray-600">
+                          {MOTIVOS_SALIDA[p.salida_motivo] || "—"}
+                        </td>
+                        <td className="p-3 text-gray-500">
+                          {new Date(p.correo_enviado_at).toLocaleString("es-CL")}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

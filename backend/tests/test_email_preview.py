@@ -5,7 +5,7 @@ Preview de los 3 pasos del flujo de alertas de contrato:
   3. preview_confirm_mail.html — correo de confirmación post-respuesta
 
 Ejecutar desde backend/:
-    python test_email_preview.py
+    python -m tests.test_email_preview
 """
 import uuid
 from jose import jwt

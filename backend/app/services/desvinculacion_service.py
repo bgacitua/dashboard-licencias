@@ -81,6 +81,17 @@ class DesvinculacionService:
         )
         return {**row, "estado": derivar_estado(row)}
 
+    def registrar_correo_salida(
+        self, rut: str, data: CorreoSalidaRequest, created_by: Optional[str]
+    ) -> Dict[str, Any]:
+        row = self.repo.registrar_correo_salida(
+            rut=rut,
+            fecha_salida=data.fecha_salida,
+            motivo=data.motivo,
+            created_by=created_by,
+        )
+        return {**row, "estado": derivar_estado(row)}
+
     def marcar_hito(self, rut: str, hito: str) -> Optional[Dict[str, Any]]:
         """Retorna None si el hito no existe o si no hay proceso guardado para ese RUT."""
         columna = HITOS.get(hito)
