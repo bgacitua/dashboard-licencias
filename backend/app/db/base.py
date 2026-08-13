@@ -12,3 +12,4 @@ from app.models import contract_alert  # noqa: F401, E402
 from app.models import calendario_cierres  # noqa: F401, E402
 from app.models import country_config  # noqa: F401, E402
 from app.models import seleccion  # noqa: F401, E402
+from app.models import creditos  # noqa: F401, E402

@@ -10,6 +10,7 @@ const allMenuItems = [
   { icon: 'notifications_active', label: 'Alertas de Contratos',   path: '/contract-alerts',     module: 'contract_alerts' },
   { icon: 'more_time',            label: 'Horas Extras',           path: '/dashboard/horas-extras', module: 'dashboard' },
   { icon: 'person_search',        label: 'Selección de Personal',  path: '/seleccion',           module: 'seleccion',      requiredRole: ['rrhh', 'admin', 'seleccion'] },
+  { icon: 'payments',             label: 'Créditos',               path: '/creditos',            module: 'creditos',       requiredRole: ['rrhh', 'admin'] },
   { icon: 'settings',             label: 'Administración',         path: '/admin',               module: 'admin',          requiredRole: ['admin'] },
 ];
 

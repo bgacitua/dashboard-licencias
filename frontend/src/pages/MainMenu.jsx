@@ -71,6 +71,17 @@ const menuItems = [
     requiredRole: ['rrhh', 'admin', 'seleccion'],
   },
   {
+    id: 'creditos',
+    title: 'Créditos',
+    description: 'Genera el pagaré, gestiona su firma en BUK y carga el crédito al trabajador.',
+    path: '/creditos',
+    icon: 'payments',
+    accent: 'bg-indigo-50 text-indigo-600',
+    bar: 'bg-indigo-500',
+    moduleCode: 'creditos',
+    requiredRole: ['rrhh', 'admin'],
+  },
+  {
     id: 'admin',
     title: 'Administración',
     description: 'Configura usuarios, roles y parámetros del sistema.',

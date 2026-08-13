@@ -36,6 +36,7 @@ const Costos = lazy(() => import('./pages/Costos'));
 const RetornoSeguimiento = lazy(() => import('./pages/RetornoSeguimiento'));
 const Seleccion = lazy(() => import('./pages/Seleccion'));
 const HorasExtras = lazy(() => import('./pages/HorasExtras'));
+const Creditos = lazy(() => import('./pages/Creditos'));
 
 
 function App() {
@@ -210,6 +211,16 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="seleccion">
                   <Seleccion />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Módulo Créditos */}
+            <Route
+              path="/creditos"
+              element={
+                <ProtectedRoute requiredModule="creditos">
+                  <Creditos />
                 </ProtectedRoute>
               }
             />
