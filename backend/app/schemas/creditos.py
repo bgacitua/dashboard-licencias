@@ -54,6 +54,9 @@ class CreditoUpdate(BaseModel):
     comentario: Optional[str] = None
     dia_uf: Optional[str] = None
 
+    # Vincular un documento ya existente en BUK (subido a mano o por un intento fallido)
+    buk_file_id: Optional[int] = None
+
     # Opciones del documento en BUK
     visible: Optional[bool] = None
     signable_by_employee: Optional[bool] = None

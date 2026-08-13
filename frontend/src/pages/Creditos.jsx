@@ -43,6 +43,7 @@ const FORM_INICIAL = {
   overwrite: false,
   path: '',
   reviewer_id: '',
+  buk_file_id: '',
 };
 
 const fmtMonto = (v, moneda) =>
@@ -133,6 +134,7 @@ const Creditos = () => {
       monto_original: form.monto_original ? Number(form.monto_original) : null,
       equivalente_pesos: form.equivalente_pesos ? Number(form.equivalente_pesos) : null,
       reviewer_id: form.reviewer_id ? Number(form.reviewer_id) : null,
+      buk_file_id: form.buk_file_id ? Number(form.buk_file_id) : null,
       path: form.path || null,
       dia_uf: form.moneda === 'uf' ? form.dia_uf || null : null,
     };
@@ -463,6 +465,17 @@ const Creditos = () => {
                   <input type="number" value={form.reviewer_id} onChange={e => set('reviewer_id', e.target.value)}
                     className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                 </div>
+
+                {editando && (
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">
+                      ID del documento en BUK (solo si ya está subido)
+                    </label>
+                    <input type="number" value={form.buk_file_id || ''} onChange={e => set('buk_file_id', e.target.value)}
+                      placeholder="Vincula un documento subido a mano o por un intento fallido"
+                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                  </div>
+                )}
 
                 <div className="sm:col-span-2 flex justify-end gap-3 pt-4 border-t border-slate-100">
                   <button type="button" onClick={() => setModal(false)}

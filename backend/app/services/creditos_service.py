@@ -32,6 +32,26 @@ class BukError(Exception):
     """Falla al hablar con la API de BUK (el endpoint lo traduce a 502)."""
 
 
+def _archivo(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Documento dentro de la respuesta de BUK.
+
+    BUK lo anida distinto según el endpoint: al subir viene en
+    {"employee_id": .., "employee_file": {...}} y al consultarlo en {"data": {...}}.
+    """
+    cuerpo = data.get("data", data)
+    if isinstance(cuerpo, dict):
+        for clave in ("employee_file", "document", "doc"):
+            anidado = cuerpo.get(clave)
+            if isinstance(anidado, dict):
+                return anidado
+    return cuerpo if isinstance(cuerpo, dict) else {}
+
+
+def _bool(valor) -> str:
+    """BUK espera 'true'/'false' en la query string, no el bool de Python."""
+    return "true" if valor else "false"
+
+
 def _headers() -> Dict[str, str]:
     if not settings.BUK_API_KEY:
         logger.error("CRITICAL: BUK_API_KEY no está configurada o está vacía.")
@@ -103,6 +123,9 @@ class CreditosService:
         credito.firmas_requeridas = self._separar_opciones(payload, credito.firmas_requeridas)
         for field, value in payload.items():
             setattr(credito, field, value)
+        # Vincular un documento ya existente en BUK adelanta el flujo
+        if credito.buk_file_id:
+            credito.estado = DOCUMENTO_SUBIDO
         self.db.commit()
         self.db.refresh(credito)
         return credito
@@ -157,7 +180,8 @@ class CreditosService:
         return {}
 
     async def datos_empleado(self, credito: Credito) -> Dict[str, Any]:
-        """Cargo, empresa y datos bancarios que pide el comprobante, desde BUK.
+        """Datos que pide el comprobante: los bancarios y el cargo desde BUK,
+        la empresa desde rh.areas.first_level_name de la réplica local.
 
         ponytail: los nombres de campo de BUK varían entre instalaciones, así que
         se prueban alias y lo que no aparece queda en blanco en el PDF en vez de
@@ -167,8 +191,9 @@ class CreditosService:
         try:
             data = await self._buk_empleado(credito, "GET", "")
         except BukError as e:
+            # Sin BUK igual se emite el comprobante con lo que hay en la BD local
             logger.warning(f"No se pudieron traer los datos del empleado {credito.employee_id}: {e}")
-            return {}
+            data = {}
 
         emp = data.get("data", data)
         job = emp.get("current_job") or {}
@@ -194,12 +219,24 @@ class CreditosService:
             "full_name": primero(emp, "full_name", "name"),
             "rut": emp.get("rut"),
             "cargo": primero(job, "role", "name_role", "position") or primero(emp, "name_role"),
-            "empresa": primero(job, "company", "cost_center", "first_level_name") or primero(emp, "company"),
             # Nombres exactos de la API de BUK
             "banco": emp.get("bank"),
             "tipo_cuenta": emp.get("account_type"),
             "cuenta": emp.get("account_number"),
         }
+
+        # La empresa (y el cargo, si BUK no lo trae) salen de la réplica local
+        local = self.db.execute(
+            text("""
+                SELECT a.first_level_name, e.name_role
+                FROM rh.employees e
+                LEFT JOIN rh.areas a ON a.id = e.area_id
+                WHERE e.id = :employee_id
+            """),
+            {"employee_id": credito.employee_id},
+        ).fetchone()
+        datos["empresa"] = local[0] if local else None
+        datos["cargo"] = datos["cargo"] or (local[1] if local else None)
 
         faltantes = [k for k, v in datos.items() if not v]
         if faltantes:
@@ -220,13 +257,13 @@ class CreditosService:
 
         opciones = credito.firmas_requeridas.get("_opciones", {})
         params = {
-            "visible": opciones.get("visible", True),
-            "overwrite": opciones.get("overwrite", False),
+            "visible": _bool(opciones.get("visible", True)),
+            "overwrite": _bool(opciones.get("overwrite", False)),
             # El paso 2 es un botón explícito del usuario, no se dispara solo.
-            "start_signature_workflow": False,
-            "signable_by_employee": credito.firmas_requeridas.get("employee_sign", False),
-            "signable_by_legal_agent": credito.firmas_requeridas.get("legal_agent_sign", False),
-            "signable_by_second_legal_agent": credito.firmas_requeridas.get("second_legal_agent_sign", False),
+            "start_signature_workflow": "false",
+            "signable_by_employee": _bool(credito.firmas_requeridas.get("employee_sign")),
+            "signable_by_legal_agent": _bool(credito.firmas_requeridas.get("legal_agent_sign")),
+            "signable_by_second_legal_agent": _bool(credito.firmas_requeridas.get("second_legal_agent_sign")),
         }
         if opciones.get("path"):
             params["path"] = opciones["path"]
@@ -243,8 +280,7 @@ class CreditosService:
             files={"file": (nombre_archivo, pdf, "application/pdf")},
         )
 
-        doc = data.get("data", data)
-        file_id = doc.get("id")
+        file_id = _archivo(data).get("id")
         if not file_id:
             raise BukError(f"BUK no devolvió el id del documento: {str(data)[:300]}")
 
@@ -269,8 +305,7 @@ class CreditosService:
             raise CreditoFlowError("Primero debes subir el documento a BUK")
 
         data = await self._buk_empleado(credito, "GET", f"/docs/{credito.buk_file_id}")
-        doc = data.get("data", data)
-        firmas_estado = doc.get("settings") or {}
+        firmas_estado = _archivo(data).get("settings") or {}
 
         requeridas = {
             k: bool(v)

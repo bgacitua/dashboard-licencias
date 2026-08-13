@@ -117,6 +117,15 @@ def demo():
     except CreditoFlowError:
         pass
 
+    # Regresión: BUK anida el documento distinto según el endpoint
+    from app.services.creditos_service import _archivo, _bool
+    subida = {"employee_id": 11154, "employee_file": {"id": 85402, "settings": {"employee_sign": True}}}
+    assert _archivo(subida)["id"] == 85402, _archivo(subida)
+    assert _archivo({"data": {"id": 7, "settings": {}}})["id"] == 7
+    assert _archivo({"id": 9})["id"] == 9
+    assert _archivo(subida)["settings"]["employee_sign"] is True
+    assert (_bool(True), _bool(False), _bool(None)) == ("true", "false", "false")
+
     # Un crédito ya cargado en BUK no se borra desde el dashboard
     c = _FakeCredito(estado=CREDITO_CREADO, buk_credit_id=77)
     service.get_by_id = lambda _id: c
