@@ -17,6 +17,7 @@ MESES = [
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ]
 
+# Respaldo para créditos viejos, sin tipo_prestamo
 TIPOS_LABEL = {
     "credito_personal": "Préstamo personal",
     "dental": "Préstamo dental",
@@ -107,7 +108,7 @@ def generar_pagare(credito, empleado: dict | None = None) -> bytes:
         ("Empleado", credito.nombre_trabajador or emp.get("full_name") or ""),
         ("Rut", credito.rut or emp.get("rut") or ""),
         ("Cargo", emp.get("cargo") or ""),
-        ("Tipo de Préstamo", TIPOS_LABEL.get(credito.tipo, credito.tipo)),
+        ("Tipo de Préstamo", getattr(credito, "tipo_prestamo", None) or TIPOS_LABEL.get(credito.tipo, credito.tipo)),
         ("Fecha de inicio", _fecha(credito.start_date)),
     ]
     for etiqueta, valor in filas_empleado:

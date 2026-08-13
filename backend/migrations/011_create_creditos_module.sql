@@ -10,8 +10,10 @@ CREATE TABLE IF NOT EXISTS app.creditos (
     nombre_trabajador   VARCHAR(200),
 
     -- Datos del crédito (POST /credits/create)
-    nombre              VARCHAR(200) NOT NULL,
+    nombre              VARCHAR(200) NOT NULL DEFAULT 'Préstamo Interno',
+    -- tipo: enum que exige BUK. tipo_prestamo: el que se imprime en el comprobante.
     tipo                VARCHAR(50)  NOT NULL DEFAULT 'credito_personal',
+    tipo_prestamo       VARCHAR(50)  NOT NULL DEFAULT 'Préstamo Emergencia',
     start_date          DATE         NOT NULL,
     moneda              VARCHAR(10)  NOT NULL DEFAULT 'peso',
     amount              INTEGER      NOT NULL,

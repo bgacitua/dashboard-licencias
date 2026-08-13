@@ -12,8 +12,9 @@ class Credito(Base):
     rut = Column(String(20), nullable=True)
     nombre_trabajador = Column(String(200), nullable=True)
 
-    nombre = Column(String(200), nullable=False)
+    nombre = Column(String(200), nullable=False, default="Préstamo Interno")
     tipo = Column(String(50), nullable=False, default="credito_personal")
+    tipo_prestamo = Column(String(50), nullable=False, default="Préstamo Emergencia")
     start_date = Column(Date, nullable=False)
     moneda = Column(String(10), nullable=False, default="peso")
     amount = Column(Integer, nullable=False)

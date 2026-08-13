@@ -30,6 +30,7 @@ class _FakeCredito:
         self.nombre_trabajador = "Juana Pérez"
         self.nombre = "Crédito Consumo"
         self.tipo = "credito_personal"
+        self.tipo_prestamo = "Préstamo Habitacional"
         self.start_date = date(2026, 8, 1)
         self.moneda = "peso"
         self.amount = 50000
@@ -126,6 +127,29 @@ def demo():
     assert _archivo(subida)["settings"]["employee_sign"] is True
     assert (_bool(True), _bool(False), _bool(None)) == ("true", "false", "false")
 
+    # Estado de firma: sale de employee_file.signatures[].status == 'signed'
+    from app.services.creditos_service import evaluar_firmas
+    firma_empleado = {
+        "signature_type": "employee_signature", "person_id": 11102,
+        "status": "signed", "signed_at": "2026-08-13T15:49:39.130-04:00",
+    }
+    firma_legal_pendiente = {"signature_type": "legal_agent_signature", "status": "pending"}
+
+    solo_empleado = {"employee_sign": True, "legal_agent_sign": False, "second_legal_agent_sign": False}
+    firmado, estado = evaluar_firmas(solo_empleado, [firma_empleado])
+    assert firmado is True, estado
+    assert estado["employee_sign"]["status"] == "signed", estado
+
+    ambas = {"employee_sign": True, "legal_agent_sign": True, "second_legal_agent_sign": False}
+    firmado, _ = evaluar_firmas(ambas, [firma_empleado, firma_legal_pendiente])
+    assert firmado is False, "falta la firma del representante legal"
+
+    firmado, _ = evaluar_firmas(ambas, [firma_empleado])
+    assert firmado is False, "una firma requerida que ni siquiera aparece no está firmada"
+
+    firmado, _ = evaluar_firmas({"employee_sign": False}, [])
+    assert firmado is False, "sin firmas requeridas no se da por firmado"
+
     # Un crédito ya cargado en BUK no se borra desde el dashboard
     c = _FakeCredito(estado=CREDITO_CREADO, buk_credit_id=77)
     service.get_by_id = lambda _id: c
@@ -144,6 +168,9 @@ def demo():
         pdf = generar_pagare(_FakeCredito(), datos)
         assert pdf[:4] == b"%PDF", pdf[:20]
         assert len(pdf) > 1000, len(pdf)
+
+    # El comprobante imprime tipo_prestamo, no el enum que se le manda a BUK
+    assert "Habitacional" in _texto_pdf(_FakeCredito(), empleado)
 
     # Regresión: con campos vacíos las filas se montaban entre sí y desaparecían
     for datos in (empleado, {}):

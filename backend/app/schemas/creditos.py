@@ -7,14 +7,24 @@ from typing import Optional, Literal, Dict, Any
 TipoCredito = Literal["credito_personal", "dental", "leasing", "seguro_vida", "credito_otro"]
 Moneda = Literal["peso", "uf"]
 
+# El que se imprime en el comprobante. BUK siempre recibe TipoCredito aparte.
+TipoPrestamo = Literal[
+    "Préstamo Emergencia",
+    "Préstamo Salud",
+    "Préstamo Habitacional",
+    "Préstamo Automotriz",
+    "Préstamo Roaming",
+]
+
 
 class CreditoBase(BaseModel):
     employee_id: int
     rut: Optional[str] = None
     nombre_trabajador: Optional[str] = None
 
-    nombre: str
+    nombre: str = "Préstamo Interno"
     tipo: TipoCredito = "credito_personal"
+    tipo_prestamo: TipoPrestamo = "Préstamo Emergencia"
     start_date: date
     moneda: Moneda = "peso"
     amount: int = Field(gt=0, description="Valor de la cuota a descontar")
@@ -31,9 +41,10 @@ class CreditoCreate(CreditoBase):
     visible: bool = True
     signable_by_employee: bool = True
     signable_by_legal_agent: bool = True
+    # Desactivado por ahora: no hay segundo representante legal definido
     signable_by_second_legal_agent: bool = False
     overwrite: bool = False
-    path: Optional[str] = None
+    path: Optional[str] = "préstamo"
     reviewer_id: Optional[int] = None
 
 
@@ -44,6 +55,7 @@ class CreditoUpdate(BaseModel):
     nombre_trabajador: Optional[str] = None
     nombre: Optional[str] = None
     tipo: Optional[TipoCredito] = None
+    tipo_prestamo: Optional[TipoPrestamo] = None
     start_date: Optional[date] = None
     moneda: Optional[Moneda] = None
     amount: Optional[int] = Field(default=None, gt=0)

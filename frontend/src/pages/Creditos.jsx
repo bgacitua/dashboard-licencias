@@ -6,13 +6,24 @@ import {
   verificarCreditoBuk, abrirPagare,
 } from '../services/creditos';
 
-const TIPOS = [
-  { value: 'credito_personal', label: 'Crédito personal' },
-  { value: 'dental', label: 'Dental' },
-  { value: 'leasing', label: 'Leasing' },
-  { value: 'seguro_vida', label: 'Seguro de vida' },
-  { value: 'credito_otro', label: 'Otro' },
+// Tipo que se imprime en el comprobante. A BUK se le manda siempre
+// 'credito_personal', que es lo que acepta su enum en /credits/create.
+const TIPOS_PRESTAMO = [
+  'Préstamo Emergencia',
+  'Préstamo Salud',
+  'Préstamo Habitacional',
+  'Préstamo Automotriz',
+  'Préstamo Roaming',
 ];
+
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+// Años seleccionables: el actual y los dos siguientes
+const ANIOS = Array.from({ length: 3 }, (_, i) => new Date().getFullYear() + i);
+
+// El crédito siempre parte el primer día del mes elegido
+const primerDia = (anio, mes) => `${anio}-${String(mes).padStart(2, '0')}-01`;
 
 // Estado del flujo → etiqueta, color y siguiente acción disponible
 const ESTADOS = {
@@ -33,7 +44,10 @@ const ACCIONES = {
 
 const FORM_INICIAL = {
   employee_id: '', rut: '', nombre_trabajador: '',
-  nombre: '', tipo: 'credito_personal', start_date: '', moneda: 'peso',
+  nombre: 'Préstamo Interno', tipo: 'credito_personal',
+  tipo_prestamo: TIPOS_PRESTAMO[0],
+  start_date: primerDia(new Date().getFullYear(), new Date().getMonth() + 1),
+  moneda: 'peso',
   monto_original: '', equivalente_pesos: '',
   amount: '', cuota_actual: 1, duracion: '', comentario: '', dia_uf: '',
   visible: true,
@@ -41,7 +55,7 @@ const FORM_INICIAL = {
   signable_by_legal_agent: true,
   signable_by_second_legal_agent: false,
   overwrite: false,
-  path: '',
+  path: 'préstamo',
   reviewer_id: '',
   buk_file_id: '',
 };
@@ -108,7 +122,8 @@ const Creditos = () => {
       monto_original: c.monto_original ?? '',
       equivalente_pesos: c.equivalente_pesos ?? '',
       comentario: c.comentario ?? '',
-      dia_uf: c.dia_uf ?? '',
+      dia_uf: c.dia_uf ?? '31',
+      start_date: c.start_date || FORM_INICIAL.start_date,
       visible: opciones.visible ?? true,
       overwrite: opciones.overwrite ?? false,
       path: opciones.path ?? '',
@@ -136,7 +151,7 @@ const Creditos = () => {
       reviewer_id: form.reviewer_id ? Number(form.reviewer_id) : null,
       buk_file_id: form.buk_file_id ? Number(form.buk_file_id) : null,
       path: form.path || null,
-      dia_uf: form.moneda === 'uf' ? form.dia_uf || null : null,
+      dia_uf: form.moneda === 'uf' ? form.dia_uf || '31' : null,
     };
     try {
       if (editando) {
@@ -258,7 +273,7 @@ const Creditos = () => {
                           </td>
                           <td className="px-4 py-3">
                             <p className="text-slate-900">{c.nombre}</p>
-                            <p className="text-xs text-slate-400">{TIPOS.find(t => t.value === c.tipo)?.label}</p>
+                            <p className="text-xs text-slate-400">{c.tipo_prestamo}</p>
                           </td>
                           <td className="px-4 py-3 text-slate-700">{fmtMonto(c.amount, c.moneda)}</td>
                           <td className="px-4 py-3 text-slate-700">{c.cuota_actual} / {c.duracion}</td>
@@ -368,16 +383,30 @@ const Creditos = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Tipo *</label>
-                  <select value={form.tipo} onChange={e => set('tipo', e.target.value)}
+                  <select value={form.tipo_prestamo} onChange={e => set('tipo_prestamo', e.target.value)}
                     className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                    {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    {TIPOS_PRESTAMO.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">Fecha de inicio *</label>
-                  <input type="date" required value={form.start_date} onChange={e => set('start_date', e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">
+                    Mes de inicio * <span className="font-normal text-slate-400">(siempre el día 1)</span>
+                  </label>
+                  <div className="flex gap-3">
+                    <select
+                      value={Number(form.start_date.slice(5, 7))}
+                      onChange={e => set('start_date', primerDia(form.start_date.slice(0, 4), e.target.value))}
+                      className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                    </select>
+                    <select
+                      value={Number(form.start_date.slice(0, 4))}
+                      onChange={e => set('start_date', primerDia(e.target.value, form.start_date.slice(5, 7)))}
+                      className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
                 </div>
 
                 <div>
@@ -424,8 +453,10 @@ const Creditos = () => {
                 {form.moneda === 'uf' && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 mb-1">Día de la UF</label>
-                    <input type="text" maxLength="2" placeholder="01" value={form.dia_uf} onChange={e => set('dia_uf', e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                    <select value={form.dia_uf} onChange={e => set('dia_uf', e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      <option value="31">UF fin de mes</option>
+                    </select>
                   </div>
                 )}
 
@@ -439,15 +470,17 @@ const Creditos = () => {
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Documento en BUK</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
-                      ['visible', 'Visible por el empleado'],
-                      ['signable_by_employee', 'Requiere firma del empleado'],
-                      ['signable_by_legal_agent', 'Requiere firma del representante legal'],
-                      ['signable_by_second_legal_agent', 'Requiere firma del segundo representante legal'],
-                      ['overwrite', 'Sobreescribir archivo existente'],
-                    ].map(([campo, label]) => (
-                      <label key={campo} className="flex items-center gap-2 text-sm text-slate-700">
-                        <input type="checkbox" checked={form[campo]} onChange={e => set(campo, e.target.checked)}
-                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-400" />
+                      ['visible', 'Visible por el empleado', false],
+                      ['signable_by_employee', 'Requiere firma del empleado', false],
+                      ['signable_by_legal_agent', 'Requiere firma del representante legal', false],
+                      ['signable_by_second_legal_agent', 'Requiere firma del segundo representante legal', true],
+                      ['overwrite', 'Sobreescribir archivo existente', false],
+                    ].map(([campo, label, deshabilitado]) => (
+                      <label key={campo}
+                        className={`flex items-center gap-2 text-sm ${deshabilitado ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <input type="checkbox" checked={form[campo]} disabled={deshabilitado}
+                          onChange={e => set(campo, e.target.checked)}
+                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-400 disabled:opacity-50" />
                         {label}
                       </label>
                     ))}

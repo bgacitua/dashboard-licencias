@@ -23,6 +23,18 @@ FLAGS_FIRMA = {
     "signable_by_second_legal_agent": "second_legal_agent_sign",
 }
 
+# ponytail: person_id del representante legal que firma los préstamos. Constante
+# porque hoy es siempre la misma persona; si llegan a ser varios, pasa a ser un
+# selector en el formulario como reviewer_id.
+LEGAL_AGENT_PERSON_ID = 4783
+
+# signature_type que devuelve GET /docs/{id} → la clave de FLAGS_FIRMA
+TIPO_FIRMA = {
+    "employee_signature": "employee_sign",
+    "legal_agent_signature": "legal_agent_sign",
+    "second_legal_agent_signature": "second_legal_agent_sign",
+}
+
 
 class CreditoFlowError(Exception):
     """Transición de estado inválida (el endpoint lo traduce a 409)."""
@@ -50,6 +62,27 @@ def _archivo(data: Dict[str, Any]) -> Dict[str, Any]:
 def _bool(valor) -> str:
     """BUK espera 'true'/'false' en la query string, no el bool de Python."""
     return "true" if valor else "false"
+
+
+def evaluar_firmas(requeridas: Dict[str, bool], firmas: List[Dict[str, Any]]):
+    """¿Está firmado el documento? Lee employee_file.signatures de GET /docs/{id}.
+
+    Cada firma trae signature_type y status ('signed' cuando ya se firmó).
+    Devuelve (firmado, {clave: {status, signed_at}}).
+    """
+    estado: Dict[str, Any] = {}
+    for firma in firmas:
+        clave = TIPO_FIRMA.get(firma.get("signature_type"))
+        if not clave:
+            logger.warning(f"signature_type desconocido: {firma.get('signature_type')}")
+            continue
+        estado[clave] = {"status": firma.get("status"), "signed_at": firma.get("signed_at")}
+
+    pendientes = [k for k, req in requeridas.items() if req]
+    firmado = bool(pendientes) and all(
+        estado.get(clave, {}).get("status") == "signed" for clave in pendientes
+    )
+    return firmado, estado
 
 
 def _headers() -> Dict[str, str]:
@@ -287,8 +320,40 @@ class CreditosService:
         credito.buk_file_id = file_id
         credito.estado = DOCUMENTO_SUBIDO
         self.db.commit()
+
+        if credito.firmas_requeridas.get("legal_agent_sign"):
+            await self._asignar_firmante_legal(credito)
+
         self.db.refresh(credito)
         return credito
+
+    async def _asignar_firmante_legal(self, credito: Credito) -> None:
+        """Asigna al representante legal como firmante del documento.
+
+        Los flags de la subida marcan que la firma se requiere, pero no a quién
+        le toca: eso se define con PUT /docs/{id}/signatures.
+        """
+        try:
+            await _buk(
+                "PUT",
+                f"/docs/{credito.buk_file_id}/signatures",
+                json={
+                    "signatures": [
+                        {
+                            "signature_type": "legal_agent_signature",
+                            "person_id": LEGAL_AGENT_PERSON_ID,
+                            "position": 1,
+                        }
+                    ]
+                },
+            )
+        except BukError as e:
+            # El documento ya está en BUK: avisamos sin perder el file_id guardado
+            logger.error(f"No se pudo asignar el representante legal al doc {credito.buk_file_id}: {e}")
+            raise BukError(
+                f"El documento se subió (id {credito.buk_file_id}) pero falló asignar "
+                f"al representante legal: {e}"
+            )
 
     async def iniciar_firma(self, credito: Credito) -> Credito:
         if not credito.buk_file_id:
@@ -305,20 +370,22 @@ class CreditosService:
             raise CreditoFlowError("Primero debes subir el documento a BUK")
 
         data = await _buk("GET", f"/docs/{credito.buk_file_id}")
-        firmas_estado = _archivo(data).get("settings") or {}
+        archivo = _archivo(data)
+        firmas = archivo.get("signatures") or []
 
         requeridas = {
             k: bool(v)
             for k, v in credito.firmas_requeridas.items()
             if k in FLAGS_FIRMA.values()
         }
-        firmado = all(
-            firmas_estado.get(api_key) is True
-            for api_key, req in requeridas.items()
-            if req
-        ) and any(requeridas.values())
 
-        credito.firmas_estado = firmas_estado
+        firmado, estado_por_tipo = evaluar_firmas(requeridas, firmas)
+
+        credito.firmas_estado = {
+            **estado_por_tipo,
+            "_settings": archivo.get("settings") or {},
+        }
+        firmas_estado = credito.firmas_estado
         if firmado and credito.estado in (DOCUMENTO_SUBIDO, FIRMA_EN_PROCESO):
             credito.estado = FIRMADO
         self.db.commit()
