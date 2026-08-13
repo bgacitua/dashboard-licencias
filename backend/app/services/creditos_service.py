@@ -304,7 +304,7 @@ class CreditosService:
         if not credito.buk_file_id:
             raise CreditoFlowError("Primero debes subir el documento a BUK")
 
-        data = await self._buk_empleado(credito, "GET", f"/docs/{credito.buk_file_id}")
+        data = await _buk("GET", f"/docs/{credito.buk_file_id}")
         firmas_estado = _archivo(data).get("settings") or {}
 
         requeridas = {
