@@ -11,9 +11,9 @@ networks:
 
 services:
   backend:
-    # `image` sin tag propio: en la VPS `docker compose pull` baja lo que construyó
-    # el workflow; en local `docker compose build` sigue funcionando igual.
-    image: ghcr.io/bgacitua/dashboard-licencias-backend:latest
+    # TAG lo fija el workflow al SHA del commit, para poder volver a la imagen anterior
+    # si el deploy falla. Sin TAG (build local, rollback manual) usa :latest.
+    image: ghcr.io/bgacitua/dashboard-licencias-backend:${TAG:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -39,7 +39,7 @@ services:
       retries: 3
 
   frontend:
-    image: ghcr.io/bgacitua/dashboard-licencias-frontend:latest
+    image: ghcr.io/bgacitua/dashboard-licencias-frontend:${TAG:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile

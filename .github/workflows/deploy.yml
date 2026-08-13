@@ -54,17 +54,35 @@ jobs:
     defaults:
       run:
         working-directory: /opt/etl-bd/proyectos-rrhh/dashboard-licencias
+    env:
+      TAG: ${{ github.sha }}
     steps:
       - name: Login a GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       # El repo de la VPS sigue siendo la fuente de compose.yml y del .env (que no está en git).
       - name: Actualizar compose y migraciones
         run: git fetch origin main && git reset --hard origin/main
+      # El tag de lo que está corriendo AHORA, para poder volver si el deploy falla.
+      - name: Anotar versión actual
+        id: actual
+        run: |
+          prev=$(docker inspect --format '{{.Config.Image}}' dashboard-licencias-backend 2>/dev/null | sed 's/.*://')
+          echo "tag=$prev" >> "$GITHUB_OUTPUT"
       - name: Pull de imágenes
         run: docker compose pull
-      # --wait espera el healthcheck del backend: si la imagen nueva no levanta,
-      # el job falla y queda visible en vez de dejar el servicio caído en silencio.
+      # --wait espera el healthcheck del backend: si la imagen nueva no levanta, falla acá.
       - name: Recrear contenedores
         run: docker compose up -d --wait --remove-orphans
+      # Solo corre si el paso anterior falló. La imagen previa sigue en disco (estaba
+      # en uso hace segundos), así que volver a ella no depende de la red.
+      - name: Rollback
+        if: failure() && steps.actual.outputs.tag != ''
+        env:
+          TAG: ${{ steps.actual.outputs.tag }}
+        run: |
+          echo "Deploy falló, volviendo a $TAG"
+          docker compose up -d --wait --remove-orphans
+      # Después del rollback las imágenes rotas quedan sin tag en uso: prune las borra.
       - name: Limpiar imágenes viejas
+        if: always()
         run: docker image prune -f
