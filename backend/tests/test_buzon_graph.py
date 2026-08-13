@@ -1,6 +1,6 @@
 """Diagnóstico del envío desde un buzón compartido.
 
-    python test_buzon_graph.py notificacionespersonas@cramer.cl
+    python -m tests.test_buzon_graph notificacionespersonas@cramer.cl
 
 1) Imprime los scopes reales del access token y el usuario autenticado.
    Si falta Mail.Send.Shared, hay que reconsentir (el refresh token guarda

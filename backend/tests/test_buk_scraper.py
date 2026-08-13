@@ -1,7 +1,7 @@
 """
 Prueba manual del scraper de renovación BUK.
 
-    python test_buk_scraper.py <employee_id> <indefinido|plazo_fijo>
+    python -m tests.test_buk_scraper <employee_id> <indefinido|plazo_fijo>
 
 Requiere BUK_WEB_USER / BUK_WEB_PASSWORD en .env.
 Usar BUK_WEB_HEADLESS=false para ver el navegador.

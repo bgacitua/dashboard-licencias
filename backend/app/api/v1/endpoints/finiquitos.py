@@ -118,8 +118,10 @@ def enviar_correo_salida_personal(
     if not enviado:
         raise HTTPException(status_code=502, detail="El correo no pudo enviarse")
 
-    # El aviso puede mandarse sin haber guardado el formulario: el hito es opcional.
-    proceso = DesvinculacionService(db).marcar_hito(rut, "correo")
+    # El aviso puede mandarse sin haber guardado el formulario: si no hay proceso, se crea.
+    proceso = DesvinculacionService(db).registrar_correo_salida(
+        rut, data, created_by=current_user.username
+    )
     return {"enviado": True, "proceso": proceso}
 
 

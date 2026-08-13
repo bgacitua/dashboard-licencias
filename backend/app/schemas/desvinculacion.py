@@ -36,6 +36,8 @@ class DesvinculacionResponse(BaseModel):
     carta_generada_at: Optional[datetime] = None
     finiquito_generado_at: Optional[datetime] = None
     correo_enviado_at: Optional[datetime] = None
+    salida_fecha: Optional[date] = None
+    salida_motivo: Optional[str] = None
     created_by: Optional[str] = None
     updated_at: Optional[datetime] = None
     estado: str

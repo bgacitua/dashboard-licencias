@@ -1,4 +1,4 @@
-# --- GENERAL (Archivos del sistema y editor) ---
+    # --- GENERAL (Archivos del sistema y editor) ---
 .DS_Store
 Thumbs.db
 .vscode/
