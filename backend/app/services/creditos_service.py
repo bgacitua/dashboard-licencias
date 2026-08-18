@@ -59,6 +59,15 @@ def _archivo(data: Dict[str, Any]) -> Dict[str, Any]:
     return cuerpo if isinstance(cuerpo, dict) else {}
 
 
+def _firmas_activas(credito) -> Dict[str, bool]:
+    """Flags de firma marcados como requeridos (ignora _opciones y los apagados)."""
+    return {
+        k: True
+        for k, v in (credito.firmas_requeridas or {}).items()
+        if k in FLAGS_FIRMA.values() and v
+    }
+
+
 def _bool(valor) -> str:
     """BUK espera 'true'/'false' en la query string, no el bool de Python."""
     return "true" if valor else "false"
@@ -318,7 +327,9 @@ class CreditosService:
             raise BukError(f"BUK no devolvió el id del documento: {str(data)[:300]}")
 
         credito.buk_file_id = file_id
-        credito.estado = DOCUMENTO_SUBIDO
+        # Sin ninguna firma marcada no hay nada que esperar: el documento queda
+        # en la ficha del trabajador y el siguiente paso es cargar el crédito.
+        credito.estado = FIRMADO if not _firmas_activas(credito) else DOCUMENTO_SUBIDO
         self.db.commit()
 
         if credito.firmas_requeridas.get("legal_agent_sign"):
@@ -358,6 +369,10 @@ class CreditosService:
     async def iniciar_firma(self, credito: Credito) -> Credito:
         if not credito.buk_file_id:
             raise CreditoFlowError("Primero debes subir el documento a BUK")
+        if not _firmas_activas(credito):
+            raise CreditoFlowError(
+                "Este crédito no requiere firmas; carga el crédito directamente"
+            )
 
         await _buk("POST", f"/docs/{credito.buk_file_id}/signatures/process")
         credito.estado = FIRMA_EN_PROCESO

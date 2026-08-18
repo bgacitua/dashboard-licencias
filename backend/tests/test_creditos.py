@@ -150,6 +150,17 @@ def demo():
     firmado, _ = evaluar_firmas({"employee_sign": False}, [])
     assert firmado is False, "sin firmas requeridas no se da por firmado"
 
+    # Sin ninguna firma marcada el flujo se salta la firma: no hay proceso que iniciar
+    from app.services.creditos_service import _firmas_activas
+    sin_firmas = {
+        "employee_sign": False, "legal_agent_sign": False,
+        "second_legal_agent_sign": False, "_opciones": {"visible": True},
+    }
+    c = _FakeCredito(buk_file_id=999, estado=FIRMADO, firmas_requeridas=sin_firmas)
+    assert _firmas_activas(c) == {}, _firmas_activas(c)
+    _raises(lambda: service.iniciar_firma(c), "iniciar_firma debe fallar si no se requieren firmas")
+    assert _firmas_activas(_FakeCredito()) == {"employee_sign": True, "legal_agent_sign": True}
+
     # Un crédito ya cargado en BUK no se borra desde el dashboard
     c = _FakeCredito(estado=CREDITO_CREADO, buk_credit_id=77)
     service.get_by_id = lambda _id: c
