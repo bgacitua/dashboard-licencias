@@ -42,6 +42,16 @@ const ACCIONES = {
   'verificar-credito': { label: 'Verificar en BUK', icon: 'check_circle', fn: verificarCreditoBuk },
 };
 
+// Flags de firma marcados en el crédito (los apagados y _opciones no cuentan)
+const requiereFirma = (c) => ['employee_sign', 'legal_agent_sign', 'second_legal_agent_sign']
+  .some(k => c.firmas_requeridas?.[k]);
+
+// Sin ninguna firma marcada el paso de firma no existe: se carga el crédito directo
+const accionDe = (c) => {
+  const accion = ESTADOS[c.estado]?.accion;
+  return accion === 'firma' && !requiereFirma(c) ? 'credito' : accion;
+};
+
 const FORM_INICIAL = {
   employee_id: '', rut: '', nombre_trabajador: '',
   nombre: 'Préstamo Interno', tipo: 'credito_personal',
@@ -263,7 +273,8 @@ const Creditos = () => {
                   <tbody className="divide-y divide-slate-100">
                     {filtrados.map(c => {
                       const estado = ESTADOS[c.estado] || { label: c.estado, color: 'bg-slate-100 text-slate-700' };
-                      const accion = estado.accion && ACCIONES[estado.accion];
+                      const claveAccion = accionDe(c);
+                      const accion = claveAccion && ACCIONES[claveAccion];
                       const cargando = accionEnCurso?.startsWith(`${c.id}-`);
                       return (
                         <tr key={c.id} className="hover:bg-slate-50">
@@ -292,7 +303,7 @@ const Creditos = () => {
                               </button>
                               {accion && (
                                 <button
-                                  onClick={() => ejecutarAccion(c, estado.accion)}
+                                  onClick={() => ejecutarAccion(c, claveAccion)}
                                   disabled={cargando}
                                   className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50"
                                 >
