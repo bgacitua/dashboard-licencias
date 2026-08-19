@@ -344,19 +344,24 @@ class CreditosService:
         Los flags de la subida marcan que la firma se requiere, pero no a quién
         le toca: eso se define con PUT /docs/{id}/signatures.
         """
+        firmas: List[Dict[str, Any]] = [
+            {
+                "signature_type": "legal_agent_signature",
+                "person_id": LEGAL_AGENT_PERSON_ID,
+                "position": 1,
+            }
+        ]
+        # PUT /signatures reemplaza la configuración completa: al enviarlo se
+        # inhabilitan los flags de la subida, así que la firma del trabajador
+        # hay que repetirla acá o se pierde.
+        if credito.firmas_requeridas.get("employee_sign"):
+            firmas.append({"signature_type": "employee_signature", "position": 2})
+
         try:
             await _buk(
                 "PUT",
                 f"/docs/{credito.buk_file_id}/signatures",
-                json={
-                    "signatures": [
-                        {
-                            "signature_type": "legal_agent_signature",
-                            "person_id": LEGAL_AGENT_PERSON_ID,
-                            "position": 1,
-                        }
-                    ]
-                },
+                json={"signatures": firmas},
             )
         except BukError as e:
             # El documento ya está en BUK: avisamos sin perder el file_id guardado
