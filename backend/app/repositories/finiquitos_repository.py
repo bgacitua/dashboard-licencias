@@ -25,6 +25,7 @@ class FiniquitosRepository:
                 e.rut_boss     AS rut_jefe,
                 boss.full_name AS nombre_jefe,
                 a.second_level_name AS departamento,
+                a.first_level_name  AS nombre_empresa,
                 0              AS bonificaciones_mensuales,
                 0              AS movilizacion
             FROM rh.employees AS e

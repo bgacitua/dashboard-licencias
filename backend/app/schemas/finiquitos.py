@@ -28,6 +28,7 @@ class FiniquitoBonificaciones(FiniquitoBase):
 # Response: Lo que devolvemos al frontend
 class FiniquitoResponse(FiniquitoBonificaciones):
     id: Optional[int] = None
+    nombre_empresa: Optional[str] = None
     fecha_salida: Optional[date] = None
     bono_sala_cuna: Optional[int] = 0
     desgaste_vehiculo: Optional[int] = 0
