@@ -17,7 +17,7 @@ const TIPOS_PRESTAMO = [
   'Consolidación de deuda',
 ];
 
-const NOMBRES_CREDITO = ['Préstamo Interno', 'Saldo préstamo interno'];
+const NOMBRES_CREDITO = ['Prestamo Interno', 'Saldo préstamo interno'];
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -57,7 +57,7 @@ const accionDe = (c) => {
 
 const FORM_INICIAL = {
   employee_id: '', rut: '', nombre_trabajador: '',
-  nombre: 'Préstamo Interno', tipo: 'credito_personal',
+  nombre: 'Prestamo Interno', tipo: 'credito_personal',
   tipo_prestamo: TIPOS_PRESTAMO[0],
   start_date: primerDia(new Date().getFullYear(), new Date().getMonth() + 1),
   moneda: 'peso',
