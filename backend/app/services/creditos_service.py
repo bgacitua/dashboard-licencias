@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from typing import List, Optional, Dict, Any
 
 import httpx
@@ -66,6 +68,22 @@ def _firmas_activas(credito) -> Dict[str, bool]:
         for k, v in (credito.firmas_requeridas or {}).items()
         if k in FLAGS_FIRMA.values() and v
     }
+
+
+def _slug(texto: str) -> str:
+    """Texto apto para nombre de archivo: sin tildes ni caracteres raros."""
+    sin_tildes = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    return re.sub(r"[^A-Za-z0-9]+", "-", sin_tildes).strip("-")
+
+
+def nombre_archivo(credito) -> str:
+    """Fecha_Tipo_Empleado.pdf"""
+    partes = [
+        credito.start_date.isoformat(),
+        credito.tipo_prestamo or credito.tipo,
+        credito.nombre_trabajador or str(credito.employee_id),
+    ]
+    return "_".join(_slug(str(p)) for p in partes if p) + ".pdf"
 
 
 def _bool(valor) -> str:
@@ -312,14 +330,14 @@ class CreditosService:
         if opciones.get("reviewer_id"):
             params["reviewer_id"] = opciones["reviewer_id"]
 
-        nombre_archivo = f"comprobante_prestamo_{credito.id}.pdf"
+        archivo_nombre = nombre_archivo(credito)
         pdf = await self.generar_pdf(credito)
         data = await self._buk_empleado(
             credito,
             "POST",
             "/docs",
             params=params,
-            files={"file": (nombre_archivo, pdf, "application/pdf")},
+            files={"file": (archivo_nombre, pdf, "application/pdf")},
         )
 
         file_id = _archivo(data).get("id")

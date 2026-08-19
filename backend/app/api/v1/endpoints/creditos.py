@@ -13,7 +13,7 @@ from app.schemas.creditos import (
     EstadoFirmaResponse,
     TrabajadorSugerencia,
 )
-from app.services.creditos_service import CreditosService, CreditoFlowError, BukError
+from app.services.creditos_service import CreditosService, CreditoFlowError, BukError, nombre_archivo
 
 router = APIRouter()
 
@@ -117,7 +117,7 @@ async def previsualizar_pagare(
     return Response(
         content=await _ejecutar(service.generar_pdf(credito)),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="comprobante_prestamo_{credito.id}.pdf"'},
+        headers={"Content-Disposition": f'inline; filename="{nombre_archivo(credito)}"'},
     )
 
 
