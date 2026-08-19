@@ -14,7 +14,10 @@ const TIPOS_PRESTAMO = [
   'Préstamo Habitacional',
   'Préstamo Automotriz',
   'Préstamo Roaming',
+  'Consolidación de deuda',
 ];
+
+const NOMBRES_CREDITO = ['Préstamo Interno', 'Saldo préstamo interno'];
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -456,8 +459,10 @@ const Creditos = () => {
                     <div className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                       <div>
                         <label className={labelClass}>Nombre del crédito <span className="text-red-600">*</span></label>
-                        <input type="text" required value={form.nombre} onChange={e => set('nombre', e.target.value)}
-                          placeholder="Crédito Consumo Bco Chile" className={inputClass} />
+                        <select required value={form.nombre} onChange={e => set('nombre', e.target.value)}
+                          className={`${inputClass} bg-white`}>
+                          {[...new Set([...NOMBRES_CREDITO, form.nombre].filter(Boolean))].map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
                       </div>
 
                       <div>
