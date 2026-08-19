@@ -260,17 +260,17 @@ const VisualizadorFiniquito = () => {
     return (
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 flex flex-row items-center gap-1 print:hidden opacity-0 group-hover:opacity-100 transition-opacity z-50">
         {/* Move block up (decrease top margin) */}
-        <div className="flex items-center bg-white shadow border border-blue-300 rounded-full px-1 py-0.5 gap-0.5">
+        <div className="flex items-center bg-white shadow border border-app-line rounded-full px-1 py-0.5 gap-0.5">
           <span className="text-[9px] font-bold text-blue-400 leading-none select-none">↑</span>
-          <button onClick={() => setMargins({...margins, [`${id}_top`]: currentTop - 2})} title="Subir bloque" className="text-blue-600 hover:bg-blue-50 rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">remove</span></button>
-          <button onClick={() => setMargins({...margins, [`${id}_top`]: currentTop + 2})} title="Bajar bloque" className="text-blue-600 hover:bg-blue-50 rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">add</span></button>
+          <button onClick={() => setMargins({...margins, [`${id}_top`]: currentTop - 2})} title="Subir bloque" className="text-app-brand hover:bg-app-surface rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">remove</span></button>
+          <button onClick={() => setMargins({...margins, [`${id}_top`]: currentTop + 2})} title="Bajar bloque" className="text-app-brand hover:bg-app-surface rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">add</span></button>
           <span className="text-[9px] font-bold text-blue-400 leading-none select-none">↓</span>
         </div>
         {/* Space below (change bottom margin) */}
-        <div className="flex items-center bg-white shadow border border-gray-300 rounded-full px-1 py-0.5 gap-0.5">
-          <span className="text-[9px] text-gray-400 leading-none select-none font-bold">Esp</span>
-          <button onClick={() => setMargins({...margins, [`${id}_bottom`]: currentBottom - 2})} title="Menos espacio abajo" className="text-gray-500 hover:bg-gray-50 rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">remove</span></button>
-          <button onClick={() => setMargins({...margins, [`${id}_bottom`]: currentBottom + 2})} title="Más espacio abajo" className="text-gray-500 hover:bg-gray-50 rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">add</span></button>
+        <div className="flex items-center bg-white shadow border border-app-line rounded-full px-1 py-0.5 gap-0.5">
+          <span className="text-[9px] text-app-outline leading-none select-none font-bold">Esp</span>
+          <button onClick={() => setMargins({...margins, [`${id}_bottom`]: currentBottom - 2})} title="Menos espacio abajo" className="text-app-muted hover:bg-app-surface rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">remove</span></button>
+          <button onClick={() => setMargins({...margins, [`${id}_bottom`]: currentBottom + 2})} title="Más espacio abajo" className="text-app-muted hover:bg-app-surface rounded-full p-0.5 leading-none"><span className="material-symbols-outlined text-[13px]">add</span></button>
         </div>
       </div>
     );
@@ -307,8 +307,8 @@ const VisualizadorFiniquito = () => {
     return (
       <div className="flex min-h-screen bg-[#f8f9fa] items-center justify-center">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-gray-500">Cargando datos del finiquito...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-app-ink mb-4"></div>
+          <p className="text-app-muted">Cargando datos del finiquito...</p>
         </div>
       </div>
     );
@@ -318,11 +318,11 @@ const VisualizadorFiniquito = () => {
     return (
       <div className="flex min-h-screen bg-[#f8f9fa] items-center justify-center">
         <div className="text-center">
-          <span className="material-symbols-outlined text-4xl text-gray-400 mb-2">description</span>
-          <p className="text-gray-500">No se encontró información para el RUT: {rut}</p>
+          <span className="material-symbols-outlined text-4xl text-app-outline mb-2">description</span>
+          <p className="text-app-muted">No se encontró información para el RUT: {rut}</p>
           <button 
             onClick={() => navigate('/finiquitos')}
-            className="mt-4 text-blue-600 hover:underline"
+            className="mt-4 text-app-brand hover:underline"
           >
             Volver al listado
           </button>
@@ -450,11 +450,11 @@ const VisualizadorFiniquito = () => {
     <div className="min-h-screen bg-[#525659] font-['Times_New_Roman',_serif] print:bg-white">
       <main className="p-8 print:p-0 flex flex-col items-center">
         {/* Actions Bar (Hidden on Print) - Moved outside printRef for fidelity */}
-        <div className="w-full max-w-[215.9mm] flex justify-between items-center mb-4 print:hidden bg-white/50 p-4 rounded-xl border border-gray-100 backdrop-blur-sm">
+        <div className="w-full max-w-[215.9mm] flex justify-between items-center mb-4 print:hidden bg-white/50 p-4 rounded-xl border border-app-line backdrop-blur-sm">
           <div className="flex gap-2">
             <button 
               onClick={() => navigate(`/finiquitos/crear/${decodedRut}`, { state: { preserveData: true } })}
-              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+              className="flex items-center text-app-muted hover:text-app-ink transition-colors"
             >
               <span className="material-symbols-outlined mr-2">arrow_back</span>
               Volver a editar
@@ -463,7 +463,7 @@ const VisualizadorFiniquito = () => {
           <div className="flex gap-3">
              <button 
               onClick={() => setIsEditable(!isEditable)}
-              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${isEditable ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${isEditable ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-app-surface text-app-muted hover:bg-app-line'}`}
             >
               <span className="material-symbols-outlined">edit_document</span>
               {isEditable ? 'Modo Edición (Activo)' : 'Habilitar Edición'}
@@ -471,7 +471,7 @@ const VisualizadorFiniquito = () => {
             {finiquitoData?.audit && (
               <button
                 onClick={downloadAuditExcel}
-                className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
+                className="bg-app-ink text-white px-4 py-2 rounded-lg hover:bg-app-ink/90 transition-colors flex items-center gap-2 "
               >
                 <span className="material-symbols-outlined">table_chart</span>
                 Descargar Excel de auditoría
@@ -479,7 +479,7 @@ const VisualizadorFiniquito = () => {
             )}
             <button 
               onClick={handlePrint}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
+              className="bg-app-ink text-white px-4 py-2 rounded-lg hover:bg-app-ink/90 transition-colors flex items-center gap-2 "
             >
               <span className="material-symbols-outlined">print</span>
               Imprimir / Descargar PDF
@@ -489,7 +489,7 @@ const VisualizadorFiniquito = () => {
 
         <div 
           ref={printRef} 
-          className="w-full max-w-[215.9mm] bg-white shadow-lg h-[279.4mm] print:shadow-none print:w-full text-[9.5pt] leading-tight tracking-tighter relative flex flex-col overflow-hidden"
+          className="w-full max-w-[215.9mm] bg-white  h-[279.4mm] print:shadow-none print:w-full text-[9.5pt] leading-tight tracking-tighter relative flex flex-col overflow-hidden"
         >
           {/* Background Image Layer - Conditional Styling for Sabores vs Cramer/Global */}
           <div 
@@ -510,7 +510,7 @@ const VisualizadorFiniquito = () => {
 
             {/* Date - positioned to align with letterhead */}
             <div 
-              className={`relative group flex flex-col items-end justify-start min-h-0 w-full rounded p-0 mb-4 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+              className={`relative group flex flex-col items-end justify-start min-h-0 w-full rounded p-0 mb-4 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
               style={{ marginTop: `${margins['date_top'] || 0}mm`, marginBottom: `${margins['date_bottom'] || 0}mm` }}
               contentEditable={isEditable}
               suppressContentEditableWarning={true}
@@ -521,7 +521,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Addressee */}
           <div 
-            className={`relative group rounded p-0 mb-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group rounded p-0 mb-1 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
             style={{ marginTop: `${margins['addressee_top'] || 0}mm`, marginBottom: `${margins['addressee_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
@@ -558,7 +558,7 @@ const VisualizadorFiniquito = () => {
             <>
               {/* Mutuo Acuerdo Paragraph */}
               <div 
-                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
                 style={{ marginTop: `${margins['p1_mutuo_top'] || 0}mm`, marginBottom: `${margins['p1_mutuo_bottom'] || 0}mm` }}
                 contentEditable={isEditable}
                 suppressContentEditableWarning={true}
@@ -571,7 +571,7 @@ const VisualizadorFiniquito = () => {
               
               {/* Payment Details */}
               <div 
-                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
                 style={{ marginTop: `${margins['p2_mutuo_top'] || 0}mm`, marginBottom: `${margins['p2_mutuo_bottom'] || 0}mm` }}
                 contentEditable={isEditable}
                 suppressContentEditableWarning={true}
@@ -584,7 +584,7 @@ const VisualizadorFiniquito = () => {
             <>
               {/* First Paragraph - Termination Notice */}
               <div 
-                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
                 style={{ marginTop: `${margins['p1_top'] || 0}mm`, marginBottom: `${margins['p1_bottom'] || 0}mm` }}
                 contentEditable={isEditable}
                 suppressContentEditableWarning={true}
@@ -612,7 +612,7 @@ const VisualizadorFiniquito = () => {
 
               {/* Second Paragraph - Conditional based on termination reason */}
               <div
-                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
                 style={{ marginTop: `${margins['p2_top'] || 0}mm`, marginBottom: `${margins['p2_bottom'] || 0}mm` }}
                 contentEditable={isEditable}
                 suppressContentEditableWarning={true}
@@ -628,7 +628,7 @@ const VisualizadorFiniquito = () => {
               {/* Third Paragraph - Payment Details (only for non-vencimiento causals) */}
               {finiquitoData.terminationReason !== 'vencimiento_plazo' && finiquitoData.terminationReason !== 'termino_anticipado' && (
               <div
-                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+                className={`relative group text-justify indent-8 rounded p-2 mb-2 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
                 style={{ marginTop: `${margins['p3_top'] || 0}mm`, marginBottom: `${margins['p3_bottom'] || 0}mm` }}
                 contentEditable={isEditable}
                 suppressContentEditableWarning={true}
@@ -642,7 +642,7 @@ const VisualizadorFiniquito = () => {
 
           {/* HABERES Table */}
           <div 
-            className={`relative group ml-8 text-[9pt] rounded p-1 mb-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group ml-8 text-[9pt] rounded p-1 mb-1 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
             style={{ marginTop: `${margins['haberes_top'] || 0}mm`, marginBottom: `${margins['haberes_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
@@ -701,7 +701,7 @@ const VisualizadorFiniquito = () => {
           {/* DESCUENTOS Table - Only show if there are actual deductions */}
           {totalDescuentosDisplay > 0 && (
             <div 
-              className={`relative group ml-8 text-[9pt] rounded p-1 mb-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+              className={`relative group ml-8 text-[9pt] rounded p-1 mb-1 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
               style={{ marginTop: `${margins['descuentos_top'] || 0}mm`, marginBottom: `${margins['descuentos_bottom'] || 0}mm` }}
               contentEditable={isEditable}
               suppressContentEditableWarning={true}
@@ -758,7 +758,7 @@ const VisualizadorFiniquito = () => {
 
           {/* TOTAL A PAGAR */}
           <div 
-            className={`relative group ml-8 rounded p-1 mb-0.5 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group ml-8 rounded p-1 mb-0.5 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
             style={{ marginTop: `${margins['total_top'] || 0}mm`, marginBottom: `${margins['total_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
@@ -772,7 +772,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Legal Notes */}
           <div 
-            className={`relative group text-justify text-[10pt] rounded p-1 mb-0 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group text-justify text-[10pt] rounded p-1 mb-0 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
             style={{ marginTop: `${margins['legal_top'] || 0}mm`, marginBottom: `${margins['legal_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
@@ -788,7 +788,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Payment Information */}
           <div 
-            className={`relative group text-justify rounded p-1 mb-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group text-justify rounded p-1 mb-1 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
             style={{ marginTop: `${margins['payment_top'] || 0}mm`, marginBottom: `${margins['payment_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
@@ -813,7 +813,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Closing */}
           <div 
-            className={`relative group rounded py-0 px-1 mt-2 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group rounded py-0 px-1 mt-2 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
             style={{ marginTop: `${margins['closing_top'] || 0}mm`, marginBottom: `${margins['closing_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
@@ -824,7 +824,7 @@ const VisualizadorFiniquito = () => {
 
           {/* Manager Signature */}
           <div 
-            className={`relative group text-center rounded py-0 px-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group text-center rounded py-0 px-1 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
             style={{ marginTop: `${(margins['manager_top'] || 0) + 16}mm`, marginBottom: `${margins['manager_bottom'] || 0}mm` }}
             contentEditable={isEditable}
             suppressContentEditableWarning={true}
@@ -837,12 +837,12 @@ const VisualizadorFiniquito = () => {
 
           {/* Worker and Inspection Signatures */}
           <div 
-            className={`relative group flex justify-between rounded py-0 px-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+            className={`relative group flex justify-between rounded py-0 px-1 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
             style={{ marginTop: `${(margins['worker_top'] || 0) + 16}mm`, marginBottom: `${margins['worker_bottom'] || 0}mm` }}
           >
             {renderMarginControls('worker')}
             <div 
-              className={`rounded py-0 px-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+              className={`rounded py-0 px-1 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
               contentEditable={isEditable}
               suppressContentEditableWarning={true}
             >
@@ -851,7 +851,7 @@ const VisualizadorFiniquito = () => {
               <p>Rut: {employeeData.rut_trabajador}</p>
             </div>
             <div 
-              className={`text-right rounded py-0 px-1 ${isEditable ? 'border border-dashed border-gray-400 print:border-transparent' : 'border border-transparent'}`}
+              className={`text-right rounded py-0 px-1 ${isEditable ? 'border border-dashed border-app-outline print:border-transparent' : 'border border-transparent'}`}
               contentEditable={isEditable}
               suppressContentEditableWarning={true}
             >
@@ -860,7 +860,7 @@ const VisualizadorFiniquito = () => {
           </div>
 
 
-          <div className="text-center mt-2 text-xs text-gray-400 print:hidden">
+          <div className="text-center mt-2 text-xs text-app-outline print:hidden">
             <p>Este documento es un borrador generado automáticamente.</p>
           </div>
 

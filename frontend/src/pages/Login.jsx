@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { initialize2FA, verifyEmailOTP, resendEmailOTP } from '../services/auth';
+import AuthShell from '../components/AuthShell';
 
 const Login = () => {
     const [username, setUsername] = useState('');
@@ -171,453 +172,264 @@ const Login = () => {
         setError('');
     };
 
+    const inputClass = 'w-full h-11 rounded-lg border border-app-line bg-white text-[14px] text-app-ink placeholder:text-app-outline transition-colors focus:outline-none focus:border-app-ink focus:ring-1 focus:ring-app-ink disabled:bg-app-surface disabled:cursor-not-allowed';
+    const otpClass = `${inputClass} px-3 text-center text-[22px] font-mono tracking-[0.5em] placeholder:tracking-[0.5em]`;
+    const primaryBtn = 'w-full h-11 flex items-center justify-center gap-2 rounded-lg bg-app-ink text-white text-[13px] font-semibold transition-colors hover:bg-app-ink/90 focus:outline-none focus:ring-2 focus:ring-app-ink focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed';
+    const ghostBtn = 'flex items-center justify-center gap-1.5 text-[13px] text-app-muted transition-colors hover:text-app-ink disabled:text-app-line disabled:cursor-not-allowed';
+    const labelClass = 'block text-[12px] font-medium text-app-ink';
+
+    const Spinner = () => (
+        <svg className="animate-spin h-4 w-4 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+    );
+
+    const StepHeader = ({ icon, title, subtitle }) => (
+        <div className="flex flex-col items-center text-center mb-8">
+            {icon && (
+                <div className="w-11 h-11 rounded-lg bg-app-surface flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-app-brand text-[22px]">{icon}</span>
+                </div>
+            )}
+            <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-app-ink">{title}</h1>
+            <p className="mt-1.5 text-[14px] text-app-muted">{subtitle}</p>
+        </div>
+    );
+
+    const errorBox = error && (
+        <div role="alert" className="flex items-start gap-2.5 rounded-lg border border-[#ba1a1a]/30 bg-[#ffdad6] px-4 py-3 text-[13px] text-[#93000a]">
+            <span className="material-symbols-outlined text-[18px] mt-px flex-shrink-0">error</span>
+            <span>{error}</span>
+        </div>
+    );
+
     return (
-        <div className="min-h-screen flex font-['Public_Sans']">
-            {/* Panel izquierdo — branding */}
-            <aside className="hidden lg:flex lg:w-[480px] xl:w-[540px] flex-shrink-0 flex-col justify-between bg-[#0c1a3a] px-14 py-16 relative overflow-hidden">
-                <div className="absolute inset-0 pointer-events-none select-none" aria-hidden="true">
-                    <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-primary/10 blur-3xl" />
-                    <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-blue-800/20 blur-3xl" />
-                    <svg className="absolute inset-0 w-full h-full opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
-                            </pattern>
-                        </defs>
-                        <rect width="100%" height="100%" fill="url(#grid)" />
-                    </svg>
-                </div>
-
-                <div className="relative z-10 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg">
-                        <span className="material-symbols-outlined text-white text-xl">corporate_fare</span>
-                    </div>
-                    <span className="text-white font-semibold text-lg tracking-tight">HR Portal</span>
-                </div>
-
-                <div className="relative z-10 space-y-6">
-                    <div className="space-y-3">
-                        <p className="text-primary/80 text-sm font-semibold uppercase tracking-widest">
-                            Gestión de Personas
-                        </p>
-                        <h1 className="text-white text-4xl font-bold leading-snug">
-                            Tu plataforma<br />de recursos humanos.
-                        </h1>
-                        <p className="text-slate-400 text-base leading-relaxed">
-                            Administra licencias, vacaciones, finiquitos y más desde un único lugar seguro.
-                        </p>
-                    </div>
-
-                    <ul className="space-y-2.5">
-                        {[
-                            { icon: 'medical_services', label: 'Licencias y permisos médicos' },
-                            { icon: 'beach_access',     label: 'Control de vacaciones activas' },
-                            { icon: 'description',      label: 'Generación de finiquitos' },
-                        ].map(({ icon, label }) => (
-                            <li key={label} className="flex items-center gap-3 text-slate-300 text-sm">
-                                <span className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                                    <span className="material-symbols-outlined text-white text-[18px]">{icon}</span>
-                                </span>
-                                {label}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-
-                <p className="relative z-10 text-slate-600 text-xs">
-                    © {new Date().getFullYear()} Portal RRHH — Uso interno
-                </p>
-            </aside>
-
-            {/* Panel derecho — formulario */}
-            <main className="flex-1 flex items-center justify-center bg-slate-50 px-6 py-12">
-                <div className="w-full max-w-[400px]">
-                    {/* Logo mobile */}
-                    <div className="flex items-center gap-2.5 mb-10 lg:hidden">
-                        <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
-                            <span className="material-symbols-outlined text-white text-xl">corporate_fare</span>
+        <AuthShell>
+            {step === 'credentials' ? (
+                <>
+                    <StepHeader
+                        title="Iniciar sesión"
+                        subtitle="Ingresa tus credenciales para continuar."
+                    />
+                    <form onSubmit={handleCredentials} noValidate className="flex flex-col gap-5">
+                        <div className="flex flex-col gap-1.5">
+                            <label htmlFor="username" className={labelClass}>Usuario</label>
+                            <input
+                                id="username"
+                                type="text"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                placeholder="Nombre de usuario"
+                                autoComplete="username"
+                                disabled={isLoading}
+                                className={`${inputClass} px-3`}
+                            />
                         </div>
-                        <span className="text-slate-800 font-semibold text-lg tracking-tight">HR Portal</span>
-                    </div>
 
-                    {step === 'credentials' ? (
-                        <>
-                            <div className="mb-8">
-                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                                    Iniciar sesión
-                                </h2>
-                                <p className="mt-1.5 text-slate-500 text-sm">
-                                    Ingresa tus credenciales para continuar.
-                                </p>
-                            </div>
-
-                            <form onSubmit={handleCredentials} noValidate className="space-y-5">
-                                <div className="space-y-1.5">
-                                    <label htmlFor="username" className="block text-sm font-semibold text-slate-700">
-                                        Usuario
-                                    </label>
-                                    <div className="relative">
-                                        <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-                                            <span className="material-symbols-outlined text-slate-400 text-[20px]">person</span>
-                                        </span>
-                                        <input
-                                            id="username"
-                                            type="text"
-                                            value={username}
-                                            onChange={(e) => setUsername(e.target.value)}
-                                            placeholder="Nombre de usuario"
-                                            autoComplete="username"
-                                            disabled={isLoading}
-                                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 text-sm shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
-                                        Contraseña
-                                    </label>
-                                    <div className="relative">
-                                        <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-                                            <span className="material-symbols-outlined text-slate-400 text-[20px]">lock</span>
-                                        </span>
-                                        <input
-                                            id="password"
-                                            type={showPassword ? 'text' : 'password'}
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            placeholder="Contraseña"
-                                            autoComplete="current-password"
-                                            disabled={isLoading}
-                                            className="w-full pl-10 pr-11 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 text-sm shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPassword(v => !v)}
-                                            tabIndex={-1}
-                                            aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                                            className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
-                                        >
-                                            <span className="material-symbols-outlined text-[20px]">
-                                                {showPassword ? 'visibility_off' : 'visibility'}
-                                            </span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {error && (
-                                    <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                        <span className="material-symbols-outlined text-red-500 text-[18px] mt-px flex-shrink-0">error</span>
-                                        <span>{error}</span>
-                                    </div>
-                                )}
-
-                                <button
-                                    type="submit"
+                        <div className="flex flex-col gap-1.5">
+                            <label htmlFor="password" className={labelClass}>Contraseña</label>
+                            <div className="relative">
+                                <input
+                                    id="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                    autoComplete="current-password"
                                     disabled={isLoading}
-                                    className="w-full flex items-center justify-center gap-2.5 py-3 px-6 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {isLoading ? (
-                                        <>
-                                            <svg className="animate-spin h-4 w-4 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                                            </svg>
-                                            Iniciando sesión…
-                                        </>
-                                    ) : (
-                                        <>
-                                            Iniciar sesión
-                                            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                                        </>
-                                    )}
-                                </button>
-                            </form>
-                        </>
-                    ) : step === 'email-otp' ? (
-                        /* ── Step 2: Verificar email OTP ── */
-                        <>
-                            <div className="mb-8">
-                                <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center mb-4">
-                                    <span className="material-symbols-outlined text-blue-600 text-2xl">mark_email_read</span>
-                                </div>
-                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                                    Verifica tu correo corporativo
-                                </h2>
-                                <p className="mt-1.5 text-slate-500 text-sm">
-                                    Enviamos un código de 6 dígitos a tu correo <strong>@cramer.cl</strong>. Revisa tu bandeja de entrada.
-                                </p>
-                            </div>
-
-                            <form onSubmit={handleEmailOTPSubmit} noValidate className="space-y-5">
-                                <div className="space-y-1.5">
-                                    <label htmlFor="email-otp" className="block text-sm font-semibold text-slate-700">
-                                        Código de verificación
-                                    </label>
-                                    <input
-                                        ref={emailOtpRef}
-                                        id="email-otp"
-                                        type="text"
-                                        inputMode="numeric"
-                                        maxLength={6}
-                                        value={emailOtpCode}
-                                        onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                        placeholder="000000"
-                                        autoComplete="one-time-code"
-                                        disabled={isLoading}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-300 text-center text-2xl font-mono tracking-[0.5em] shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100"
-                                    />
-                                </div>
-
-                                {error && (
-                                    <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                        <span className="material-symbols-outlined text-red-500 text-[18px] mt-px flex-shrink-0">error</span>
-                                        <span>{error}</span>
-                                    </div>
-                                )}
-
+                                    className={`${inputClass} pl-3 pr-11`}
+                                />
                                 <button
-                                    type="submit"
-                                    disabled={isLoading || emailOtpCode.length !== 6}
-                                    className="w-full flex items-center justify-center gap-2.5 py-3 px-6 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                    type="button"
+                                    onClick={() => setShowPassword(v => !v)}
+                                    tabIndex={-1}
+                                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                    className="absolute inset-y-0 right-3 flex items-center text-app-muted transition-colors hover:text-app-ink"
                                 >
-                                    {isLoading ? (
-                                        <>
-                                            <svg className="animate-spin h-4 w-4 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                                            </svg>
-                                            Verificando…
-                                        </>
-                                    ) : (
-                                        <>
-                                            Continuar
-                                            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                                        </>
-                                    )}
+                                    <span className="material-symbols-outlined text-[20px]">
+                                        {showPassword ? 'visibility_off' : 'visibility'}
+                                    </span>
                                 </button>
-
-                                <div className="flex items-center justify-between text-sm">
-                                    <button
-                                        type="button"
-                                        onClick={handleBackToCredentials}
-                                        className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 transition-colors"
-                                    >
-                                        <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-                                        Volver
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleResendOTP}
-                                        disabled={resendCooldown > 0 || isLoading}
-                                        className="text-primary hover:text-primary-hover transition-colors disabled:text-slate-400 disabled:cursor-not-allowed font-medium"
-                                    >
-                                        {resendCooldown > 0 ? `Reenviar en ${resendCooldown}s` : 'Reenviar código'}
-                                    </button>
-                                </div>
-                            </form>
-                        </>
-
-                    ) : step === 'setup' ? (
-                        /* ── Step 2a: Setup obligatorio — escanear QR ── */
-                        <>
-                            <div className="mb-6">
-                                <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center mb-4">
-                                    <span className="material-symbols-outlined text-amber-600 text-2xl">security</span>
-                                </div>
-                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                                    Configura la verificación en dos pasos
-                                </h2>
-                                <p className="mt-1.5 text-slate-500 text-sm">
-                                    Tu cuenta requiere 2FA obligatoriamente. Escanea el código QR con Google Authenticator o Authy.
-                                </p>
                             </div>
+                        </div>
 
-                            <div className="flex flex-col items-center gap-4 mb-6">
-                                {setupData && (
-                                    <img
-                                        src={setupData.qr_image_b64}
-                                        alt="Código QR para configurar 2FA"
-                                        className="w-48 h-48 rounded-xl border border-slate-200 shadow-sm"
-                                    />
-                                )}
-                                <div className="text-center w-full">
-                                    <p className="text-xs text-slate-500 mb-1">¿No puedes escanear? Ingresa este código en tu app:</p>
-                                    <code className="text-xs font-mono bg-slate-100 px-3 py-2 rounded-lg text-slate-700 tracking-widest break-all select-all block">
-                                        {setupData?.secret}
-                                    </code>
-                                </div>
-                            </div>
+                        {errorBox}
 
-                            <button
-                                onClick={() => { setStep('setup-confirm'); setTotpCode(''); setError(''); }}
-                                className="w-full flex items-center justify-center gap-2.5 py-3 px-6 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold shadow-sm transition-colors"
-                            >
-                                Ya escaneé el código
-                                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                        <button type="submit" disabled={isLoading} className={primaryBtn}>
+                            {isLoading ? (<><Spinner />Iniciando sesión…</>) : 'Iniciar sesión'}
+                        </button>
+                    </form>
+                </>
+
+            ) : step === 'email-otp' ? (
+                /* ── Step 2: Verificar email OTP ── */
+                <>
+                    <StepHeader
+                        icon="mark_email_read"
+                        title="Verifica tu correo"
+                        subtitle="Enviamos un código de 6 dígitos a tu correo @cramer.cl. Revisa tu bandeja de entrada."
+                    />
+                    <form onSubmit={handleEmailOTPSubmit} noValidate className="flex flex-col gap-5">
+                        <div className="flex flex-col gap-1.5">
+                            <label htmlFor="email-otp" className={labelClass}>Código de verificación</label>
+                            <input
+                                ref={emailOtpRef}
+                                id="email-otp"
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={6}
+                                value={emailOtpCode}
+                                onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                placeholder="000000"
+                                autoComplete="one-time-code"
+                                disabled={isLoading}
+                                className={otpClass}
+                            />
+                        </div>
+
+                        {errorBox}
+
+                        <button type="submit" disabled={isLoading || emailOtpCode.length !== 6} className={primaryBtn}>
+                            {isLoading ? (<><Spinner />Verificando…</>) : 'Continuar'}
+                        </button>
+
+                        <div className="flex items-center justify-between">
+                            <button type="button" onClick={handleBackToCredentials} className={ghostBtn}>
+                                <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                                Volver
                             </button>
-
                             <button
                                 type="button"
-                                onClick={handleBackToCredentials}
-                                className="w-full flex items-center justify-center gap-1.5 mt-3 py-2.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+                                onClick={handleResendOTP}
+                                disabled={resendCooldown > 0 || isLoading}
+                                className={`${ghostBtn} font-medium`}
                             >
-                                <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-                                Volver al inicio de sesión
+                                {resendCooldown > 0 ? `Reenviar en ${resendCooldown}s` : 'Reenviar código'}
                             </button>
-                        </>
+                        </div>
+                    </form>
+                </>
 
-                    ) : step === 'setup-confirm' ? (
-                        /* ── Step 2b: Setup obligatorio — confirmar código ── */
-                        <>
-                            <div className="mb-8">
-                                <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center mb-4">
-                                    <span className="material-symbols-outlined text-amber-600 text-2xl">verified_user</span>
-                                </div>
-                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                                    Confirma tu app autenticadora
-                                </h2>
-                                <p className="mt-1.5 text-slate-500 text-sm">
-                                    Ingresa el código de 6 dígitos que muestra tu app para activar 2FA.
-                                </p>
-                            </div>
+            ) : step === 'setup' ? (
+                /* ── Step 2a: Setup obligatorio — escanear QR ── */
+                <>
+                    <StepHeader
+                        icon="security"
+                        title="Verificación en dos pasos"
+                        subtitle="Tu cuenta requiere 2FA. Escanea el código QR con Google Authenticator o Authy."
+                    />
+                    <div className="flex flex-col items-center gap-4 mb-6">
+                        {setupData && (
+                            <img
+                                src={setupData.qr_image_b64}
+                                alt="Código QR para configurar 2FA"
+                                className="w-48 h-48 rounded-lg border border-app-line"
+                            />
+                        )}
+                        <div className="text-center w-full">
+                            <p className="text-[12px] text-app-muted mb-1.5">¿No puedes escanear? Ingresa este código en tu app:</p>
+                            <code className="block select-all break-all rounded-lg border border-app-line bg-app-surface px-3 py-2 font-mono text-[12px] tracking-widest text-app-ink">
+                                {setupData?.secret}
+                            </code>
+                        </div>
+                    </div>
 
-                            <form onSubmit={handleSetupConfirm} noValidate className="space-y-5">
-                                <input
-                                    ref={totpInputRef}
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    maxLength={6}
-                                    value={totpCode}
-                                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    placeholder="000000"
-                                    autoComplete="one-time-code"
-                                    disabled={isLoading}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-300 text-center text-2xl font-mono tracking-[0.5em] shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100"
-                                />
+                    <button
+                        onClick={() => { setStep('setup-confirm'); setTotpCode(''); setError(''); }}
+                        className={primaryBtn}
+                    >
+                        Ya escaneé el código
+                    </button>
 
-                                {error && (
-                                    <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                        <span className="material-symbols-outlined text-red-500 text-[18px] mt-px flex-shrink-0">error</span>
-                                        <span>{error}</span>
-                                    </div>
-                                )}
+                    <button type="button" onClick={handleBackToCredentials} className={`${ghostBtn} w-full mt-4`}>
+                        <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                        Volver al inicio de sesión
+                    </button>
+                </>
 
-                                <button
-                                    type="submit"
-                                    disabled={isLoading || totpCode.length !== 6}
-                                    className="w-full flex items-center justify-center gap-2.5 py-3 px-6 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {isLoading ? (
-                                        <>
-                                            <svg className="animate-spin h-4 w-4 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                                            </svg>
-                                            Activando…
-                                        </>
-                                    ) : (
-                                        <>
-                                            Activar y entrar
-                                            <span className="material-symbols-outlined text-[18px]">lock</span>
-                                        </>
-                                    )}
-                                </button>
+            ) : step === 'setup-confirm' ? (
+                /* ── Step 2b: Setup obligatorio — confirmar código ── */
+                <>
+                    <StepHeader
+                        icon="verified_user"
+                        title="Confirma tu app autenticadora"
+                        subtitle="Ingresa el código de 6 dígitos que muestra tu app para activar 2FA."
+                    />
+                    <form onSubmit={handleSetupConfirm} noValidate className="flex flex-col gap-5">
+                        <input
+                            ref={totpInputRef}
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={6}
+                            value={totpCode}
+                            onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            placeholder="000000"
+                            autoComplete="one-time-code"
+                            aria-label="Código de verificación"
+                            disabled={isLoading}
+                            className={otpClass}
+                        />
 
-                                <button
-                                    type="button"
-                                    onClick={() => { setStep('setup'); setError(''); }}
-                                    className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
-                                >
-                                    <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-                                    Ver QR nuevamente
-                                </button>
-                            </form>
-                        </>
+                        {errorBox}
 
-                    ) : (
-                        /* ── Step 3: TOTP verify ── */
-                        <>
-                            <div className="mb-8">
-                                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                                    <span className="material-symbols-outlined text-primary text-2xl">shield_lock</span>
-                                </div>
-                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-                                    Verificación en dos pasos
-                                </h2>
-                                <p className="mt-1.5 text-slate-500 text-sm">
-                                    Abre tu app autenticadora e ingresa el código de 6 dígitos.
-                                </p>
-                            </div>
+                        <button type="submit" disabled={isLoading || totpCode.length !== 6} className={primaryBtn}>
+                            {isLoading ? (<><Spinner />Activando…</>) : 'Activar y entrar'}
+                        </button>
 
-                            <form onSubmit={handleTotpVerify} noValidate className="space-y-5">
-                                <div className="space-y-1.5">
-                                    <label htmlFor="totp" className="block text-sm font-semibold text-slate-700">
-                                        Código de verificación
-                                    </label>
-                                    <input
-                                        ref={totpInputRef}
-                                        id="totp"
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        maxLength={6}
-                                        value={totpCode}
-                                        onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                        placeholder="000000"
-                                        autoComplete="one-time-code"
-                                        disabled={isLoading}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-300 text-center text-2xl font-mono tracking-[0.5em] shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                    />
-                                </div>
+                        <button
+                            type="button"
+                            onClick={() => { setStep('setup'); setError(''); }}
+                            className={`${ghostBtn} w-full`}
+                        >
+                            <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                            Ver QR nuevamente
+                        </button>
+                    </form>
+                </>
 
-                                {error && (
-                                    <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                        <span className="material-symbols-outlined text-red-500 text-[18px] mt-px flex-shrink-0">error</span>
-                                        <span>{error}</span>
-                                    </div>
-                                )}
+            ) : (
+                /* ── Step 3: TOTP verify ── */
+                <>
+                    <StepHeader
+                        icon="shield_lock"
+                        title="Verificación de seguridad"
+                        subtitle="Abre tu app autenticadora e ingresa el código de 6 dígitos."
+                    />
+                    <form onSubmit={handleTotpVerify} noValidate className="flex flex-col gap-5">
+                        <div className="flex flex-col gap-1.5">
+                            <label htmlFor="totp" className={labelClass}>Código de verificación</label>
+                            <input
+                                ref={totpInputRef}
+                                id="totp"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                maxLength={6}
+                                value={totpCode}
+                                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                placeholder="000000"
+                                autoComplete="one-time-code"
+                                disabled={isLoading}
+                                className={otpClass}
+                            />
+                        </div>
 
-                                <button
-                                    type="submit"
-                                    disabled={isLoading || totpCode.length !== 6}
-                                    className="w-full flex items-center justify-center gap-2.5 py-3 px-6 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {isLoading ? (
-                                        <>
-                                            <svg className="animate-spin h-4 w-4 text-white flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                                            </svg>
-                                            Verificando…
-                                        </>
-                                    ) : (
-                                        <>
-                                            Verificar
-                                            <span className="material-symbols-outlined text-[18px]">verified_user</span>
-                                        </>
-                                    )}
-                                </button>
+                        {errorBox}
 
-                                <button
-                                    type="button"
-                                    onClick={handleBackToCredentials}
-                                    className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
-                                >
-                                    <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-                                    Volver al inicio de sesión
-                                </button>
-                            </form>
-                        </>
-                    )}
+                        <button type="submit" disabled={isLoading || totpCode.length !== 6} className={primaryBtn}>
+                            {isLoading ? (<><Spinner />Verificando…</>) : 'Verificar'}
+                        </button>
 
-                    <p className="mt-8 text-center text-xs text-slate-400">
-                        Acceso restringido a personal autorizado.
-                    </p>
-                </div>
-            </main>
-        </div>
+                        <button type="button" onClick={handleBackToCredentials} className={`${ghostBtn} w-full`}>
+                            <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                            Volver al inicio de sesión
+                        </button>
+                    </form>
+                </>
+            )}
+        </AuthShell>
     );
 };
 

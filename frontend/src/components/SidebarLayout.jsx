@@ -18,7 +18,7 @@ const SidebarLayout = ({ children }) => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50 font-['Public_Sans']">
+    <div className="min-h-screen bg-app-surface font-app text-app-ink">
       <Sidebar collapsed={collapsed} onToggle={handleToggle} />
       <div
         data-sidebar-content

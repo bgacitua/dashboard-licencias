@@ -81,8 +81,8 @@ const TwoFactorSetup = () => {
         return (
             <div className="space-y-6">
                 <div>
-                    <h3 className="text-base font-semibold text-slate-900">Configurar app autenticadora</h3>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <h3 className="text-base font-semibold text-app-ink">Configurar app autenticadora</h3>
+                    <p className="text-sm text-app-muted mt-1">
                         Escanea el código QR con Google Authenticator, Authy u otra app compatible.
                     </p>
                 </div>
@@ -91,11 +91,11 @@ const TwoFactorSetup = () => {
                     <img
                         src={setupData.qr_image_b64}
                         alt="Código QR para 2FA"
-                        className="w-48 h-48 rounded-xl border border-slate-200 shadow-sm"
+                        className="w-48 h-48 rounded-xl border border-app-line "
                     />
                     <div className="text-center">
-                        <p className="text-xs text-slate-500 mb-1">¿No puedes escanear? Ingresa este código manualmente:</p>
-                        <code className="text-sm font-mono bg-slate-100 px-3 py-1.5 rounded-lg text-slate-800 tracking-widest select-all">
+                        <p className="text-xs text-app-muted mb-1">¿No puedes escanear? Ingresa este código manualmente:</p>
+                        <code className="text-sm font-mono bg-app-surface px-3 py-1.5 rounded-lg text-app-ink tracking-widest select-all">
                             {setupData.secret}
                         </code>
                     </div>
@@ -103,7 +103,7 @@ const TwoFactorSetup = () => {
 
                 <form onSubmit={handleConfirmSetup} className="space-y-4">
                     <div className="space-y-1.5">
-                        <label htmlFor="totp-confirm" className="block text-sm font-semibold text-slate-700">
+                        <label htmlFor="totp-confirm" className="block text-sm font-semibold text-app-muted">
                             Código de verificación
                         </label>
                         <input
@@ -116,7 +116,7 @@ const TwoFactorSetup = () => {
                             placeholder="000000"
                             autoComplete="one-time-code"
                             disabled={loading}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-300 text-center text-xl font-mono tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-slate-100"
+                            className="w-full px-4 py-2.5 rounded-xl border border-app-line bg-white text-app-ink placeholder:text-app-outline text-center text-xl font-mono tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-app-brand/30 focus:border-app-brand disabled:bg-app-surface"
                         />
                     </div>
 
@@ -132,14 +132,14 @@ const TwoFactorSetup = () => {
                             type="button"
                             onClick={reset}
                             disabled={loading}
-                            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors disabled:opacity-60"
+                            className="flex-1 py-2.5 rounded-xl border border-app-line text-app-muted text-sm font-semibold hover:bg-app-surface transition-colors disabled:opacity-60"
                         >
                             Cancelar
                         </button>
                         <button
                             type="submit"
                             disabled={loading || code.length !== 6}
-                            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="flex-1 py-2.5 rounded-xl bg-app-brand text-white text-sm font-semibold hover:bg-app-brand/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             {loading ? 'Activando…' : 'Activar 2FA'}
                         </button>
@@ -153,15 +153,15 @@ const TwoFactorSetup = () => {
         return (
             <div className="space-y-5">
                 <div>
-                    <h3 className="text-base font-semibold text-slate-900">Desactivar verificación en dos pasos</h3>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <h3 className="text-base font-semibold text-app-ink">Desactivar verificación en dos pasos</h3>
+                    <p className="text-sm text-app-muted mt-1">
                         Ingresa tu contraseña actual para confirmar.
                     </p>
                 </div>
 
                 <form onSubmit={handleDisable} className="space-y-4">
                     <div className="space-y-1.5">
-                        <label htmlFor="disable-password" className="block text-sm font-semibold text-slate-700">
+                        <label htmlFor="disable-password" className="block text-sm font-semibold text-app-muted">
                             Contraseña actual
                         </label>
                         <input
@@ -172,7 +172,7 @@ const TwoFactorSetup = () => {
                             placeholder="Tu contraseña"
                             autoComplete="current-password"
                             disabled={loading}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-red-400 disabled:bg-slate-100"
+                            className="w-full px-4 py-2.5 rounded-xl border border-app-line bg-white text-app-ink focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-red-400 disabled:bg-app-surface"
                         />
                     </div>
 
@@ -188,7 +188,7 @@ const TwoFactorSetup = () => {
                             type="button"
                             onClick={reset}
                             disabled={loading}
-                            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors disabled:opacity-60"
+                            className="flex-1 py-2.5 rounded-xl border border-app-line text-app-muted text-sm font-semibold hover:bg-app-surface transition-colors disabled:opacity-60"
                         >
                             Cancelar
                         </button>
@@ -209,14 +209,14 @@ const TwoFactorSetup = () => {
     return (
         <div className="flex items-center justify-between py-1">
             <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${is2FAEnabled ? 'bg-green-100' : 'bg-slate-100'}`}>
-                    <span className={`material-symbols-outlined text-xl ${is2FAEnabled ? 'text-green-600' : 'text-slate-400'}`}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${is2FAEnabled ? 'bg-green-100' : 'bg-app-surface'}`}>
+                    <span className={`material-symbols-outlined text-xl ${is2FAEnabled ? 'text-app-brand' : 'text-app-outline'}`}>
                         {is2FAEnabled ? 'verified_user' : 'shield'}
                     </span>
                 </div>
                 <div>
-                    <p className="text-sm font-semibold text-slate-900">Verificación en dos pasos</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-sm font-semibold text-app-ink">Verificación en dos pasos</p>
+                    <p className="text-xs text-app-muted">
                         {is2FAEnabled ? 'Activa — tu cuenta está protegida con TOTP' : 'Desactivada — habilita para mayor seguridad'}
                     </p>
                 </div>
@@ -233,7 +233,7 @@ const TwoFactorSetup = () => {
                 <button
                     onClick={handleStartSetup}
                     disabled={loading}
-                    className="text-sm text-primary hover:text-primary-hover font-semibold transition-colors disabled:opacity-60"
+                    className="text-sm text-app-brand hover:text-app-brand font-semibold transition-colors disabled:opacity-60"
                 >
                     {loading ? 'Cargando…' : 'Activar'}
                 </button>

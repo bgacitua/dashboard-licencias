@@ -51,6 +51,20 @@
   --ring: oklch(0.439 0 0);
 }
 
+/* Design system "Institutional Clarity" — tokens de UI de toda la app.
+   ponytail: tailwind.config.js no se carga (Tailwind v4 sin @config), por eso
+   los tokens viven aquí. Al migrar el interior de la app, decidir si se borra
+   ese archivo o se activa con @config. */
+@theme {
+  --color-app-ink: #141b2b;
+  --color-app-muted: #444651;
+  --color-app-line: #c5c5d3;
+  --color-app-outline: #757682;
+  --color-app-brand: #1e3a8a;
+  --color-app-surface: #f1f3ff;
+  --font-app: "Inter", system-ui, sans-serif;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

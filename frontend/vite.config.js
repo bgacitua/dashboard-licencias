@@ -11,7 +11,8 @@ export default defineConfig({
     // En producción Nginx/Caddy hace este reenvío; en dev lo cubre Vite.
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // Con compose.dev.yml el backend queda en 8001 (8000 suele estar ocupado).
+        target: process.env.VITE_API_TARGET || 'http://localhost:8000',
         changeOrigin: true,
       },
     },

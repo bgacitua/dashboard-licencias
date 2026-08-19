@@ -255,14 +255,14 @@ const ContractAlerts = () => {
         label: 'Segundo Plazo',
       },
       INDEFINIDO: {
-        bg: 'bg-blue-100 dark:bg-blue-900/30',
-        text: 'text-blue-700 dark:text-blue-400',
+        bg: 'bg-app-surface dark:bg-blue-900/30',
+        text: 'text-app-brand dark:text-blue-400',
         label: 'Indefinido',
       },
     };
     const config = configs[type] || {
-      bg: 'bg-gray-100',
-      text: 'text-gray-600',
+      bg: 'bg-app-surface',
+      text: 'text-app-muted',
       label: type,
     };
 
@@ -352,8 +352,8 @@ const ContractAlerts = () => {
       <SidebarLayout>
         <main className="flex-1 flex items-center justify-center min-h-screen">
           <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-gray-500">Cargando alertas de contratos...</p>
+            <div className="w-12 h-12 border-4 border-app-ink border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-app-muted">Cargando alertas de contratos...</p>
           </div>
         </main>
       </SidebarLayout>
@@ -369,7 +369,7 @@ const ContractAlerts = () => {
               <div className="flex items-center gap-4">
                 <Link
                   to="/menu"
-                  className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                  className="flex items-center gap-2 text-app-muted hover:text-app-muted dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
                 >
                   <span className="material-symbols-outlined text-xl">arrow_back</span>
                   <span className="text-sm font-medium">Menú</span>
@@ -387,21 +387,21 @@ const ContractAlerts = () => {
               <div className="flex items-center gap-3">
                 <button
                   onClick={openCalendarModal}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#1a202c] border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#1a202c] border border-app-line dark:border-gray-700 rounded-xl text-sm font-medium text-app-muted dark:text-gray-300 hover:bg-app-surface dark:hover:bg-gray-800 transition-all "
                 >
                   <span className="material-symbols-outlined text-lg">calendar_month</span>
                   Calendario
                 </button>
                 <button
                   onClick={fetchData}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#1a202c] border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#1a202c] border border-app-line dark:border-gray-700 rounded-xl text-sm font-medium text-app-muted dark:text-gray-300 hover:bg-app-surface dark:hover:bg-gray-800 transition-all "
                 >
                   <span className="material-symbols-outlined text-lg">refresh</span>
                   Actualizar
                 </button>
                 <button
                   onClick={() => setShowBossModal(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl text-sm font-semibold hover:from-orange-600 hover:to-red-600 transition-all shadow-sm shadow-orange-200 dark:shadow-orange-900/20"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl text-sm font-semibold hover:from-orange-600 hover:to-red-600 transition-all  shadow-orange-200 dark:shadow-orange-900/20"
                 >
                   <span className="material-symbols-outlined text-lg">send</span>
                   Enviar por Jefe
@@ -410,7 +410,7 @@ const ContractAlerts = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 mb-6 bg-white dark:bg-[#1a202c] rounded-xl p-1 shadow-sm border border-gray-100 dark:border-gray-800 w-fit">
+            <div className="flex gap-1 mb-6 bg-white dark:bg-[#1a202c] rounded-xl p-1  border border-app-line dark:border-gray-800 w-fit">
               {[
                 { key: 'alertas', label: 'Alertas', icon: 'notifications_active' },
                 { key: 'seguimiento', label: 'Seguimiento', icon: 'track_changes' },
@@ -420,8 +420,8 @@ const ContractAlerts = () => {
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     activeTab === tab.key
-                      ? 'bg-orange-500 text-white shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                      ? 'bg-app-ink text-white '
+                      : 'text-app-muted dark:text-gray-400 hover:bg-app-surface dark:hover:bg-gray-800'
                   }`}
                 >
                   <span className="material-symbols-outlined text-lg">{tab.icon}</span>
@@ -432,18 +432,18 @@ const ContractAlerts = () => {
 
             {/* Schedule Info Banner */}
             {activeTab === 'alertas' && scheduleInfo && (
-              <div className={`mb-6 p-4 rounded-2xl border flex items-center gap-4 flex-wrap ${
+              <div className={`mb-6 p-4 rounded-xl border flex items-center gap-4 flex-wrap ${
                 scheduleInfo.modo === 'cierre'
                   ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
-                  : 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800'
+                  : 'bg-app-surface dark:bg-blue-900/10 border-app-line dark:border-blue-800'
               }`}>
                 <div className={`p-2 rounded-lg ${
                   scheduleInfo.modo === 'cierre'
                     ? 'bg-red-100 dark:bg-red-900/30'
-                    : 'bg-blue-100 dark:bg-blue-900/30'
+                    : 'bg-app-surface dark:bg-blue-900/30'
                 }`}>
                   <span className={`material-symbols-outlined ${
-                    scheduleInfo.modo === 'cierre' ? 'text-red-600' : 'text-blue-600'
+                    scheduleInfo.modo === 'cierre' ? 'text-red-600' : 'text-app-brand'
                   }`}>
                     {scheduleInfo.modo === 'cierre' ? 'priority_high' : 'date_range'}
                   </span>
@@ -452,25 +452,25 @@ const ContractAlerts = () => {
                   <p className={`text-sm font-semibold ${
                     scheduleInfo.modo === 'cierre'
                       ? 'text-red-700 dark:text-red-400'
-                      : 'text-blue-700 dark:text-blue-400'
+                      : 'text-app-brand dark:text-blue-400'
                   }`}>
                     {scheduleInfo.modo === 'cierre' ? 'Modo Cierre de Mes' : 'Modo Normal'}
                   </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                  <p className="text-xs text-app-muted dark:text-gray-400 mt-0.5">
                     Buscando alertas del <strong>{scheduleInfo.fecha_inicio}</strong> al <strong>{scheduleInfo.fecha_fin}</strong>
                     {' '}({scheduleInfo.dias_rango} días)
                   </p>
                 </div>
                 {scheduleInfo.fecha_cierre_mes && (
                   <div className="text-right">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Cierre del mes</p>
+                    <p className="text-xs text-app-muted dark:text-gray-400">Cierre del mes</p>
                     <p className={`text-sm font-bold ${
-                      scheduleInfo.modo === 'cierre' ? 'text-red-600' : 'text-blue-600'
+                      scheduleInfo.modo === 'cierre' ? 'text-red-600' : 'text-app-brand'
                     }`}>
                       {scheduleInfo.fecha_cierre_mes}
                     </p>
                     {scheduleInfo.dias_al_cierre != null && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-app-muted dark:text-gray-400">
                         {scheduleInfo.dias_al_cierre <= 0
                           ? 'Cierre hoy o ya pasó'
                           : `${scheduleInfo.dias_al_cierre} día(s) restante(s)`}
@@ -481,7 +481,7 @@ const ContractAlerts = () => {
                 {!scheduleInfo.fecha_cierre_mes && (
                   <button
                     onClick={openCalendarModal}
-                    className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline flex items-center gap-1"
+                    className="text-xs text-app-brand dark:text-blue-400 font-medium hover:underline flex items-center gap-1"
                   >
                     <span className="material-symbols-outlined text-sm">add</span>
                     Configurar cierre
@@ -489,7 +489,7 @@ const ContractAlerts = () => {
                 )}
 
                 {/* Separador vertical */}
-                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
+                <div className="w-px h-8 bg-app-line dark:bg-gray-700 hidden sm:block"></div>
 
                 {/* Custom days input */}
                 <div className="flex items-center gap-2">
@@ -506,7 +506,7 @@ const ContractAlerts = () => {
                         if (val > 0) { setCustomDays(val); fetchData(val); }
                       }
                     }}
-                    className="w-16 px-2 py-1 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-center focus:ring-2 focus:ring-orange-500 outline-none"
+                    className="w-16 px-2 py-1 border border-app-line dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-app-muted dark:text-gray-300 text-center focus:ring-2 focus:ring-app-ink outline-none"
                   />
                   <button
                     onClick={() => {
@@ -514,7 +514,7 @@ const ContractAlerts = () => {
                       if (val > 0) { setCustomDays(val); fetchData(val); }
                     }}
                     disabled={!daysInput || parseInt(daysInput) <= 0}
-                    className="p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="p-1.5 bg-app-ink text-white rounded-lg hover:bg-app-ink/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title="Buscar con rango personalizado"
                   >
                     <span className="material-symbols-outlined text-sm">search</span>
@@ -526,14 +526,14 @@ const ContractAlerts = () => {
                         setDaysInput('');
                         fetchData(null);
                       }}
-                      className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                      className="p-1.5 text-app-muted hover:bg-app-surface dark:hover:bg-gray-800 rounded-lg transition-colors"
                       title="Volver al rango automático"
                     >
                       <span className="material-symbols-outlined text-sm">restart_alt</span>
                     </button>
                   )}
                   {customDays && (
-                    <span className="text-[10px] font-bold bg-green-500 text-white px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold bg-app-ink text-white px-2 py-0.5 rounded-full">
                       {customDays}d manual
                     </span>
                   )}
@@ -582,14 +582,14 @@ const ContractAlerts = () => {
                   >
                     {sendResult.message}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs text-app-muted dark:text-gray-400 mt-1">
                     Exitosos: {sendResult.bosses_successful} jefe(s), {sendResult.alerts_sent}{' '}
                     alerta(s) | Fallidos: {sendResult.bosses_failed} jefe(s)
                   </p>
                 </div>
                 <button
                   onClick={() => setSendResult(null)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-app-outline hover:text-app-muted"
                 >
                   <span className="material-symbols-outlined text-lg">close</span>
                 </button>
@@ -599,14 +599,14 @@ const ContractAlerts = () => {
             {/* Stats Cards */}
             {stats && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-white dark:bg-[#1a202c] rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+                <div className="bg-white dark:bg-[#1a202c] rounded-xl p-5  border border-app-line dark:border-gray-800">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                      <span className="material-symbols-outlined text-orange-600 dark:text-orange-400">
+                      <span className="material-symbols-outlined text-orange-700 dark:text-orange-400">
                         notifications_active
                       </span>
                     </div>
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <span className="text-xs font-medium text-app-muted dark:text-gray-400 uppercase tracking-wider">
                       Total
                     </span>
                   </div>
@@ -615,14 +615,14 @@ const ContractAlerts = () => {
                   </p>
                 </div>
 
-                <div className="bg-white dark:bg-[#1a202c] rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+                <div className="bg-white dark:bg-[#1a202c] rounded-xl p-5  border border-app-line dark:border-gray-800">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                      <span className="material-symbols-outlined text-amber-600 dark:text-amber-400">
+                      <span className="material-symbols-outlined text-amber-700 dark:text-amber-400">
                         schedule
                       </span>
                     </div>
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <span className="text-xs font-medium text-app-muted dark:text-gray-400 uppercase tracking-wider">
                       Segundo Plazo
                     </span>
                   </div>
@@ -631,14 +631,14 @@ const ContractAlerts = () => {
                   </p>
                 </div>
 
-                <div className="bg-white dark:bg-[#1a202c] rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+                <div className="bg-white dark:bg-[#1a202c] rounded-xl p-5  border border-app-line dark:border-gray-800">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                      <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">
+                    <div className="p-2 bg-app-surface dark:bg-blue-900/30 rounded-lg">
+                      <span className="material-symbols-outlined text-app-brand dark:text-blue-400">
                         all_inclusive
                       </span>
                     </div>
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <span className="text-xs font-medium text-app-muted dark:text-gray-400 uppercase tracking-wider">
                       Indefinido
                     </span>
                   </div>
@@ -647,14 +647,14 @@ const ContractAlerts = () => {
                   </p>
                 </div>
 
-                <div className="bg-white dark:bg-[#1a202c] rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+                <div className="bg-white dark:bg-[#1a202c] rounded-xl p-5  border border-app-line dark:border-gray-800">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                      <span className="material-symbols-outlined text-purple-600 dark:text-purple-400">
+                    <div className="p-2 bg-app-surface dark:bg-purple-900/30 rounded-lg">
+                      <span className="material-symbols-outlined text-app-brand dark:text-purple-400">
                         groups
                       </span>
                     </div>
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <span className="text-xs font-medium text-app-muted dark:text-gray-400 uppercase tracking-wider">
                       Jefes
                     </span>
                   </div>
@@ -666,23 +666,23 @@ const ContractAlerts = () => {
             )}
 
             {/* Filters */}
-            <div className="bg-white dark:bg-[#1a202c] rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 mb-6">
+            <div className="bg-white dark:bg-[#1a202c] rounded-xl p-4  border border-app-line dark:border-gray-800 mb-6">
               <div className="flex flex-wrap items-center gap-4">
                 {/* Search */}
                 <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                  <span className="material-symbols-outlined text-gray-400 text-xl">search</span>
+                  <span className="material-symbols-outlined text-app-outline text-xl">search</span>
                   <input
                     type="text"
                     placeholder="Buscar por empleado, jefe o RUT..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="flex-1 bg-transparent border-none outline-none text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400"
+                    className="flex-1 bg-transparent border-none outline-none text-sm text-app-muted dark:text-gray-300 placeholder-app-outline"
                   />
                 </div>
 
                 {/* Filter by type */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  <span className="text-xs font-medium text-app-muted dark:text-gray-400">
                     Tipo:
                   </span>
                   {['Todos', 'SEGUNDO_PLAZO', 'INDEFINIDO'].map((type) => (
@@ -691,8 +691,8 @@ const ContractAlerts = () => {
                       onClick={() => setFilterType(type)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                         filterType === type
-                          ? 'bg-orange-500 text-white shadow-sm'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                          ? 'bg-app-ink text-white '
+                          : 'bg-app-surface dark:bg-gray-800 text-app-muted dark:text-gray-400 hover:bg-app-line dark:hover:bg-gray-700'
                       }`}
                     >
                       {type === 'Todos'
@@ -704,18 +704,18 @@ const ContractAlerts = () => {
                   ))}
                 </div>
 
-                <span className="text-xs text-gray-400 dark:text-gray-500">
+                <span className="text-xs text-app-outline dark:text-gray-500">
                   {filteredAlerts.length} resultado(s)
                 </span>
               </div>
             </div>
 
             {/* Table */}
-            <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+            <div className="bg-white dark:bg-[#1a202c] rounded-xl  border border-app-line dark:border-gray-800 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-gray-100 dark:border-gray-800">
+                    <tr className="border-b border-app-line dark:border-gray-800">
                       {[
                         { key: 'employee_name', label: 'Empleado' },
                         { key: 'employee_rut', label: 'RUT' },
@@ -728,7 +728,7 @@ const ContractAlerts = () => {
                         <th
                           key={col.key}
                           onClick={() => handleSort(col.key)}
-                          className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 transition-colors select-none"
+                          className="px-4 py-3 text-left text-xs font-semibold text-app-muted dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-app-muted dark:hover:text-gray-200 transition-colors select-none"
                         >
                           <div className="flex items-center gap-1">
                             {col.label}
@@ -740,15 +740,15 @@ const ContractAlerts = () => {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  <tbody className="divide-y divide-app-line dark:divide-gray-800">
                     {filteredAlerts.length === 0 ? (
                       <tr>
                         <td colSpan="7" className="px-4 py-12 text-center">
                           <div className="flex flex-col items-center gap-2">
-                            <span className="material-symbols-outlined text-4xl text-gray-300 dark:text-gray-600">
+                            <span className="material-symbols-outlined text-4xl text-app-outline dark:text-gray-600">
                               inbox
                             </span>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-app-muted dark:text-gray-400">
                               No hay alertas pendientes
                             </p>
                           </div>
@@ -758,39 +758,39 @@ const ContractAlerts = () => {
                       filteredAlerts.map((alert, index) => (
                         <tr
                           key={index}
-                          className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                          className={`hover:bg-app-surface dark:hover:bg-gray-800/50 transition-colors ${
                             alert.alert_type === 'INDEFINIDO'
-                              ? 'bg-blue-50/30 dark:bg-blue-900/5'
+                              ? 'bg-app-surface/30 dark:bg-blue-900/5'
                               : ''
                           }`}
                         >
                           <td className="px-4 py-3">
-                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            <span className="text-sm font-medium text-app-ink dark:text-white">
                               {alert.employee_name}
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">
+                            <span className="text-sm text-app-muted dark:text-gray-400 font-mono">
                               {alert.employee_rut}
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="text-sm text-app-muted dark:text-gray-400">
                               {alert.employee_role}
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="text-sm text-app-muted dark:text-gray-400">
                               {alert.boss_name}
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="text-sm text-app-muted dark:text-gray-400">
                               {alert.alert_date}
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="text-sm text-app-muted dark:text-gray-400">
                               {alert.alert_reason}
                             </span>
                           </td>
@@ -813,7 +813,7 @@ const ContractAlerts = () => {
                   <h2 className="text-lg font-bold text-[#111318] dark:text-white">Seguimiento de Respuestas</h2>
                   <button
                     onClick={fetchTracking}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#1a202c] border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#1a202c] border border-app-line dark:border-gray-700 rounded-xl text-sm font-medium text-app-muted dark:text-gray-300 hover:bg-app-surface dark:hover:bg-gray-800 transition-all "
                   >
                     <span className="material-symbols-outlined text-lg">refresh</span>
                     Actualizar
@@ -824,25 +824,25 @@ const ContractAlerts = () => {
                   <div className={`mb-4 p-3 rounded-xl border text-sm font-medium flex items-center gap-2 ${syncResult.ok ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400' : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'}`}>
                     <span className="material-symbols-outlined text-lg">{syncResult.ok ? 'check_circle' : 'error'}</span>
                     {syncResult.message}
-                    <button onClick={() => setSyncResult(null)} className="ml-auto text-gray-400 hover:text-gray-600"><span className="material-symbols-outlined text-lg">close</span></button>
+                    <button onClick={() => setSyncResult(null)} className="ml-auto text-app-outline hover:text-app-muted"><span className="material-symbols-outlined text-lg">close</span></button>
                   </div>
                 )}
 
                 {trackingLoading ? (
                   <div className="flex items-center justify-center py-16">
-                    <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-8 h-8 border-4 border-app-ink border-t-transparent rounded-full animate-spin"></div>
                   </div>
                 ) : tracking.length === 0 ? (
-                  <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-12 text-center">
-                    <span className="material-symbols-outlined text-4xl text-gray-300 dark:text-gray-600">inbox</span>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Sin registros de seguimiento aún</p>
+                  <div className="bg-white dark:bg-[#1a202c] rounded-xl  border border-app-line dark:border-gray-800 p-12 text-center">
+                    <span className="material-symbols-outlined text-4xl text-app-outline dark:text-gray-600">inbox</span>
+                    <p className="text-sm text-app-muted dark:text-gray-400 mt-2">Sin registros de seguimiento aún</p>
                   </div>
                 ) : (
-                  <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+                  <div className="bg-white dark:bg-[#1a202c] rounded-xl  border border-app-line dark:border-gray-800 overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[1200px] table-fixed">
                         <thead>
-                          <tr className="border-b border-gray-100 dark:border-gray-800">
+                          <tr className="border-b border-app-line dark:border-gray-800">
                             {[
                               { label: 'Fecha Envío', cls: 'w-40' },
                               { label: 'Respuesta', cls: 'w-32' },
@@ -853,7 +853,7 @@ const ContractAlerts = () => {
                               { label: 'Vencimiento', cls: 'w-36' },
                               { label: 'BUK Sync', cls: 'w-44' },
                             ].map((h) => (
-                              <th key={h.label} className={`px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap ${h.cls}`}>{h.label}</th>
+                              <th key={h.label} className={`px-6 py-3 text-left text-xs font-semibold text-app-muted dark:text-gray-400 uppercase tracking-wider whitespace-nowrap ${h.cls}`}>{h.label}</th>
                             ))}
                           </tr>
                         </thead>
@@ -862,26 +862,26 @@ const ContractAlerts = () => {
                             const groupConfig = {
                               pendiente: {
                                 label: 'Pendiente',
-                                headerCls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-l-4 border-amber-400',
+                                headerCls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-l-4 border-app-ink',
                                 rowCls: 'hover:bg-amber-50/60 dark:hover:bg-amber-900/10',
                                 icon: 'schedule',
                               },
                               indefinido: {
                                 label: 'Indefinido',
                                 headerCls: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400',
-                                rowCls: 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                                rowCls: 'hover:bg-app-surface dark:hover:bg-gray-800/50',
                                 icon: 'check_circle',
                               },
                               plazo_fijo: {
                                 label: 'Plazo Fijo',
-                                headerCls: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400',
-                                rowCls: 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                                headerCls: 'bg-app-surface dark:bg-blue-900/20 text-app-brand dark:text-blue-400',
+                                rowCls: 'hover:bg-app-surface dark:hover:bg-gray-800/50',
                                 icon: 'event',
                               },
                               no_renovar: {
                                 label: 'No Renovar',
                                 headerCls: 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
-                                rowCls: 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                                rowCls: 'hover:bg-app-surface dark:hover:bg-gray-800/50',
                                 icon: 'cancel',
                               },
                             };
@@ -890,7 +890,7 @@ const ContractAlerts = () => {
                               <React.Fragment key={key}>
                                 {/* Cabecera de grupo */}
                                 <tr>
-                                  <td colSpan={8} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b border-gray-100 dark:border-gray-800 ${gc.headerCls}`}>
+                                  <td colSpan={8} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b border-app-line dark:border-gray-800 ${gc.headerCls}`}>
                                     <span className="flex items-center gap-1.5">
                                       <span className="material-symbols-outlined text-sm">{gc.icon}</span>
                                       {gc.label}
@@ -906,44 +906,44 @@ const ContractAlerts = () => {
                                   const isPending = key === 'pendiente';
                                   const preview = canSync ? buildPatchPreview(row) : null;
                                   return (
-                                    <tr key={row.id} className={`border-b border-gray-50 dark:border-gray-800 transition-colors ${gc.rowCls}`}>
+                                    <tr key={row.id} className={`border-b border-app-line dark:border-gray-800 transition-colors ${gc.rowCls}`}>
                                       {/* Fecha Envío */}
-                                      <td className="px-6 py-3.5 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                      <td className="px-6 py-3.5 text-sm text-app-muted dark:text-gray-400 whitespace-nowrap">
                                         {row.first_sent_at || '—'}
                                       </td>
                                       {/* Respuesta (solo hora) */}
                                       <td className="px-6 py-3.5 text-sm whitespace-nowrap">
                                         {isPending ? (
-                                          <span className="inline-flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                          <span className="inline-flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-app-ink animate-pulse" />
                                             Pendiente
                                           </span>
                                         ) : (
-                                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                                          <span className="text-sm text-app-muted dark:text-gray-400">
                                             {row.responded_at ? row.responded_at.split(' ')[1] : '—'}
                                           </span>
                                         )}
                                       </td>
                                       {/* Empleado */}
-                                      <td className="px-6 py-3.5 text-sm font-medium text-gray-900 dark:text-white">{row.employee_name}</td>
+                                      <td className="px-6 py-3.5 text-sm font-medium text-app-ink dark:text-white">{row.employee_name}</td>
                                       {/* Cargo */}
-                                      <td className="px-6 py-3.5 text-sm text-gray-500 dark:text-gray-400">{row.employee_role}</td>
+                                      <td className="px-6 py-3.5 text-sm text-app-muted dark:text-gray-400">{row.employee_role}</td>
                                       {/* Jefatura */}
-                                      <td className="px-6 py-3.5 text-sm text-gray-700 dark:text-gray-300">{row.boss_name}</td>
+                                      <td className="px-6 py-3.5 text-sm text-app-muted dark:text-gray-300">{row.boss_name}</td>
                                       {/* Fecha Inicio */}
-                                      <td className="px-6 py-3.5 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{row.employee_start_date || '—'}</td>
+                                      <td className="px-6 py-3.5 text-sm text-app-muted dark:text-gray-400 whitespace-nowrap">{row.employee_start_date || '—'}</td>
                                       {/* Vencimiento */}
-                                      <td className="px-6 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.alert_date}</td>
+                                      <td className="px-6 py-3.5 text-sm font-medium text-app-muted dark:text-gray-300 whitespace-nowrap">{row.alert_date}</td>
                                       {/* BUK Sync */}
                                       <td className="px-6 py-3.5">
                                         {row.buk_synced ? (
                                           <div>
-                                            <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                                            <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400 font-medium">
                                               <span className="material-symbols-outlined text-sm">check_circle</span>
                                               Sincronizado
                                             </span>
                                             {row.buk_synced_at && (
-                                              <p className="text-[10px] text-gray-400 mt-0.5">{row.buk_synced_at}</p>
+                                              <p className="text-[10px] text-app-outline mt-0.5">{row.buk_synced_at}</p>
                                             )}
                                           </div>
                                         ) : canSync ? (
@@ -951,7 +951,7 @@ const ContractAlerts = () => {
                                             <button
                                               onClick={() => handleSyncBuk(row.id)}
                                               disabled={syncingId === row.id}
-                                              className="flex items-center gap-1 px-2.5 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                                              className="flex items-center gap-1 px-2.5 py-1 bg-app-ink text-white rounded-lg text-xs font-medium hover:bg-app-ink/90 disabled:opacity-50 transition-colors"
                                             >
                                               {syncingId === row.id ? (
                                                 <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -961,16 +961,16 @@ const ContractAlerts = () => {
                                               Sync BUK
                                             </button>
                                             {/* Tooltip: qué hace el botón */}
-                                            <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 p-3 bg-gray-900 text-white rounded-xl shadow-xl pointer-events-none">
+                                            <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 p-3 bg-app-ink text-white rounded-xl  pointer-events-none">
                                               <p className="text-[11px] font-sans leading-relaxed">
                                                 Ejecuta el flujo <strong>Renovar contrato</strong> en la web de BUK y selecciona{' '}
                                                 <strong>{preview.contractType}</strong>. Puede tardar unos segundos.
                                               </p>
-                                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-app-ink" />
                                             </div>
                                           </div>
                                         ) : (
-                                          <span className="text-xs text-gray-400">—</span>
+                                          <span className="text-xs text-app-outline">—</span>
                                         )}
                                         {row.buk_sync_error && !row.buk_synced && (
                                           <p className="text-[10px] text-red-400 mt-0.5 max-w-[140px] truncate" title={row.buk_sync_error}>
@@ -999,15 +999,15 @@ const ContractAlerts = () => {
       {/* Modal: Resumen por Jefe */}
       {showBossModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col mx-4">
+          <div className="bg-white dark:bg-[#1a202c] rounded-xl  w-full max-w-3xl max-h-[80vh] flex flex-col mx-4">
             {/* Header */}
-            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+            <div className="p-6 border-b border-app-line dark:border-gray-800">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-[#111318] dark:text-white">
                     Resumen por Jefe
                   </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-app-muted dark:text-gray-400 mt-1">
                     Selecciona los jefes a los que deseas enviar alertas
                   </p>
                 </div>
@@ -1017,9 +1017,9 @@ const ContractAlerts = () => {
                     setSelectedBosses([]);
                     setSendResult(null);
                   }}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-2 hover:bg-app-surface dark:hover:bg-gray-800 rounded-lg transition-colors"
                 >
-                  <span className="material-symbols-outlined text-gray-400">close</span>
+                  <span className="material-symbols-outlined text-app-outline">close</span>
                 </button>
               </div>
             </div>
@@ -1034,7 +1034,7 @@ const ContractAlerts = () => {
                     <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">
                       Se requiere autorización de Microsoft
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-xs text-app-muted dark:text-gray-400 mt-1">
                       Haz clic en el botón, inicia sesión con tu cuenta y aprueba en DUO.
                       La ventana se cerrará automáticamente.
                     </p>
@@ -1075,30 +1075,30 @@ const ContractAlerts = () => {
 
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 dark:border-gray-800">
+                  <tr className="border-b border-app-line dark:border-gray-800">
                     <th className="px-4 py-3 text-left w-10">
                       <input
                         type="checkbox"
                         checked={selectedBosses.length === grouped.length && grouped.length > 0}
                         onChange={toggleAllBosses}
-                        className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                        className="w-4 h-4 rounded border-app-line text-orange-500 focus:ring-app-ink"
                       />
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-app-muted dark:text-gray-400 uppercase tracking-wider">
                       Jefe
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-app-muted dark:text-gray-400 uppercase tracking-wider">
                       Email
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-app-muted dark:text-gray-400 uppercase tracking-wider">
                       Empleados
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                <tbody className="divide-y divide-app-line dark:divide-gray-800">
                   {grouped.length === 0 ? (
                     <tr>
-                      <td colSpan="4" className="px-4 py-8 text-center text-gray-400">
+                      <td colSpan="4" className="px-4 py-8 text-center text-app-outline">
                         No hay jefes con alertas pendientes
                       </td>
                     </tr>
@@ -1115,7 +1115,7 @@ const ContractAlerts = () => {
                           className={`cursor-pointer transition-colors ${
                             isSelected
                               ? 'bg-orange-50 dark:bg-orange-900/10'
-                              : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                              : 'hover:bg-app-surface dark:hover:bg-gray-800/50'
                           }`}
                         >
                           <td className="px-4 py-3">
@@ -1123,22 +1123,22 @@ const ContractAlerts = () => {
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => toggleBossSelection(boss)}
-                              className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                              className="w-4 h-4 rounded border-app-line text-orange-500 focus:ring-app-ink"
                               onClick={(e) => e.stopPropagation()}
                             />
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            <span className="text-sm font-medium text-app-ink dark:text-white">
                               {boss.boss_name}
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                            <span className="text-sm text-app-muted dark:text-gray-400">
                               {boss.boss_email}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-sm font-bold">
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-sm font-bold">
                               {boss.employee_count}
                             </span>
                           </td>
@@ -1151,8 +1151,8 @@ const ContractAlerts = () => {
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <span className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="p-6 border-t border-app-line dark:border-gray-800 flex items-center justify-between">
+              <span className="text-sm text-app-muted dark:text-gray-400">
                 {selectedBosses.length} jefe(s) seleccionado(s)
               </span>
               <div className="flex items-center gap-3">
@@ -1162,14 +1162,14 @@ const ContractAlerts = () => {
                     setSelectedBosses([]);
                     setSendResult(null);
                   }}
-                  className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                  className="px-4 py-2.5 bg-app-surface dark:bg-gray-800 text-app-muted dark:text-gray-300 rounded-xl text-sm font-medium hover:bg-app-line dark:hover:bg-gray-700 transition-all"
                 >
                   Cerrar
                 </button>
                 <button
                   onClick={handleSendAlerts}
                   disabled={selectedBosses.length === 0 || sending}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl text-sm font-semibold hover:from-orange-600 hover:to-red-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl text-sm font-semibold hover:from-orange-600 hover:to-red-600 transition-all  disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {sending ? (
                     <>
@@ -1192,24 +1192,24 @@ const ContractAlerts = () => {
       {/* Modal: Calendario de Cierres */}
       {showCalendarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#1a202c] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col mx-4">
+          <div className="bg-white dark:bg-[#1a202c] rounded-xl  w-full max-w-3xl max-h-[90vh] flex flex-col mx-4">
             {/* Header */}
-            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+            <div className="p-6 border-b border-app-line dark:border-gray-800">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-[#111318] dark:text-white">
                     Calendario de Cierres
                   </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-app-muted dark:text-gray-400 mt-1">
                     Define la fecha de cierre para cada mes.
                     7 días antes del cierre se amplía el rango de búsqueda.
                   </p>
                 </div>
                 <button
                   onClick={() => setShowCalendarModal(false)}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-2 hover:bg-app-surface dark:hover:bg-gray-800 rounded-lg transition-colors"
                 >
-                  <span className="material-symbols-outlined text-gray-400">close</span>
+                  <span className="material-symbols-outlined text-app-outline">close</span>
                 </button>
               </div>
 
@@ -1217,18 +1217,18 @@ const ContractAlerts = () => {
               <div className="flex items-center gap-4 mt-4">
                 <button
                   onClick={() => handleCalendarYearChange(-1)}
-                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-1.5 hover:bg-app-surface dark:hover:bg-gray-800 rounded-lg transition-colors"
                 >
-                  <span className="material-symbols-outlined text-gray-500">chevron_left</span>
+                  <span className="material-symbols-outlined text-app-muted">chevron_left</span>
                 </button>
                 <span className="text-lg font-bold text-[#111318] dark:text-white min-w-[60px] text-center">
                   {calendarYear}
                 </span>
                 <button
                   onClick={() => handleCalendarYearChange(1)}
-                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-1.5 hover:bg-app-surface dark:hover:bg-gray-800 rounded-lg transition-colors"
                 >
-                  <span className="material-symbols-outlined text-gray-500">chevron_right</span>
+                  <span className="material-symbols-outlined text-app-muted">chevron_right</span>
                 </button>
               </div>
             </div>
@@ -1249,16 +1249,16 @@ const ContractAlerts = () => {
                       className={`rounded-xl border p-3 transition-all ${
                         esActual
                           ? 'border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-900/10'
-                          : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/30'
+                          : 'border-app-line dark:border-gray-800 bg-app-surface dark:bg-gray-900/30'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className={`text-sm font-semibold ${
-                          esActual ? 'text-orange-700 dark:text-orange-400' : 'text-gray-700 dark:text-gray-300'
+                          esActual ? 'text-orange-700 dark:text-orange-400' : 'text-app-muted dark:text-gray-300'
                         }`}>
                           {nombreMes}
                           {esActual && (
-                            <span className="ml-2 text-[10px] font-bold bg-orange-500 text-white px-1.5 py-0.5 rounded-full">
+                            <span className="ml-2 text-[10px] font-bold bg-app-ink text-white px-1.5 py-0.5 rounded-full">
                               ACTUAL
                             </span>
                           )}
@@ -1276,12 +1276,12 @@ const ContractAlerts = () => {
                           onChange={(e) =>
                             setCalendarInputs((prev) => ({ ...prev, [mes]: e.target.value }))
                           }
-                          className="flex-1 px-2.5 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-orange-500 outline-none"
+                          className="flex-1 px-2.5 py-1.5 border border-app-line dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-app-muted dark:text-gray-300 focus:ring-2 focus:ring-app-ink outline-none"
                         />
                         <button
                           onClick={() => handleSaveCierre(mes)}
                           disabled={!inputValue || savingCalendar}
-                          className="p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="p-1.5 bg-app-ink text-white rounded-lg hover:bg-app-ink/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                           title="Guardar"
                         >
                           <span className="material-symbols-outlined text-sm">save</span>
@@ -1304,10 +1304,10 @@ const ContractAlerts = () => {
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+            <div className="p-6 border-t border-app-line dark:border-gray-800 flex justify-end">
               <button
                 onClick={() => setShowCalendarModal(false)}
-                className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                className="px-4 py-2.5 bg-app-surface dark:bg-gray-800 text-app-muted dark:text-gray-300 rounded-xl text-sm font-medium hover:bg-app-line dark:hover:bg-gray-700 transition-all"
               >
                 Cerrar
               </button>

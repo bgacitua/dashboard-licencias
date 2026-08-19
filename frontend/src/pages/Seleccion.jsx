@@ -22,10 +22,10 @@ const COLS = [
 
 const STATUS_COLORS = {
   'Pendiente':      'bg-yellow-100 text-yellow-800',
-  'Oferta enviada': 'bg-blue-100 text-blue-800',
-  'Aceptado':       'bg-green-100 text-green-800',
+  'Oferta enviada': 'bg-app-surface text-app-brand',
+  'Aceptado':       'bg-green-100 text-green-700',
   'Rechazado':      'bg-red-100 text-red-800',
-  'En proceso':     'bg-purple-100 text-purple-800',
+  'En proceso':     'bg-app-surface text-app-brand',
 };
 
 const emptyForm = {
@@ -77,13 +77,13 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
 
   const field = (label, name, type = 'text', opts = null) => (
     <div>
-      <label className="block text-xs font-semibold text-slate-500 mb-1">{label}</label>
+      <label className="block text-xs font-semibold text-app-muted mb-1">{label}</label>
       {opts ? (
         <select
           name={name}
           value={form[name] || ''}
           onChange={handleChange}
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          className="w-full border border-app-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-app-ink"
         >
           {opts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
@@ -93,7 +93,7 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
           name={name}
           value={form[name] || ''}
           onChange={handleChange}
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          className="w-full border border-app-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-app-ink"
         />
       )}
     </div>
@@ -101,12 +101,12 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-slate-100">
-          <h2 className="text-lg font-bold text-slate-800">
+      <div className="bg-white rounded-xl  w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-app-line">
+          <h2 className="text-lg font-bold text-app-ink">
             {isEdit ? 'Editar candidato' : 'Nuevo candidato'}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-app-outline hover:text-app-muted">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
@@ -138,14 +138,14 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50"
+              className="px-4 py-2 rounded-lg border border-app-line text-app-muted text-sm font-medium hover:bg-app-surface"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60"
+              className="px-5 py-2 rounded-lg bg-app-ink text-white text-sm font-semibold hover:bg-app-ink/90 disabled:opacity-60"
             >
               {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear candidato'}
             </button>
@@ -181,9 +181,9 @@ function DetalleCandidato({ candidato, onClose, onEdit, onDelete }) {
   };
 
   const fila = (label, value) => (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3 py-2.5 border-b border-slate-50 last:border-0">
-      <span className="text-xs font-semibold text-slate-400 w-40 flex-shrink-0">{label}</span>
-      <span className="text-sm text-slate-700">{value || '—'}</span>
+    <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3 py-2.5 border-b border-app-line last:border-0">
+      <span className="text-xs font-semibold text-app-outline w-40 flex-shrink-0">{label}</span>
+      <span className="text-sm text-app-muted">{value || '—'}</span>
     </div>
   );
 
@@ -191,20 +191,20 @@ function DetalleCandidato({ candidato, onClose, onEdit, onDelete }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+      <div className="bg-white rounded-xl  w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-app-line">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">{candidato.nombre}</h2>
-            <p className="text-sm text-slate-400">{candidato.cargo} · {candidato.empresa}</p>
+            <h2 className="text-lg font-bold text-app-ink">{candidato.nombre}</h2>
+            <p className="text-sm text-app-outline">{candidato.cargo} · {candidato.empresa}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-app-outline hover:text-app-muted">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
         <div className="p-6">
           <div className="mb-4">
-            <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full ${STATUS_COLORS[candidato.status] || 'bg-slate-100 text-slate-600'}`}>
+            <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full ${STATUS_COLORS[candidato.status] || 'bg-app-surface text-app-muted'}`}>
               {candidato.status}
             </span>
           </div>
@@ -222,18 +222,18 @@ function DetalleCandidato({ candidato, onClose, onEdit, onDelete }) {
           {fila('Correo analista', candidato.correo_analista)}
         </div>
 
-        <div className="flex gap-3 p-6 pt-0 border-t border-slate-100 flex-wrap">
+        <div className="flex gap-3 p-6 pt-0 border-t border-app-line flex-wrap">
           <button
             onClick={descargarCarta}
             disabled={descargando}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-60"
+            className="flex items-center gap-2 px-4 py-2 bg-app-ink text-white text-sm font-semibold rounded-lg hover:bg-app-ink/90 disabled:opacity-60"
           >
             <span className="material-symbols-outlined text-[18px]">download</span>
             {descargando ? 'Generando...' : 'Carta de oferta'}
           </button>
           <button
             onClick={() => onEdit(candidato)}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50"
+            className="flex items-center gap-2 px-4 py-2 border border-app-line text-app-muted text-sm font-medium rounded-lg hover:bg-app-surface"
           >
             <span className="material-symbols-outlined text-[18px]">edit</span>
             Editar
@@ -317,18 +317,18 @@ export default function Seleccion() {
 
   return (
     <SidebarLayout>
-      <div className="min-h-screen bg-slate-50 font-['Public_Sans']">
+      <div className="min-h-screen bg-app-surface font-app">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Selección de Personal</h1>
-              <p className="text-sm text-slate-500 mt-0.5">Gestión de candidatos y cartas de oferta</p>
+              <h1 className="text-2xl font-bold text-app-ink">Selección de Personal</h1>
+              <p className="text-sm text-app-muted mt-0.5">Gestión de candidatos y cartas de oferta</p>
             </div>
             <button
               onClick={() => { setSeleccionado(null); setModal('nuevo'); }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 shadow-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-app-ink text-white text-sm font-semibold rounded-xl hover:bg-app-ink/90 "
             >
               <span className="material-symbols-outlined text-[18px]">person_add</span>
               Nuevo candidato
@@ -338,13 +338,13 @@ export default function Seleccion() {
           {/* KPIs */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {[
-              { label: 'Total', value: stats.total, color: 'bg-slate-100 text-slate-700' },
-              { label: 'En proceso', value: stats.enProceso, color: 'bg-purple-100 text-purple-700' },
+              { label: 'Total', value: stats.total, color: 'bg-app-surface text-app-muted' },
+              { label: 'En proceso', value: stats.enProceso, color: 'bg-app-surface text-app-brand' },
               { label: 'Pendientes', value: stats.pendientes, color: 'bg-yellow-100 text-yellow-700' },
               { label: 'Aceptados', value: stats.aceptados, color: 'bg-green-100 text-green-700' },
             ].map(kpi => (
-              <div key={kpi.label} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{kpi.label}</p>
+              <div key={kpi.label} className="bg-white rounded-xl border border-app-line p-4 ">
+                <p className="text-xs font-semibold text-app-outline uppercase tracking-wide">{kpi.label}</p>
                 <p className={`text-3xl font-bold mt-1 ${kpi.color.split(' ')[1]}`}>{kpi.value}</p>
               </div>
             ))}
@@ -353,19 +353,19 @@ export default function Seleccion() {
           {/* Filtros */}
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
             <div className="relative flex-1">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-app-outline text-[18px]">search</span>
               <input
                 type="text"
                 placeholder="Buscar por nombre, RUT, cargo o empresa..."
                 value={busqueda}
                 onChange={e => setBusqueda(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                className="w-full pl-9 pr-4 py-2.5 border border-app-line rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-app-ink bg-white"
               />
             </div>
             <select
               value={filtroStatus}
               onChange={e => setFiltroStatus(e.target.value)}
-              className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              className="border border-app-line rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-app-ink"
             >
               <option value="">Todos los estados</option>
               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -373,26 +373,26 @@ export default function Seleccion() {
           </div>
 
           {/* Tabla */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-app-line  overflow-hidden">
             {loading ? (
-              <div className="flex items-center justify-center py-20 text-slate-400">
-                <div className="w-8 h-8 border-4 border-slate-200 border-t-emerald-500 rounded-full animate-spin mr-3" />
+              <div className="flex items-center justify-center py-20 text-app-outline">
+                <div className="w-8 h-8 border-4 border-app-line border-t-emerald-500 rounded-full animate-spin mr-3" />
                 Cargando candidatos...
               </div>
             ) : error ? (
               <div className="text-center py-20 text-red-500">{error}</div>
             ) : candidatosFiltrados.length === 0 ? (
-              <div className="text-center py-20 text-slate-400">
+              <div className="text-center py-20 text-app-outline">
                 <span className="material-symbols-outlined text-5xl mb-3 block">person_search</span>
                 {busqueda || filtroStatus ? 'Sin resultados para los filtros aplicados.' : 'No hay candidatos registrados.'}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-100">
+                  <thead className="bg-app-surface border-b border-app-line">
                     <tr>
                       {COLS.map(col => (
-                        <th key={col.key} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        <th key={col.key} className="px-4 py-3 text-left text-xs font-semibold text-app-muted uppercase tracking-wide">
                           {col.label}
                         </th>
                       ))}
@@ -403,24 +403,24 @@ export default function Seleccion() {
                     {candidatosFiltrados.map(c => (
                       <tr
                         key={c.id}
-                        className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors"
+                        className="border-b border-app-line hover:bg-app-surface cursor-pointer transition-colors"
                         onClick={() => { setSeleccionado(c); setModal('detalle'); }}
                       >
-                        <td className="px-4 py-3 font-medium text-slate-800">{c.nombre}</td>
-                        <td className="px-4 py-3 text-slate-500">{c.rut || '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{c.cargo}</td>
-                        <td className="px-4 py-3 text-slate-500">{c.empresa}</td>
-                        <td className="px-4 py-3 text-slate-500">{c.fecha_de_inicio || '—'}</td>
-                        <td className="px-4 py-3 text-slate-500">{c.tipo_de_contrato || '—'}</td>
+                        <td className="px-4 py-3 font-medium text-app-ink">{c.nombre}</td>
+                        <td className="px-4 py-3 text-app-muted">{c.rut || '—'}</td>
+                        <td className="px-4 py-3 text-app-muted">{c.cargo}</td>
+                        <td className="px-4 py-3 text-app-muted">{c.empresa}</td>
+                        <td className="px-4 py-3 text-app-muted">{c.fecha_de_inicio || '—'}</td>
+                        <td className="px-4 py-3 text-app-muted">{c.tipo_de_contrato || '—'}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[c.status] || 'bg-slate-100 text-slate-600'}`}>
+                          <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[c.status] || 'bg-app-surface text-app-muted'}`}>
                             {c.status}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button
                             onClick={e => { e.stopPropagation(); setSeleccionado(c); setModal('editar'); }}
-                            className="text-slate-400 hover:text-emerald-600 transition-colors"
+                            className="text-app-outline hover:text-app-brand transition-colors"
                           >
                             <span className="material-symbols-outlined text-[18px]">edit</span>
                           </button>
