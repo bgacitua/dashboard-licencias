@@ -3,7 +3,7 @@ import { ChevronDown, Shield, TrendingDown, TrendingUp, Calendar, ListTree } fro
 import { Card, CardContent } from './ui/card'
 import { Separator } from './ui/separator'
 import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group'
-import { formatCLP, formatUSD, formatPEN } from '../lib/utils'
+import { formatCLP, formatUSD, formatPEN, formatBRL } from '../lib/utils'
 
 export function Resultados({
   pais = 'chile',
@@ -15,8 +15,10 @@ export function Resultados({
   afpData = {},
   afp,
   tasas = {},
+  utilidadesError = null,
 }) {
   const esPeru = pais === 'peru'
+  const esBrasil = pais === 'brasil'
   const [openSections, setOpenSections] = useState(new Set())
   const [detallesOpen, setDetallesOpen] = useState(false)
 
@@ -31,9 +33,12 @@ export function Resultados({
 
   const isOpen = (section) => openSections.has(section)
 
-  const monedasDisponibles = esPeru ? ['PEN', 'USD'] : ['CLP', 'USD']
-  const monedaLocal = esPeru ? 'PEN' : 'CLP'
-  const formatLocal = esPeru ? formatPEN : formatCLP
+  const monedasDisponibles = esBrasil
+    ? ['BRL', 'USD']
+    : esPeru
+      ? ['PEN', 'USD']
+      : ['CLP', 'USD']
+  const formatLocal = esBrasil ? formatBRL : esPeru ? formatPEN : formatCLP
 
   const fmt = (v) =>
     moneda === 'USD' && dolarValue > 0
@@ -76,10 +81,23 @@ export function Resultados({
             ))}
           </ToggleGroup>
         </div>
-        <p className="text-xs text-white/60 mt-1">1 USD = {formatLocal(dolarValue)}</p>
+        {dolarValue > 0 && (
+          <p className="text-xs text-white/60 mt-1">1 USD = {formatLocal(dolarValue)}</p>
+        )}
       </div>
 
       <CardContent className="p-4 space-y-1 max-h-[calc(100vh-200px)] overflow-y-auto">
+        {esBrasil && resultados.configError ? (
+          <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 px-3 py-3">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+              No se puede calcular Brasil
+            </p>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1 leading-relaxed">
+              {resultados.configError}
+            </p>
+          </div>
+        ) : (
+        <>
         {/* Entrada */}
         {modo === 'base_a_liquido' ? (
           <ResultRow label="Sueldo Base (entrada)" value={resultados.sueldoBase} variant="entrada" format={fmt} />
@@ -119,6 +137,15 @@ export function Resultados({
             <div className="overflow-hidden">
               <div className="pt-2 space-y-1">
 
+        {esBrasil ? (
+          <DetalleBrasil
+            resultados={resultados}
+            fmt={fmt}
+            isOpen={isOpen}
+            toggle={toggle}
+          />
+        ) : (
+        <>
         {/* Haberes */}
         <AccordionSection
           icon={<TrendingUp className="h-4 w-4" />}
@@ -209,7 +236,15 @@ export function Resultados({
               {resultados.bonosNoImponibles > 0 && (
                 <ResultRow label="Bonos No Imponibles" value={resultados.bonosNoImponibles} format={fmt} />
               )}
-              <ResultRow label="EsSalud 9% (empleador)" value={resultados.essaludEmpleador} format={fmt} />
+              <div className="mt-2 mb-1">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Aportes patronales
+                </span>
+              </div>
+              {(resultados.aportesPatronales || []).map((a) => (
+                <ResultRow key={a.id} label={a.nombre} value={a.monto} format={fmt} />
+              ))}
+              <ResultRow label="Total Costos Patronales" value={resultados.totalPatronal} variant="total" format={fmt} />
             </>
           ) : (
             <>
@@ -259,8 +294,10 @@ export function Resultados({
                   <span className="text-xs text-muted-foreground">{fmt(resultados.gratificacionesAnual)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground pl-3">→ EsSalud 9% sobre gratif.</span>
-                  <span className="text-xs text-muted-foreground">{fmt(resultados.essaludGratificaciones)}</span>
+                  <span className="text-xs text-muted-foreground pl-3">
+                    → Bonificación extraordinaria ({(resultados.tasaBonifExtraordinaria * 100).toFixed(2)}%)
+                  </span>
+                  <span className="text-xs text-muted-foreground">{fmt(resultados.bonificacionExtraordinaria)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground pl-3">→ Costo empresa</span>
@@ -277,6 +314,44 @@ export function Resultados({
                     </span>
                   </div>
                   <BonoAnualRow label="Bono Empresa" bono={bonoEmpresaAnual} format={fmt} />
+                </>
+              )}
+
+              {utilidadesError ? (
+                <p className="mt-2 text-[11px] text-red-600 dark:text-red-400">
+                  No se pudo estimar utilidades: {utilidadesError}
+                </p>
+              ) : (
+                <>
+                  {resultados.asignacionFamiliarAnual > 0 && (
+                    <ResultRow
+                      label="Asignación Familiar"
+                      value={resultados.asignacionFamiliarAnual}
+                      format={fmt}
+                    />
+                  )}
+                  {resultados.canastaNavidena > 0 && (
+                    <ResultRow label="Canasta Navideña" value={resultados.canastaNavidena} format={fmt} />
+                  )}
+                  {resultados.repartoUtilidades > 0 && (
+                    <ResultRow
+                      label="Reparto de Utilidades Estimado"
+                      value={resultados.repartoUtilidades}
+                      format={fmt}
+                    />
+                  )}
+                  <Separator className="my-1.5" />
+                  <ResultRow
+                    label="Total Costo Empresa Anual"
+                    value={resultados.costoTotalEmpresaAnual}
+                    variant="total"
+                    format={fmt}
+                  />
+                  {resultados.repartoUtilidades > 0 && (
+                    <p className="text-[11px] text-muted-foreground pt-1">
+                      Utilidades estimadas según nómina activa y días registrados del año actual.
+                    </p>
+                  )}
                 </>
               )}
             </>
@@ -296,13 +371,223 @@ export function Resultados({
             </>
           )}
         </AccordionSection>
+        </>
+        )}
 
               </div>
             </div>
           </div>
         </div>
+        </>
+        )}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Detalle Brasil: misma secuencia de acordeones que Chile y Perú
+ * (Total Haberes → Descuentos Trabajador → Costo Empresa Mensual →
+ * Costo Empresa Anual), con los conceptos CLT y sus siglas legales.
+ */
+function DetalleBrasil({ resultados, fmt, isOpen, toggle }) {
+  const metodoIRRF =
+    resultados.metodoIRRF === 'simplificado' ? 'Descuento simplificado' : 'Deducciones legales'
+  const bono = resultados.bonoEmpresaBrasil
+
+  return (
+    <>
+      {/* 1. Haberes */}
+      <AccordionSection
+        icon={<TrendingUp className="h-4 w-4" />}
+        label="Total Haberes"
+        value={resultados.totalHaberes}
+        variant="total"
+        isOpen={isOpen('haberes')}
+        onToggle={() => toggle('haberes')}
+        format={fmt}
+      >
+        <ResultRow label="Sueldo Base Mensual" value={resultados.sueldoBase} format={fmt} />
+      </AccordionSection>
+
+      {/* 2. Descuentos */}
+      <AccordionSection
+        icon={<TrendingDown className="h-4 w-4" />}
+        label="Descuentos Trabajador"
+        value={resultados.totalDescuentos}
+        variant="descuento"
+        isOpen={isOpen('descuentos')}
+        onToggle={() => toggle('descuentos')}
+        format={fmt}
+      >
+        <ResultRow
+          label="Cotización previsional trabajador (INSS)"
+          value={resultados.inssTrabajador}
+          format={fmt}
+        />
+        <ResultRow
+          label="Impuesto a la renta retenido (IRRF)"
+          value={resultados.irrfFinal}
+          format={fmt}
+        />
+        <div className="flex items-center justify-between py-0.5">
+          <span className="text-xs text-muted-foreground pl-3">→ Base de cálculo IRRF</span>
+          <span className="text-xs text-muted-foreground">{fmt(resultados.baseIRRF)}</span>
+        </div>
+        <div className="flex items-center justify-between py-0.5">
+          <span className="text-xs text-muted-foreground pl-3">→ Método aplicado</span>
+          <span className="text-xs text-muted-foreground">{metodoIRRF}</span>
+        </div>
+        <div className="flex items-center justify-between py-0.5">
+          <span className="text-xs text-muted-foreground pl-3">→ IRRF antes de reducción</span>
+          <span className="text-xs text-muted-foreground">{fmt(resultados.irrfBruto)}</span>
+        </div>
+        <div className="flex items-center justify-between py-0.5">
+          <span className="text-xs text-muted-foreground pl-3">→ Reducción IRRF 2026</span>
+          <span className="text-xs text-muted-foreground">{fmt(resultados.reduccionIRRF)}</span>
+        </div>
+
+        <Separator className="my-1.5" />
+
+        <ResultRow
+          label="Total Descuentos"
+          value={resultados.totalDescuentos}
+          variant="descuento"
+          format={fmt}
+        />
+        <ResultRow
+          label="Sueldo Líquido Mensual"
+          value={resultados.sueldoLiquido}
+          variant="total"
+          format={fmt}
+        />
+      </AccordionSection>
+
+      <Separator className="my-2" />
+
+      {/* 3. Costo empresa mensual */}
+      <AccordionSection
+        icon={<Shield className="h-4 w-4" />}
+        label="Costo Empresa Mensual"
+        value={resultados.costoTotalEmpresa}
+        variant="total-header"
+        isOpen={isOpen('mensual')}
+        onToggle={() => toggle('mensual')}
+        format={fmt}
+      >
+        <ResultRow label="Sueldo Base" value={resultados.sueldoBase} format={fmt} />
+        <ResultRow
+          label="Cotización patronal (INSS patronal)"
+          value={resultados.inssPatronal}
+          format={fmt}
+        />
+        <ResultRow
+          label="Riesgo ambiental del trabajo (RAT/FAP)"
+          value={resultados.rat}
+          format={fmt}
+        />
+        <ResultRow label="Contribuciones a terceros" value={resultados.terceros} format={fmt} />
+        <ResultRow
+          label="Fondo de Garantía por Tiempo de Servicio (FGTS)"
+          value={resultados.fgts}
+          format={fmt}
+        />
+        <ResultRow
+          label="Total Cargas Patronales"
+          value={resultados.totalEncargos}
+          variant="total"
+          format={fmt}
+        />
+
+        <Separator className="my-1.5" />
+
+        <ResultRow label="Provisión de 13° sueldo" value={resultados.provision13} format={fmt} />
+        <ResultRow
+          label="Provisión de vacaciones"
+          value={resultados.provisionVacaciones}
+          format={fmt}
+        />
+        <ResultRow
+          label="Adicional 1/3 de vacaciones"
+          value={resultados.adicionalTercioVacaciones}
+          format={fmt}
+        />
+        <ResultRow
+          label="Total Provisiones"
+          value={resultados.totalProvisiones}
+          variant="total"
+          format={fmt}
+        />
+
+        <Separator className="my-1.5" />
+
+        <ResultRow
+          label="Costo Empresa Mensual Total"
+          value={resultados.costoTotalEmpresa}
+          variant="total"
+          format={fmt}
+        />
+      </AccordionSection>
+
+      {/* 4. Costo empresa anual */}
+      <AccordionSection
+        icon={<Calendar className="h-4 w-4" />}
+        label="Costo Empresa Anual"
+        value={resultados.costoTotalEmpresaAnual}
+        variant="anual"
+        isOpen={isOpen('anual')}
+        onToggle={() => toggle('anual')}
+        format={fmt}
+      >
+        <div className="flex items-center justify-between py-0.5">
+          <span className="text-xs text-muted-foreground">Costo mensual × 12</span>
+          <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
+            {fmt(resultados.costoEmpresaAnualSinBono)}
+          </span>
+        </div>
+
+        {bono.monto > 0 && (
+          <>
+            <div className="mt-2 mb-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Bono Empresa Anual
+              </span>
+            </div>
+            <ResultRow label="Bono empresa anual" value={bono.monto} format={fmt} />
+            {bono.imponible && (
+              <div className="flex items-center justify-between py-0.5">
+                <span className="text-xs text-muted-foreground pl-3">
+                  → Cargas patronales del bono
+                </span>
+                <span className="text-xs text-muted-foreground">{fmt(bono.cargas)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between py-0.5">
+              <span className="text-xs text-muted-foreground pl-3">→ Costo empresa</span>
+              <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
+                {fmt(bono.costoEmpresa)}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">
+              El bono empresa se estima como costo anual. El tratamiento tributario y
+              laboral efectivo puede variar según su naturaleza, habitualidad y mes de pago.
+            </p>
+          </>
+        )}
+
+        <Separator className="my-1.5" />
+
+        <ResultRow
+          label="Costo Empresa Anual Total"
+          value={resultados.costoTotalEmpresaAnual}
+          variant="total"
+          format={fmt}
+        />
+      </AccordionSection>
+
+        
+      
+    </>
   )
 }
 

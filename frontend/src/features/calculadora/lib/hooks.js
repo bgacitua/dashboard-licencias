@@ -1,12 +1,18 @@
 // features/calculadora/lib/hooks.js
 
 import { useMemo, useState, useEffect } from "react"
+import CalculadoraService from "../../../services/calculadora.service"
 import { calcularRemuneracion } from "./calculations"
-import { parseNumericInput } from "./utils"
+import { parseBRLInput, parseNumericInput } from "./utils"
 
 export function useCalculator(params) {
   return useMemo(() => {
-    const montoSueldo = parseNumericInput(params.sueldo)
+    // Brasil trabaja con centavos y separadores brasileños; Chile y Perú
+    // siguen con el parser de enteros de siempre.
+    const parseMonto =
+      params.pais === "brasil" ? parseBRLInput : parseNumericInput
+
+    const montoSueldo = parseMonto(params.sueldo)
     const montoMovilizacion = parseNumericInput(params.movilizacion)
 
     const tipoObj = params.config.bonosEmpresa.find(b => b.id === params.bonoEmpresaTipo)
@@ -16,9 +22,12 @@ export function useCalculator(params) {
       : 0
     const bonoEmpresaMonto = bonoEmpresaTasa > 0
       ? 0
-      : parseNumericInput(params.bonoEmpresaMonto)
+      : parseMonto(params.bonoEmpresaMonto)
 
-    const monto = montoSueldo === 0 ? 1000000 : montoSueldo
+    // Brasil no tiene sueldo por defecto: con el campo vacío se muestra el
+    // resultado en cero en vez de un monto inventado en pesos chilenos.
+    const monto =
+      montoSueldo === 0 && params.pais !== "brasil" ? 1000000 : montoSueldo
 
     return calcularRemuneracion(
       params.modo,
@@ -31,7 +40,8 @@ export function useCalculator(params) {
       bonoEmpresaTasa,
       params.bonos,
       params.pais,
-      params.config
+      params.config,
+      Boolean(tipoObj?.imponible)
     )
   }, [
     params.modo,
@@ -47,6 +57,64 @@ export function useCalculator(params) {
     params.pais,
     params.config,
   ])
+}
+
+/**
+ * Perú: pide al backend el reparto de utilidades estimado, la asignación
+ * familiar y la canasta navideña (anuales). Debounce de 400ms para no
+ * consultar rh_peru en cada tecla.
+ *
+ * Devuelve { utilidades, utilidadesError }. En cualquier otro país devuelve
+ * ambos en null y no hace request.
+ */
+export function usePeruUtilidades({
+  pais,
+  sueldoBase,
+  rentaImponible,
+  porcentajeUtilidades,
+  tieneAsignacionFamiliar,
+}) {
+  const [utilidades, setUtilidades] = useState(null)
+  const [utilidadesError, setUtilidadesError] = useState(null)
+
+  useEffect(() => {
+    if (pais !== "peru" || !(sueldoBase > 0)) {
+      setUtilidades(null)
+      setUtilidadesError(null)
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      CalculadoraService.getProyeccionUtilidadesPeru(
+        {
+          sueldo_base_calculado: sueldoBase,
+          renta_imponible_proyectada: rentaImponible,
+          porcentaje_utilidades: porcentajeUtilidades,
+          tiene_asignacion_familiar: tieneAsignacionFamiliar,
+        },
+        controller.signal
+      )
+        .then((data) => {
+          setUtilidades(data)
+          setUtilidadesError(null)
+        })
+        .catch((err) => {
+          if (err.code === "ERR_CANCELED") return
+          setUtilidades(null)
+          setUtilidadesError(
+            err?.response?.data?.detail || err.message || "Error de configuración"
+          )
+        })
+    }, 400)
+
+    return () => {
+      controller.abort()
+      clearTimeout(timer)
+    }
+  }, [pais, sueldoBase, rentaImponible, porcentajeUtilidades, tieneAsignacionFamiliar])
+
+  return { utilidades, utilidadesError }
 }
 
 export function useDarkMode() {

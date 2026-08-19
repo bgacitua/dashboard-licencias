@@ -6,7 +6,9 @@ import { ModoCalculo } from '../features/calculadora/components/ModoCalculo'
 import { DatosPrincipales } from '../features/calculadora/components/DatosPrincipales'
 import { Bonos } from '../features/calculadora/components/Bonos'
 import { Resultados } from '../features/calculadora/components/Resultados'
-import { useCalculator, useDarkMode } from '../features/calculadora/lib/hooks'
+import { useCalculator, useDarkMode, usePeruUtilidades } from '../features/calculadora/lib/hooks'
+import { aplicarExtrasPeru } from '../features/calculadora/lib/calculations'
+import { parseNumericInput } from '../features/calculadora/lib/utils'
 import {
   AFP_DATA,
   AFP_DATA_PERU,
@@ -38,15 +40,32 @@ const FALLBACK_PERU = {
   tasas: TASAS_PERU,
 }
 
+// Brasil no lleva fallback de tasas regulatorias: si el backend no responde,
+// calcularBrasil devuelve "Configuración de Brasil incompleta" en vez de un
+// resultado engañoso.
+const FALLBACK_BRASIL = {
+  afpData: {},
+  ufValue: 0,
+  dolarValue: 0,
+  taxBrackets: [],
+  bonosAnualesUF: BONOS_ANUALES_UF_DEFAULT,
+  bonosEmpresa: [],
+  tasas: {},
+}
+
 function getFallbackConfig(pais) {
   if (pais === 'peru') return FALLBACK_PERU
+  if (pais === 'brasil') return FALLBACK_BRASIL
   return FALLBACK_CHILE
 }
+
+const MONEDA_POR_PAIS = { chile: 'CLP', peru: 'PEN', brasil: 'BRL' }
 
 // Defaults por país para selectores que dependen del país
 const DEFAULTS_POR_PAIS = {
   chile: { afp: 'Uno',     sistemaSalud: 'fonasa',  sueldo: '1.000.000', movilizacion: '40.000', bonoEmpresaTipo: 'empresa', bonoEmpresaMonto: '600.000' },
   peru:  { afp: 'Integra', sistemaSalud: 'essalud', sueldo: '3.500',     movilizacion: '0',      bonoEmpresaTipo: 'empresa', bonoEmpresaMonto: '0' },
+  brasil:{ afp: '',        sistemaSalud: '',        sueldo: '25.500,50', movilizacion: '0',      bonoEmpresaTipo: 'empresa_anual', bonoEmpresaMonto: '' },
 }
 
 function normalizeConfig(raw, pais) {
@@ -78,6 +97,7 @@ export default function Calculadora() {
   const [config, setConfig] = useState(FALLBACK_CHILE)
   const [loadingConfig, setLoadingConfig] = useState(true)
   const [configError, setConfigError] = useState(null)
+  const [configErrors, setConfigErrors] = useState([])
 
   const [modo, setModo] = useState('liquido_a_base')
   const [sueldo, setSueldo] = useState('1.000.000')
@@ -91,6 +111,11 @@ export default function Calculadora() {
   const [bonos, setBonos] = useState([])
   const [moneda, setMoneda] = useState('CLP')
 
+  // Perú — utilidades / asignación familiar
+  const [rentaImponible, setRentaImponible] = useState('')
+  const [porcentajeUtilidades, setPorcentajeUtilidades] = useState('')
+  const [tieneAsignacionFamiliar, setTieneAsignacionFamiliar] = useState(false)
+
   const handlePaisChange = (nuevoPais) => {
     if (nuevoPais === pais) return
     const d = DEFAULTS_POR_PAIS[nuevoPais] || DEFAULTS_POR_PAIS.chile
@@ -103,7 +128,9 @@ export default function Calculadora() {
     setBonoEmpresaTipo(d.bonoEmpresaTipo)
     setBonoEmpresaTasaIdx(0)
     setBonoEmpresaMonto(d.bonoEmpresaMonto)
-    setMoneda(nuevoPais === 'peru' ? 'PEN' : 'CLP')
+    setMoneda(MONEDA_POR_PAIS[nuevoPais] || 'CLP')
+    setRentaImponible('')
+    setTieneAsignacionFamiliar(false)
   }
 
   // Re-fetch de config cuando cambia el país
@@ -115,6 +142,7 @@ export default function Calculadora() {
       .then((data) => {
         if (cancelled) return
         setConfig(normalizeConfig(data, pais))
+        setConfigErrors(data?._meta?.configErrors || [])
         if (data?._meta?.warnings?.length) {
           console.warn(`[calculadora] ${pais}:`, data._meta.warnings)
         }
@@ -123,6 +151,7 @@ export default function Calculadora() {
         if (cancelled) return
         console.error('[calculadora] no se pudo cargar config:', err)
         setConfigError(err?.response?.data?.detail || err.message || 'Error de carga')
+        setConfigErrors([])
         setConfig(getFallbackConfig(pais))
       })
       .finally(() => {
@@ -133,7 +162,15 @@ export default function Calculadora() {
     }
   }, [pais])
 
-  const resultados = useCalculator({
+  // El % de utilidades arranca en PORCENTAJE_UTILIDADES_SECTOR (BD) y queda
+  // editable por el usuario para consultas puntuales.
+  useEffect(() => {
+    if (pais !== 'peru') return
+    const pct = config?.tasas?.PORCENTAJE_UTILIDADES_SECTOR
+    setPorcentajeUtilidades(pct != null ? String(pct * 100) : '')
+  }, [pais, config])
+
+  const resultadosBase = useCalculator({
     modo,
     sueldo,
     afp,
@@ -147,6 +184,16 @@ export default function Calculadora() {
     pais,
     config,
   })
+
+  const { utilidades, utilidadesError } = usePeruUtilidades({
+    pais,
+    sueldoBase: resultadosBase.sueldoBase,
+    rentaImponible: parseNumericInput(rentaImponible),
+    porcentajeUtilidades: (parseFloat(porcentajeUtilidades) || 0) / 100,
+    tieneAsignacionFamiliar,
+  })
+
+  const resultados = aplicarExtrasPeru(resultadosBase, pais === 'peru' ? utilidades : null)
 
   const addBono = (bono) => {
     setBonos([...bonos, { ...bono, id: Date.now().toString() }])
@@ -170,6 +217,21 @@ export default function Calculadora() {
         <div className="max-w-7xl mx-auto px-4 mt-4">
           <div className="bg-amber-100 dark:bg-amber-900/30 border border-amber-300 text-amber-900 dark:text-amber-200 rounded-md px-4 py-2 text-sm">
             No se pudo cargar la configuración del backend ({configError}). Usando valores de fallback locales.
+          </div>
+        </div>
+      )}
+
+      {configErrors.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 mt-4">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-300 text-red-800 dark:text-red-300 rounded-md px-4 py-3 text-sm">
+            <p className="font-semibold">
+              La configuración de {pais.charAt(0).toUpperCase() + pais.slice(1)} requiere revisión.
+            </p>
+            <ul className="list-disc pl-5 mt-1 space-y-0.5 text-xs">
+              {configErrors.map((e) => (
+                <li key={e}>{e}</li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
@@ -209,9 +271,18 @@ export default function Calculadora() {
               bonosEmpresa={config.bonosEmpresa}
               afpData={config.afpData}
               ufValue={config.ufValue}
+              rentaImponible={rentaImponible}
+              onRentaImponibleChange={setRentaImponible}
+              porcentajeUtilidades={porcentajeUtilidades}
+              onPorcentajeUtilidadesChange={setPorcentajeUtilidades}
+              tieneAsignacionFamiliar={tieneAsignacionFamiliar}
+              onTieneAsignacionFamiliarChange={setTieneAsignacionFamiliar}
+              utilidades={utilidades}
             />
 
-            <Bonos bonos={bonos} onAddBono={addBono} onRemoveBono={removeBono} />
+            {pais !== 'brasil' && (
+              <Bonos bonos={bonos} onAddBono={addBono} onRemoveBono={removeBono} />
+            )}
           </div>
 
           <div className="lg:col-span-2">
@@ -230,6 +301,7 @@ export default function Calculadora() {
                 afpData={config.afpData}
                 afp={afp}
                 tasas={config.tasas}
+                utilidadesError={pais === 'peru' ? utilidadesError : null}
               />
             )}
           </div>

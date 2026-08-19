@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Badge } from './ui/badge'
+import { Checkbox } from './ui/checkbox'
 import { RadioGroup, RadioGroupItem } from './ui/radio-group'
 import {
   Select,
@@ -11,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select'
-import { formatCLP, formatNumericInput } from '../lib/utils'
+import { formatBRL, formatBRLInput, formatCLP, formatNumericInput, formatPEN } from '../lib/utils'
 
 export function DatosPrincipales({
   pais = 'chile',
@@ -36,8 +37,25 @@ export function DatosPrincipales({
   bonosEmpresa,
   afpData,
   ufValue,
+  // Perú — utilidades
+  rentaImponible,
+  onRentaImponibleChange,
+  porcentajeUtilidades,
+  onPorcentajeUtilidadesChange,
+  tieneAsignacionFamiliar,
+  onTieneAsignacionFamiliarChange,
+  utilidades,
 }) {
   const esPeru = pais === 'peru'
+  const esBrasil = pais === 'brasil'
+
+  // Brasil escribe con separadores brasileños: se guarda el texto tal cual
+  // mientras se escribe (evita saltos de cursor) y se normaliza al salir.
+  const onMontoChange = (setter) => (e) =>
+    setter(esBrasil ? e.target.value : formatNumericInput(e.target.value))
+  const onMontoBlur = (valor, setter) => () => {
+    if (esBrasil) setter(formatBRLInput(valor))
+  }
   const tasaAFPDefault = esPeru ? 0.0155 : 0.1049
   const tasaAFP = afpData[afp] || tasaAFPDefault
   const tipoObj = bonosEmpresa.find((b) => b.id === bonoEmpresaTipo)
@@ -65,15 +83,86 @@ export function DatosPrincipales({
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
               type="text"
+              inputMode="decimal"
               value={sueldo}
-              onChange={(e) => onSueldoChange(formatNumericInput(e.target.value))}
-              placeholder={modo === 'liquido_a_base' ? 'Ej: 1.000.000' : 'Ej: 1.500.000'}
+              onChange={onMontoChange(onSueldoChange)}
+              onBlur={onMontoBlur(sueldo, onSueldoChange)}
+              placeholder={esBrasil ? 'Ej: 25.500,50' : modo === 'liquido_a_base' ? 'Ej: 1.000.000' : 'Ej: 1.500.000'}
               className="pl-10 h-12 text-lg font-semibold"
             />
           </div>
         </div>
 
+        {/* Brasil — bono empresa anual */}
+        {esBrasil && (
+          <>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">
+                Bono Empresa (anual)
+              </Label>
+              <Select value={bonoEmpresaTipo} onValueChange={onBonoEmpresaTipoChange}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Tipo de bono" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bonosEmpresa.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {Array.isArray(tasaArr) && tasaArr.length > 0 ? (
+                <>
+                  <Select
+                    value={String(bonoEmpresaTasaIdx)}
+                    onValueChange={(v) => onBonoEmpresaTasaIdxChange(Number(v))}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Porcentaje del sueldo base" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tasaArr.map((t, i) => (
+                        <SelectItem key={i} value={String(i)}>
+                          {(t * 100).toFixed(0)}% del sueldo base
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="h-10 flex items-center px-3 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-500">
+                    {formatBRL(bonoEmpresaComputado)}
+                    <span className="ml-2 text-xs text-slate-400">(calculado sobre base)</span>
+                  </div>
+                </>
+              ) : (
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={bonoEmpresaMonto}
+                  onChange={onMontoChange(onBonoEmpresaMontoChange)}
+                  onBlur={onMontoBlur(bonoEmpresaMonto, onBonoEmpresaMontoChange)}
+                  placeholder="Ej: 10.000,00"
+                  className="h-10"
+                />
+              )}
+
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                {tipoObj?.imponible
+                  ? 'Imponible: suma sus cargas patronales al costo anual.'
+                  : 'No imponible: sólo suma el monto del bono al costo anual.'}
+              </p>
+            </div>
+
+            <p className="text-[11px] leading-relaxed text-slate-500 bg-slate-50 dark:bg-slate-800/40 rounded-lg px-3 py-2">
+              Estimación CLT para remuneración fija. No incluye beneficios, convenio
+              colectivo, Simples Nacional, CPRB, desvinculación ni remuneración variable.
+            </p>
+          </>
+        )}
+
         {/* AFP */}
+        {!esBrasil && (
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold text-slate-600">
             {esPeru ? 'AFP (Administradora)' : 'AFP'}
@@ -104,8 +193,10 @@ export function DatosPrincipales({
             </p>
           )}
         </div>
+        )}
 
         {/* Sistema de Salud */}
+        {!esBrasil && (
         <div className="space-y-2">
           <Label className="text-xs font-semibold text-slate-600">Sistema de Salud</Label>
           {esPeru ? (
@@ -163,8 +254,10 @@ export function DatosPrincipales({
             </>
           )}
         </div>
+        )}
 
         {/* Movilización */}
+        {!esBrasil && !esPeru && (
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold text-slate-600">Movilización</Label>
           <Input
@@ -175,8 +268,24 @@ export function DatosPrincipales({
             className="h-10"
           />
         </div>
+        )}
+
+        {/* Asignación familiar (Perú) */}
+        {esPeru && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="asignacion-familiar"
+              checked={tieneAsignacionFamiliar}
+              onCheckedChange={(v) => onTieneAsignacionFamiliarChange(v === true)}
+            />
+            <Label htmlFor="asignacion-familiar" className="cursor-pointer text-sm text-slate-700 dark:text-slate-200">
+              Tiene asignación familiar
+            </Label>
+          </div>
+        )}
 
         {/* Bono Empresa */}
+        {!esBrasil && (
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold text-slate-600">
             {esPeru ? 'Bono Empresa (anual — utilidades / bono gestión)' : 'Bono Empresa'}
@@ -227,6 +336,60 @@ export function DatosPrincipales({
             </div>
           )}
         </div>
+        )}
+
+        {/* Perú — utilidades / asignación familiar */}
+        {esPeru && (
+          <div className="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">
+                Renta imponible proyectada de la empresa
+              </Label>
+              <Input
+                type="text"
+                value={rentaImponible}
+                onChange={(e) => onRentaImponibleChange(formatNumericInput(e.target.value))}
+                placeholder="Ej: 500.000"
+                className="h-10"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">
+                Porcentaje de utilidades
+              </Label>
+              <div className="relative w-32">
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={porcentajeUtilidades}
+                  onChange={(e) => onPorcentajeUtilidadesChange(e.target.value)}
+                  className="h-10 pr-7"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">%</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 dark:border-slate-700">
+              <div>
+                <p className="text-[11px] text-slate-500">Sueldos anuales actuales</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  {utilidades ? formatPEN(utilidades.empresa_sueldos_actual_anual) : '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500">Días trabajados del año actual</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  {utilidades
+                    ? utilidades.empresa_dias_actual.toLocaleString('es-PE')
+                    : '—'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
       </CardContent>
     </Card>
