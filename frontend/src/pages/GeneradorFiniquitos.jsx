@@ -5,6 +5,7 @@ import Docxtemplater from 'docxtemplater';
 
 import SidebarLayout from '../components/SidebarLayout';
 import FiniquitosService from '../services/finiquitos.service';
+import { getCompanyDetails } from './CrearFiniquito';
 
 const ITEMS_PER_PAGE = 50;
 
@@ -212,11 +213,14 @@ const GeneradorFiniquitos = () => {
     setGenerando(true);
     try {
       const [anio, mes, dia] = fechaComparendo.split("-");
+      const empresa = getCompanyDetails(empleadoSeleccionado.nombre_empresa);
       const contexto = {
         nombre_trabajador: empleadoSeleccionado.nombre_trabajador || "",
         rut_trabajador: empleadoSeleccionado.rut_trabajador || "",
         cargo: empleadoSeleccionado.cargo || "",
         nombre_empresa: empleadoSeleccionado.nombre_empresa || "",
+        empresa: empleadoSeleccionado.nombre_empresa || "",
+        rut_empresa: empresa.rut,
         nombre_jefe: empleadoSeleccionado.nombre_jefe || "",
         rut_jefe: empleadoSeleccionado.rut_jefe || "",
         fecha_ingreso: formatFecha(empleadoSeleccionado.fecha_ingreso),

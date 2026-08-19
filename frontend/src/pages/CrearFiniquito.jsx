@@ -184,7 +184,7 @@ function numeroALetrasCLP(num) {
 
 // Detalles de empresa (razón social y RUT) según nombre_empresa,
 // alineado con la lógica de VisualizadorFiniquito.
-function getCompanyDetails(empresaRaw) {
+export function getCompanyDetails(empresaRaw) {
   const normalized = (empresaRaw || "").toLowerCase();
 
   if (normalized.includes("sabores")) {
