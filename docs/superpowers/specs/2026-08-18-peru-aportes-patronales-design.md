@@ -33,17 +33,18 @@ En la muestra de abril de 2026, EPS y EsSalud aparecen juntos con una relación
 1:3. Esto corresponde a 2,25% y 6,75%, respectivamente, que en conjunto
 mantienen el aporte de salud patronal de 9%.
 
-SCTR Salud se comporta como una tasa de 0,70% en las filas revisadas. SCTR
-Pensión y Vida Ley no mantienen una proporción única con la misma base: su
-configuración debe soportar tope y monto fijo, respectivamente, en vez de
-forzar ambas a un porcentaje simple.
+SCTR Salud se comporta como una tasa de 0,70% sobre la base de salud en las
+filas revisadas. SCTR Pensión se comporta como 0,70% con una base topada en
+aproximadamente S/ 12.598,57. Vida Ley se comporta como 0,27% con una base
+topada en aproximadamente S/ 12.600. Por ello ambas deben soportar porcentaje
+con tope, en lugar de forzarlas a un porcentaje simple o a un monto fijo.
 
 ## Alternativas consideradas
 
 ### 1. Cinco tasas fijas sobre el imponible
 
-Es la alternativa más simple, pero calcularía incorrectamente Vida Ley y puede
-distorsionar SCTR Pensión cuando exista tope o una base distinta.
+Es la alternativa más simple, pero calcularía incorrectamente SCTR Pensión y
+Vida Ley cuando exista tope o una base distinta.
 
 ### 2. Catálogo genérico de aportes patronales — seleccionado
 
@@ -101,8 +102,10 @@ Cada entrada es independiente y la calculadora sólo procesará las activas.
     {
       "id": "vida_ley",
       "nombre": "Vida Ley",
-      "tipo": "monto_fijo",
-      "monto": 34.02,
+      "tipo": "porcentaje_con_tope",
+      "tasa": 0.0027,
+      "base": "imponible",
+      "tope": 12600,
       "activo": true
     }
   ]
@@ -183,7 +186,7 @@ del costo de contratación.
    imponible; el líquido y sueldo base no cambian.
 2. SCTR Salud se suma a costo empresa, pero no a descuentos del trabajador.
 3. SCTR Pensión aplica su tope cuando el imponible lo supera.
-4. Vida Ley suma el monto fijo configurado una vez al mes.
+4. Vida Ley aplica la tasa configurada y respeta su tope.
 5. Los cinco aportes se muestran sólo cuando están activos y el subtotal es la
    suma de sus filas.
 6. Una configuración inválida muestra advertencia y no entrega un resultado
