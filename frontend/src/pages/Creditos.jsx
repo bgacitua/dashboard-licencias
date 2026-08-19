@@ -405,7 +405,7 @@ const Creditos = () => {
                         </div>
 
                         {sugerencias.length > 0 && (
-                          <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-app-line bg-white shadow-[0_4px_20px_rgba(0,0,0,0.08)]">
+                          <ul className="mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-app-line bg-white shadow-[0_4px_20px_rgba(0,0,0,0.08)]">
                             {sugerencias.map(t => (
                               <li key={t.employee_id}>
                                 <button
