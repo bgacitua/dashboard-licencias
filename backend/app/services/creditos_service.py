@@ -448,7 +448,7 @@ class CreditosService:
             "tipo": credito.tipo,
             "start_date": credito.start_date.isoformat(),
             "moneda": credito.moneda,
-            "amount": credito.amount,
+            "amount": float(credito.amount) if credito.moneda == "uf" else int(credito.amount),
             "cuota_actual": credito.cuota_actual,
             "duracion": credito.duracion,
         }

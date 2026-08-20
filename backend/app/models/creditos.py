@@ -17,7 +17,7 @@ class Credito(Base):
     tipo_prestamo = Column(String(50), nullable=False, default="Préstamo Emergencia")
     start_date = Column(Date, nullable=False)
     moneda = Column(String(10), nullable=False, default="peso")
-    amount = Column(Integer, nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
     cuota_actual = Column(Integer, nullable=False, default=1)
     duracion = Column(Integer, nullable=False)
     monto_original = Column(Numeric(12, 2), nullable=True)

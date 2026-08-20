@@ -529,7 +529,8 @@ const Creditos = () => {
 
                       <div>
                         <label className={labelClass}>Valor de la cuota <span className="text-red-600">*</span></label>
-                        <input type="number" required min="1" value={form.amount}
+                        <input type="number" required min={form.moneda === 'uf' ? '0.01' : '1'}
+                          step={form.moneda === 'uf' ? '0.01' : '1'} value={form.amount}
                           onChange={e => set('amount', e.target.value)} className={inputClass} />
                       </div>
 

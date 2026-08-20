@@ -27,7 +27,7 @@ class CreditoBase(BaseModel):
     tipo_prestamo: TipoPrestamo = "Préstamo Emergencia"
     start_date: date
     moneda: Moneda = "peso"
-    amount: int = Field(gt=0, description="Valor de la cuota a descontar")
+    amount: Decimal = Field(gt=0, description="Valor de la cuota a descontar (UF admite decimales)")
     cuota_actual: int = Field(default=1, ge=1)
     duracion: int = Field(gt=0, description="Total de cuotas")
     monto_original: Optional[Decimal] = Field(default=None, description="Monto original del préstamo (UF o pesos)")
@@ -58,7 +58,7 @@ class CreditoUpdate(BaseModel):
     tipo_prestamo: Optional[TipoPrestamo] = None
     start_date: Optional[date] = None
     moneda: Optional[Moneda] = None
-    amount: Optional[int] = Field(default=None, gt=0)
+    amount: Optional[Decimal] = Field(default=None, gt=0)
     cuota_actual: Optional[int] = Field(default=None, ge=1)
     duracion: Optional[int] = Field(default=None, gt=0)
     monto_original: Optional[Decimal] = None
