@@ -62,7 +62,7 @@ const FORM_INICIAL = {
   start_date: primerDia(new Date().getFullYear(), new Date().getMonth() + 1),
   moneda: 'peso',
   monto_original: '', equivalente_pesos: '',
-  amount: '', cuota_actual: 1, duracion: '', comentario: '', dia_uf: '',
+  amount: '', cuota_actual: 1, duracion: '', comentario: '', dia_uf: '30',
   visible: true,
   signable_by_employee: true,
   signable_by_legal_agent: true,
@@ -150,7 +150,7 @@ const Creditos = () => {
       monto_original: c.monto_original ?? '',
       equivalente_pesos: c.equivalente_pesos ?? '',
       comentario: c.comentario ?? '',
-      dia_uf: c.dia_uf ?? '31',
+      dia_uf: c.dia_uf ?? '30',
       start_date: c.start_date || FORM_INICIAL.start_date,
       visible: opciones.visible ?? true,
       overwrite: opciones.overwrite ?? false,
@@ -179,7 +179,7 @@ const Creditos = () => {
       reviewer_id: form.reviewer_id ? Number(form.reviewer_id) : null,
       buk_file_id: form.buk_file_id ? Number(form.buk_file_id) : null,
       path: form.path || null,
-      dia_uf: form.moneda === 'uf' ? form.dia_uf || '31' : null,
+      dia_uf: form.moneda === 'uf' ? form.dia_uf || '30' : null,
     };
     try {
       if (editando) {
@@ -508,7 +508,7 @@ const Creditos = () => {
                           <label className={labelClass}>Día de la UF</label>
                           <select value={form.dia_uf} onChange={e => set('dia_uf', e.target.value)}
                             className={`${inputClass} bg-white`}>
-                            <option value="31">UF fin de mes</option>
+                            <option value="30">UF fin de mes</option>
                           </select>
                         </div>
                       )}
