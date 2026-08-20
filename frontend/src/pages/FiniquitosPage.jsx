@@ -41,10 +41,10 @@ const FiniquitosPage = () => {
       <h1 className="text-2xl font-bold mb-4">Módulo de Finiquitos</h1>
       
       {/* Tabla de Trabajadores */}
-      <div className="bg-white shadow-md rounded my-6 overflow-x-auto">
+      <div className="bg-white  rounded my-6 overflow-x-auto">
         <table className="min-w-full table-auto">
           <thead>
-            <tr className="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
+            <tr className="bg-app-line text-app-muted uppercase text-sm leading-normal">
               <th className="py-3 px-6 text-left">RUT</th>
               <th className="py-3 px-6 text-left">Nombre</th>
               <th className="py-3 px-6 text-left">Cargo</th>
@@ -55,19 +55,19 @@ const FiniquitosPage = () => {
               <th className="py-3 px-6 text-center">Acciones</th>
             </tr>
           </thead>
-          <tbody className="text-gray-600 text-sm font-light">
+          <tbody className="text-app-muted text-sm font-light">
             {loading ? (
               <tr><td colSpan="8" className="text-center py-4">Cargando...</td></tr>
             ) : (
               trabajadores.map((worker) => (
-                <tr key={worker.rut_trabajador} className="border-b border-gray-200 hover:bg-gray-100">
+                <tr key={worker.rut_trabajador} className="border-b border-app-line hover:bg-app-surface">
                   <td className="py-3 px-6 text-left whitespace-nowrap">{worker.rut_trabajador}</td>
                   <td className="py-3 px-6 text-left">{worker.nombre_trabajador}</td>
                   <td className="py-3 px-6 text-left">{worker.cargo}</td>
                   <td className="py-3 px-6 text-left">{worker.fecha_ingreso}</td>
                   <td className="py-3 px-6 text-left">{worker.duracion_empresa ? worker.duracion_empresa.toFixed(2) : '0.00'}</td>
                   <td className="py-3 px-6 text-left">
-                    <span className={`py-1 px-3 rounded-full text-xs ${worker.estado === 'activo' ? 'bg-green-200 text-green-600' : 'bg-red-200 text-red-600'}`}>
+                    <span className={`py-1 px-3 rounded-full text-xs ${worker.estado === 'activo' ? 'bg-green-200 text-app-brand' : 'bg-red-200 text-red-600'}`}>
                       {worker.estado}
                     </span>
                   </td>
@@ -75,7 +75,7 @@ const FiniquitosPage = () => {
                   <td className="py-3 px-6 text-center">
                     <button 
                       onClick={() => handleSelectWorker(worker)}
-                      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-xs"
+                      className="bg-app-ink hover:bg-app-ink/90 text-white font-bold py-1 px-3 rounded text-xs"
                     >
                       Ver Detalle
                     </button>
@@ -89,7 +89,7 @@ const FiniquitosPage = () => {
 
       {/* Detalles del Trabajador Seleccionado */}
       {selectedWorker && (
-        <div className="mt-8 bg-white shadow-md rounded p-6">
+        <div className="mt-8 bg-white  rounded p-6">
           <h2 className="text-xl font-bold mb-4">Detalle de Finiquito: {selectedWorker.nombre_trabajador}</h2>
           {loadingDetails ? (
             <p>Cargando detalles...</p>

@@ -3,52 +3,158 @@
 /* Dark mode basado en clase `.dark` en <html> (Tailwind v4) */
 @custom-variant dark (&:is(.dark *));
 
-/* Tokens de color (paleta shadcn/ui) — usados por el módulo Calculadora.
-   Mantener como variables permite que `bg-card`, `text-foreground`, etc.
-   funcionen sin afectar al resto del dashboard, que usa tokens propios. */
+/* ---------------------------------------------------------------------------
+   Design system "Warm Editorial" — Swiss grid + developer tools aesthetic.
+   Fondo casi blanco cálido, tinta casi negra, un solo acento rojo saturado.
+   Los componentes no se tocan: se retematiza la paleta de Tailwind y los
+   tokens `app-*`, así el cambio alcanza a toda la app con un diff mínimo.
+   --------------------------------------------------------------------------- */
+
+/* Tokens de color (paleta shadcn/ui) — usados por el módulo Calculadora. */
 :root {
-  --background: oklch(0.99 0.002 247);
-  --foreground: oklch(0.17 0.02 252);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.17 0.02 252);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.17 0.02 252);
-  /* Primary = #135bec */
-  --primary: oklch(0.51 0.218 261);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.96 0.006 247);
-  --secondary-foreground: oklch(0.28 0.03 252);
-  --muted: oklch(0.96 0.006 247);
-  --muted-foreground: oklch(0.50 0.02 252);
-  --accent: oklch(0.94 0.012 253);
-  --accent-foreground: oklch(0.28 0.03 252);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.908 0.008 247);
-  --input: oklch(0.908 0.008 247);
-  --ring: oklch(0.51 0.218 261);
+  --background: #fdfcfa;
+  --foreground: #17150f;
+  --card: #ffffff;
+  --card-foreground: #17150f;
+  --popover: #ffffff;
+  --popover-foreground: #17150f;
+  --primary: #b4291f;
+  --primary-foreground: #fffaf7;
+  --secondary: #f5f2ec;
+  --secondary-foreground: #2e2a22;
+  --muted: #f5f2ec;
+  --muted-foreground: #6b6459;
+  --accent: #fae2de;
+  --accent-foreground: #95201a;
+  --destructive: #b4291f;
+  --destructive-foreground: #fffaf7;
+  --border: #e5e0d8;
+  --input: #e5e0d8;
+  --ring: #b4291f;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
+  --background: #14120e;
+  --foreground: #f5f2ec;
+  --card: #1c1a15;
+  --card-foreground: #f5f2ec;
+  --popover: #1c1a15;
+  --popover-foreground: #f5f2ec;
+  --primary: #e0705f;
+  --primary-foreground: #17150f;
+  --secondary: #2a2721;
+  --secondary-foreground: #f5f2ec;
+  --muted: #2a2721;
+  --muted-foreground: #a39b8d;
+  --accent: #2a2721;
+  --accent-foreground: #f5f2ec;
+  --destructive: #7d2a20;
+  --destructive-foreground: #f5f2ec;
+  --border: #34302a;
+  --input: #34302a;
+  --ring: #e0705f;
+}
+
+@theme {
+  /* --- Tokens de la app --------------------------------------------------- */
+  --color-app-ink: #17150f;
+  --color-app-muted: #6b6459;
+  --color-app-line: #e5e0d8;
+  --color-app-outline: #a39b8d;
+  --color-app-brand: #b4291f;
+  --color-app-surface: #f6f4f0;
+
+  --font-app: "Inter", system-ui, sans-serif;
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* --- Neutros cálidos: sustituyen gray / slate / zinc --------------------- */
+  --color-gray-50:  #faf8f5;  --color-slate-50:  #faf8f5;  --color-zinc-50:  #faf8f5;
+  --color-gray-100: #f2eee7;  --color-slate-100: #f2eee7;  --color-zinc-100: #f2eee7;
+  --color-gray-200: #e5e0d8;  --color-slate-200: #e5e0d8;  --color-zinc-200: #e5e0d8;
+  --color-gray-300: #d2ccc1;  --color-slate-300: #d2ccc1;  --color-zinc-300: #d2ccc1;
+  --color-gray-400: #a39b8d;  --color-slate-400: #a39b8d;  --color-zinc-400: #a39b8d;
+  --color-gray-500: #837b6d;  --color-slate-500: #837b6d;  --color-zinc-500: #837b6d;
+  --color-gray-600: #6b6459;  --color-slate-600: #6b6459;  --color-zinc-600: #6b6459;
+  --color-gray-700: #514c43;  --color-slate-700: #514c43;  --color-zinc-700: #514c43;
+  --color-gray-800: #2e2a22;  --color-slate-800: #2e2a22;  --color-zinc-800: #2e2a22;
+  --color-gray-900: #1f1c16;  --color-slate-900: #1f1c16;  --color-zinc-900: #1f1c16;
+  --color-gray-950: #14120e;  --color-slate-950: #14120e;  --color-zinc-950: #14120e;
+
+  /* --- Acento rojo: sustituye blue / indigo / sky ------------------------ */
+  --color-blue-50: #fdf3f1;  --color-indigo-50: #fdf3f1;  --color-sky-50: #fdf3f1;
+  --color-blue-100: #fae2de;  --color-indigo-100: #fae2de;  --color-sky-100: #fae2de;
+  --color-blue-200: #f4c4bd;  --color-indigo-200: #f4c4bd;  --color-sky-200: #f4c4bd;
+  --color-blue-300: #e99c92;  --color-indigo-300: #e99c92;  --color-sky-300: #e99c92;
+  --color-blue-400: #d96b5d;  --color-indigo-400: #d96b5d;  --color-sky-400: #d96b5d;
+  --color-blue-500: #c73f31;  --color-indigo-500: #c73f31;  --color-sky-500: #c73f31;
+  --color-blue-600: #b4291f;  --color-indigo-600: #b4291f;  --color-sky-600: #b4291f;
+  --color-blue-700: #95201a;  --color-indigo-700: #95201a;  --color-sky-700: #95201a;
+  --color-blue-800: #761a15;  --color-indigo-800: #761a15;  --color-sky-800: #761a15;
+  --color-blue-900: #591512;  --color-indigo-900: #591512;  --color-sky-900: #591512;
+  --color-blue-950: #300b09;  --color-indigo-950: #300b09;  --color-sky-950: #300b09;
+
+  /* --- Semánticos, girados hacia lo cálido -------------------------------- */
+  --color-red-50:  #fdf2f0;  --color-rose-50:  #fdf2f0;
+  --color-red-100: #fae0dc;  --color-rose-100: #fae0dc;
+  --color-red-200: #f3c2bb;  --color-rose-200: #f3c2bb;
+  --color-red-300: #e79a90;  --color-rose-300: #e79a90;
+  --color-red-400: #d66a5f;  --color-rose-400: #d66a5f;
+  --color-red-500: #c53d31;  --color-rose-500: #c53d31;
+  --color-red-600: #b4291f;  --color-rose-600: #b4291f;
+  --color-red-700: #94201a;  --color-rose-700: #94201a;
+  --color-red-800: #741a15;  --color-rose-800: #741a15;
+  --color-red-900: #571512;  --color-rose-900: #571512;
+  --color-red-950: #2f0b09;  --color-rose-950: #2f0b09;
+
+  --color-green-50:  #f2f6ec;  --color-emerald-50:  #f2f6ec;  --color-teal-50:  #f2f6ec;
+  --color-green-100: #e2ecd6;  --color-emerald-100: #e2ecd6;  --color-teal-100: #e2ecd6;
+  --color-green-200: #c6d9b0;  --color-emerald-200: #c6d9b0;  --color-teal-200: #c6d9b0;
+  --color-green-300: #a3c085;  --color-emerald-300: #a3c085;  --color-teal-300: #a3c085;
+  --color-green-400: #7fa35e;  --color-emerald-400: #7fa35e;  --color-teal-400: #7fa35e;
+  --color-green-500: #648846;  --color-emerald-500: #648846;  --color-teal-500: #648846;
+  --color-green-600: #4f6f37;  --color-emerald-600: #4f6f37;  --color-teal-600: #4f6f37;
+  --color-green-700: #3f592c;  --color-emerald-700: #3f592c;  --color-teal-700: #3f592c;
+  --color-green-800: #324623;  --color-emerald-800: #324623;  --color-teal-800: #324623;
+  --color-green-900: #27361c;  --color-emerald-900: #27361c;  --color-teal-900: #27361c;
+  --color-green-950: #131b0e;  --color-emerald-950: #131b0e;  --color-teal-950: #131b0e;
+
+  --color-amber-50:  #fdf6e8;  --color-yellow-50:  #fdf6e8;  --color-orange-50:  #fdf3ea;
+  --color-amber-100: #f9e9c6;  --color-yellow-100: #f9e9c6;  --color-orange-100: #fae3ce;
+  --color-amber-200: #f2d28c;  --color-yellow-200: #f2d28c;  --color-orange-200: #f3c69c;
+  --color-amber-300: #e6b452;  --color-yellow-300: #e6b452;  --color-orange-300: #e9a468;
+  --color-amber-400: #d59a2b;  --color-yellow-400: #d59a2b;  --color-orange-400: #dc823f;
+  --color-amber-500: #b87f1c;  --color-yellow-500: #b87f1c;  --color-orange-500: #c96a29;
+  --color-amber-600: #986718;  --color-yellow-600: #986718;  --color-orange-600: #a95521;
+  --color-amber-700: #7a5314;  --color-yellow-700: #7a5314;  --color-orange-700: #89441b;
+  --color-amber-800: #5f4111;  --color-yellow-800: #5f4111;  --color-orange-800: #6b3616;
+  --color-amber-900: #48310e;  --color-yellow-900: #48310e;  --color-orange-900: #522a12;
+  --color-amber-950: #241806;  --color-yellow-950: #241806;  --color-orange-950: #2a1409;
+
+  --color-violet-50:  #f6f3f0;  --color-purple-50:  #f6f3f0;
+  --color-violet-100: #ebe4dd;  --color-purple-100: #ebe4dd;
+  --color-violet-400: #9c7f6b;  --color-purple-400: #9c7f6b;
+  --color-violet-500: #7f5f49;  --color-purple-500: #7f5f49;
+  --color-violet-600: #6f5340;  --color-purple-600: #6f5340;
+  --color-violet-700: #58412f;  --color-purple-700: #58412f;
+  --color-violet-900: #33241a;  --color-purple-900: #33241a;
+
+  /* --- Radios moderados (nada "bubbly") ----------------------------------- */
+  --radius-sm: 0.1875rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+  --radius-3xl: 0.75rem;
+
+  /* --- Sombras mínimas: jerarquía por borde y espacio, no por elevación --- */
+  --shadow-2xs: 0 1px 0 0 rgb(23 21 15 / 0.03);
+  --shadow-xs:  0 1px 0 0 rgb(23 21 15 / 0.04);
+  --shadow-sm:  0 1px 1px 0 rgb(23 21 15 / 0.04);
+  --shadow-md:  0 1px 2px 0 rgb(23 21 15 / 0.05);
+  --shadow-lg:  0 2px 6px -2px rgb(23 21 15 / 0.07);
+  --shadow-xl:  0 6px 18px -6px rgb(23 21 15 / 0.10);
+  --shadow-2xl: 0 12px 32px -12px rgb(23 21 15 / 0.14);
 }
 
 @theme inline {
@@ -73,7 +179,6 @@
   --color-ring: var(--ring);
 }
 
-/* Aquí abajo puedes poner tus estilos personalizados si tienes */
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -82,15 +187,29 @@ html {
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Public Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  color: #1a2332;
-  background-color: #f6f7fb;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+  letter-spacing: -0.006em;
+  color: #17150f;
+  background-color: #fdfcfa;
 }
 
-/* Scrollbar refinado para look corporativo */
+/* Headlines grandes y apretados: el contraste tipográfico hace el trabajo que
+   antes hacían el color saturado y las sombras. */
+h1, h2, h3 {
+  font-family: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+}
+
+/* Cifras alineadas en tablas y métricas — detalle "developer tools". */
+table, th, td, .tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar fino */
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -99,28 +218,76 @@ body {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: #cbd2dc;
+  background-color: #d2ccc1;
   border-radius: 8px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background-color: #94a0b1;
+  background-color: #a39b8d;
   background-clip: content-box;
   border: 2px solid transparent;
 }
 
 /* Focus ring accesible y consistente */
 :focus-visible {
-  outline: 2px solid #135bec;
+  outline: 2px solid #b4291f;
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
-/* Selección de texto */
 ::selection {
-  background-color: rgba(19, 91, 236, 0.18);
+  background-color: rgba(180, 41, 31, 0.16);
   color: inherit;
+}
+
+/* Motion pequeño e intencional */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Botones: escala unica, discreta.
+   Los 154 botones de la app traen su padding y su peso en el className. En vez
+   de reescribirlos uno por uno, estas reglas van SIN @layer: en Tailwind v4 lo
+   no-layerizado gana a `@layer utilities`, asi que reemplazan px/py/font-*.
+   Solo alcanzan a botones que ya declaran padding grande (px-4+ / py-2+), asi
+   los icon-buttons (p-1.5, py-1) y los chips quedan intactos.
+   ponytail: si algun dia se centraliza un <Button>, esto se borra y se pasa a cva.
+   --------------------------------------------------------------------------- */
+button:is([class*="px-4"], [class*="px-5"], [class*="px-6"], [class*="px-8"]) {
+  padding-inline: 0.75rem;
+}
+
+button:is([class*="py-2"], [class*="py-3"], [class*="py-4"]) {
+  padding-block: 0.4375rem;
+}
+
+/* Tipografia: 13px / 500. Nada de font-bold gritando en cada accion. */
+button:is([class*="px-4"], [class*="px-5"], [class*="px-6"], [class*="px-8"]) {
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  border-radius: 0.375rem;
+}
+
+/* El acento se gana con el color, no con el tamano: el primario mantiene peso
+   apenas mayor para seguir leyendose como accion principal. */
+button:is([class*="bg-app-brand"], [class*="bg-app-ink"], [class*="bg-primary"]) {
+  font-weight: 550;
+}
+
+/* Motion pequena e intencional en toda accion. */
+button {
+  transition-property: color, background-color, border-color, opacity, box-shadow;
+  transition-duration: 120ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Print Styles - Remove browser header/footer (page title and URL) */

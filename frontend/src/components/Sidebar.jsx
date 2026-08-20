@@ -41,29 +41,24 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
   return (
     <aside
       className={`
-        bg-white border-r border-slate-200 flex flex-col h-screen
-        fixed left-0 top-0 z-50
+        fixed left-0 top-0 z-50 flex h-screen flex-col
+        border-r border-app-line bg-white font-app text-app-ink
         transition-[width] duration-200 ease-in-out
         ${collapsed ? 'w-16' : 'w-64'}
       `}
     >
       {/* Header: logo + toggle */}
-      <div className={`flex items-center border-b border-slate-100 h-[65px] flex-shrink-0 ${collapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
+      <div className={`flex h-16 flex-shrink-0 items-center border-b border-app-line ${collapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
         {!collapsed && (
-          <Link to="/menu" className="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition-opacity">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
-              <span className="material-symbols-outlined text-white text-[18px]">corporate_fare</span>
-            </div>
-            <div className="leading-tight min-w-0">
-              <span className="block text-sm font-semibold text-slate-800 tracking-tight truncate">HR Portal</span>
-              <span className="block text-[10px] uppercase tracking-wider text-slate-400 font-medium">Recursos Humanos</span>
-            </div>
+          <Link to="/menu" className="flex min-w-0 items-center gap-2 transition-opacity hover:opacity-80">
+            <span className="material-symbols-outlined flex-shrink-0 text-[24px] text-app-brand">corporate_fare</span>
+            <span className="truncate text-[15px] font-semibold tracking-tight">Plataforma de Personas</span>
           </Link>
         )}
 
         {collapsed && (
-          <Link to="/menu" title="HR Portal" className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-sm hover:opacity-80 transition-opacity">
-            <span className="material-symbols-outlined text-white text-[18px]">corporate_fare</span>
+          <Link to="/menu" title="Plataforma de Personas" className="transition-opacity hover:opacity-80">
+            <span className="material-symbols-outlined text-[24px] text-app-brand">corporate_fare</span>
           </Link>
         )}
 
@@ -71,9 +66,9 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
           onClick={onToggle}
           title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
           className={`
-            flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center
-            text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors
-            ${collapsed ? 'absolute -right-3.5 top-5 bg-white border border-slate-200 shadow-sm rounded-full w-7 h-7' : ''}
+            flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg
+            text-app-muted transition-colors hover:bg-app-surface hover:text-app-ink
+            ${collapsed ? 'absolute -right-3.5 top-4 rounded-full border border-app-line bg-white' : ''}
           `}
         >
           <span className="material-symbols-outlined text-[18px]">
@@ -83,9 +78,9 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
       </div>
 
       {/* Navigation */}
-      <nav className={`flex-1 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden ${collapsed ? 'px-2' : 'px-3'}`}>
+      <nav className={`flex-1 space-y-1 overflow-y-auto overflow-x-hidden py-4 ${collapsed ? 'px-2' : 'px-3'}`}>
         {!collapsed && (
-          <p className="px-3 pb-2 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-app-muted">
             Navegación
           </p>
         )}
@@ -98,60 +93,57 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
               to={item.path}
               title={collapsed ? item.label : undefined}
               className={`
-                group relative flex items-center gap-3 rounded-lg text-sm transition-colors
+                group flex items-center gap-3 rounded-lg text-[14px] transition-colors
                 ${collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5'}
                 ${active
-                  ? 'bg-primary text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}
+                  ? 'bg-app-brand font-semibold text-white'
+                  : 'text-app-muted hover:bg-app-surface hover:text-app-ink'}
               `}
             >
-              {active && !collapsed && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-white/80" aria-hidden="true" />
-              )}
-              <span className={`material-symbols-outlined text-[20px] flex-shrink-0 ${active ? 'text-white' : 'text-slate-400 group-hover:text-slate-600'}`}>
+              <span className={`material-symbols-outlined flex-shrink-0 text-[20px] ${active ? 'text-white' : 'text-app-outline group-hover:text-app-ink'}`}>
                 {item.icon}
               </span>
-              {!collapsed && <span className="font-medium truncate">{item.label}</span>}
+              {!collapsed && <span className="truncate">{item.label}</span>}
             </Link>
           );
         })}
       </nav>
 
       {/* User footer */}
-      <div className={`border-t border-slate-100 bg-slate-50/40 flex-shrink-0 ${collapsed ? 'p-2' : 'p-3'}`}>
+      <div className={`flex-shrink-0 border-t border-app-line ${collapsed ? 'p-2' : 'p-3'}`}>
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
             <div
               title={user?.nombre_completo || 'Usuario'}
-              className="w-9 h-9 rounded-full bg-primary-soft text-primary flex items-center justify-center font-semibold text-sm ring-2 ring-white shadow-sm select-none"
+              className="flex h-9 w-9 select-none items-center justify-center rounded-lg bg-app-surface text-[13px] font-semibold text-app-brand"
             >
               {initials}
             </div>
             <button
               onClick={handleLogout}
               title="Cerrar sesión"
-              className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              className="rounded-lg p-1.5 text-app-muted transition-colors hover:bg-app-surface hover:text-app-ink"
             >
               <span className="material-symbols-outlined text-[18px]">logout</span>
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-white transition-colors">
-            <div className="w-9 h-9 rounded-full bg-primary-soft text-primary flex items-center justify-center font-semibold text-sm ring-2 ring-white shadow-sm select-none flex-shrink-0">
+          <div className="flex items-center gap-3 px-1 py-1">
+            <div className="flex h-9 w-9 flex-shrink-0 select-none items-center justify-center rounded-lg bg-app-surface text-[13px] font-semibold text-app-brand">
               {initials}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-800 truncate">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-semibold text-app-ink">
                 {user?.nombre_completo || 'Usuario'}
               </p>
-              <p className="text-xs text-slate-500 truncate capitalize">
+              <p className="truncate text-[12px] capitalize text-app-muted">
                 {user?.rol?.nombre || 'Admin. RRHH'}
               </p>
             </div>
             <button
               onClick={handleLogout}
               title="Cerrar sesión"
-              className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0"
+              className="flex-shrink-0 rounded-lg p-1.5 text-app-muted transition-colors hover:bg-app-surface hover:text-app-ink"
             >
               <span className="material-symbols-outlined text-[20px]">logout</span>
             </button>

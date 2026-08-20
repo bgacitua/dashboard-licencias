@@ -93,21 +93,21 @@ export default function AutocompleteField({
           placeholder={placeholder}
           disabled={disabled}
           autoComplete="off"
-          className={`w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 ${className}`}
+          className={`w-full border border-app-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-app-ink ${className}`}
         />
         {loading && (
           <span className="absolute right-3 top-1/2 -translate-y-1/2">
-            <span className="w-4 h-4 border-2 border-slate-200 border-t-emerald-500 rounded-full animate-spin inline-block" />
+            <span className="w-4 h-4 border-2 border-app-line border-t-emerald-500 rounded-full animate-spin inline-block" />
           </span>
         )}
 
         {open && suggestions.length > 0 && (
-          <ul className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+          <ul className="absolute z-50 mt-1 w-full bg-white border border-app-line rounded-xl  max-h-52 overflow-y-auto">
             {suggestions.map((s) => (
               <li
                 key={s}
                 onMouseDown={() => selectSuggestion(s)}
-                className="px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer"
+                className="px-3 py-2 text-sm text-app-muted hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer"
               >
                 {s}
               </li>
@@ -119,23 +119,23 @@ export default function AutocompleteField({
       {/* Modal confirmación valor nuevo */}
       {pendingValue && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+          <div className="bg-white rounded-xl  w-full max-w-sm p-6">
             <div className="flex items-start gap-3 mb-4">
               <span className="material-symbols-outlined text-amber-500 text-2xl flex-shrink-0">help</span>
-              <p className="text-sm text-slate-700">{confirmNewMessage(pendingValue)}</p>
+              <p className="text-sm text-app-muted">{confirmNewMessage(pendingValue)}</p>
             </div>
             <div className="flex gap-3 justify-end">
               <button
                 type="button"
                 onClick={cancelNew}
-                className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50"
+                className="px-4 py-2 text-sm border border-app-line rounded-lg text-app-muted hover:bg-app-surface"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={confirmNew}
-                className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700"
+                className="px-4 py-2 text-sm bg-app-ink text-white rounded-lg font-semibold hover:bg-app-ink/90"
               >
                 Sí, agregar
               </button>

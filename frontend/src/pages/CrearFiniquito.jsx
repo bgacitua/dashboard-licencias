@@ -987,16 +987,16 @@ const CrearFiniquito = () => {
 
   if (loading) {
     // ponytail: skeleton estático con animate-pulse; sin librería de skeletons
-    const bar = "bg-gray-200 rounded animate-pulse";
+    const bar = "bg-app-line rounded animate-pulse";
     return (
       <SidebarLayout>
         <main className="p-8">
           <div className={`${bar} h-8 w-72 mb-2`} />
-          <p className="text-gray-500 mb-8">Lo bueno tarda en llegar...</p>
+          <p className="text-app-muted mb-8">Lo bueno tarda en llegar...</p>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               {[0, 1, 2].map((i) => (
-                <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4">
+                <div key={i} className="bg-white rounded-xl  border border-app-line p-6 space-y-4">
                   <div className={`${bar} h-5 w-48`} />
                   <div className={`${bar} h-10 w-full`} />
                   <div className={`${bar} h-10 w-full`} />
@@ -1004,7 +1004,7 @@ const CrearFiniquito = () => {
                 </div>
               ))}
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4 h-fit">
+            <div className="bg-white rounded-xl  border border-app-line p-6 space-y-4 h-fit">
               <div className={`${bar} h-5 w-32`} />
               {[0, 1, 2, 3, 4].map((i) => (
                 <div key={i} className="flex justify-between gap-4">
@@ -1760,9 +1760,9 @@ const CrearFiniquito = () => {
       <main className="p-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+          <div className="flex items-center gap-2 text-sm text-app-muted mb-2">
             <span
-              className="cursor-pointer hover:text-blue-600"
+              className="cursor-pointer hover:text-app-brand"
               onClick={() => navigate("/finiquitos")}
             >
               Home
@@ -1778,17 +1778,17 @@ const CrearFiniquito = () => {
             <span className="material-symbols-outlined text-xs">
               chevron_right
             </span>
-            <span className="font-semibold text-gray-900">
+            <span className="font-semibold text-app-ink">
               Generador finiquito
             </span>
           </div>
 
           <div className="flex justify-between items-end">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-3xl font-bold text-app-ink">
                 Generador finiquito
               </h1>
-              <p className="text-gray-500 mt-1">
+              <p className="text-app-muted mt-1">
                 Formulario de generación de finiquito
               </p>
             </div>
@@ -1796,21 +1796,21 @@ const CrearFiniquito = () => {
         </div>
 
         {/* Employee Card */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6 flex items-center justify-between">
+        <div className="bg-white p-6 rounded-xl  border border-app-line mb-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xl font-bold">
+            <div className="w-16 h-16 rounded-full bg-app-surface flex items-center justify-center text-app-brand text-xl font-bold">
               {employee.nombre_trabajador.charAt(0)}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl font-bold text-app-ink">
                 {employee.nombre_trabajador}
               </h2>
-              <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+              <div className="flex items-center gap-3 text-sm text-app-muted mt-1">
                 <span className="font-mono">
                   RUT: {employee.rut_trabajador}
                 </span>
                 <span>•</span>
-                <span className="text-blue-600 font-medium">
+                <span className="text-app-brand font-medium">
                   {employee.cargo}
                 </span>
                 <span>•</span>
@@ -1819,10 +1819,10 @@ const CrearFiniquito = () => {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">
+            <p className="text-xs text-app-outline uppercase font-bold tracking-wider mb-1">
               FECHA INICIO
             </p>
-            <p className="font-semibold text-gray-900">
+            <p className="font-semibold text-app-ink">
               {new Date(employee.fecha_ingreso).toLocaleDateString("es-CL", {
                 month: "long",
                 day: "numeric",
@@ -1833,15 +1833,15 @@ const CrearFiniquito = () => {
         </div>
 
         {/* Barra de pestañas */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 flex overflow-x-auto">
+        <div className="bg-white rounded-xl  border border-app-line mb-6 flex overflow-x-auto">
           {TABS.map((t, i) => (
             <button
               key={t.nombre}
               onClick={() => irATab(i)}
               className={`flex-1 min-w-[150px] px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium border-b-2 transition-colors ${
                 tabActiva === i
-                  ? "border-blue-600 text-blue-600 bg-blue-50/50"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  ? "border-app-ink text-app-brand bg-app-surface/50"
+                  : "border-transparent text-app-muted hover:text-app-muted hover:bg-app-surface"
               }`}
             >
               <span className="material-symbols-outlined text-lg">
@@ -1884,23 +1884,23 @@ const CrearFiniquito = () => {
         <div hidden={tabActiva !== 0}>
 
         {/* Termination Details */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+        <div className="bg-white p-6 rounded-xl  border border-app-line mb-6">
           <div className="flex items-center gap-2 mb-6">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-app-surface text-app-brand flex items-center justify-center">
               <span className="material-symbols-outlined">gavel</span>
             </div>
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 className="text-lg font-bold text-app-ink">
               Detalles de término
             </h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-app-muted mb-2">
                 Razón de término <span className="text-red-500">*</span>
               </label>
               <select
-                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                className="w-full p-3 bg-white border border-app-line rounded-lg focus:ring-2 focus:ring-app-ink focus:border-app-ink outline-none transition-all"
                 value={terminationReason}
                 onChange={(e) => setTerminationReason(e.target.value)}
               >
@@ -1927,7 +1927,7 @@ const CrearFiniquito = () => {
                   Art. 159 N°4 - Término anticipado
                 </option>
               </select>
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-app-outline mt-2">
                 Esta selección determina la base de cálculo de la indemnización.
               </p>
 
@@ -1937,10 +1937,10 @@ const CrearFiniquito = () => {
                   <button
                     onClick={handleFetchSalaryHistory}
                     disabled={isLoadingSalaryHistory}
-                    className="flex items-center gap-2 text-sm text-blue-600 font-medium hover:text-blue-800 disabled:opacity-50"
+                    className="flex items-center gap-2 text-sm text-app-brand font-medium hover:text-app-brand disabled:opacity-50"
                   >
                     {isLoadingSalaryHistory ? (
-                      <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+                      <span className="w-4 h-4 border-2 border-app-ink border-t-transparent rounded-full animate-spin"></span>
                     ) : (
                       <span className="material-symbols-outlined text-lg">
                         history
@@ -1952,12 +1952,12 @@ const CrearFiniquito = () => {
                   {/* Salary History Table */}
                   {salaryHistory.length > 0 && (
                     <div className="mt-3 border rounded-lg overflow-hidden">
-                      <div className="bg-gray-50 px-3 py-2 border-b flex justify-between items-center">
-                        <span className="text-xs font-bold text-gray-700 uppercase">
+                      <div className="bg-app-surface px-3 py-2 border-b flex justify-between items-center">
+                        <span className="text-xs font-bold text-app-muted uppercase">
                           Historial de Sueldos Base
                         </span>
                         <div className="flex gap-3">
-                          <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                          <span className="text-xs font-bold text-app-brand bg-app-surface px-2 py-0.5 rounded border border-app-line">
                             Promedio: $
                             {Math.round(
                               salaryHistory.reduce(
@@ -1966,30 +1966,30 @@ const CrearFiniquito = () => {
                               ) / salaryHistory.length,
                             ).toLocaleString("es-CL")}
                           </span>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-app-muted">
                             {salaryHistory.length} registros
                           </span>
                         </div>
                       </div>
                       <div className="max-h-60 overflow-y-auto">
                         <table className="w-full text-sm">
-                          <thead className="bg-gray-50 sticky top-0">
+                          <thead className="bg-app-surface sticky top-0">
                             <tr>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <th className="px-3 py-2 text-left text-xs font-medium text-app-muted uppercase tracking-wider">
                                 Periodo
                               </th>
-                              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <th className="px-3 py-2 text-right text-xs font-medium text-app-muted uppercase tracking-wider">
                                 Monto
                               </th>
                             </tr>
                           </thead>
-                          <tbody className="bg-white divide-y divide-gray-100">
+                          <tbody className="bg-white divide-y divide-app-line">
                             {salaryHistory.map((item, idx) => (
-                              <tr key={idx} className="hover:bg-gray-50">
-                                <td className="px-3 py-2 text-gray-900 font-mono text-xs">
+                              <tr key={idx} className="hover:bg-app-surface">
+                                <td className="px-3 py-2 text-app-ink font-mono text-xs">
                                   {item.period}
                                 </td>
-                                <td className="px-3 py-2 text-right text-gray-900 font-medium">
+                                <td className="px-3 py-2 text-right text-app-ink font-medium">
                                   ${(item.amount || 0).toLocaleString("es-CL")}
                                 </td>
                               </tr>
@@ -2005,12 +2005,12 @@ const CrearFiniquito = () => {
 
             <div className="flex gap-6 items-start">
               <div className="flex-1">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-app-muted mb-2">
                   Fecha de salida <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
-                  className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full p-3 bg-white border border-app-line rounded-lg focus:ring-2 focus:ring-app-ink outline-none"
                   value={lastDayWork}
                   onChange={(e) => setLastDayWork(e.target.value)}
                 />
@@ -2019,15 +2019,15 @@ const CrearFiniquito = () => {
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <input
                     type="checkbox"
-                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    className="w-5 h-5 rounded border-app-line text-app-brand focus:ring-app-ink cursor-pointer"
                     checked={noticeGiven}
                     onChange={(e) => setNoticeGiven(e.target.checked)}
                   />
                   <div>
-                    <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                    <p className="font-semibold text-app-ink group-hover:text-app-brand transition-colors">
                       30 días de aviso
                     </p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-app-outline">
                     </p>
                   </div>
                 </label>
@@ -2036,11 +2036,11 @@ const CrearFiniquito = () => {
 
             {/* Manager Selection */}
             <div className="mt-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-app-muted mb-2">
                 Gerente firmante <span className="text-red-500">*</span>
               </label>
               <select
-                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                className="w-full p-3 bg-white border border-app-line rounded-lg focus:ring-2 focus:ring-app-ink focus:border-app-ink outline-none transition-all"
                 value={selectedManager}
                 onChange={(e) => setSelectedManager(e.target.value)}
               >
@@ -2051,7 +2051,7 @@ const CrearFiniquito = () => {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-app-outline mt-2">
                 Este gerente aparecerá como firmante en el documento de
                 finiquito.
               </p>
@@ -2067,7 +2067,7 @@ const CrearFiniquito = () => {
         {/* Recent Licenses Table (collapsible, shows all 15 from backend) */}
         {/* Colapsada solo necesita alto para el título: menos padding y sin margen inferior */}
         <div
-          className={`bg-white rounded-xl shadow-sm border border-gray-100 mb-6 ${
+          className={`bg-white rounded-xl  border border-app-line mb-6 ${
             licenciasTableCollapsed ? "px-6 py-3" : "p-6"
           }`}
         >
@@ -2087,7 +2087,7 @@ const CrearFiniquito = () => {
           >
             <button
               type="button"
-              className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+              className="p-0.5 rounded hover:bg-app-surface transition-colors text-app-muted hover:text-app-muted"
               onClick={(e) => {
                 e.stopPropagation();
                 setLicenciasTableCollapsed((c) => !c);
@@ -2098,15 +2098,15 @@ const CrearFiniquito = () => {
                 {licenciasTableCollapsed ? "expand_more" : "expand_less"}
               </span>
             </button>
-            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
               <span className="material-symbols-outlined">
                 medical_information
               </span>
             </div>
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 className="text-lg font-bold text-app-ink">
               Licencias recientes
             </h3>
-            <span className="ml-auto px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
+            <span className="ml-auto px-2 py-1 bg-app-surface text-app-muted text-xs font-medium rounded-full">
               {licencias.length} registro{licencias.length !== 1 ? "s" : ""}
             </span>
           </div>
@@ -2114,12 +2114,12 @@ const CrearFiniquito = () => {
           {!licenciasTableCollapsed && (
           <>
           <div className="flex flex-wrap items-center gap-3 mb-4">
-            <label className="flex items-center gap-2 text-sm text-gray-600">
+            <label className="flex items-center gap-2 text-sm text-app-muted">
               <span>Mostrar últimos</span>
               <select
                 value={licenciasLimit}
                 onChange={(e) => setLicenciasLimit(Number(e.target.value))}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                className="rounded-lg border border-app-line px-2 py-1.5 text-sm bg-white focus:ring-2 focus:ring-app-ink focus:border-app-ink"
               >
                 {[5, 10, 15, 20, 30, 50].map((n) => (
                   <option key={n} value={n}>
@@ -2127,14 +2127,14 @@ const CrearFiniquito = () => {
                   </option>
                 ))}
               </select>
-              <span className="text-gray-400">registros</span>
+              <span className="text-app-outline">registros</span>
             </label>
-            <label className="flex items-center gap-2 text-sm text-gray-600">
+            <label className="flex items-center gap-2 text-sm text-app-muted">
               <span>Orden</span>
               <select
                 value={licenciasOrder}
                 onChange={(e) => setLicenciasOrder(e.target.value)}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                className="rounded-lg border border-app-line px-2 py-1.5 text-sm bg-white focus:ring-2 focus:ring-app-ink focus:border-app-ink"
               >
                 <option value="desc">Más recientes primero</option>
                 <option value="asc">Ascendente (más antiguas primero)</option>
@@ -2142,35 +2142,35 @@ const CrearFiniquito = () => {
             </label>
           </div>
           {licencias.length === 0 ? (
-            <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
-              <span className="material-symbols-outlined text-gray-300 text-4xl mb-2">
+            <div className="p-8 text-center border-2 border-dashed border-app-line rounded-lg bg-app-surface">
+              <span className="material-symbols-outlined text-app-outline text-4xl mb-2">
                 event_busy
               </span>
-              <p className="text-gray-500 font-medium">
+              <p className="text-app-muted font-medium">
                 No se encontraron licencias
               </p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-app-outline">
                 Este empleado no tiene licencias registradas.
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-white shadow-sm z-10">
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">
+                <thead className="sticky top-0 bg-white  z-10">
+                  <tr className="border-b border-app-line">
+                    <th className="text-left py-3 px-4 font-semibold text-app-muted uppercase text-xs tracking-wider">
                       Razón
                     </th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">
+                    <th className="text-left py-3 px-4 font-semibold text-app-muted uppercase text-xs tracking-wider">
                       Fecha de inicio
                     </th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">
+                    <th className="text-left py-3 px-4 font-semibold text-app-muted uppercase text-xs tracking-wider">
                       Fecha de fin
                     </th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">
+                    <th className="text-left py-3 px-4 font-semibold text-app-muted uppercase text-xs tracking-wider">
                       Días
                     </th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-600 uppercase text-xs tracking-wider">
+                    <th className="text-left py-3 px-4 font-semibold text-app-muted uppercase text-xs tracking-wider">
                       Estado
                     </th>
                   </tr>
@@ -2189,24 +2189,24 @@ const CrearFiniquito = () => {
                     return (
                       <tr
                         key={idx}
-                        className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                        className="border-b border-app-line hover:bg-app-surface transition-colors"
                       >
                         <td className="py-3 px-4">
-                          <span className="font-medium text-gray-900">
+                          <span className="font-medium text-app-ink">
                             {lic.tipo_permiso || "Sin especificar"}
                           </span>
                         </td>
-                        <td className="py-3 px-4 font-mono text-gray-600">
+                        <td className="py-3 px-4 font-mono text-app-muted">
                           {startDate.toLocaleDateString("es-CL")}
                         </td>
-                        <td className="py-3 px-4 font-mono text-gray-600">
+                        <td className="py-3 px-4 font-mono text-app-muted">
                           {endDate.toLocaleDateString("es-CL")}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="font-semibold text-gray-900">
+                          <span className="font-semibold text-app-ink">
                             {diffDays}
                           </span>
-                          <span className="text-gray-400 ml-1">days</span>
+                          <span className="text-app-outline ml-1">days</span>
                         </td>
                         <td className="py-3 px-4">
                           {isActive ? (
@@ -2214,11 +2214,11 @@ const CrearFiniquito = () => {
                               Active
                             </span>
                           ) : isPast ? (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-bold uppercase rounded-full">
+                            <span className="px-2 py-1 bg-app-surface text-app-muted text-xs font-bold uppercase rounded-full">
                               Completed
                             </span>
                           ) : (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold uppercase rounded-full">
+                            <span className="px-2 py-1 bg-app-surface text-app-brand text-xs font-bold uppercase rounded-full">
                               Scheduled
                             </span>
                           )}
@@ -2235,23 +2235,23 @@ const CrearFiniquito = () => {
         </div>
 
         {/* Review Variable Bonuses (Collapsed for now or simplified) */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+        <div className="bg-white p-6 rounded-xl  border border-app-line mb-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-app-surface text-app-brand flex items-center justify-center">
                 <span className="material-symbols-outlined">payments</span>
               </div>
-              <h3 className="text-lg font-bold text-gray-900">
+              <h3 className="text-lg font-bold text-app-ink">
                 Resumen remuneración variable
               </h3>
             </div>
-            <div className="flex items-center gap-3 text-sm text-gray-600">
+            <div className="flex items-center gap-3 text-sm text-app-muted">
               <label className="flex items-center gap-2">
                 <span>Usar últimos</span>
                 <select
                   value={itemsLimit}
                   onChange={(e) => setItemsLimit(Number(e.target.value) || 15)}
-                  className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="rounded-lg border border-app-line px-2 py-1.5 text-xs bg-white focus:ring-2 focus:ring-app-ink focus:border-app-ink"
                 >
                   {[6, 12, 15, 24, 36].map((n) => (
                     <option key={n} value={n}>
@@ -2259,36 +2259,36 @@ const CrearFiniquito = () => {
                     </option>
                   ))}
                 </select>
-                <span className="text-gray-400">períodos</span>
+                <span className="text-app-outline">períodos</span>
               </label>
 
               <button
                 type="button"
                 onClick={() => setItemsRefreshToken((t) => t + 1)}
-                className="p-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
+                className="p-2 rounded-lg border border-app-line bg-white hover:bg-app-surface transition-colors"
                 title="Actualizar lista"
               >
-                <span className="material-symbols-outlined text-gray-600">
+                <span className="material-symbols-outlined text-app-muted">
                   refresh
                 </span>
               </button>
             </div>
           </div>
           <div className="mt-6 space-y-4">
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-app-muted mb-4">
               El promedio se calcula con los últimos 3 meses válidos por concepto
               (sin licencia; se incluyen meses con valor 0). Los meses sin asignación se muestran con $0.
               Los meses con licencia médica se deseleccionan por defecto.
             </p>
             {variableItems.length === 0 ? (
-              <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
-                <span className="material-symbols-outlined text-gray-300 text-4xl mb-2">
+              <div className="p-8 text-center border-2 border-dashed border-app-line rounded-lg bg-app-surface">
+                <span className="material-symbols-outlined text-app-outline text-4xl mb-2">
                   money_off
                 </span>
-                <p className="text-gray-500 font-medium">
+                <p className="text-app-muted font-medium">
                   No se encontraron bonos
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-app-outline">
                   Este empleado no tiene bonos registrados.
                 </p>
               </div>
@@ -2325,16 +2325,16 @@ const CrearFiniquito = () => {
                   return (
                     <div
                       key={concepto}
-                      className="border border-gray-200 rounded-lg overflow-hidden mb-3"
+                      className="border border-app-line rounded-lg overflow-hidden mb-3"
                     >
                       {/* Header del grupo */}
                       <div
-                        className={`flex items-center justify-between p-4 bg-gray-100 ${isCollapsed ? "" : "border-b border-gray-200"}`}
+                        className={`flex items-center justify-between p-4 bg-app-surface ${isCollapsed ? "" : "border-b border-app-line"}`}
                       >
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
-                            className="p-0.5 rounded hover:bg-gray-200 transition-colors text-gray-500 hover:text-gray-700"
+                            className="p-0.5 rounded hover:bg-app-line transition-colors text-app-muted hover:text-app-muted"
                             onClick={() =>
                               setVariableGroupsCollapsed((prev) => ({
                                 ...prev,
@@ -2349,7 +2349,7 @@ const CrearFiniquito = () => {
                           </button>
                           {/* Group Toggle */}
                           <div
-                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${allActive ? "bg-blue-600" : "bg-gray-300"}`}
+                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${allActive ? "bg-app-ink" : "bg-app-line"}`}
                             onClick={() => {
                               const newState = !allActive;
 
@@ -2387,14 +2387,14 @@ const CrearFiniquito = () => {
                             }}
                           >
                             <div
-                              className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${allActive ? "translate-x-6" : ""}`}
+                              className={`w-4 h-4 bg-white rounded-full  transform transition-transform ${allActive ? "translate-x-6" : ""}`}
                             ></div>
                           </div>
                           <div>
-                            <p className="font-bold text-gray-900">
+                            <p className="font-bold text-app-ink">
                               {concepto}
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-app-muted">
                               {items.length} registro(s) • Promedio ({toUse.length} de {VALID_VARIABLE_MONTHS_REQUIRED} meses válidos): ${" "}
                               {Math.round(groupAverage).toLocaleString("es-CL")}
                             </p>
@@ -2408,7 +2408,7 @@ const CrearFiniquito = () => {
                               <input
                                 type="text"
                                 placeholder="Descripción"
-                                className="w-32 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                                className="w-32 px-2 py-1 text-sm border border-app-line rounded focus:ring-1 focus:ring-app-ink outline-none"
                                 value={
                                   newCustomItems[concepto]?.description || ""
                                 }
@@ -2467,13 +2467,13 @@ const CrearFiniquito = () => {
                                 }}
                               />
                               <div className="relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-app-muted text-xs">
                                   $
                                 </span>
                                 <input
                                   type="number"
                                   placeholder="Monto"
-                                  className="w-24 pl-5 pr-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                                  className="w-24 pl-5 pr-2 py-1 text-sm border border-app-line rounded focus:ring-1 focus:ring-app-ink outline-none"
                                   value={newCustomItems[concepto]?.amount || ""}
                                   onChange={(e) => {
                                     const newState = { ...newCustomItems };
@@ -2529,7 +2529,7 @@ const CrearFiniquito = () => {
                                 />
                               </div>
                               <button
-                                className="p-1 px-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-medium"
+                                className="p-1 px-2 bg-app-ink text-white rounded hover:bg-app-ink/90 text-xs font-medium"
                                 onClick={() => {
                                   const state = newCustomItems[concepto] || {};
                                   if (state.description && state.amount) {
@@ -2573,7 +2573,7 @@ const CrearFiniquito = () => {
                                 Agregar
                               </button>
                               <button
-                                className="p-1 text-gray-500 hover:text-gray-700"
+                                className="p-1 text-app-muted hover:text-app-muted"
                                 onClick={() => {
                                   const newState = { ...newCustomItems };
                                   newState[concepto] = {
@@ -2591,7 +2591,7 @@ const CrearFiniquito = () => {
                             </>
                           ) : (
                             <button
-                              className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium px-2 py-1 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                              className="text-xs flex items-center gap-1 text-app-brand hover:text-app-brand font-medium px-2 py-1 bg-app-surface rounded hover:bg-app-surface transition-colors"
                               onClick={() => {
                                 const newState = { ...newCustomItems };
                                 newState[concepto] = {
@@ -2613,11 +2613,11 @@ const CrearFiniquito = () => {
 
                       {/* Items del grupo (colapsable) */}
                       {!isCollapsed && (
-                      <div className="divide-y divide-gray-100">
+                      <div className="divide-y divide-app-line">
                         {items.map((bonus, idx) => (
                           <div
                             key={bonus.type === "filled" ? bonus.filledKey : idx}
-                            className={`flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors ${bonus.type === "custom" ? "bg-blue-50/30" : ""} ${bonus.type === "filled" ? "bg-gray-50/50" : ""}`}
+                            className={`flex items-center justify-between p-4 bg-white hover:bg-app-surface transition-colors ${bonus.type === "custom" ? "bg-app-surface/30" : ""} ${bonus.type === "filled" ? "bg-app-surface/50" : ""}`}
                           >
                             <div className="flex items-center gap-2">
                               {bonus.type === "custom" && (
@@ -2630,7 +2630,7 @@ const CrearFiniquito = () => {
                               )}
                               {bonus.type === "filled" && (
                                 <span
-                                  className="material-symbols-outlined text-xs text-gray-400"
+                                  className="material-symbols-outlined text-xs text-app-outline"
                                   title="Mes sin asignación"
                                 >
                                   remove_circle_outline
@@ -2638,25 +2638,25 @@ const CrearFiniquito = () => {
                               )}
                               {bonus.hasLicense && (
                                 <span
-                                  className="material-symbols-outlined text-xs text-amber-600"
+                                  className="material-symbols-outlined text-xs text-app-brand"
                                   title="Mes con licencia médica"
                                 >
                                   medical_services
                                 </span>
                               )}
                               <div>
-                                <p className="font-medium text-gray-700">
+                                <p className="font-medium text-app-muted">
                                   {bonus.type === "custom"
                                     ? bonus.descripcion
                                     : bonus.periodo}
                                 </p>
                                 {bonus.type === "custom" && (
-                                  <p className="text-xs text-gray-400">
+                                  <p className="text-xs text-app-outline">
                                     Manual
                                   </p>
                                 )}
                                 {bonus.type === "filled" && (
-                                  <p className="text-xs text-gray-400">
+                                  <p className="text-xs text-app-outline">
                                     Sin asignación
                                   </p>
                                 )}
@@ -2664,14 +2664,14 @@ const CrearFiniquito = () => {
                             </div>
                             <div className="flex items-center gap-4">
                               <span
-                                className={`font-mono font-medium ${bonus.active !== false ? "text-gray-900" : "text-gray-400"}`}
+                                className={`font-mono font-medium ${bonus.active !== false ? "text-app-ink" : "text-app-outline"}`}
                               >
                                 $ {(bonus.monto || 0).toLocaleString("es-CL")}
                               </span>
 
                               {/* Item Toggle */}
                               <div
-                                className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${bonus.active !== false ? "bg-blue-600" : "bg-gray-300"}`}
+                                className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${bonus.active !== false ? "bg-app-ink" : "bg-app-line"}`}
                                 onClick={() => {
                                   if (bonus.type === "fetched") {
                                     const newItems = [...variableItems];
@@ -2703,14 +2703,14 @@ const CrearFiniquito = () => {
                                 }}
                               >
                                 <div
-                                  className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${bonus.active !== false ? "translate-x-5" : ""}`}
+                                  className={`w-4 h-4 bg-white rounded-full  transform transition-transform ${bonus.active !== false ? "translate-x-5" : ""}`}
                                 ></div>
                               </div>
 
                               {/* Delete button for custom items */}
                               {bonus.type === "custom" && (
                                 <button
-                                  className="text-gray-400 hover:text-red-500 transition-colors"
+                                  className="text-app-outline hover:text-red-500 transition-colors"
                                   onClick={() => {
                                     if (
                                       confirm("¿Eliminar este item manual?")
@@ -2757,12 +2757,12 @@ const CrearFiniquito = () => {
         <div hidden={tabActiva !== 2}>
 
         {/* Compensation & Vacation */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+        <div className="bg-white p-6 rounded-xl  border border-app-line mb-6">
           <div className="flex items-center gap-2 mb-6">
-            <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-teal-50 text-app-brand flex items-center justify-center">
               <span className="material-symbols-outlined">beach_access</span>
             </div>
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 className="text-lg font-bold text-app-ink">
               Compensación y Vacaciones
             </h3>
           </div>
@@ -2770,7 +2770,7 @@ const CrearFiniquito = () => {
           <div className="grid grid-cols-2 gap-6 mb-6">
             <div>
               <div className="flex justify-between mb-2">
-                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <label className="text-sm font-semibold text-app-muted flex items-center gap-2">
                   Días de Vacaciones Pendientes
                   {/* Punto de respiración: recuerda revisar el valor antes de generar */}
                   <span
@@ -2778,9 +2778,9 @@ const CrearFiniquito = () => {
                     title="Recuerda ajustar"
                   >
                     <span className="absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75 animate-ping"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-app-ink"></span>
                   </span>
-                  <span className="text-xs font-normal text-orange-600">
+                  <span className="text-xs font-normal text-app-brand">
                     Recuerda ajustar
                   </span>
                 </label>
@@ -2789,22 +2789,22 @@ const CrearFiniquito = () => {
                 <input
                   type="number"
                   step="0.01"
-                  className="w-full p-3 bg-white border-2 border-orange-400 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none font-medium text-gray-900"
+                  className="w-full p-3 bg-white border-2 border-app-ink rounded-lg focus:ring-2 focus:ring-app-ink focus:border-app-ink outline-none font-medium text-app-ink"
                   value={vacationDays.toFixed(2)}
                   onChange={(e) => {
                     setVacationDays(parseFloat(e.target.value) || 0);
                     setVacationDaysManuallyEdited(true);
                   }}
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm flex items-center gap-2">
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-app-outline text-sm flex items-center gap-2">
                   {isLoadingVacation && (
-                    <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></span>
+                    <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-app-ink"></span>
                   )}
                   Días
                 </span>
               </div>
               <div className="mt-1 space-y-0.5">
-                <p className="text-xs text-green-600 flex items-center gap-1">
+                <p className="text-xs text-app-brand flex items-center gap-1">
                   <span className="material-symbols-outlined text-[10px]">
                     check_circle
                   </span>
@@ -2813,7 +2813,7 @@ const CrearFiniquito = () => {
                 {lastDayWork &&
                   vacationDays !== vacationDaysStock &&
                   !vacationDaysManuallyEdited && (
-                    <p className="text-xs text-blue-600 flex items-center gap-1">
+                    <p className="text-xs text-app-brand flex items-center gap-1">
                       <span className="material-symbols-outlined text-[10px]">
                         trending_up
                       </span>
@@ -2823,7 +2823,7 @@ const CrearFiniquito = () => {
                     </p>
                   )}
                 {vacationDaysManuallyEdited && (
-                  <p className="text-xs text-orange-600 flex items-center gap-1">
+                  <p className="text-xs text-app-brand flex items-center gap-1">
                     <span className="material-symbols-outlined text-[10px]">
                       edit
                     </span>
@@ -2841,10 +2841,10 @@ const CrearFiniquito = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-app-muted mb-2">
                 Valor Vacaciones (Calculado)
               </label>
-              <div className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-600 font-mono">
+              <div className="w-full p-3 bg-app-surface border border-app-line rounded-lg text-app-muted font-mono">
                 $ {vacationValue.toLocaleString("es-CL")}
               </div>
             </div>
@@ -2853,26 +2853,26 @@ const CrearFiniquito = () => {
           <div className="grid grid-cols-2 gap-6">
             {/* Base Salary Input */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-app-muted mb-2">
                 Sueldo Base <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-3 text-gray-400">$</span>
+                <span className="absolute left-3 top-3 text-app-outline">$</span>
                 <input
                   type="number"
-                  className="w-full p-3 pl-8 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full p-3 pl-8 bg-white border border-app-line rounded-lg focus:ring-2 focus:ring-app-ink focus:border-app-ink outline-none transition-all"
                   value={salary}
                   onChange={(e) => setSalary(Number(e.target.value))}
                 />
               </div>
-              <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+              <p className="text-xs text-app-brand mt-1 flex items-center gap-1">
                 <span className="material-symbols-outlined text-[10px]">
                   check_circle
                 </span>
                 Extraído desde Buk
               </p>
               {terminationReason === "mutuo_acuerdo" && averageSalary > 0 && (
-                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1 bg-blue-50 p-1.5 rounded border border-blue-100">
+                <p className="text-xs text-app-brand mt-1 flex items-center gap-1 bg-app-surface p-1.5 rounded border border-app-line">
                   <span className="material-symbols-outlined text-sm">
                     info
                   </span>
@@ -2887,11 +2887,11 @@ const CrearFiniquito = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-app-muted mb-2">
                 Bonos Variables (Calculado)
               </label>
               <div className="flex items-center gap-2">
-                <div className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-600 font-mono">
+                <div className="flex-1 p-3 bg-app-surface border border-app-line rounded-lg text-app-muted font-mono">
                   $ {variableBonus.toLocaleString("es-CL")}
                 </div>
                 <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase rounded tracking-wider">
@@ -2901,7 +2901,7 @@ const CrearFiniquito = () => {
             </div>
           </div>
 
-          <button className="mt-6 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+          <button className="mt-6 px-4 py-2 bg-app-surface hover:bg-app-line text-app-muted rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
             <span className="material-symbols-outlined text-lg">
               add_circle
             </span>
@@ -2915,60 +2915,60 @@ const CrearFiniquito = () => {
         <div hidden={tabActiva !== 3}>
 
         {/* Indemnity Calculations */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+        <div className="bg-white p-6 rounded-xl  border border-app-line mb-8">
           <div className="flex items-center gap-2 mb-6">
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-app-surface text-app-brand flex items-center justify-center">
               <span className="material-symbols-outlined">calculate</span>
             </div>
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 className="text-lg font-bold text-app-ink">
               Cálculo indemnización
             </h3>
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">
+            <div className="bg-app-surface p-4 rounded-lg">
+              <p className="text-xs text-app-muted uppercase font-bold tracking-wider mb-1">
                 Años de servicio
               </p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-xl font-bold text-app-ink">
                 {yearsOfService.toFixed(1)} Años
               </p>
             </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">
+            <div className="bg-app-surface p-4 rounded-lg">
+              <p className="text-xs text-app-muted uppercase font-bold tracking-wider mb-1">
                 Años para indemnización
               </p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-xl font-bold text-app-ink">
                 {yearsOfService >= 1
                   ? typeof yearsForIndemnity === "number"
                     ? yearsForIndemnity.toFixed(2)
                     : yearsForIndemnity
                   : 0}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-app-outline mt-1">
                 Redondeado hacia arriba si &gt; 6 meses y 1 día
               </p>
             </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">
+            <div className="bg-app-surface p-4 rounded-lg">
+              <p className="text-xs text-app-muted uppercase font-bold tracking-wider mb-1">
                 (Sueldo base + Bonificaciones) / 30
               </p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-xl font-bold text-app-ink">
                 $ {dailySalary.toLocaleString("es-CL")}
               </p>
             </div>
           </div>
 
-          <div className="space-y-3 border-t border-gray-100 pt-6">
+          <div className="space-y-3 border-t border-app-line pt-6">
             {/* Sección 1: Haberes */}
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Gratificación Legal</span>
+              <span className="text-app-muted">Gratificación Legal</span>
               <span className="font-mono font-medium">
                 $ {Math.round(gratificacionLegal).toLocaleString("es-CL")}
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">
+              <span className="text-app-muted">
                 Promedio de Bonificaciones Mensuales
               </span>
               <span className="font-mono font-medium">
@@ -2976,12 +2976,12 @@ const CrearFiniquito = () => {
               </span>
             </div>
             <div className="flex justify-between text-sm items-center">
-              <span className="text-gray-600">Movilización</span>
+              <span className="text-app-muted">Movilización</span>
               <div className="flex items-center gap-2">
-                <span className="text-gray-400">$</span>
+                <span className="text-app-outline">$</span>
                 <input
                   type="number"
-                  className="w-28 p-1 text-right bg-white border border-gray-200 rounded focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                  className="w-28 p-1 text-right bg-white border border-app-line rounded focus:ring-2 focus:ring-app-ink outline-none font-mono"
                   value={movilizacion}
                   onChange={(e) =>
                     setMovilizacion(parseFloat(e.target.value) || 0)
@@ -2991,17 +2991,17 @@ const CrearFiniquito = () => {
             </div>
 
             <div className="flex justify-between text-sm">
-              <span className="text-gray-900 font-bold">Total Haberes</span>
+              <span className="text-app-ink font-bold">Total Haberes</span>
               <span className="font-mono font-bold">
                 $ {Math.round(totalHaberes).toLocaleString("es-CL")}
               </span>
             </div>
 
-            <div className="border-t border-gray-100 my-2"></div>
+            <div className="border-t border-app-line my-2"></div>
 
             {/* Sección 2: Indemnizaciones */}
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">
+              <span className="text-app-muted">
                 Indemnización por Años de Servicio (
                 {typeof yearsForIndemnity === "number"
                   ? yearsForIndemnity.toFixed(2)
@@ -3017,39 +3017,39 @@ const CrearFiniquito = () => {
               </span>
             </div>
             {terminationReason === "mutuo_acuerdo" && averageSalary > 0 && (
-              <div className="flex justify-between text-sm items-center bg-blue-50 p-2 rounded border border-blue-100">
-                <span className="text-blue-700 flex items-center gap-1">
+              <div className="flex justify-between text-sm items-center bg-app-surface p-2 rounded border border-app-line">
+                <span className="text-app-brand flex items-center gap-1">
                   <span className="material-symbols-outlined text-sm">
                     info
                   </span>
                   Promedio últimas 48 liquidaciones
                 </span>
-                <span className="font-mono font-bold text-blue-700">
+                <span className="font-mono font-bold text-app-brand">
                   $ {averageSalary.toLocaleString("es-CL")}
                 </span>
               </div>
             )}
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Vacaciones Pendientes</span>
+              <span className="text-app-muted">Vacaciones Pendientes</span>
               <span className="font-mono font-medium">
                 $ {Math.round(vacationIndemnity).toLocaleString("es-CL")}
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Mes de Aviso</span>
+              <span className="text-app-muted">Mes de Aviso</span>
               <span className="font-mono font-medium">
                 $ {Math.round(noticeIndemnity).toLocaleString("es-CL")}
               </span>
             </div>
 
             <div className="flex justify-between text-sm items-center">
-              <span className="text-gray-600">Remuneración adeudada</span>
+              <span className="text-app-muted">Remuneración adeudada</span>
               <div className="flex items-center gap-2">
-                <span className="text-gray-400">$</span>
+                <span className="text-app-outline">$</span>
                 <input
                   type="text"
                   inputMode="numeric"
-                  className="w-28 p-1 text-right bg-white border border-gray-200 rounded focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                  className="w-28 p-1 text-right bg-white border border-app-line rounded focus:ring-2 focus:ring-app-ink outline-none font-mono"
                   value={liquidacionMesActual}
                   onChange={(e) => {
                     const val = e.target.value.replace(/[^0-9]/g, "");
@@ -3060,7 +3060,7 @@ const CrearFiniquito = () => {
               </div>
             </div>
 
-            <div className="border-t border-gray-100 my-2"></div>
+            <div className="border-t border-app-line my-2"></div>
 
             {/* Sección 3: Descuentos */}
             <div className="flex justify-between text-sm items-center mb-2">
@@ -3103,7 +3103,7 @@ const CrearFiniquito = () => {
 
             {/* Descuentos personalizados agregados - Table Header */}
             {descuentosPersonalizados.length > 0 && (
-              <div className="grid grid-cols-12 gap-2 text-xs text-gray-500 font-medium mb-1 px-1">
+              <div className="grid grid-cols-12 gap-2 text-xs text-app-muted font-medium mb-1 px-1">
                 <div className="col-span-4">Concepto</div>
                 <div className="col-span-3 text-right">Valor</div>
                 <div className="col-span-2 text-center">Cuotas</div>
@@ -3132,7 +3132,7 @@ const CrearFiniquito = () => {
               return (
                 <div
                   key={idx}
-                  className="grid grid-cols-12 gap-2 text-sm items-center mb-2 bg-white p-2 rounded border border-gray-100 shadow-sm"
+                  className="grid grid-cols-12 gap-2 text-sm items-center mb-2 bg-white p-2 rounded border border-app-line "
                 >
                   {/* Concepto Selector */}
                   <div className="col-span-4 flex flex-col">
@@ -3152,7 +3152,7 @@ const CrearFiniquito = () => {
                     </select>
                     {desc.detalle && (
                       <span
-                        className="text-[10px] text-gray-400 pl-1 truncate"
+                        className="text-[10px] text-app-outline pl-1 truncate"
                         title={desc.detalle}
                       >
                         {desc.detalle}
@@ -3164,7 +3164,7 @@ const CrearFiniquito = () => {
                   <div className="col-span-3">
                     <div className="flex items-center gap-1 justify-end">
                       <select
-                        className="text-[9px] font-bold text-blue-600 border border-blue-200 bg-blue-50 rounded px-0.5 outline-none cursor-pointer"
+                        className="text-[9px] font-bold text-app-brand border border-app-line bg-app-surface rounded px-0.5 outline-none cursor-pointer"
                         value={desc.moneda || "CLP"}
                         onChange={(e) => {
                           const newDescuentos = [...descuentosPersonalizados];
@@ -3191,7 +3191,7 @@ const CrearFiniquito = () => {
                       />
                     </div>
                     {isUF && ufValue > 0 && (
-                      <div className="text-[9px] text-gray-400 text-right mt-0.5">
+                      <div className="text-[9px] text-app-outline text-right mt-0.5">
                         ~ ${displayMonto.toLocaleString("es-CL")}
                       </div>
                     )}
@@ -3202,7 +3202,7 @@ const CrearFiniquito = () => {
                     <input
                       type="text"
                       inputMode="numeric"
-                      className="w-full text-center bg-white border border-gray-200 rounded px-1 py-0.5 text-xs text-gray-700 outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full text-center bg-white border border-app-line rounded px-1 py-0.5 text-xs text-app-muted outline-none focus:ring-1 focus:ring-app-ink"
                       value={desc.cuotas}
                       onChange={(e) => {
                         const val = e.target.value.replace(/[^0-9]/g, "");
@@ -3224,7 +3224,7 @@ const CrearFiniquito = () => {
                   {/* Deuda Total & Delete */}
                   <div className="col-span-3 flex items-center justify-between pl-2">
                     <span
-                      className="text-xs font-mono font-medium text-gray-700"
+                      className="text-xs font-mono font-medium text-app-muted"
                       title="Deuda Total Estimada"
                     >
                       $ {totalDebt.toLocaleString("es-CL")}
@@ -3236,7 +3236,7 @@ const CrearFiniquito = () => {
                         );
                         setDescuentosPersonalizados(newDescuentos);
                       }}
-                      className="text-gray-400 hover:text-red-500 transition-colors ml-1"
+                      className="text-app-outline hover:text-red-500 transition-colors ml-1"
                     >
                       <span className="material-symbols-outlined text-base">
                         close
@@ -3265,13 +3265,13 @@ const CrearFiniquito = () => {
           </div>
 
           <div className="mt-4 flex justify-end">
-            <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg text-xs text-blue-700 border border-blue-100 shadow-sm">
+            <div className="flex items-center gap-2 bg-app-surface px-3 py-1.5 rounded-lg text-xs text-app-brand border border-app-line ">
               <span className="font-bold">Valor UF Hoy:</span>
-              <span className="text-gray-400 ml-1">$</span>
+              <span className="text-app-outline ml-1">$</span>
               <input
                 type="number"
                 step="0.01"
-                className="w-28 bg-transparent font-mono text-blue-700 text-right outline-none border-b border-blue-200 focus:border-blue-500 py-0.5"
+                className="w-28 bg-transparent font-mono text-app-brand text-right outline-none border-b border-app-line focus:border-app-ink py-0.5"
                 value={ufValue}
                 onChange={(e) => setUfValue(Number(e.target.value))}
                 placeholder="0.00"
@@ -3279,12 +3279,12 @@ const CrearFiniquito = () => {
             </div>
           </div>
 
-          <div className="mt-2 bg-gray-900 text-white p-6 rounded-xl flex justify-between items-center shadow-lg">
+          <div className="mt-2 bg-app-ink text-white p-6 rounded-xl flex justify-between items-center ">
             <div>
-              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">
+              <p className="text-xs text-app-outline uppercase font-bold tracking-wider mb-1">
                 Total finiquito
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-app-muted">
                 Sujeto a revisión final y deducciones
               </p>
             </div>
@@ -3300,12 +3300,12 @@ const CrearFiniquito = () => {
         <div hidden={tabActiva !== 4}>
 
         {/* Recap: mismo totalSettlement que el paso 4, sin recalcular nada */}
-        <div className="bg-gray-900 text-white p-6 rounded-xl flex justify-between items-center shadow-lg mb-6">
+        <div className="bg-app-ink text-white p-6 rounded-xl flex justify-between items-center  mb-6">
           <div>
-            <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">
+            <p className="text-xs text-app-outline uppercase font-bold tracking-wider mb-1">
               Total finiquito
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-app-muted">
               {employee?.nombre_trabajador} · {lastDayWork || "sin fecha de término"}
             </p>
           </div>
@@ -3316,7 +3316,7 @@ const CrearFiniquito = () => {
 
         {/* Faltantes: los mismos que valida handleGenerate, avisados antes de intentar */}
         {(!lastDayWork || !terminationReason) && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl mb-6 flex items-center gap-3">
+          <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-xl mb-6 flex items-center gap-3">
             <span className="material-symbols-outlined">warning</span>
             <span className="text-sm">
               Falta completar {!lastDayWork && "la fecha de término"}
@@ -3328,8 +3328,8 @@ const CrearFiniquito = () => {
 
         {/* Estado del proceso guardado */}
         {proceso && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Estado del proceso</h3>
+          <div className="bg-white p-6 rounded-xl  border border-app-line mb-6">
+            <h3 className="text-lg font-bold text-app-ink mb-4">Estado del proceso</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
               {[
                 ["Carta generada", proceso.carta_generada_at],
@@ -3338,13 +3338,13 @@ const CrearFiniquito = () => {
               ].map(([label, fecha]) => (
                 <div key={label} className="flex items-center gap-2">
                   <span
-                    className={`material-symbols-outlined ${fecha ? "text-green-600" : "text-gray-300"}`}
+                    className={`material-symbols-outlined ${fecha ? "text-app-brand" : "text-app-outline"}`}
                   >
                     {fecha ? "check_circle" : "radio_button_unchecked"}
                   </span>
                   <div>
-                    <p className="font-medium text-gray-700">{label}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="font-medium text-app-muted">{label}</p>
+                    <p className="text-xs text-app-muted">
                       {fecha ? new Date(fecha).toLocaleString("es-CL") : "Pendiente"}
                     </p>
                   </div>
@@ -3358,20 +3358,20 @@ const CrearFiniquito = () => {
         <div className="flex justify-end gap-4 pb-6">
           <button
             onClick={() => navigate("/finiquitos")}
-            className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+            className="px-6 py-3 bg-white border border-app-line text-app-muted rounded-lg font-medium hover:bg-app-surface transition-colors"
           >
             CANCELAR
           </button>
           <button
             onClick={handleDownloadWord}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors shadow-md flex items-center gap-2"
+            className="px-6 py-3 bg-app-ink text-white rounded-lg font-bold hover:bg-app-ink/90 transition-colors  flex items-center gap-2"
           >
             <span className="material-symbols-outlined">description</span>
             DESCARGAR FINIQUITO
           </button>
           <button
             onClick={handleGenerate}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2"
+            className="px-6 py-3 bg-app-ink text-white rounded-lg font-bold hover:bg-app-ink/90 transition-colors  flex items-center gap-2"
           >
             <span className="material-symbols-outlined">description</span>
             GENERAR CARTA
@@ -3382,24 +3382,24 @@ const CrearFiniquito = () => {
 
         {/* Navegación entre pasos. `sticky bottom-0` la deja siempre en el mismo lugar,
             visible sin importar cuánto mida el paso actual. */}
-        <div className="sticky bottom-0 -mx-8 px-8 py-4 bg-white/95 backdrop-blur border-t border-gray-200 flex items-center justify-between">
+        <div className="sticky bottom-0 -mx-8 px-8 py-4 bg-white/95 backdrop-blur border-t border-app-line flex items-center justify-between">
           <button
             onClick={() => irATab(tabActiva - 1)}
             disabled={tabActiva === 0}
-            className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="px-5 py-2.5 bg-white border border-app-line text-app-muted rounded-lg font-medium hover:bg-app-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             <span className="material-symbols-outlined text-lg">chevron_left</span>
             Anterior
           </button>
 
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-app-muted">
             Paso {tabActiva + 1} de {TABS.length} · {TABS[tabActiva].nombre}
           </span>
 
           <button
             onClick={() => irATab(tabActiva + 1)}
             disabled={tabActiva === TABS.length - 1}
-            className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="px-5 py-2.5 bg-app-ink text-white rounded-lg font-medium hover:bg-app-ink/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             Siguiente
             <span className="material-symbols-outlined text-lg">chevron_right</span>

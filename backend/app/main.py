@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -12,11 +13,18 @@ from app.services.scheduler_service import start_scheduler, stop_scheduler
 
 logger.info("Iniciando Dashboard Licencias API")
 
-try:
-    Base.metadata.create_all(bind=engine)
-    logger.info("Conexión a BD establecida")
-except Exception as e:
-    logger.warning(f"No se pudo conectar a la BD: {e}")
+# SKIP_CREATE_ALL=1 evita el DDL al arrancar. Se usa al levantar el entorno
+# local contra la base de producción por túnel SSH: create_all crea las tablas
+# que falten, y un modelo nuevo todavía no migrado terminaría creándose en
+# producción sin que nadie lo pida.
+if os.getenv("SKIP_CREATE_ALL") == "1":
+    logger.info("SKIP_CREATE_ALL=1: se omite create_all")
+else:
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Conexión a BD establecida")
+    except Exception as e:
+        logger.warning(f"No se pudo conectar a la BD: {e}")
 
 
 @asynccontextmanager

@@ -11,7 +11,7 @@ import { useMarcas } from "../hooks/useMarcas";
 import SidebarLayout from "../components/SidebarLayout";
 
 const inputClass =
-  "w-full text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500";
+  "w-full text-xs p-1 border border-app-line rounded focus:outline-none focus:ring-1 focus:ring-app-ink";
 
 const TextFilter = ({ column, placeholder }) => (
   <input
@@ -62,8 +62,8 @@ const Dashboard = () => {
         filterFn: "equalsString",
         Filter: (col) => <SelectFilter column={col} options={relojes.map((r) => [r, r])} />,
         cell: (info) => (
-          <span className="flex items-center gap-2 text-sm text-gray-600">
-            <span className="material-symbols-outlined text-gray-400 text-lg">watch</span>
+          <span className="flex items-center gap-2 text-sm text-app-muted">
+            <span className="material-symbols-outlined text-app-outline text-lg">watch</span>
             {info.getValue()}
           </span>
         ),
@@ -74,10 +74,10 @@ const Dashboard = () => {
         Filter: (col) => <TextFilter column={col} placeholder="Filtrar nombre..." />,
         cell: (info) => (
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
+            <div className="w-8 h-8 rounded-full bg-app-line flex items-center justify-center text-xs font-bold text-app-muted">
               {(info.getValue() || "").charAt(0)}
             </div>
-            <span className="text-sm font-medium text-gray-900">{info.getValue()}</span>
+            <span className="text-sm font-medium text-app-ink">{info.getValue()}</span>
           </div>
         ),
       },
@@ -86,7 +86,7 @@ const Dashboard = () => {
         accessorFn: (row) => (row.rut || "").split("-")[0],
         header: "RUT",
         Filter: (col) => <TextFilter column={col} placeholder="Filtrar RUT..." />,
-        cell: (info) => <span className="text-sm text-gray-500 font-mono">{info.getValue()}</span>,
+        cell: (info) => <span className="text-sm text-app-muted font-mono">{info.getValue()}</span>,
       },
       {
         accessorKey: "fecha",
@@ -94,7 +94,7 @@ const Dashboard = () => {
         filterFn: "equalsString",
         Filter: (col) => <DateFilter column={col} />,
         cell: (info) => (
-          <span className="text-sm text-gray-900 font-medium">
+          <span className="text-sm text-app-ink font-medium">
             {(info.getValue() || "").split("-").reverse().join("/")}
           </span>
         ),
@@ -103,7 +103,7 @@ const Dashboard = () => {
         accessorKey: "hora_marca",
         header: "Hora Marca",
         Filter: (col) => <TextFilter column={col} placeholder="Filtrar hora..." />,
-        cell: (info) => <span className="text-sm text-gray-900 font-medium">{info.getValue()}</span>,
+        cell: (info) => <span className="text-sm text-app-ink font-medium">{info.getValue()}</span>,
       },
       {
         accessorKey: "tipo_marca",
@@ -118,12 +118,12 @@ const Dashboard = () => {
             <span
               className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                 tipo === "IN" ? "bg-green-50 text-green-700" :
-                tipo === "OUT" ? "bg-gray-100 text-gray-700" : "bg-blue-50 text-blue-700"
+                tipo === "OUT" ? "bg-app-surface text-app-muted" : "bg-app-surface text-app-brand"
               }`}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  tipo === "IN" ? "bg-green-500" : tipo === "OUT" ? "bg-gray-500" : "bg-blue-500"
+                  tipo === "IN" ? "bg-app-ink" : tipo === "OUT" ? "bg-app-outline" : "bg-app-ink"
                 }`}
               ></span>
               {tipo === "IN" ? "Entrada" : tipo === "OUT" ? "Salida" : tipo}
@@ -157,23 +157,23 @@ const Dashboard = () => {
   return (
     <SidebarLayout>
       <main className="p-8">
-        <header className="flex items-center gap-2 text-sm text-gray-500 mb-8">
+        <header className="flex items-center gap-2 text-sm text-app-muted mb-8">
           <span className="material-symbols-outlined text-lg">home</span>
           <span>/</span>
-          <span className="text-gray-900 font-medium">Torniquetes</span>
+          <span className="text-app-ink font-medium">Torniquetes</span>
         </header>
 
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Marcajes de Torniquetes</h1>
-          <p className="text-gray-500">Monitoreo en tiempo real de registros de torniquetes.</p>
+          <h1 className="text-2xl font-bold text-app-ink mb-1">Marcajes de Torniquetes</h1>
+          <p className="text-app-muted">Monitoreo en tiempo real de registros de torniquetes.</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl  border border-app-line p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-bold text-gray-900">Registro de Torniquetes</h2>
+            <h2 className="text-lg font-bold text-app-ink">Registro de Torniquetes</h2>
             <div className="flex items-center gap-3">
               <select
-                className="text-sm border border-gray-200 rounded px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="text-sm border border-app-line rounded px-2 py-1.5 text-app-muted focus:outline-none focus:ring-1 focus:ring-app-ink"
                 value={dias}
                 onChange={(e) => setDias(Number(e.target.value))}
                 title="Rango de días a cargar"
@@ -185,7 +185,7 @@ const Dashboard = () => {
               </select>
               <button
                 onClick={recargar}
-                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                className="p-2 text-app-outline hover:text-app-brand hover:bg-app-surface rounded-full transition-colors"
                 title="Actualizar tabla"
               >
                 <span className="material-symbols-outlined">refresh</span>
@@ -194,13 +194,13 @@ const Dashboard = () => {
           </div>
 
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-xl  border border-app-line overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   {table.getHeaderGroups().map((headerGroup) => (
                     <React.Fragment key={headerGroup.id}>
-                      <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold">
+                      <tr className="bg-app-surface border-b border-app-line text-xs uppercase text-app-muted font-semibold">
                         {headerGroup.headers.map((header) => (
                           <th
                             key={header.id}
@@ -212,7 +212,7 @@ const Dashboard = () => {
                           </th>
                         ))}
                       </tr>
-                      <tr className="bg-white border-b border-gray-100">
+                      <tr className="bg-white border-b border-app-line">
                         {headerGroup.headers.map((header) => (
                           <td key={header.id} className="px-6 py-2">
                             {header.column.columnDef.Filter?.(header.column)}
@@ -222,14 +222,14 @@ const Dashboard = () => {
                     </React.Fragment>
                   ))}
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-app-line">
                   {loading ? (
                     <tr>
                       <td colSpan={columns.length} className="px-6 py-10">
                         <div className="max-w-sm mx-auto text-center">
-                          <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-2 w-full bg-app-surface rounded-full overflow-hidden">
                             <div
-                              className={`h-full bg-blue-600 rounded-full transition-[width] duration-300 ease-out ${
+                              className={`h-full bg-app-ink rounded-full transition-[width] duration-300 ease-out ${
                                 pct === null ? "w-1/3 animate-pulse" : ""
                               }`}
                               style={pct === null ? undefined : { width: `${pct}%` }}
@@ -240,24 +240,24 @@ const Dashboard = () => {
                               aria-label="Cargando marcajes"
                             ></div>
                           </div>
-                          <p className="mt-3 text-sm text-gray-700 font-medium">
+                          <p className="mt-3 text-sm text-app-muted font-medium">
                             {pct === null
                               ? "Consultando marcajes…"
                               : `${progreso.cargadas.toLocaleString("es-CL")} de ${progreso.total.toLocaleString("es-CL")} marcajes (${pct}%)`}
                           </p>
-                          <p className="mt-1 text-xs text-gray-500">Esto puede tardar unos minutos.</p>
+                          <p className="mt-1 text-xs text-app-muted">Esto puede tardar unos minutos.</p>
                         </div>
                       </td>
                     </tr>
                   ) : table.getRowModel().rows.length === 0 ? (
                     <tr>
-                      <td colSpan={columns.length} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={columns.length} className="px-6 py-8 text-center text-app-muted">
                         No se encontraron registros.
                       </td>
                     </tr>
                   ) : (
                     table.getRowModel().rows.map((row) => (
-                      <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={row.id} className="hover:bg-app-surface transition-colors">
                         {row.getVisibleCells().map((cell) => (
                           <td key={cell.id} className="px-6 py-4">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -270,8 +270,8 @@ const Dashboard = () => {
               </table>
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-              <span className="text-sm text-gray-500">
+            <div className="px-6 py-4 border-t border-app-line flex items-center justify-between">
+              <span className="text-sm text-app-muted">
                 {totalFiltrado} de {marcas.length} marcas desde el {desde}
                 {" · "}Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount() || 1}
               </span>
@@ -279,14 +279,14 @@ const Dashboard = () => {
                 <button
                   onClick={() => table.previousPage()}
                   disabled={!table.getCanPreviousPage()}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium text-app-muted bg-white border border-app-line rounded-lg hover:bg-app-surface disabled:opacity-50"
                 >
                   Anterior
                 </button>
                 <button
                   onClick={() => table.nextPage()}
                   disabled={!table.getCanNextPage()}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium text-app-muted bg-white border border-app-line rounded-lg hover:bg-app-surface disabled:opacity-50"
                 >
                   Siguiente
                 </button>
