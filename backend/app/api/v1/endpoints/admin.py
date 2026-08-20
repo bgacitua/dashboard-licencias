@@ -133,22 +133,6 @@ async def update_user(
     return UsuarioResponse.model_validate(user)
 
 
-@router.delete("/users/{user_id}/2fa")
-async def reset_user_2fa(
-    user_id: int,
-    current_user: Usuario = Depends(require_role(["admin"])),
-    db: Session = Depends(get_db)
-):
-    """Resetea 2FA de un usuario. En su próximo login deberá configurarlo nuevamente."""
-    user = db.query(Usuario).filter(Usuario.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
-    user.totp_secret = None
-    user.totp_enabled = False
-    db.commit()
-    return {"message": f"2FA reseteado para {user.username}. Deberá configurarlo en su próximo login."}
-
-
 @router.delete("/users/{user_id}", response_model=UsuarioResponse)
 async def deactivate_user(
     user_id: int,

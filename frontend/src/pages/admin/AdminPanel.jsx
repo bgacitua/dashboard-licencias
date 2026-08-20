@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SidebarLayout from '../../components/SidebarLayout';
 import { getToken } from '../../services/auth';
-import TwoFactorSetup from '../../components/TwoFactorSetup';
 
 const API_URL = '/api/v1';
 
@@ -231,22 +230,6 @@ const AdminPanel = () => {
             if (!res.ok) throw new Error('Error al cambiar contraseña');
             setShowPasswordModal(false);
             setPasswordData({ userId: null, newPassword: '' });
-        } catch (err) { setTabError(err.message); }
-    };
-
-    const handleReset2FA = async (userId, username) => {
-        if (!confirm(`¿Resetear 2FA para "${username}"? El usuario deberá configurarlo nuevamente en su próximo login.`)) return;
-        setTabError('');
-        try {
-            const res = await fetch(`${API_URL}/admin/users/${userId}/2fa`, {
-                method: 'DELETE',
-                headers: authHeaders(),
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.detail || 'Error al resetear 2FA');
-            }
-            fetchData();
         } catch (err) { setTabError(err.message); }
     };
 
@@ -484,8 +467,8 @@ const AdminPanel = () => {
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-app-surface border-b border-app-line">
                                         <tr className="text-xs font-semibold text-app-muted uppercase tracking-wide">
-                                            {['Usuario', 'Nombre', 'Email', 'Rol', 'Último Login', 'Estado', '2FA', ''].map((h, i) => (
-                                                <th key={i} className={`px-6 py-3 ${i === 7 ? 'text-right' : ''}`}>{h}</th>
+                                            {['Usuario', 'Nombre', 'Email', 'Rol', 'Último Login', 'Estado', ''].map((h, i) => (
+                                                <th key={i} className={`px-6 py-3 ${i === 6 ? 'text-right' : ''}`}>{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -510,16 +493,6 @@ const AdminPanel = () => {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                                                        user.totp_enabled ? 'bg-green-50 text-green-700' : 'bg-app-surface text-app-outline'
-                                                    }`}>
-                                                        <span className="material-symbols-outlined text-[14px]">
-                                                            {user.totp_enabled ? 'verified_user' : 'shield'}
-                                                        </span>
-                                                        {user.totp_enabled ? 'Activo' : 'Sin 2FA'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button onClick={() => openEditUser(user)} title="Editar"
                                                             className="p-2 text-app-outline hover:text-app-brand hover:bg-app-surface rounded-lg transition-colors">
@@ -529,15 +502,6 @@ const AdminPanel = () => {
                                                             className="p-2 text-app-outline hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors">
                                                             <span className="material-symbols-outlined text-[18px]">key</span>
                                                         </button>
-                                                        {user.totp_enabled && (
-                                                            <button
-                                                                onClick={() => handleReset2FA(user.id, user.username)}
-                                                                title="Resetear 2FA"
-                                                                className="p-2 text-app-outline hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors"
-                                                            >
-                                                                <span className="material-symbols-outlined text-[18px]">phonelink_erase</span>
-                                                            </button>
-                                                        )}
                                                         <button onClick={() => handleToggleActive(user.id, user.activo)}
                                                             title={user.activo ? 'Desactivar' : 'Activar'}
                                                             className={`p-2 rounded-lg transition-colors ${
@@ -684,8 +648,10 @@ const AdminPanel = () => {
                                 <p className="text-xs text-app-outline">Configuración de seguridad para tu usuario administrador.</p>
                             </div>
 
-                            <div className="bg-white rounded-xl border border-app-line p-5">
-                                <TwoFactorSetup />
+                            <div className="bg-white rounded-xl border border-app-line p-5 text-sm text-app-muted">
+                                La verificación en dos pasos la gestiona Duo Security. Los dispositivos
+                                se enrolan y se resetean desde el panel de administración de Duo, no desde
+                                esta aplicación.
                             </div>
                         </div>
                     )}
