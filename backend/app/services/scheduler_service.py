@@ -15,16 +15,20 @@ from app.core.logging_config import logger
 _scheduler: BackgroundScheduler | None = None
 
 
-def _notify_n8n(payload: dict) -> None:
-    """Envía notificación al webhook de n8n. Falla silenciosamente."""
-    if not settings.ALERTS_N8N_WEBHOOK_URL:
+def _notify_n8n(payload: dict, url: str | None = None) -> None:
+    """
+    Envía notificación a un webhook de n8n. Falla silenciosamente.
+    Sin url usa el de alertas de contratos, que es el histórico.
+    """
+    destino = url or settings.ALERTS_N8N_WEBHOOK_URL
+    if not destino:
         return
     try:
         import httpx
         # n8n tiene certificado self-signed: se valida contra su .pem, no se
         # desactiva la verificación.
         verify = settings.ALERTS_N8N_CA_BUNDLE or True
-        httpx.post(settings.ALERTS_N8N_WEBHOOK_URL, json=payload, timeout=10, verify=verify)
+        httpx.post(destino, json=payload, timeout=10, verify=verify)
     except Exception as e:
         logger.warning(f"[Scheduler] No se pudo notificar a n8n: {e}")
 
@@ -320,7 +324,7 @@ def _run_liquidos_job() -> None:
                     f"📸 Cierre {result['periodo']}: target de líquidos congelado "
                     f"({result['empleados']} empleados). Vigilancia activa."
                 ),
-            })
+            }, url=settings.LIQUIDOS_N8N_WEBHOOK_URL)
             return
 
         trabajadores = result.get("trabajadores_descuadrados", [])
@@ -345,14 +349,14 @@ def _run_liquidos_job() -> None:
             ),
             "trabajadores": trabajadores,
             "resumen_texto": _texto_descuadres(trabajadores),
-        })
+        }, url=settings.LIQUIDOS_N8N_WEBHOOK_URL)
     except Exception as e:
         logger.error(f"[Liquidos] Error inesperado en barrido: {e}", exc_info=True)
         _notify_n8n({
             "tipo": "error_inesperado",
             "timestamp": timestamp,
             "mensaje": f"❌ Error en barrido de líquidos: {str(e)}",
-        })
+        }, url=settings.LIQUIDOS_N8N_WEBHOOK_URL)
     finally:
         db.close()
 

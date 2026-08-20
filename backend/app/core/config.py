@@ -82,6 +82,10 @@ class Settings(BaseSettings):
     LIQUIDOS_SCAN_MINUTOS: int = 15      # cada cuántos minutos barre, dentro de la ventana
     LIQUIDOS_SCAN_HORA_INICIO: int = 8   # acotado a horario hábil: fuera de él nadie edita nómina
     LIQUIDOS_SCAN_HORA_FIN: int = 20
+    # Webhook n8n propio de este servicio. El de alertas de contratos no sirve:
+    # su nodo de código solo conoce los tipos de evento de contratos y manda
+    # "Evento desconocido" para el resto. Vacío = cae al de contratos.
+    LIQUIDOS_N8N_WEBHOOK_URL: str = ""
     # Path del endpoint de liquidaciones en BUK, relativo a BUK_API_BASE_URL.
     # Recibe ?date=01-MM-YYYY&page_size=100 y pagina vía pagination.next.
     LIQUIDACIONES_ENDPOINT_PATH: str = "/payroll_detail/month"
