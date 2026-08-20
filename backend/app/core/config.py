@@ -28,11 +28,8 @@ class Settings(BaseSettings):
     DUO_CLIENT_ID: str = ""
     DUO_CLIENT_SECRET: str = ""
     DUO_API_HOST: str = ""            # ej: api-xxxxxxxx.duosecurity.com
-    # Debe ser la URL publica del frontend + /duo/callback. Duo no la registra:
-    # solo valida que sea identica entre el /authorize y el canje del codigo.
-    # El :8444 de Caddy existe solo para el OAuth de Microsoft; la app se sirve
-    # por nginx en el puerto 80.
-    DUO_REDIRECT_URI: str = "http://personas.cramer.cl/duo/callback"
+    # Debe coincidir EXACTAMENTE con el redirect URI configurado en el Duo Admin Panel.
+    DUO_REDIRECT_URI: str = "https://personas.cramer.cl:8444/duo/callback"
 
     # === BUK API ===
     BUK_API_BASE_URL: str
