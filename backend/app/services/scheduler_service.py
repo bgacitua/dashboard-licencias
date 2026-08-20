@@ -150,7 +150,11 @@ def _run_followup_job() -> None:
 def start_scheduler() -> None:
     global _scheduler
 
-    if not (settings.ALERTS_SCHEDULER_ENABLED or settings.OVERTIME_SCHEDULER_ENABLED):
+    if not (
+        settings.ALERTS_SCHEDULER_ENABLED
+        or settings.OVERTIME_SCHEDULER_ENABLED
+        or settings.LIQUIDOS_SCHEDULER_ENABLED
+    ):
         logger.info("[Scheduler] Deshabilitado (ALERTS_SCHEDULER_ENABLED=False)")
         return
 
@@ -234,12 +238,104 @@ def start_scheduler() -> None:
             f"→ {settings.RETORNO_ALERT_EMAIL or '(sin email configurado)'}"
         )
 
+    if settings.LIQUIDOS_SCHEDULER_ENABLED:
+        _scheduler.add_job(
+            _run_liquidos_job,
+            trigger=CronTrigger(
+                hour=f"{settings.LIQUIDOS_SCAN_HORA_INICIO}-{settings.LIQUIDOS_SCAN_HORA_FIN}",
+                minute=f"*/{settings.LIQUIDOS_SCAN_MINUTOS}",
+                timezone=tz,
+            ),
+            id="liquidos_descuadre_job",
+            name="Barrido de descuadre de líquidos post-cierre",
+            replace_existing=True,
+            max_instances=1,      # un barrido lento no debe solaparse con el siguiente
+            coalesce=True,
+        )
+        logger.info(
+            f"[Scheduler] Job líquidos registrado — cada "
+            f"{settings.LIQUIDOS_SCAN_MINUTOS} min entre "
+            f"{settings.LIQUIDOS_SCAN_HORA_INICIO:02d}:00 y "
+            f"{settings.LIQUIDOS_SCAN_HORA_FIN:02d}:59 "
+            f"(solo actúa en ventana post-cierre)"
+        )
+
     _scheduler.start()
     logger.info(
         f"[Scheduler] Iniciado — job diario a las "
         f"{settings.ALERTS_SCHEDULER_HOUR:02d}:{settings.ALERTS_SCHEDULER_MINUTE:02d} "
         f"({settings.ALERTS_SCHEDULER_TIMEZONE}) — ejecuta lunes o cuando modo cierre activo"
     )
+
+
+def _run_liquidos_job() -> None:
+    """
+    Barrido de descuadre de líquidos. Solo actúa dentro de la ventana post-cierre;
+    fuera de ella sale sin tocar BUK, así que puede correr cada 15 min todo el mes.
+    """
+    import asyncio
+    from datetime import datetime
+
+    from app.db.session import SessionLocal
+    from app.services.liquidaciones_service import LiquidacionesService
+
+    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    db = SessionLocal()
+    try:
+        service = LiquidacionesService(db)
+        result = asyncio.run(service.barrido())
+
+        if not result.get("ejecutado"):
+            logger.debug(f"[Liquidos] Omitido — {result.get('motivo')}")
+            return
+
+        if result.get("accion") == "snapshot_inicial":
+            logger.info(
+                f"[Liquidos] Target congelado para {result['periodo']} "
+                f"({result['empleados']} empleados)"
+            )
+            _notify_n8n({
+                "tipo": "liquidos_snapshot",
+                "timestamp": timestamp,
+                "periodo": result["periodo"],
+                "mensaje": (
+                    f"📸 Cierre {result['periodo']}: target de líquidos congelado "
+                    f"({result['empleados']} empleados). Vigilancia activa."
+                ),
+            })
+            return
+
+        descuadres = result.get("descuadres", [])
+        if not descuadres:
+            logger.info(
+                f"[Liquidos] {result['periodo']} cuadrado "
+                f"({result['empleados']} empleados)"
+            )
+            return
+
+        logger.error(
+            f"[Liquidos] DESCUADRE en {result['periodo']}: "
+            f"{len(descuadres)} diferencia(s) nueva(s)"
+        )
+        _notify_n8n({
+            "tipo": "liquidos_descuadre",
+            "timestamp": timestamp,
+            "periodo": result["periodo"],
+            "mensaje": (
+                f"🚨 Descuadre de líquidos en {result['periodo']}: "
+                f"{len(descuadres)} diferencia(s) respecto al cierre."
+            ),
+            "detalle": descuadres,
+        })
+    except Exception as e:
+        logger.error(f"[Liquidos] Error inesperado en barrido: {e}", exc_info=True)
+        _notify_n8n({
+            "tipo": "error_inesperado",
+            "timestamp": timestamp,
+            "mensaje": f"❌ Error en barrido de líquidos: {str(e)}",
+        })
+    finally:
+        db.close()
 
 
 def _run_retorno_job() -> None:

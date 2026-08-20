@@ -77,6 +77,17 @@ class Settings(BaseSettings):
     # dirección (con asunto [PRUEBA]) en vez de ir a las jefaturas reales. Vaciar en producción.
     OVERTIME_TEST_EMAIL: str = ""
 
+    # === Alerta de descuadre de líquidos (período post-cierre) ===
+    LIQUIDOS_SCHEDULER_ENABLED: bool = False
+    LIQUIDOS_SCAN_MINUTOS: int = 15      # cada cuántos minutos barre, dentro de la ventana
+    LIQUIDOS_SCAN_HORA_INICIO: int = 8   # acotado a horario hábil: fuera de él nadie edita nómina
+    LIQUIDOS_SCAN_HORA_FIN: int = 20
+    # Path del endpoint de liquidaciones en BUK, relativo a BUK_API_BASE_URL.
+    # Configurable porque BUK no publica el esquema en apidocs: si el tenant usa
+    # otra ruta se corrige por .env sin redeploy.
+    LIQUIDACIONES_ENDPOINT_PATH: str = "/payroll_detail"
+    LIQUIDACIONES_MAX_PAGINAS: int = 50   # 50 x 100 = 5.000 liquidaciones por período
+
     # === Aviso de salida de personal (desde el generador de finiquitos) ===
     SALIDA_PERSONAL_TO: str = ""         # destinatario principal
     SALIDA_PERSONAL_CC: str = ""         # copias, separadas por ;
