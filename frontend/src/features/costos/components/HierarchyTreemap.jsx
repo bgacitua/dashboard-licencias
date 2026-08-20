@@ -2,10 +2,10 @@ import { useMemo } from 'react'
 import { ResponsiveContainer, Tooltip, Treemap } from 'recharts'
 import { formatCLP, formatCLPCompact } from '../lib/formatters'
 
-// Paleta determinística por empresa (verde esmeralda + acentos sobrios).
+// Paleta deterministica por empresa: acentos calidos, mismo peso visual.
 const PALETTE = [
-  '#2563EB', '#059669', '#0891B2', '#7C3AED',
-  '#0F766E', '#1D4ED8', '#047857', '#6D28D9',
+  '#B4291F', '#986718', '#4F6F37', '#8A5A3C',
+  '#C73F31', '#6F5340', '#7A5314', '#3F592C',
 ]
 
 function hashString(s) {
@@ -15,7 +15,7 @@ function hashString(s) {
 }
 
 function colorFor(empresa) {
-  if (!empresa) return '#6B7280'
+  if (!empresa) return '#837B6D'
   return PALETTE[hashString(empresa) % PALETTE.length]
 }
 
@@ -65,7 +65,7 @@ function CustomNode(props) {
         width={width}
         height={height}
         style={{
-          fill: color || '#2563EB',
+          fill: color || '#B4291F',
           stroke: 'var(--bg-base)',
           strokeWidth: depth === 1 ? 2 : 1,
           opacity: depth === 1 ? 0.55 : 0.92,

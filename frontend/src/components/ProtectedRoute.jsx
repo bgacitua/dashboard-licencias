@@ -22,14 +22,14 @@ const ProtectedRoute = ({ children, requiredModule, requiredRoles }) => {
                 justifyContent: 'center', 
                 alignItems: 'center', 
                 height: '100vh',
-                backgroundColor: '#f5f7fa'
+                backgroundColor: '#fdfcfa'
             }}>
                 <div style={{ textAlign: 'center' }}>
                     <div style={{
                         width: '40px',
                         height: '40px',
-                        border: '4px solid #e0e0e0',
-                        borderTop: '4px solid #6366f1',
+                        border: '4px solid #e5e0d8',
+                        borderTop: '4px solid #b4291f',
                         borderRadius: '50%',
                         animation: 'spin 1s linear infinite',
                         margin: '0 auto 16px'
@@ -59,7 +59,7 @@ const ProtectedRoute = ({ children, requiredModule, requiredRoles }) => {
                 justifyContent: 'center', 
                 alignItems: 'center', 
                 height: '100vh',
-                backgroundColor: '#f5f7fa'
+                backgroundColor: '#fdfcfa'
             }}>
                 <div style={{ 
                     textAlign: 'center',
@@ -68,7 +68,7 @@ const ProtectedRoute = ({ children, requiredModule, requiredRoles }) => {
                     borderRadius: '12px',
                     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
                 }}>
-                    <h2 style={{ color: '#ef4444', marginBottom: '16px' }}>⛔ Acceso Denegado</h2>
+                    <h2 style={{ color: '#b4291f', marginBottom: '16px' }}>⛔ Acceso Denegado</h2>
                     <p style={{ color: '#666' }}>No tienes permisos para acceder a este módulo.</p>
                     <a 
                         href="/menu" 
@@ -76,7 +76,7 @@ const ProtectedRoute = ({ children, requiredModule, requiredRoles }) => {
                             display: 'inline-block',
                             marginTop: '20px',
                             padding: '10px 20px',
-                            backgroundColor: '#6366f1',
+                            backgroundColor: '#b4291f',
                             color: 'white',
                             textDecoration: 'none',
                             borderRadius: '8px'
@@ -97,7 +97,7 @@ const ProtectedRoute = ({ children, requiredModule, requiredRoles }) => {
                 justifyContent: 'center', 
                 alignItems: 'center', 
                 height: '100vh',
-                backgroundColor: '#f5f7fa'
+                backgroundColor: '#fdfcfa'
             }}>
                 <div style={{ 
                     textAlign: 'center',
@@ -106,7 +106,7 @@ const ProtectedRoute = ({ children, requiredModule, requiredRoles }) => {
                     borderRadius: '12px',
                     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
                 }}>
-                    <h2 style={{ color: '#ef4444', marginBottom: '16px' }}>⛔ Acceso Restringido</h2>
+                    <h2 style={{ color: '#b4291f', marginBottom: '16px' }}>⛔ Acceso Restringido</h2>
                     <p style={{ color: '#666' }}>No tienes el rol necesario para acceder.</p>
                     <a 
                         href="/menu" 
@@ -114,7 +114,7 @@ const ProtectedRoute = ({ children, requiredModule, requiredRoles }) => {
                             display: 'inline-block',
                             marginTop: '20px',
                             padding: '10px 20px',
-                            backgroundColor: '#6366f1',
+                            backgroundColor: '#b4291f',
                             color: 'white',
                             textDecoration: 'none',
                             borderRadius: '8px'
