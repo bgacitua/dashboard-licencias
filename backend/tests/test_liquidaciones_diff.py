@@ -20,9 +20,15 @@ for _nombre, _attr, _valor in (
     setattr(_mod, _attr, _valor)
     sys.modules.setdefault(_nombre, _mod)
 
-from app.services.liquidaciones_service import diff_liquidos  # noqa: E402
+from app.services.liquidaciones_service import _fecha_param, diff_liquidos  # noqa: E402
 
 D = Decimal
+
+
+def test_fecha_param():
+    # BUK espera DD-MM-YYYY con el día en 01, no YYYY-MM.
+    assert _fecha_param("2026-08") == "01-08-2026"
+    assert _fecha_param("2026-1") == "01-01-2026"
 
 
 def test_cuadrado():

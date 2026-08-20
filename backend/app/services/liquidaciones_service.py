@@ -29,12 +29,10 @@ class LiquidacionesError(Exception):
     pass
 
 
-# Campos candidatos para el líquido dentro de cada liquidación. BUK no expone el
-# esquema en apidocs, así que se prueba en orden y se usa el primero presente.
-# Si tu tenant devuelve otro nombre, agrégalo al principio de la lista.
-_CAMPOS_LIQUIDO = ("liquid", "net_payment", "liquid_payment", "total_liquid", "amount")
-
-_CAMPOS_NOMBRE = ("full_name", "name", "employee_name")
+# Campo del líquido en la respuesta de BUK. El endpoint devuelve además
+# income_gross (bruto) e income_afp / income_ips (bases de cotización); acá solo
+# se vigila el líquido, que es lo que no puede moverse después del cierre.
+_CAMPO_LIQUIDO = "income_net"
 
 
 def _periodo_actual(hoy: date) -> str:
@@ -50,18 +48,10 @@ def _a_decimal(valor: Any) -> Optional[Decimal]:
         return None
 
 
-def _extraer_liquido(item: Dict[str, Any]) -> Optional[Decimal]:
-    for campo in _CAMPOS_LIQUIDO:
-        if campo in item:
-            return _a_decimal(item[campo])
-    return None
-
-
-def _extraer_nombre(item: Dict[str, Any]) -> Optional[str]:
-    for campo in _CAMPOS_NOMBRE:
-        if item.get(campo):
-            return str(item[campo])[:200]
-    return None
+def _fecha_param(periodo: str) -> str:
+    """'2026-08' -> '01-08-2026'. BUK espera DD-MM-YYYY con el día siempre en 01."""
+    anio, mes = periodo.split("-")
+    return f"01-{int(mes):02d}-{anio}"
 
 
 def diff_liquidos(
@@ -129,19 +119,27 @@ class LiquidacionesService:
 
     async def fetch_liquidos(self, periodo: str) -> Dict[int, Dict[str, Any]]:
         """
-        Trae todas las liquidaciones del período, paginadas de a 100.
-        Devuelve {employee_id: {"liquido": Decimal, "nombre": str|None}}.
+        Trae todas las liquidaciones del período, siguiendo pagination.next.
+        Devuelve {employee_id: {"liquido": Decimal, "rut": str|None}}.
+
+        GET {base}/payroll_detail/month?date=01-MM-YYYY&page_size=100
         """
-        anio, mes = periodo.split("-")
         url = f"{settings.BUK_API_BASE_URL}{settings.LIQUIDACIONES_ENDPOINT_PATH}"
+        params: Optional[Dict[str, Any]] = {
+            "date": _fecha_param(periodo),
+            "page_size": 100,
+        }
         headers = {"auth_token": settings.BUK_API_KEY, "Content-Type": "application/json"}
 
         resultado: Dict[int, Dict[str, Any]] = {}
-        page = 1
-        corte_por_limite = True
+        paginas = 0
+        truncado = False
+
         async with httpx.AsyncClient(timeout=60.0) as client:
-            while page <= settings.LIQUIDACIONES_MAX_PAGINAS:
-                params = {"month": int(mes), "year": int(anio), "page": page}
+            while url:
+                if paginas >= settings.LIQUIDACIONES_MAX_PAGINAS:
+                    truncado = True
+                    break
                 try:
                     resp = await client.get(url, headers=headers, params=params)
                     resp.raise_for_status()
@@ -153,37 +151,36 @@ class LiquidacionesService:
                     raise LiquidacionesError(f"Error de conexión con BUK: {e}")
 
                 data = resp.json()
-                items = data.get("data", [])
-                if not items:
-                    corte_por_limite = False
-                    break
+                paginas += 1
 
-                for item in items:
-                    emp_id = item.get("employee_id") or item.get("id")
-                    liquido = _extraer_liquido(item)
+                for item in data.get("data", []):
+                    emp_id = item.get("employee_id")
+                    liquido = _a_decimal(item.get(_CAMPO_LIQUIDO))
                     if emp_id is None or liquido is None:
                         continue
                     resultado[int(emp_id)] = {
                         "liquido": liquido,
-                        "nombre": _extraer_nombre(item),
+                        "rut": item.get("rut"),
                     }
 
-                pagination = data.get("pagination") or {}
-                total_pages = pagination.get("total_pages")
-                if total_pages and page >= int(total_pages):
-                    corte_por_limite = False
-                    break
-                page += 1
+                # next ya trae date/page/page_size embebidos: se sigue tal cual y
+                # se sueltan los params para no duplicarlos en la query.
+                url = (data.get("pagination") or {}).get("next")
+                params = None
 
-        if corte_por_limite:
-            # Truncar la lectura inventa "bajas" que no existen, así que se avisa fuerte.
-            logger.warning(
-                f"[Liquidos] Corte por límite de páginas "
-                f"({settings.LIQUIDACIONES_MAX_PAGINAS}) en {periodo}. "
-                f"Subir LIQUIDACIONES_MAX_PAGINAS si la dotación creció."
+        if truncado:
+            # Truncar la lectura inventa "bajas" que no existen, así que se corta el
+            # barrido antes de comparar en vez de emitir alertas falsas.
+            raise LiquidacionesError(
+                f"Lectura de {periodo} truncada en {paginas} páginas "
+                f"(LIQUIDACIONES_MAX_PAGINAS={settings.LIQUIDACIONES_MAX_PAGINAS}). "
+                f"No se compara para no reportar bajas inexistentes."
             )
 
-        logger.info(f"[Liquidos] {periodo}: {len(resultado)} liquidaciones leídas")
+        logger.info(
+            f"[Liquidos] {periodo}: {len(resultado)} liquidaciones leídas "
+            f"en {paginas} página(s)"
+        )
         return resultado
 
     # ---------------------------------------------------------------
@@ -238,7 +235,7 @@ class LiquidacionesService:
         self,
         periodo: str,
         difs: List[Tuple[int, Optional[Decimal], Optional[Decimal]]],
-        nombres: Dict[int, Optional[str]],
+        ruts: Dict[int, Optional[str]],
     ) -> List[Dict[str, Any]]:
         """
         Inserta las diferencias. El índice único de dedup hace que un descuadre ya
@@ -249,17 +246,17 @@ class LiquidacionesService:
             res = self.db.execute(
                 text("""
                     INSERT INTO app.liquidaciones_descuadre
-                        (periodo, employee_id, nombre, liquido_target, liquido_actual)
-                    VALUES (:p, :e, :n, :t, :a)
+                        (periodo, employee_id, rut, liquido_target, liquido_actual)
+                    VALUES (:p, :e, :r, :t, :a)
                     ON CONFLICT DO NOTHING
                     RETURNING id
                 """),
-                {"p": periodo, "e": emp_id, "n": nombres.get(emp_id), "t": target, "a": actual},
+                {"p": periodo, "e": emp_id, "r": ruts.get(emp_id), "t": target, "a": actual},
             ).fetchone()
             if res:
                 nuevos.append({
                     "employee_id": emp_id,
-                    "nombre": nombres.get(emp_id),
+                    "rut": ruts.get(emp_id),
                     "liquido_target": str(target) if target is not None else None,
                     "liquido_actual": str(actual) if actual is not None else None,
                     "tipo": (
@@ -299,10 +296,10 @@ class LiquidacionesService:
 
         target = self.leer_snapshot(periodo)
         actual = {emp: datos["liquido"] for emp, datos in liquidos.items()}
-        nombres = {emp: datos["nombre"] for emp, datos in liquidos.items()}
+        ruts = {emp: datos["rut"] for emp, datos in liquidos.items()}
 
         difs = diff_liquidos(target, actual)
-        nuevos = self.registrar_descuadres(periodo, difs, nombres)
+        nuevos = self.registrar_descuadres(periodo, difs, ruts)
 
         return {
             "ejecutado": True,

@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS app.liquidaciones_descuadre (
     id              SERIAL        PRIMARY KEY,
     periodo         VARCHAR(7)    NOT NULL,
     employee_id     INTEGER       NOT NULL,
-    nombre          VARCHAR(200),
+    rut             VARCHAR(15),
     liquido_target  NUMERIC(12,2),          -- NULL = alta posterior al cierre
     liquido_actual  NUMERIC(12,2),          -- NULL = baja posterior al cierre
     detectado_en    TIMESTAMPTZ   NOT NULL DEFAULT now()
