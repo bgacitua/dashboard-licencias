@@ -268,6 +268,24 @@ def start_scheduler() -> None:
     )
 
 
+def _texto_descuadres(trabajadores: list) -> str:
+    """Resumen listo para pegar en el mensaje de Telegram, un bloque por rut."""
+    def money(v):
+        if v is None:
+            return "—"
+        return f"${float(v):,.0f}".replace(",", ".")
+
+    bloques = []
+    for t in trabajadores:
+        cabecera = t.get("rut") or f"employee_id {t['employee_id']}"
+        lineas = [
+            f"  {c['etiqueta']}: {money(c['target'])} → {money(c['actual'])}"
+            for c in t["campos"]
+        ]
+        bloques.append(cabecera + "\n" + "\n".join(lineas))
+    return "\n\n".join(bloques)
+
+
 def _run_liquidos_job() -> None:
     """
     Barrido de descuadre de líquidos. Solo actúa dentro de la ventana post-cierre;
@@ -305,8 +323,8 @@ def _run_liquidos_job() -> None:
             })
             return
 
-        descuadres = result.get("descuadres", [])
-        if not descuadres:
+        trabajadores = result.get("trabajadores_descuadrados", [])
+        if not trabajadores:
             logger.info(
                 f"[Liquidos] {result['periodo']} cuadrado "
                 f"({result['empleados']} empleados)"
@@ -315,17 +333,18 @@ def _run_liquidos_job() -> None:
 
         logger.error(
             f"[Liquidos] DESCUADRE en {result['periodo']}: "
-            f"{len(descuadres)} diferencia(s) nueva(s)"
+            f"{len(trabajadores)} trabajador(es) con diferencias"
         )
         _notify_n8n({
             "tipo": "liquidos_descuadre",
             "timestamp": timestamp,
             "periodo": result["periodo"],
             "mensaje": (
-                f"🚨 Descuadre de líquidos en {result['periodo']}: "
-                f"{len(descuadres)} diferencia(s) respecto al cierre."
+                f"🚨 Descuadre en {result['periodo']}: "
+                f"{len(trabajadores)} trabajador(es) con diferencias respecto al cierre."
             ),
-            "detalle": descuadres,
+            "trabajadores": trabajadores,
+            "resumen_texto": _texto_descuadres(trabajadores),
         })
     except Exception as e:
         logger.error(f"[Liquidos] Error inesperado en barrido: {e}", exc_info=True)

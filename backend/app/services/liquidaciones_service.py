@@ -1,11 +1,15 @@
 """
-Alerta de descuadre de líquidos en período de cierre.
+Alerta de descuadre de liquidaciones en período de cierre.
 
-El día del cierre se congela un snapshot de los líquidos del mes (el target).
-Desde ahí y hasta fin de mes los líquidos no deben moverse, así que cada barrido
-posterior compara contra ese target y cualquier diferencia se reporta.
+El día del cierre se congela un snapshot de los montos del mes (el target).
+Desde ahí y hasta fin de mes esos montos no deben moverse, así que cada barrido
+posterior compara contra el target y cualquier diferencia se reporta.
 
 No hay umbral: el delta esperado es exactamente 0.
+
+Se vigilan cuatro campos por liquidación: el líquido, el bruto y las dos bases
+de cotización. Un bruto que se mueve dejando el líquido igual también es un
+descuadre, y una base de cotización mal cuadrada se paga en la previred.
 
 Las fechas de cierre salen de app.calendariocierres, la misma tabla que usa
 ContractAlertsService, para que ambos mecanismos no se desincronicen.
@@ -16,7 +20,7 @@ from __future__ import annotations
 import calendar
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import httpx
 from sqlalchemy import text
@@ -29,10 +33,26 @@ class LiquidacionesError(Exception):
     pass
 
 
-# Campo del líquido en la respuesta de BUK. El endpoint devuelve además
-# income_gross (bruto) e income_afp / income_ips (bases de cotización); acá solo
-# se vigila el líquido, que es lo que no puede moverse después del cierre.
-_CAMPO_LIQUIDO = "income_net"
+# Campos de la respuesta de BUK que se congelan y se comparan.
+CAMPOS_VIGILADOS = ("income_net", "income_gross", "income_afp", "income_ips")
+
+# Etiquetas para el aviso de Telegram.
+ETIQUETAS = {
+    "income_net": "Líquido",
+    "income_gross": "Bruto",
+    "income_afp": "Base AFP",
+    "income_ips": "Base IPS",
+    "alta_post_cierre": "Alta posterior al cierre",
+    "baja_post_cierre": "Baja posterior al cierre",
+}
+
+
+class Descuadre(NamedTuple):
+    employee_id: int
+    rut: Optional[str]
+    campo: str
+    valor_target: Optional[Decimal]
+    valor_actual: Optional[Decimal]
 
 
 def _periodo_actual(hoy: date) -> str:
@@ -54,28 +74,68 @@ def _fecha_param(periodo: str) -> str:
     return f"01-{int(mes):02d}-{anio}"
 
 
-def diff_liquidos(
-    target: Dict[int, Decimal],
-    actual: Dict[int, Decimal],
-) -> List[Tuple[int, Optional[Decimal], Optional[Decimal]]]:
+def diff_liquidaciones(
+    target: Dict[int, Dict[str, Any]],
+    actual: Dict[int, Dict[str, Any]],
+) -> List[Descuadre]:
     """
     Compara el snapshot congelado contra la lectura actual.
 
-    Devuelve (employee_id, liquido_target, liquido_actual) por cada diferencia:
-      - monto distinto   -> ambos valores presentes
-      - baja post-cierre -> liquido_actual is None
-      - alta post-cierre -> liquido_target is None
+    Emite un Descuadre por cada campo vigilado que cambió, más uno por empleado
+    que aparece o desaparece: el diff es de conjuntos además de montos.
 
-    Es una comparación de conjuntos además de montos: un empleado que aparece o
-    desaparece después del cierre también es un descuadre.
+    En las bajas el rut sale del snapshot, que es el único lugar donde queda
+    registrado una vez que el empleado ya no viene en la lectura.
     """
-    difs: List[Tuple[int, Optional[Decimal], Optional[Decimal]]] = []
+    difs: List[Descuadre] = []
+
     for emp_id in sorted(set(target) | set(actual)):
         t = target.get(emp_id)
         a = actual.get(emp_id)
-        if t != a:
-            difs.append((emp_id, t, a))
+
+        if t is None:
+            difs.append(Descuadre(
+                emp_id, a.get("rut"), "alta_post_cierre", None, a.get("income_net")
+            ))
+            continue
+
+        if a is None:
+            difs.append(Descuadre(
+                emp_id, t.get("rut"), "baja_post_cierre", t.get("income_net"), None
+            ))
+            continue
+
+        for campo in CAMPOS_VIGILADOS:
+            vt, va = t.get(campo), a.get(campo)
+            if vt != va:
+                difs.append(Descuadre(emp_id, a.get("rut") or t.get("rut"), campo, vt, va))
+
     return difs
+
+
+def agrupar_por_rut(descuadres: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Junta los descuadres de un mismo trabajador en una sola entrada, para que la
+    alerta no repita el rut una vez por campo movido.
+    """
+    grupos: Dict[int, Dict[str, Any]] = {}
+    for d in descuadres:
+        emp_id = d["employee_id"]
+        if emp_id not in grupos:
+            grupos[emp_id] = {
+                "employee_id": emp_id,
+                "rut": d.get("rut"),
+                "campos": [],
+            }
+        if grupos[emp_id]["rut"] is None:
+            grupos[emp_id]["rut"] = d.get("rut")
+        grupos[emp_id]["campos"].append({
+            "campo": d["campo"],
+            "etiqueta": ETIQUETAS.get(d["campo"], d["campo"]),
+            "target": d["valor_target"],
+            "actual": d["valor_actual"],
+        })
+    return sorted(grupos.values(), key=lambda g: (g["rut"] or "", g["employee_id"]))
 
 
 class LiquidacionesService:
@@ -117,10 +177,10 @@ class LiquidacionesService:
     # BUK
     # ---------------------------------------------------------------
 
-    async def fetch_liquidos(self, periodo: str) -> Dict[int, Dict[str, Any]]:
+    async def fetch_liquidaciones(self, periodo: str) -> Dict[int, Dict[str, Any]]:
         """
         Trae todas las liquidaciones del período, siguiendo pagination.next.
-        Devuelve {employee_id: {"liquido": Decimal, "rut": str|None}}.
+        Devuelve {employee_id: {"rut": str|None, <campo vigilado>: Decimal, ...}}.
 
         GET {base}/payroll_detail/month?date=01-MM-YYYY&page_size=100
         """
@@ -155,13 +215,12 @@ class LiquidacionesService:
 
                 for item in data.get("data", []):
                     emp_id = item.get("employee_id")
-                    liquido = _a_decimal(item.get(_CAMPO_LIQUIDO))
-                    if emp_id is None or liquido is None:
+                    if emp_id is None:
                         continue
-                    resultado[int(emp_id)] = {
-                        "liquido": liquido,
-                        "rut": item.get("rut"),
-                    }
+                    fila: Dict[str, Any] = {"rut": item.get("rut")}
+                    for campo in CAMPOS_VIGILADOS:
+                        fila[campo] = _a_decimal(item.get(campo))
+                    resultado[int(emp_id)] = fila
 
                 # next ya trae date/page/page_size embebidos: se sigue tal cual y
                 # se sueltan los params para no duplicarlos en la query.
@@ -194,76 +253,93 @@ class LiquidacionesService:
         ).fetchone()
         return row is not None
 
-    def leer_snapshot(self, periodo: str) -> Dict[int, Decimal]:
+    def leer_snapshot(self, periodo: str) -> Dict[int, Dict[str, Any]]:
         rows = self.db.execute(
-            text("SELECT employee_id, liquido FROM app.liquidaciones_snapshot WHERE periodo = :p"),
+            text("""
+                SELECT employee_id, rut, income_net, income_gross, income_afp, income_ips
+                FROM app.liquidaciones_snapshot
+                WHERE periodo = :p
+            """),
             {"p": periodo},
         ).fetchall()
-        return {int(r[0]): _a_decimal(r[1]) for r in rows}
+        return {
+            int(r[0]): {
+                "rut": r[1],
+                "income_net": _a_decimal(r[2]),
+                "income_gross": _a_decimal(r[3]),
+                "income_afp": _a_decimal(r[4]),
+                "income_ips": _a_decimal(r[5]),
+            }
+            for r in rows
+        }
 
-    def guardar_snapshot(self, periodo: str, liquidos: Dict[int, Dict[str, Any]]) -> int:
-        for emp_id, datos in liquidos.items():
-            self.db.execute(
-                text("""
-                    INSERT INTO app.liquidaciones_snapshot (periodo, employee_id, liquido)
-                    VALUES (:p, :e, :l)
-                    ON CONFLICT (periodo, employee_id) DO UPDATE SET liquido = EXCLUDED.liquido
-                """),
-                {"p": periodo, "e": emp_id, "l": datos["liquido"]},
-            )
-        self.db.commit()
-        logger.info(f"[Liquidos] Snapshot {periodo} congelado: {len(liquidos)} empleados")
-        return len(liquidos)
-
-    def rebaseline(self, periodo: str, employee_id: int, liquido: Decimal) -> None:
-        """Acepta el valor actual como nuevo target (corrección legítima)."""
+    def _upsert_snapshot(self, periodo: str, emp_id: int, fila: Dict[str, Any]) -> None:
         self.db.execute(
             text("""
-                INSERT INTO app.liquidaciones_snapshot (periodo, employee_id, liquido)
-                VALUES (:p, :e, :l)
-                ON CONFLICT (periodo, employee_id) DO UPDATE SET liquido = EXCLUDED.liquido
+                INSERT INTO app.liquidaciones_snapshot
+                    (periodo, employee_id, rut, income_net, income_gross, income_afp, income_ips)
+                VALUES (:p, :e, :rut, :net, :gross, :afp, :ips)
+                ON CONFLICT (periodo, employee_id) DO UPDATE SET
+                    rut          = EXCLUDED.rut,
+                    income_net   = EXCLUDED.income_net,
+                    income_gross = EXCLUDED.income_gross,
+                    income_afp   = EXCLUDED.income_afp,
+                    income_ips   = EXCLUDED.income_ips
             """),
-            {"p": periodo, "e": employee_id, "l": liquido},
+            {
+                "p": periodo,
+                "e": emp_id,
+                "rut": fila.get("rut"),
+                "net": fila.get("income_net"),
+                "gross": fila.get("income_gross"),
+                "afp": fila.get("income_afp"),
+                "ips": fila.get("income_ips"),
+            },
         )
+
+    def guardar_snapshot(self, periodo: str, liquidaciones: Dict[int, Dict[str, Any]]) -> int:
+        for emp_id, fila in liquidaciones.items():
+            self._upsert_snapshot(periodo, emp_id, fila)
+        self.db.commit()
+        logger.info(f"[Liquidos] Snapshot {periodo} congelado: {len(liquidaciones)} empleados")
+        return len(liquidaciones)
+
+    def rebaseline(self, periodo: str, emp_id: int, fila: Dict[str, Any]) -> None:
+        """Acepta los valores actuales como nuevo target (corrección legítima)."""
+        self._upsert_snapshot(periodo, emp_id, fila)
         self.db.commit()
 
     # ---------------------------------------------------------------
     # Barrido
     # ---------------------------------------------------------------
 
-    def registrar_descuadres(
-        self,
-        periodo: str,
-        difs: List[Tuple[int, Optional[Decimal], Optional[Decimal]]],
-        ruts: Dict[int, Optional[str]],
-    ) -> List[Dict[str, Any]]:
+    def registrar_descuadres(self, periodo: str, difs: List[Descuadre]) -> List[Dict[str, Any]]:
         """
         Inserta las diferencias. El índice único de dedup hace que un descuadre ya
         reportado no se vuelva a insertar, así que solo se devuelven los nuevos.
         """
         nuevos: List[Dict[str, Any]] = []
-        for emp_id, target, actual in difs:
+        for d in difs:
             res = self.db.execute(
                 text("""
                     INSERT INTO app.liquidaciones_descuadre
-                        (periodo, employee_id, rut, liquido_target, liquido_actual)
-                    VALUES (:p, :e, :r, :t, :a)
+                        (periodo, employee_id, rut, campo, valor_target, valor_actual)
+                    VALUES (:p, :e, :rut, :campo, :t, :a)
                     ON CONFLICT DO NOTHING
                     RETURNING id
                 """),
-                {"p": periodo, "e": emp_id, "r": ruts.get(emp_id), "t": target, "a": actual},
+                {
+                    "p": periodo, "e": d.employee_id, "rut": d.rut,
+                    "campo": d.campo, "t": d.valor_target, "a": d.valor_actual,
+                },
             ).fetchone()
             if res:
                 nuevos.append({
-                    "employee_id": emp_id,
-                    "rut": ruts.get(emp_id),
-                    "liquido_target": str(target) if target is not None else None,
-                    "liquido_actual": str(actual) if actual is not None else None,
-                    "tipo": (
-                        "alta_post_cierre" if target is None
-                        else "baja_post_cierre" if actual is None
-                        else "monto_modificado"
-                    ),
+                    "employee_id": d.employee_id,
+                    "rut": d.rut,
+                    "campo": d.campo,
+                    "valor_target": str(d.valor_target) if d.valor_target is not None else None,
+                    "valor_actual": str(d.valor_actual) if d.valor_actual is not None else None,
                 })
         self.db.commit()
         return nuevos
@@ -279,33 +355,30 @@ class LiquidacionesService:
             return {"ejecutado": False, "motivo": motivo}
 
         periodo = _periodo_actual(hoy)
-        liquidos = await self.fetch_liquidos(periodo)
-        if not liquidos:
+        liquidaciones = await self.fetch_liquidaciones(periodo)
+        if not liquidaciones:
             return {"ejecutado": False, "motivo": f"BUK no devolvió liquidaciones para {periodo}"}
 
         # Primer barrido del período: el día del cierre se congela el target.
         if not self.tiene_snapshot(periodo):
-            total = self.guardar_snapshot(periodo, liquidos)
+            total = self.guardar_snapshot(periodo, liquidaciones)
             return {
                 "ejecutado": True,
                 "periodo": periodo,
                 "accion": "snapshot_inicial",
                 "empleados": total,
-                "descuadres": [],
+                "trabajadores_descuadrados": [],
             }
 
         target = self.leer_snapshot(periodo)
-        actual = {emp: datos["liquido"] for emp, datos in liquidos.items()}
-        ruts = {emp: datos["rut"] for emp, datos in liquidos.items()}
-
-        difs = diff_liquidos(target, actual)
-        nuevos = self.registrar_descuadres(periodo, difs, ruts)
+        difs = diff_liquidaciones(target, liquidaciones)
+        nuevos = self.registrar_descuadres(periodo, difs)
 
         return {
             "ejecutado": True,
             "periodo": periodo,
             "accion": "comparacion",
-            "empleados": len(actual),
+            "empleados": len(liquidaciones),
             "diferencias_totales": len(difs),
-            "descuadres": nuevos,
+            "trabajadores_descuadrados": agrupar_por_rut(nuevos),
         }
