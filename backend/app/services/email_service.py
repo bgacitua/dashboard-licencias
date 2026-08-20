@@ -21,7 +21,7 @@ def send_email_graph(
 
     # Interruptor de pruebas: con EMAIL_TEST_REDIRECT configurado, todo correo que
     # salga por acá se desvía a esa casilla y se vacían CC/BCC.
-    # Ojo: auth_service (invitación de cuenta) no pasa por esta función y sigue enviando
+    # Ojo: auth_service (OTP e invitación) no pasa por esta función y sigue enviando
     # a su destinatario real.
     from app.core.config import settings
     redirect = getattr(settings, "EMAIL_TEST_REDIRECT", "")

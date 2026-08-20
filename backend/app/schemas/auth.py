@@ -137,6 +137,7 @@ class UsuarioResponse(UsuarioBase):
     """Respuesta con datos de usuario (sin password)"""
     id: int
     activo: bool
+    totp_enabled: bool = False
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     rol: Optional[RoleResponse] = None
@@ -171,16 +172,52 @@ class MeResponse(BaseModel):
     email_test_redirect: str = ""
 
 
-# === Schemas de 2FA (Duo Universal Prompt) ===
+# === Schemas de 2FA ===
 
 class PreAuthResponse(BaseModel):
-    """Credenciales ok — el navegador debe redirigirse al prompt de Duo."""
+    """Credenciales ok, usuario tiene 2FA activo — necesita ingresar código"""
     requires_2fa: bool = True
-    duo_auth_url: str
+    pre_auth_token: str
 
 
-class DuoCallbackRequest(BaseModel):
-    """Parámetros que Duo devuelve en el redirect, reenviados por el frontend."""
-    state: str
-    duo_code: str
+class SetupRequiredResponse(BaseModel):
+    """Credenciales ok, usuario no tiene 2FA — debe configurarlo obligatoriamente"""
+    requires_setup: bool = True
+    setup_token: str
 
+
+class TwoFactorInitializeRequest(BaseModel):
+    qr_token: str
+
+
+class TwoFactorActivateRequest(BaseModel):
+    qr_token: str
+    code: str
+
+
+class EmailOTPVerifyRequest(BaseModel):
+    setup_token: str
+    otp_code: str
+
+
+class QRTokenResponse(BaseModel):
+    qr_token: str
+
+
+class TwoFactorVerifyRequest(BaseModel):
+    pre_auth_token: str
+    code: str
+
+
+class TwoFactorSetupResponse(BaseModel):
+    secret: str
+    qr_image_b64: str
+    otpauth_uri: str
+
+
+class TwoFactorVerifySetupRequest(BaseModel):
+    code: str
+
+
+class TwoFactorDisableRequest(BaseModel):
+    password: str

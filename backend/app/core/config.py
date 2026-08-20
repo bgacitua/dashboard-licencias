@@ -24,13 +24,6 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 480
 
-    # === Duo Security (2FA — Universal Prompt) ===
-    DUO_CLIENT_ID: str = ""
-    DUO_CLIENT_SECRET: str = ""
-    DUO_API_HOST: str = ""            # ej: api-xxxxxxxx.duosecurity.com
-    # Debe coincidir EXACTAMENTE con el redirect URI configurado en el Duo Admin Panel.
-    DUO_REDIRECT_URI: str = "https://personas.cramer.cl:8444/duo/callback"
-
     # === BUK API ===
     BUK_API_BASE_URL: str
     BUK_API_KEY: str
@@ -98,7 +91,7 @@ class Settings(BaseSettings):
     # Con valor, los correos que salen por email_service.send_email_graph se desvían a
     # esta casilla y se vacían CC/BCC: alertas de contratos, horas extras, avisos de
     # salida y retorno.
-    # NO cubre auth_service (invitación de cuenta): ese llama a Graph
+    # NO cubre auth_service (OTP de 2FA e invitación de cuenta): esos llaman a Graph
     # directo y van al propio usuario que inicia la acción, así que desviarlos dejaría
     # a la gente sin poder entrar.
     # VACIAR EN PRODUCCIÓN.

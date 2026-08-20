@@ -9,6 +9,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+import pyotp
 
 from app.core.config import settings
 from app.db.deps import get_db
@@ -58,15 +59,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-def create_pre_auth_token(user_id: int, username: str, duo_username: str) -> str:
-    """
-    JWT de vida corta (5 min) emitido tras validar la contraseña.
-
-    Se usa como `state` en el redirect a Duo: viaja al prompt y vuelve en el
-    callback, de modo que la sesión intermedia no necesita almacenarse.
-    Al ir firmado, un state manipulado no supera la validación.
-    """
-    data = {"sub": username, "user_id": user_id, "duo_username": duo_username, "token_type": "pre_2fa"}
+def create_pre_auth_token(user_id: int, username: str) -> str:
+    """JWT vida corta (5 min) — usuario tiene 2FA, necesita verificar código."""
+    data = {"sub": username, "user_id": user_id, "token_type": "pre_2fa"}
     return create_access_token(data, expires_delta=timedelta(minutes=5))
 
 
@@ -75,6 +70,38 @@ def decode_pre_auth_token(token: str) -> Optional[dict]:
     if payload is None or payload.get("token_type") != "pre_2fa":
         return None
     return payload
+
+
+def create_setup_token(user_id: int, username: str) -> str:
+    """JWT vida corta (20 min) — credenciales ok, debe verificar email OTP."""
+    data = {"sub": username, "user_id": user_id, "token_type": "setup_2fa"}
+    return create_access_token(data, expires_delta=timedelta(minutes=20))
+
+
+def decode_setup_token(token: str) -> Optional[dict]:
+    payload = decode_access_token(token)
+    if payload is None or payload.get("token_type") != "setup_2fa":
+        return None
+    return payload
+
+
+def create_qr_token(user_id: int, username: str) -> str:
+    """JWT vida corta (10 min) — email OTP verificado, puede ver QR y activar TOTP."""
+    data = {"sub": username, "user_id": user_id, "token_type": "qr_setup"}
+    return create_access_token(data, expires_delta=timedelta(minutes=10))
+
+
+def decode_qr_token(token: str) -> Optional[dict]:
+    payload = decode_access_token(token)
+    if payload is None or payload.get("token_type") != "qr_setup":
+        return None
+    return payload
+
+
+def verify_totp_code(secret: str, code: str) -> bool:
+    """Verifica código TOTP con ventana de ±1 intervalo (tolerancia 30s)."""
+    totp = pyotp.TOTP(secret)
+    return totp.verify(code, valid_window=1)
 
 
 def decode_access_token(token: str) -> Optional[dict]:
@@ -112,7 +139,7 @@ async def get_current_user(
     )
     
     payload = decode_access_token(token)
-    if payload is None or payload.get("token_type") == "pre_2fa":
+    if payload is None or payload.get("token_type") in ("pre_2fa", "setup_2fa", "qr_setup"):
         raise credentials_exception
 
     username: str = payload.get("sub")
