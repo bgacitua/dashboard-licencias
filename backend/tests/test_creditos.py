@@ -244,7 +244,10 @@ def demo():
         put = [l for l in llamadas if l[0] == "PUT"]
         assert len(put) == 1, llamadas
         assert put[0][1] == "/docs/86134/signatures", put
+        # El PUT reemplaza la configuración: la firma del trabajador se repite
+        # acá o BUK la borra al agregar al representante legal
         assert put[0][2] == {"signatures": [
+            {"signature_type": "employee_signature"},
             {"signature_type": "legal_agent_signature",
              "person_id": LEGAL_AGENT_PERSON_ID}]}, put[0][2]
         assert [l[0] for l in llamadas] == ["PUT", "POST"], llamadas

@@ -356,31 +356,41 @@ class CreditosService:
         self.db.refresh(credito)
         return credito
 
-    async def _agregar_firmante_legal(self, credito: Credito) -> None:
-        """Suma al representante legal como firmante del documento.
+    async def _configurar_firmas(self, credito: Credito) -> None:
+        """Define quién firma el documento con PUT /docs/{id}/signatures.
 
-        Solo se llama cuando el crédito lo requiere: la firma del trabajador ya
-        quedó establecida por signable_by_employee en la subida, así que este
-        PUT existe únicamente para el representante legal.
+        El PUT reemplaza la configuración completa: lo que no vaya en la lista
+        deja de estar requerido. Por eso la firma del trabajador se repite acá
+        aunque ya venga marcada por signable_by_employee en la subida, o BUK la
+        borra al agregar al representante legal.
 
-        BUK rechaza position acá, y reviewer_id no se usa en ningún paso.
+        Solo se llama cuando firma el representante legal: si firma únicamente
+        el trabajador, el flag de la subida ya alcanza y este PUT sobra.
+
+        El orden de firma sale del orden de la lista. BUK rechaza position, y
+        reviewer_id no se usa en ningún paso.
         """
-        cuerpo = {
-            "signatures": [
-                {
-                    "signature_type": "legal_agent_signature",
-                    "person_id": LEGAL_AGENT_PERSON_ID,
-                }
-            ]
-        }
+        firmas: List[Dict[str, Any]] = []
+        if credito.firmas_requeridas.get("employee_sign"):
+            # Sin person_id: BUK ya sabe de qué trabajador es el documento.
+            firmas.append({"signature_type": "employee_signature"})
+        firmas.append({
+            "signature_type": "legal_agent_signature",
+            "person_id": LEGAL_AGENT_PERSON_ID,
+        })
+
         try:
-            await _buk("PUT", f"/docs/{credito.buk_file_id}/signatures", json=cuerpo)
+            await _buk(
+                "PUT",
+                f"/docs/{credito.buk_file_id}/signatures",
+                json={"signatures": firmas},
+            )
         except BukError as e:
             # El documento ya está en BUK: avisamos sin perder el file_id guardado
-            logger.error(f"No se pudo agregar el representante legal al doc {credito.buk_file_id}: {e}")
+            logger.error(f"No se pudieron configurar las firmas del doc {credito.buk_file_id}: {e}")
             raise BukError(
                 f"El documento se subió (id {credito.buk_file_id}) pero falló "
-                f"agregar al representante legal: {e}"
+                f"configurar las firmas: {e}"
             )
 
     async def iniciar_firma(self, credito: Credito) -> Credito:
@@ -397,7 +407,7 @@ class CreditosService:
                 "no hay person_id configurado para ese firmante."
             )
         if credito.firmas_requeridas.get("legal_agent_sign"):
-            await self._agregar_firmante_legal(credito)
+            await self._configurar_firmas(credito)
         await _buk("POST", f"/docs/{credito.buk_file_id}/signatures/process")
         credito.estado = FIRMA_EN_PROCESO
         self.db.commit()
