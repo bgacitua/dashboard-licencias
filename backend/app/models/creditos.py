@@ -23,7 +23,7 @@ class Credito(Base):
     monto_original = Column(Numeric(12, 2), nullable=True)
     equivalente_pesos = Column(BigInteger, nullable=True)
     comentario = Column(Text, nullable=True)
-    dia_uf = Column(String(2), nullable=True)
+    dia_uf = Column(String(20), nullable=True)
 
     buk_file_id = Column(Integer, nullable=True)
     buk_credit_id = Column(Integer, nullable=True)
