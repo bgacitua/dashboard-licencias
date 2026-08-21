@@ -10,6 +10,7 @@ from typing import List, Dict, Any
 from app.repositories.licencias_repository import LicenciasRepository
 from app.repositories.marcas_repository import MarcasRepository
 from app.core.logging_config import logger
+from app.services import email_templates as T
 
 
 def _limpiar_rut(rut: str) -> str:
@@ -125,65 +126,59 @@ class RetornoService:
 def _generate_retorno_html(sin_retorno: list, con_retorno: list) -> str:
     hoy = date.today().strftime("%d-%m-%Y")
 
-    def fila_sin_retorno(e: dict) -> str:
-        dias = e.get("dias_sin_marcar", 0)
-        return f"""
-        <tr>
-            <td style="padding:10px 12px;border-bottom:1px solid #eee">{e['rut']}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid #eee">{e['nombre']}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid #eee">{e['fecha_fin_licencia']}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid #eee">{e['fecha_retorno_esperada']}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid #eee;color:#ef4444;font-weight:600">{dias} día(s)</td>
-        </tr>"""
+    def fila(e: dict, estado: str, color: str) -> str:
+        # `width` en el td además del style: Word ignora el ancho por CSS en celdas.
+        return (
+            "<tr>"
+            f'<td width="16%" style="{T.TD};width:16%">{e["rut"]}</td>'
+            f'<td width="32%" style="{T.TD};width:32%">{e["nombre"]}</td>'
+            f'<td width="17%" style="{T.TD};width:17%">{e["fecha_fin_licencia"]}</td>'
+            f'<td width="17%" style="{T.TD};width:17%">{e["fecha_retorno_esperada"]}</td>'
+            f'<td width="18%" style="{T.TD};width:18%;color:{color};font-weight:600">{estado}</td>'
+            "</tr>"
+        )
 
-    def fila_con_retorno(e: dict) -> str:
-        return f"""
-        <tr>
-            <td style="padding:10px 12px;border-bottom:1px solid #eee">{e['rut']}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid #eee">{e['nombre']}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid #eee">{e['fecha_fin_licencia']}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid #eee">{e['fecha_retorno_esperada']}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid #eee;color:#22c55e;font-weight:600">✓ Retornó</td>
-        </tr>"""
-
-    th_style = "padding:10px 12px;text-align:left;font-weight:600;color:#555;border-bottom:2px solid #eee"
-    thead = f"""<tr>
-        <th style="{th_style}">RUT</th>
-        <th style="{th_style}">Trabajador</th>
-        <th style="{th_style}">Fin Licencia</th>
-        <th style="{th_style}">Retorno Esperado</th>
-        <th style="{th_style}">Estado</th>
-    </tr>"""
+    def tabla(filas: str, bg: str) -> str:
+        th = f"{T.TH};background:{bg}"
+        return (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'border="0" style="{T.TABLE}">'
+            f'<thead><tr>'
+            f'<th width="16%" style="{th};width:16%">RUT</th>'
+            f'<th width="32%" style="{th};width:32%">Trabajador</th>'
+            f'<th width="17%" style="{th};width:17%">Fin licencia</th>'
+            f'<th width="17%" style="{th};width:17%">Retorno esperado</th>'
+            f'<th width="18%" style="{th};width:18%">Estado</th>'
+            f"</tr></thead><tbody>{filas}</tbody></table>"
+        )
 
     sin_table = (
-        f'<table style="width:100%;border-collapse:collapse">'
-        f'<thead style="background:#fef3c7">{thead}</thead><tbody>'
-        + "".join(fila_sin_retorno(e) for e in sin_retorno)
-        + "</tbody></table>"
+        tabla("".join(
+            fila(e, f'{e.get("dias_sin_marcar", 0)} día(s)', T.C.DANGER)
+            for e in sin_retorno
+        ), "#fef3c7")
         if sin_retorno
-        else '<p style="color:#999;padding:10px 0">Todos los trabajadores han registrado retorno.</p>'
+        else f'<p style="{T.MUTED}">Todos los trabajadores han registrado retorno.</p>'
     )
 
     con_table = (
-        f'<table style="width:100%;border-collapse:collapse">'
-        f'<thead style="background:#f0fdf4">{thead}</thead><tbody>'
-        + "".join(fila_con_retorno(e) for e in con_retorno)
-        + "</tbody></table>"
+        tabla("".join(fila(e, "Retornó", T.C.OK) for e in con_retorno), "#f0fdf4")
         if con_retorno
-        else '<p style="color:#999;padding:10px 0">Ningún trabajador ha registrado marcajes aún.</p>'
+        else f'<p style="{T.MUTED}">Ningún trabajador ha registrado marcajes aún.</p>'
     )
 
-    return f"""
-    <html><body style="font-family:'Segoe UI',Arial,sans-serif;color:#333;max-width:860px;margin:0 auto;padding:20px">
-      <div style="background:#f59e0b;color:white;padding:20px 30px;border-radius:10px 10px 0 0">
-        <h1 style="margin:0;font-size:1.3rem;font-weight:700">Seguimiento de Retorno — Licencias Vencidas</h1>
-        <p style="margin:6px 0 0;opacity:.85;font-size:.9rem">Generado el {hoy}</p>
-      </div>
-      <div style="padding:24px 30px;background:white;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px">
-        <h2 style="color:#ef4444;font-size:1rem;margin:0 0 12px">⚠️ Sin registro de marcajes ({len(sin_retorno)})</h2>
-        {sin_table}
-        <h2 style="color:#22c55e;font-size:1rem;margin:28px 0 12px">✅ Con registro de retorno ({len(con_retorno)})</h2>
-        {con_table}
-      </div>
-    </body></html>
-    """
+    body = (
+        f'<p style="{T.MUTED}">Generado el {hoy}</p>'
+        f'<h2 style="{T.H2};color:{T.C.DANGER}">Sin registro de marcajes ({len(sin_retorno)})</h2>'
+        f"{sin_table}"
+        f'<h2 style="{T.H2};color:{T.C.OK}">Con registro de retorno ({len(con_retorno)})</h2>'
+        f"{con_table}"
+    )
+    # 760px y no los 600 por defecto: son cinco columnas y con el ancho normal
+    # los nombres se parten en tres líneas.
+    return T.email_shell(
+        "Seguimiento de retorno — licencias vencidas",
+        body,
+        width=760,
+        preview=f"{len(sin_retorno)} trabajador(es) sin registro de marcajes",
+    )
