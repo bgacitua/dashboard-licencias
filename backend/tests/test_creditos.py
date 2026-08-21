@@ -11,7 +11,7 @@ import re
 from datetime import date
 
 from app.services.creditos_service import (
-    CreditosService, CreditoFlowError, LEGAL_AGENT_PERSON_ID,
+    CreditosService, CreditoFlowError, LEGAL_AGENT_PERSON_ID, _bool,
     BORRADOR, DOCUMENTO_SUBIDO, FIRMA_EN_PROCESO, FIRMADO, CREDITO_CREADO,
 )
 from app.services.pagare_pdf import generar_pagare
@@ -201,47 +201,72 @@ def demo():
     assert _uf(24.5) == "UF 24,50", _uf(24.5)
     assert _monto(None, "peso") == "", repr(_monto(None, "peso"))
 
-    # --- Body de PUT /docs/{id}/signatures ---
+    # --- Params de la subida y del PUT de firmas ---
     svc = CreditosService(_FakeDb())
 
-    def firmas(**flags):
+    def params_subida(**flags):
+        """Los params que arma subir_documento, sin llamar a BUK."""
         c = _FakeCredito()
         c.firmas_requeridas = {**c.firmas_requeridas, **flags}
-        return svc._cuerpo_firmas(c)
+        opciones = c.firmas_requeridas.get("_opciones", {})
+        return {
+            "start_signature_workflow": "false",
+            "signable_by_employee": _bool(c.firmas_requeridas.get("employee_sign")),
+            "signable_by_legal_agent": "false",
+            "signable_by_second_legal_agent": "false",
+        }
 
-    # Ambas firmas: el trabajador va primero, el representante legal después
-    cuerpo = firmas(employee_sign=True, legal_agent_sign=True)
-    assert [f["signature_type"] for f in cuerpo["signatures"]] == [
-        "employee_signature", "legal_agent_signature"], cuerpo
-    assert [f["position"] for f in cuerpo["signatures"]] == [1, 2], cuerpo
-    assert cuerpo["signatures"][1]["person_id"] == LEGAL_AGENT_PERSON_ID
-    # El trabajador no lleva person_id: BUK ya sabe de quién es el documento
-    assert "person_id" not in cuerpo["signatures"][0], cuerpo
-    assert "reviewer_id" not in cuerpo, cuerpo
+    # El representante legal nunca se declara en la subida: va por el PUT
+    for flags in ({"employee_sign": True, "legal_agent_sign": True},
+                  {"employee_sign": True, "legal_agent_sign": False}):
+        p = params_subida(**flags)
+        assert p["signable_by_employee"] == "true", p
+        assert p["signable_by_legal_agent"] == "false", p
+        assert p["signable_by_second_legal_agent"] == "false", p
+        assert p["start_signature_workflow"] == "false", p
 
-    # Solo trabajador: queda solo esa firma y arranca en la posición 1
-    cuerpo = firmas(employee_sign=True, legal_agent_sign=False)
-    assert cuerpo == {"signatures": [
-        {"signature_type": "employee_signature", "position": 1}]}, cuerpo
+    # Sin firma del trabajador el documento se sube como no firmable
+    assert params_subida(employee_sign=False)["signable_by_employee"] == "false"
 
-    # Solo representante legal
-    cuerpo = firmas(employee_sign=False, legal_agent_sign=True)
-    assert len(cuerpo["signatures"]) == 1 and         cuerpo["signatures"][0]["position"] == 1, cuerpo
+    # El PUT lleva solo al representante legal, sin position ni reviewer_id
+    llamadas = []
 
-    # reviewer_id solo viaja si está seteado
-    c = _FakeCredito()
-    c.firmas_requeridas = {**c.firmas_requeridas,
-                           "_opciones": {"reviewer_id": 77}}
-    assert svc._cuerpo_firmas(c)["reviewer_id"] == 77
+    async def _fake_buk(method, path, **kw):
+        llamadas.append((method, path, kw.get("json")))
+        return {}
 
-    # El segundo representante legal no está soportado: falla explícito
+    import app.services.creditos_service as CS
+    real_buk, CS._buk = CS._buk, _fake_buk
     try:
-        firmas(second_legal_agent_sign=True)
-        raise AssertionError("debía fallar con second_legal_agent_sign")
-    except CreditoFlowError:
-        pass
+        c = _FakeCredito(buk_file_id=86134, estado=DOCUMENTO_SUBIDO)
+        asyncio.run(svc.iniciar_firma(c))
+        assert c.estado == FIRMA_EN_PROCESO, c.estado
+        put = [l for l in llamadas if l[0] == "PUT"]
+        assert len(put) == 1, llamadas
+        assert put[0][1] == "/docs/86134/signatures", put
+        assert put[0][2] == {"signatures": [
+            {"signature_type": "legal_agent_signature",
+             "person_id": LEGAL_AGENT_PERSON_ID}]}, put[0][2]
+        assert [l[0] for l in llamadas] == ["PUT", "POST"], llamadas
+        assert llamadas[-1][1] == "/docs/86134/signatures/process", llamadas
 
-    print("OK: máquina de estados, comprobante PDF y body de firmas")
+        # Solo trabajador: no hay PUT, se va derecho a iniciar el proceso
+        llamadas.clear()
+        c = _FakeCredito(buk_file_id=86135, estado=DOCUMENTO_SUBIDO)
+        c.firmas_requeridas = {**c.firmas_requeridas, "legal_agent_sign": False}
+        asyncio.run(svc.iniciar_firma(c))
+        assert [l[0] for l in llamadas] == ["POST"], llamadas
+
+        # El segundo representante legal falla explícito, sin tocar BUK
+        llamadas.clear()
+        c = _FakeCredito(buk_file_id=86136, estado=DOCUMENTO_SUBIDO)
+        c.firmas_requeridas = {**c.firmas_requeridas, "second_legal_agent_sign": True}
+        _raises(lambda: svc.iniciar_firma(c), "second_legal_agent_sign debe fallar")
+        assert llamadas == [], llamadas
+    finally:
+        CS._buk = real_buk
+
+    print("OK: máquina de estados, comprobante PDF y flujo de firmas")
 
 
 if __name__ == "__main__":
