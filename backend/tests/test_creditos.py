@@ -209,14 +209,14 @@ def demo():
         c.firmas_requeridas = {**c.firmas_requeridas, **flags}
         return svc._cuerpo_firmas(c)
 
-    # Ambas firmas: el representante legal va primero, el trabajador después
+    # Ambas firmas: el trabajador va primero, el representante legal después
     cuerpo = firmas(employee_sign=True, legal_agent_sign=True)
     assert [f["signature_type"] for f in cuerpo["signatures"]] == [
-        "legal_agent_signature", "employee_signature"], cuerpo
+        "employee_signature", "legal_agent_signature"], cuerpo
     assert [f["position"] for f in cuerpo["signatures"]] == [1, 2], cuerpo
-    assert cuerpo["signatures"][0]["person_id"] == LEGAL_AGENT_PERSON_ID
+    assert cuerpo["signatures"][1]["person_id"] == LEGAL_AGENT_PERSON_ID
     # El trabajador no lleva person_id: BUK ya sabe de quién es el documento
-    assert "person_id" not in cuerpo["signatures"][1], cuerpo
+    assert "person_id" not in cuerpo["signatures"][0], cuerpo
     assert "reviewer_id" not in cuerpo, cuerpo
 
     # Solo trabajador: queda solo esa firma y arranca en la posición 1

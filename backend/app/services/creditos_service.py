@@ -368,17 +368,18 @@ class CreditosService:
                 "no hay person_id configurado para ese firmante."
             )
 
+        # El trabajador firma primero y el representante legal después.
         firmas: List[Dict[str, Any]] = []
-        if credito.firmas_requeridas.get("legal_agent_sign"):
-            firmas.append({
-                "signature_type": "legal_agent_signature",
-                "person_id": LEGAL_AGENT_PERSON_ID,
-                "position": len(firmas) + 1,
-            })
         if credito.firmas_requeridas.get("employee_sign"):
             # Sin person_id: BUK ya sabe de qué trabajador es el documento.
             firmas.append({
                 "signature_type": "employee_signature",
+                "position": len(firmas) + 1,
+            })
+        if credito.firmas_requeridas.get("legal_agent_sign"):
+            firmas.append({
+                "signature_type": "legal_agent_signature",
+                "person_id": LEGAL_AGENT_PERSON_ID,
                 "position": len(firmas) + 1,
             })
 

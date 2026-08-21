@@ -46,7 +46,7 @@ const ACCIONES = {
 };
 
 // Flags de firma marcados en el crédito (los apagados y _opciones no cuentan)
-const requiereFirma = (c) => ['employee_sign', 'legal_agent_sign', 'second_legal_agent_sign']
+const requiereFirma = (c) => ['employee_sign', 'legal_agent_sign']
   .some(k => c.firmas_requeridas?.[k]);
 
 // Sin ninguna firma marcada el paso de firma no existe: se carga el crédito directo
@@ -66,7 +66,6 @@ const FORM_INICIAL = {
   visible: true,
   signable_by_employee: true,
   signable_by_legal_agent: true,
-  signable_by_second_legal_agent: false,
   overwrite: false,
   path: 'préstamo',
   reviewer_id: '',
@@ -158,7 +157,6 @@ const Creditos = () => {
       reviewer_id: opciones.reviewer_id ?? '',
       signable_by_employee: c.firmas_requeridas?.employee_sign ?? true,
       signable_by_legal_agent: c.firmas_requeridas?.legal_agent_sign ?? true,
-      signable_by_second_legal_agent: c.firmas_requeridas?.second_legal_agent_sign ?? false,
     });
     setSugerencias([]);
     setModal(true);
@@ -565,7 +563,6 @@ const Creditos = () => {
                           ['visible', 'Visible por el empleado', false],
                           ['signable_by_employee', 'Requiere firma del empleado', false],
                           ['signable_by_legal_agent', 'Requiere firma del representante legal', false],
-                          ['signable_by_second_legal_agent', 'Requiere firma del segundo representante legal', true],
                           ['overwrite', 'Sobreescribir archivo existente', false],
                         ].map(([campo, label, deshabilitado]) => (
                           <label key={campo}
