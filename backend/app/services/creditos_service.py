@@ -27,7 +27,7 @@ FLAGS_FIRMA = {
 
 # ponytail: person_id del representante legal que firma los préstamos. Constante
 # porque hoy es siempre la misma persona; si llegan a ser varios, pasa a ser un
-# selector en el formulario como reviewer_id.
+# selector en el formulario.
 LEGAL_AGENT_PERSON_ID = 4783
 
 # signature_type que devuelve GET /docs/{id} → la clave de FLAGS_FIRMA
@@ -145,7 +145,7 @@ class CreditosService:
     def get_by_id(self, credito_id: int) -> Optional[Credito]:
         return self.db.query(Credito).filter(Credito.id == credito_id).first()
 
-    OPCIONES_DOC = ("visible", "overwrite", "path", "reviewer_id")
+    OPCIONES_DOC = ("visible", "overwrite", "path")
 
     def _separar_opciones(self, payload: dict, base: Optional[dict] = None) -> dict:
         """Saca del payload los flags de firma y las opciones de subida (no son
@@ -332,8 +332,6 @@ class CreditosService:
         }
         if opciones.get("path"):
             params["path"] = opciones["path"]
-        if opciones.get("reviewer_id"):
-            params["reviewer_id"] = opciones["reviewer_id"]
 
         archivo_nombre = nombre_archivo(credito)
         pdf = await self.generar_pdf(credito)
@@ -365,7 +363,7 @@ class CreditosService:
         quedó establecida por signable_by_employee en la subida, así que este
         PUT existe únicamente para el representante legal.
 
-        BUK rechaza position acá, y reviewer_id no se usa en este flujo.
+        BUK rechaza position acá, y reviewer_id no se usa en ningún paso.
         """
         cuerpo = {
             "signatures": [

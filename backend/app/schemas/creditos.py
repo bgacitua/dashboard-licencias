@@ -45,7 +45,6 @@ class CreditoCreate(CreditoBase):
     signable_by_second_legal_agent: bool = False
     overwrite: bool = False
     path: Optional[str] = "préstamo"
-    reviewer_id: Optional[int] = None
 
 
 class CreditoUpdate(BaseModel):
@@ -76,7 +75,6 @@ class CreditoUpdate(BaseModel):
     signable_by_second_legal_agent: Optional[bool] = None
     overwrite: Optional[bool] = None
     path: Optional[str] = None
-    reviewer_id: Optional[int] = None
     dia_uf: Optional[str] = None
 
 

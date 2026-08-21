@@ -47,7 +47,7 @@ class _FakeCredito:
             "employee_sign": True,
             "legal_agent_sign": True,
             "second_legal_agent_sign": False,
-            "_opciones": {"visible": True, "overwrite": False, "path": None, "reviewer_id": None},
+            "_opciones": {"visible": True, "overwrite": False, "path": None},
         }
         self.firmas_estado = None
         self.__dict__.update(kw)

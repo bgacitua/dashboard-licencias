@@ -68,7 +68,6 @@ const FORM_INICIAL = {
   signable_by_legal_agent: true,
   overwrite: false,
   path: 'préstamo',
-  reviewer_id: '',
   buk_file_id: '',
 };
 
@@ -154,7 +153,6 @@ const Creditos = () => {
       visible: opciones.visible ?? true,
       overwrite: opciones.overwrite ?? false,
       path: opciones.path ?? '',
-      reviewer_id: opciones.reviewer_id ?? '',
       signable_by_employee: c.firmas_requeridas?.employee_sign ?? true,
       signable_by_legal_agent: c.firmas_requeridas?.legal_agent_sign ?? true,
     });
@@ -174,7 +172,6 @@ const Creditos = () => {
       cuota_actual: Number(form.cuota_actual),
       monto_original: form.monto_original ? Number(form.monto_original) : null,
       equivalente_pesos: form.equivalente_pesos ? Number(form.equivalente_pesos) : null,
-      reviewer_id: form.reviewer_id ? Number(form.reviewer_id) : null,
       buk_file_id: form.buk_file_id ? Number(form.buk_file_id) : null,
       path: form.path || null,
       dia_uf: form.moneda === 'uf' ? form.dia_uf || 'uf_fin_de_mes' : null,
@@ -581,14 +578,6 @@ const Creditos = () => {
                         <label className={labelClass}>Carpeta destino</label>
                         <input type="text" placeholder="personales/creditos" value={form.path}
                           onChange={e => set('path', e.target.value)} className={inputClass} />
-                      </div>
-
-                      <div>
-                        <label className={labelClass}>
-                          ID del revisor <span className="font-normal text-app-outline">(opcional)</span>
-                        </label>
-                        <input type="number" value={form.reviewer_id}
-                          onChange={e => set('reviewer_id', e.target.value)} className={inputClass} />
                       </div>
 
                       {editando && (
