@@ -319,13 +319,17 @@ class CreditosService:
         params = {
             "visible": _bool(opciones.get("visible", True)),
             "overwrite": _bool(opciones.get("overwrite", False)),
-            # Los signable_* y start_signature_workflow van siempre en false, y
-            # el campo signatures no se manda: cualquiera de los dos sobreescribe
-            # y cancela las firmas ya configuradas. Quién firma se define después,
-            # en iniciar_firma, con PUT /docs/{id}/signatures.
+            # start_signature_workflow en false: el paso 2 es un botón explícito
+            # del usuario, no se dispara solo.
             "start_signature_workflow": "false",
-            "signable_by_employee": "false",
-            "signable_by_legal_agent": "false",
+            # Los signable_* NO son solo declarativos: son los que hacen que BUK
+            # prepare el documento como firmable y le genere el contenido HTML.
+            # Con los tres en false el PUT posterior falla con "El contenido HTML
+            # no puede estar vacío si requiere alguna firma electrónica".
+            # Lo que sí se omite acá es el campo signatures: ese sobreescribe la
+            # configuración de firmas, y se manda una sola vez desde iniciar_firma.
+            "signable_by_employee": _bool(credito.firmas_requeridas.get("employee_sign")),
+            "signable_by_legal_agent": _bool(credito.firmas_requeridas.get("legal_agent_sign")),
             "signable_by_second_legal_agent": "false",
         }
         if opciones.get("path"):
