@@ -52,6 +52,17 @@ ASISTENCIA_RECINTO_CODES=CRAMER:36787,APP:42123
 Sin `ASISTENCIA_EXTERNAL_API_KEY` los endpoints devuelven 503 en vez de fallar
 al arrancar: una credencial faltante no puede tumbar el resto de la plataforma.
 
+## Registro en la plataforma
+
+`require_module("asistencia")` valida contra `app.modulos`. Sin esas filas todo
+responde 403 aunque el flag esté encendido:
+
+```
+psql ... -f docs/sql/modulo_asistencia.sql
+```
+
+Las migraciones son manuales, no viajan con el deploy.
+
 ## Estado de la migración
 
 - [x] Esqueleto, flag, autorización, health
@@ -66,4 +77,6 @@ al arrancar: una credencial faltante no puede tumbar el resto de la plataforma.
 - [ ] Historial: SQLite -> tabla PostgreSQL vía SQLAlchemy
 - [ ] `notificaciones.py` -> `app.services.email_service` (romperá la regla de
       acoplamiento con un cuarto import; es el único aceptado de antemano)
-- [ ] Frontend `features/asistencia/`
+- [x] Frontend: `pages/Asistencia.jsx` + `features/asistencia/`, ruta
+      `/asistencia` y entrada de sidebar
+- [ ] Frontend de corrección de marcas (depende de commands.py)

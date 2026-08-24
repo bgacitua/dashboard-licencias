@@ -37,6 +37,7 @@ const RetornoSeguimiento = lazy(() => import('./pages/RetornoSeguimiento'));
 const Seleccion = lazy(() => import('./pages/Seleccion'));
 const HorasExtras = lazy(() => import('./pages/HorasExtras'));
 const Creditos = lazy(() => import('./pages/Creditos'));
+const Asistencia = lazy(() => import('./pages/Asistencia'));
 
 
 function App() {
@@ -221,6 +222,16 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="creditos">
                   <Creditos />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Módulo Asistencia (integración de buk-asistencia) */}
+            <Route
+              path="/asistencia"
+              element={
+                <ProtectedRoute requiredModule="asistencia">
+                  <Asistencia />
                 </ProtectedRoute>
               }
             />
