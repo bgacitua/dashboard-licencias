@@ -536,7 +536,13 @@ const CrearFiniquito = () => {
       if (data.yearsForIndemnity) setYearsForIndemnity(data.yearsForIndemnity);
       if (data.descuentosPersonalizados)
         setDescuentosPersonalizados(data.descuentosPersonalizados);
-      if (data.aporteCesantia) setAporteCesantia(data.aporteCesantia);
+      // Campos que el usuario escribe a mano. `!== undefined` y no truthy: 0 es un
+      // valor válido que se perdía con `if (data.x)`.
+      if (data.movilizacion !== undefined) setMovilizacion(data.movilizacion);
+      if (data.liquidacionMesActual !== undefined)
+        setLiquidacionMesActual(data.liquidacionMesActual);
+      if (data.descuentos !== undefined) setDescuentos(data.descuentos);
+      if (data.aporteCesantia !== undefined) setAporteCesantia(data.aporteCesantia);
       if (data.ufValue) setUfValue(data.ufValue);
       if (data.variableCustomAdditions)
         setVariableCustomAdditions(data.variableCustomAdditions);
@@ -1296,7 +1302,10 @@ const CrearFiniquito = () => {
         : 0,
       liquidacionMesActual: liquidacionMesActualNum,
 
+      movilizacion,
+
       // Descuentos - find specific types
+      descuentos: descuentosNum,
       aporteCesantia: aporteCesantiaNum,
       // For loan, check if we need to send CLP or UF. Usually visualizer expects CLP.
       prestamoInterno: (() => {
@@ -2965,13 +2974,15 @@ const CrearFiniquito = () => {
               </p>
               <p className="text-xl font-bold text-app-ink">
                 {yearsOfService >= 1
-                  ? typeof yearsForIndemnity === "number"
-                    ? yearsForIndemnity.toFixed(2)
-                    : yearsForIndemnity
+                  ? typeof yearsForIndemnityCapped === "number"
+                    ? yearsForIndemnityCapped.toFixed(2)
+                    : yearsForIndemnityCapped
                   : 0}
               </p>
               <p className="text-xs text-app-outline mt-1">
-                Redondeado hacia arriba si &gt; 6 meses y 1 día
+                {yearsOfService >= 1 && yearsForIndemnityCapped < yearsForIndemnity
+                  ? `Topado en ${yearsForIndemnityCapped} años (${yearsForIndemnity} de antigüedad)`
+                  : "Redondeado hacia arriba si > 6 meses y 1 día"}
               </p>
             </div>
             <div className="bg-app-surface p-4 rounded-lg">
