@@ -17,6 +17,7 @@ ContractAlertsService, para que ambos mecanismos no se desincronicen.
 
 from __future__ import annotations
 
+import asyncio
 import calendar
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -195,20 +196,34 @@ class LiquidacionesService:
         paginas = 0
         truncado = False
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # ponytail: timeout de lectura amplio; payroll_detail/month de un mes
+        # completo puede tardar más de un minuto en responder.
+        timeout = httpx.Timeout(connect=10.0, read=180.0, write=30.0, pool=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             while url:
                 if paginas >= settings.LIQUIDACIONES_MAX_PAGINAS:
                     truncado = True
                     break
-                try:
-                    resp = await client.get(url, headers=headers, params=params)
-                    resp.raise_for_status()
-                except httpx.HTTPStatusError as e:
-                    raise LiquidacionesError(
-                        f"BUK respondió {e.response.status_code} en {url}: {e.response.text[:300]}"
-                    )
-                except httpx.RequestError as e:
-                    raise LiquidacionesError(f"Error de conexión con BUK: {e}")
+                resp = None
+                for intento in range(3):
+                    try:
+                        resp = await client.get(url, headers=headers, params=params)
+                        resp.raise_for_status()
+                        break
+                    except httpx.HTTPStatusError as e:
+                        raise LiquidacionesError(
+                            f"BUK respondió {e.response.status_code} en {url}: {e.response.text[:300]}"
+                        )
+                    except httpx.RequestError as e:
+                        if intento == 2:
+                            raise LiquidacionesError(
+                                f"Error de conexión con BUK ({type(e).__name__}): {e}"
+                            )
+                        logger.warning(
+                            "[Liquidos] %s en %s, reintento %s/2",
+                            type(e).__name__, url, intento + 1,
+                        )
+                        await asyncio.sleep(2 ** intento)
 
                 data = resp.json()
                 paginas += 1
