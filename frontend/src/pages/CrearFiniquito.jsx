@@ -17,6 +17,21 @@ import {
 } from "../lib/variableBonus";
 
 // Formatea fechas como "dd - mes - aaaa" en español
+// Tope de años de indemnización por años de servicio, según causal de término.
+// null / ausente = sin tope (renuncia, no concurrencia, etc. no generan indemnización).
+const TOPE_ANOS_INDEMNIZACION = {
+  necesidades_empresa: 11, // Art. 161 - Necesidades de la empresa
+  mutuo_acuerdo_especial: 11, // Mismo cálculo que necesidades_empresa; solo cambia la redacción del finiquito/carta
+  mutuo_acuerdo: null, // Art. 159 N°1 - se rige por tramos, ver TOPE_MUTUO_ACUERDO
+};
+
+// Mutuo acuerdo (Art. 159 N°1): tope de años por tramo de antigüedad.
+// Fuera de estos tramos (años < 4, años >= 25) o edad >= 65: sin tope de años ni de base.
+const TOPE_MUTUO_ACUERDO = [
+  { minAnos: 4, maxAnos: 20, topeAnos: 11 },
+  { minAnos: 20, maxAnos: 25, topeAnos: 16 },
+];
+
 function formatDateWords(dateString) {
   if (!dateString) return "";
   const clean = dateString.includes("T")
@@ -1100,7 +1115,7 @@ const CrearFiniquito = () => {
         ruleApplied = "Rule 1 (4 <= años < 20): topes por 90 UF y años acotados";
         cappedBase =
           cap90UF > 0 && baseAmount > cap90UF ? cap90UF : baseAmount;
-        cappedYears = Math.min(years, 11);
+        cappedYears = Math.min(years, TOPE_MUTUO_ACUERDO[0].topeAnos);
         yearsIndemnity = cappedBase * cappedYears;
       }
       // Rule 2: 20 to 25 years
@@ -1108,7 +1123,7 @@ const CrearFiniquito = () => {
         ruleApplied = "Rule 2 (20 <= años < 25): topes por 90 UF y años acotados";
         cappedBase =
           cap90UF > 0 && baseAmount > cap90UF ? cap90UF : baseAmount;
-        cappedYears = Math.min(years, 16);
+        cappedYears = Math.min(years, TOPE_MUTUO_ACUERDO[1].topeAnos);
         yearsIndemnity = cappedBase * cappedYears;
       }
       // Rule 3: More than 25 years (no caps)
@@ -1147,10 +1162,20 @@ const CrearFiniquito = () => {
       };
     } else {
       // Standard Calculation (Necesidades de la Empresa or Mutuo w/o special data)
-      yearsIndemnity = yearsForIndemnity * totalHaberes;
+      const topeAnos = TOPE_ANOS_INDEMNIZACION[terminationReason];
+      const anosTopeados = topeAnos
+        ? Math.min(yearsForIndemnity, topeAnos)
+        : yearsForIndemnity;
+      yearsIndemnity = anosTopeados * totalHaberes;
     }
   }
   yearsIndemnity = Math.round(yearsIndemnity);
+
+  // Años efectivamente pagados (ya topeados), para mostrar en pantalla/Excel/carta.
+  const topeAnosCausal = TOPE_ANOS_INDEMNIZACION[terminationReason];
+  const yearsForIndemnityCapped =
+    mutuoEspecialRules?.cappedYears ??
+    (topeAnosCausal ? Math.min(yearsForIndemnity, topeAnosCausal) : yearsForIndemnity);
 
   // 3. Notice Month = Total Haberes (si no se dio aviso de 30 días)
   // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso), mutuo_acuerdo_especial (como necesidades)
@@ -1473,8 +1498,8 @@ const CrearFiniquito = () => {
         if (yearsIndemnityDisplay > 0) {
           const yearsLabel =
             terminationReason === "mutuo_acuerdo_especial"
-              ? `Indemnización Convencional (${yearsForIndemnity || 0} años)`
-              : `Indemnización años de Servicios (${yearsForIndemnity || 0} años)`;
+              ? `Indemnización Convencional (${yearsForIndemnityCapped || 0} años)`
+              : `Indemnización años de Servicios (${yearsForIndemnityCapped || 0} años)`;
           haberesLines.push(`${yearsLabel}\t${fmtCurrency(yearsIndemnityDisplay)}`);
         }
         if (vacationIndemnity > 0) {
@@ -3003,9 +3028,9 @@ const CrearFiniquito = () => {
             <div className="flex justify-between text-sm">
               <span className="text-app-muted">
                 Indemnización por Años de Servicio (
-                {typeof yearsForIndemnity === "number"
-                  ? yearsForIndemnity.toFixed(2)
-                  : yearsForIndemnity}{" "}
+                {typeof yearsForIndemnityCapped === "number"
+                  ? yearsForIndemnityCapped.toFixed(2)
+                  : yearsForIndemnityCapped}{" "}
                 años)
               </span>
               <span className="font-mono font-medium">
