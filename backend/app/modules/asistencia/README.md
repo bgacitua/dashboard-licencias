@@ -30,12 +30,38 @@ terminada.
 el payload en vez de escribirlo en el Buk productivo. Dejarlo en true en local:
 el entorno de desarrollo apunta a los sistemas reales.
 
+## Variables de entorno
+
+Mínimo para que las lecturas respondan algo distinto de 503:
+
+```
+ASISTENCIA_ENABLED=true
+ASISTENCIA_EXTERNAL_API_KEY=<token de Buk Ctrl>
+ASISTENCIA_OBRAS=36787:Obra Las Condes,36790:Obra Vitacura
+```
+
+Opcional, para que el filtro de recinto use la API core de Buk en vez del
+fallback por asignación de turnos:
+
+```
+ASISTENCIA_BUK_API_URL=https://<empresa>.buk.cl/api/v1/chile/employees/active
+ASISTENCIA_BUK_API_KEY=<token>
+ASISTENCIA_RECINTO_CODES=CRAMER:36787,APP:42123
+```
+
+Sin `ASISTENCIA_EXTERNAL_API_KEY` los endpoints devuelven 503 en vez de fallar
+al arrancar: una credencial faltante no puede tumbar el resto de la plataforma.
+
 ## Estado de la migración
 
 - [x] Esqueleto, flag, autorización, health
-- [ ] `shared/external_client.py` -> cliente httpx a Buk Ctrl
-- [ ] `shared/recintos.py`, `morpho.py`, `excel.py`
-- [ ] `asistencia/queries.py` + `commands.py` -> endpoints
+- [x] `shared/external_client.py` -> `client.py` (crawl paginado + caché TTL)
+- [x] `shared/recintos.py` -> `recintos.py` (filtro global de recinto)
+- [x] Lecturas: marcajes (+CSV), auditoría, inasistencias, asignación de
+      turnos, recinto por trabajador, obras
+- [ ] `morpho.py` (SQL Server) -> cruce de marcas de Inasistencias
+- [ ] `commands.py` -> registrar marcas (respetando DRY_RUN)
+- [ ] `excel.py` -> export xlsx de reportes
 - [ ] `reportes/` -> bonos por quincena
 - [ ] Historial: SQLite -> tabla PostgreSQL vía SQLAlchemy
 - [ ] `notificaciones.py` -> `app.services.email_service` (romperá la regla de

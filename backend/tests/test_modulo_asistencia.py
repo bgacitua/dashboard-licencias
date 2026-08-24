@@ -3,9 +3,13 @@
 Verifica lo único no trivial del esqueleto: que el flag realmente decida si las
 rutas existen, y que con el flag apagado el paquete del módulo ni se importe.
 """
+import os
 import subprocess
 import sys
 import textwrap
+
+# Ejecutable como script suelto desde backend/: `python tests/test_modulo_asistencia.py`.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def _rutas_con(enabled: str) -> tuple[list[str], list[str]]:
@@ -20,7 +24,8 @@ def _rutas_con(enabled: str) -> tuple[list[str], list[str]]:
     salida = subprocess.run(
         [sys.executable, "-c", codigo],
         capture_output=True, text=True, check=True,
-        env={**__import__("os").environ, "ASISTENCIA_ENABLED": enabled},
+        env={**os.environ, "ASISTENCIA_ENABLED": enabled},
+        cwd=sys.path[0],
     )
     import json
     return json.loads(salida.stdout.strip().splitlines()[-1])
@@ -32,12 +37,37 @@ def test_flag_apagado_no_monta_ni_importa_el_router():
     assert "app.modules.asistencia.router" not in cargados
 
 
-def test_flag_encendido_monta_health():
+def test_flag_encendido_monta_las_lecturas():
     rutas, _ = _rutas_con("true")
-    assert "/asistencia/health" in rutas
+    esperadas = {
+        "/asistencia/health",
+        "/asistencia/obras",
+        "/asistencia/marcajes",
+        "/asistencia/marcajes/export.csv",
+        "/asistencia/auditoria",
+        "/asistencia/inasistencias",
+        "/asistencia/asignacion-turnos",
+        "/asistencia/recinto-trabajador",
+    }
+    assert esperadas <= set(rutas), esperadas - set(rutas)
+
+
+def test_solo_lecturas_por_ahora():
+    """Ningún endpoint de escritura hasta que DRY_RUN esté probado end-to-end."""
+    from app.modules.asistencia.router import router
+    metodos = {m for r in router.routes for m in r.methods}
+    assert metodos == {"GET"}, metodos
+
+
+def test_router_exige_el_modulo():
+    """La autorización va en el router: no depende de que cada endpoint la ponga."""
+    from app.modules.asistencia.router import router
+    assert router.dependencies, "el router quedó sin require_module"
 
 
 if __name__ == "__main__":
     test_flag_apagado_no_monta_ni_importa_el_router()
-    test_flag_encendido_monta_health()
+    test_flag_encendido_monta_las_lecturas()
+    test_solo_lecturas_por_ahora()
+    test_router_exige_el_modulo()
     print("ok")

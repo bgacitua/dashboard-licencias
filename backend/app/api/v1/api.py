@@ -47,7 +47,7 @@ api_router.include_router(creditos.router, prefix="/creditos", tags=["creditos"]
 # se carga, así que un error suyo no puede tumbar el arranque de la plataforma.
 from app.modules.asistencia.config import settings as asistencia_settings
 
-if asistencia_settings.ENABLED:
+if asistencia_settings.enabled:
     from app.modules.asistencia.router import router as asistencia_router
 
     api_router.include_router(asistencia_router, prefix="/asistencia", tags=["asistencia"])
