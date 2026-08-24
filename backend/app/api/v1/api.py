@@ -41,3 +41,13 @@ api_router.include_router(seleccion.router, prefix="/seleccion", tags=["seleccio
 api_router.include_router(overtime.router, prefix="/overtime", tags=["overtime"])
 
 api_router.include_router(creditos.router, prefix="/creditos", tags=["creditos"])
+
+# === Módulo de asistencia (integración de buk-asistencia) ===
+# Import perezoso y detrás del flag: con ASISTENCIA_ENABLED=false el paquete ni
+# se carga, así que un error suyo no puede tumbar el arranque de la plataforma.
+from app.modules.asistencia.config import settings as asistencia_settings
+
+if asistencia_settings.ENABLED:
+    from app.modules.asistencia.router import router as asistencia_router
+
+    api_router.include_router(asistencia_router, prefix="/asistencia", tags=["asistencia"])
