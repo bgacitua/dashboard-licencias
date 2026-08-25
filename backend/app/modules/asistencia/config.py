@@ -13,7 +13,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AsistenciaSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="ASISTENCIA_", extra="ignore")
+    # env_file para correr fuera de Docker; en Compose las variables llegan por
+    # env_file del servicio y el entorno le gana igual.
+    model_config = SettingsConfigDict(
+        env_file=".env", env_prefix="ASISTENCIA_", extra="ignore"
+    )
 
     # Apagado por defecto: en main la rama no monta nada hasta que esto sea true.
     enabled: bool = False

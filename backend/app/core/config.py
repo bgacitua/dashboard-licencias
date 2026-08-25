@@ -123,6 +123,9 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        # Los módulos (app/modules/*) leen el mismo .env con su propio prefijo.
+        # Sin esto, cualquier variable ASISTENCIA_* tumba el arranque.
+        extra = "ignore"
 
 
 settings = Settings()
