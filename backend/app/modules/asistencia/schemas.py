@@ -21,7 +21,9 @@ class MarcaIn(BaseModel):
     i: str          # "entrada" | "salida"
     fecha: str      # d/M/yyyy
     hora: str       # H:m:s
-    mov: str = "sistema automático"
+    # Obligatorio a propósito: el motivo depende de si hubo intento de marcaje,
+    # y un default acá taparía que el frontend dejó de calcularlo.
+    mov: str
     # Registro de la operación al que pertenece, para marcarlo sincronizado.
     record_id: str | None = None
 

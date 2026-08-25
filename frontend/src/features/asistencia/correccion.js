@@ -21,6 +21,16 @@ const REQUERIDAS = ['RUT', 'Fecha intento', 'Hora intento']
 const ERROR_SIN_PERMISO = 'El colaborador no tiene permiso en este recinto'
 const VENTANA_HORAS = 2
 
+// Motivo que se manda a Buk con cada marca. El default depende de por qué
+// falta: si hubo un intento real de marcaje, la marca existía y se está
+// corrigiendo su sentido; si no hubo intento, el colaborador olvidó marcar.
+export const MOTIVO_CORRECCION = 'Corrección Sentido Marca'
+export const MOTIVO_OLVIDO = 'Olvido de marca'
+export const MOTIVOS = [MOTIVO_CORRECCION, MOTIVO_OLVIDO, 'Otro']
+
+export const motivoPorDefecto = (marca) =>
+  marca.matched ? MOTIVO_CORRECCION : MOTIVO_OLVIDO
+
 // ponytail: agregar turnos acá cuando se necesiten.
 export const TURNOS_DISPONIBLES = ['07:50-17:00', '07:50-14:30', '07:50-15:30', '20:00-06:30']
 
@@ -494,6 +504,13 @@ if (globalThis.process?.argv?.[1]?.endsWith('correccion.js')) {
 
   a(!normalizarReporte([{ Nombre: 'X', Fecha: '11-06-2026' }]).diag.ok, 'sin RUT se rechaza')
   a(!normalizarReporte([]).diag.ok, 'vacío se rechaza')
+
+  // El motivo sale de si hubo intento de marcaje, no de un valor fijo.
+  a(motivoPorDefecto({ matched: true }) === MOTIVO_CORRECCION, 'con intento → corrección')
+  a(motivoPorDefecto({ matched: false }) === MOTIVO_OLVIDO, 'sin intento → olvido')
+  a(motivoPorDefecto({}) === MOTIVO_OLVIDO, 'sin el campo → olvido')
+  a(aplicarIntentos(marcas, fallidas).map(motivoPorDefecto)
+    .join() === `${MOTIVO_OLVIDO},${MOTIVO_CORRECCION}`, 'el motivo sigue al cruce real')
 
   a(normalizarFecha('23-06-2026') === '2026-06-23', 'fecha dd-mm-yyyy')
   a(normalizarFecha('3/6/2026') === '2026-06-03', 'fecha d/M/yyyy')

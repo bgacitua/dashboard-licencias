@@ -102,6 +102,18 @@ def test_el_formulario_de_jefatura_es_publico():
     assert not publico.dependencies, "el router público no debe exigir autorización"
 
 
+def test_la_marca_exige_motivo():
+    """El motivo lo decide el cruce con los intentos; un default lo taparía."""
+    from pydantic import ValidationError
+    from app.modules.asistencia.schemas import MarcaIn
+
+    try:
+        MarcaIn(rut="1-9", i="entrada", fecha="20/6/2026", hora="8:0:0")
+        raise AssertionError("mov debería ser obligatorio")
+    except ValidationError:
+        pass
+
+
 def test_dry_run_viene_encendido():
     """Sin configurar nada, el registro de marcas no envía a Buk."""
     from app.modules.asistencia.config import AsistenciaSettings
@@ -121,6 +133,7 @@ if __name__ == "__main__":
     test_las_tablas_del_historial_estan_en_la_migracion()
     test_registrar_marcas_exige_rol_ademas_del_modulo()
     test_el_formulario_de_jefatura_es_publico()
+    test_la_marca_exige_motivo()
     test_dry_run_viene_encendido()
     test_router_exige_el_modulo()
     print("ok")

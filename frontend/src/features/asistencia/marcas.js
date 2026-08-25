@@ -30,8 +30,6 @@ export function claveMorpho(fila) {
 // Una inasistencia se corrige registrando las marcas que faltan. La hora sale
 // del turno asignado (getAsignacionTurnos) y qué marca falta lo dice Marcajes.
 
-const MOV = 'sistema automático'
-
 /** "07:50-17:00" -> ["07:50","17:00"]; null si viene vacío o no calza. */
 export function parseTurno(valor) {
   if (typeof valor !== 'string') return null
@@ -138,7 +136,6 @@ export function construirMarcas(inasistencias, asignaciones, marcajes) {
       nombre: String(asignacion.nombreTrabajador ?? ''),
       turno: String(asignacion.horarioTurno),
       fecha: fechaApi(fila),
-      mov: MOV,
       key: claveMorpho(fila),
     }
     if (estado.entrada) out.push({ ...base, i: 'entrada', hora: horaApi(turno[0]) })
@@ -167,7 +164,13 @@ export function nombresPorRut(asignaciones) {
   return m
 }
 
-/** Payload del POST: sin los campos que solo sirven para mostrar. */
+/**
+ * Payload del POST: sin los campos que solo sirven para mostrar.
+ *
+ * `mov` no se arma acá: el motivo depende de si la marca cruzó con un intento
+ * real, y eso recién se sabe después de `aplicarIntentos`. Lo resuelve el modal
+ * de envío, que además deja corregirlo.
+ */
 export const aPayload = (m) => ({ rut: m.rut, i: m.i, fecha: m.fecha, hora: m.hora, mov: m.mov })
 
 // Check: `node frontend/src/features/asistencia/marcas.js`
@@ -216,9 +219,11 @@ if (globalThis.process?.argv?.[1]?.endsWith('marcas.js')) {
   eq(construirMarcas([ina], [], []).length, 0)
   eq(construirMarcas([ina], [{ ...turno, horarioTurno: '-' }], []).length, 0)
 
-  eq(JSON.stringify(aPayload(marcas[0])),
+  // Sin motivo todavía: lo pone el modal de envío según haya intento o no.
+  eq(marcas[0].mov, undefined)
+  eq(JSON.stringify(aPayload({ ...marcas[0], mov: 'Olvido de marca' })),
      JSON.stringify({ rut: '19117548-9', i: 'salida', fecha: '5/8/2026', hora: '17:0:0',
-                      mov: 'sistema automático' }))
+                      mov: 'Olvido de marca' }))
 
   console.log('ok')
 }

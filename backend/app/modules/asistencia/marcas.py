@@ -117,7 +117,8 @@ def _demo() -> None:
     """python -m app.modules.asistencia.marcas — check de la guarda de DRY_RUN."""
     import asyncio
 
-    marcas = [MarcaIn(rut="12345678-9", i="entrada", fecha="20/6/2026", hora="8:0:0")]
+    marcas = [MarcaIn(rut="12345678-9", i="entrada", fecha="20/6/2026", hora="8:0:0",
+                      mov="Olvido de marca")]
 
     base = dict(external_api_key="tok", recinto_keys="36787:clave")
     seca = AsistenciaSettings(dry_run=True, **base)

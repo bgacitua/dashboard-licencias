@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 
+import { MOTIVOS, motivoPorDefecto } from './correccion'
+
 /**
  * Confirmación del registro de marcas.
  *
@@ -7,16 +9,29 @@ import React, { useState } from 'react'
  * lista exacta —RUT, sentido, fecha y hora— y el envío va en un segundo click.
  * Las marcas cuya hora viene de un intento real se marcan para distinguirlas de
  * las que usan la hora del turno.
+ *
+ * El motivo que va a Buk sale de eso mismo: con intento la marca existía y se
+ * corrige su sentido; sin intento el colaborador olvidó marcar. Se puede pisar
+ * para todas o fila por fila.
  */
 const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
   const [abierto, setAbierto] = useState(false)
   const [resultado, setResultado] = useState(null)
   const [error, setError] = useState(null)
+  // null = cada fila usa su propio default, que es lo habitual.
+  const [motivoGlobal, setMotivoGlobal] = useState(null)
+  const [motivoLibre, setMotivoLibre] = useState('')
+  const [motivos, setMotivos] = useState(new Map())
+
+  const motivoDe = (marca, i) =>
+    motivos.get(i) ??
+    (motivoGlobal === 'Otro' ? motivoLibre : motivoGlobal) ??
+    motivoPorDefecto(marca)
 
   const enviar = async () => {
     setError(null)
     try {
-      setResultado(await onEnviar())
+      setResultado(await onEnviar(marcas.map((m, i) => ({ ...m, mov: motivoDe(m, i) }))))
     } catch (e) {
       setError(e?.response?.data?.detail || 'No se pudieron registrar las marcas.')
     }
@@ -26,6 +41,8 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
     setAbierto(false)
     setResultado(null)
     setError(null)
+    setMotivos(new Map())
+    setMotivoGlobal(null)
   }
 
   const titulo = !obraId
@@ -63,6 +80,30 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
               </p>
             </div>
 
+            {!resultado && (
+              <div className="px-6 pt-4 flex flex-wrap items-end gap-3">
+                <label className="text-sm text-app-muted">
+                  Motivo para todas
+                  <select
+                    value={motivoGlobal ?? ''}
+                    onChange={(e) => setMotivoGlobal(e.target.value || null)}
+                    className="block mt-1 text-sm border border-app-line rounded px-2 py-1"
+                  >
+                    <option value="">Según tenga intento o no</option>
+                    {MOTIVOS.map((m) => <option key={m}>{m}</option>)}
+                  </select>
+                </label>
+                {motivoGlobal === 'Otro' && (
+                  <input
+                    value={motivoLibre}
+                    onChange={(e) => setMotivoLibre(e.target.value)}
+                    placeholder="Motivo"
+                    className="text-sm border border-app-line rounded px-2 py-1"
+                  />
+                )}
+              </div>
+            )}
+
             <div className="overflow-auto px-6 py-4 flex-1">
               {resultado ? (
                 <div className="text-sm">
@@ -90,7 +131,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                 <table className="w-full text-sm">
                   <thead className="text-left text-app-muted">
                     <tr>
-                      {['RUT', 'Nombre', 'Turno', 'Marca', 'Fecha', 'Hora', 'Origen'].map((h) => (
+                      {['RUT', 'Nombre', 'Turno', 'Marca', 'Fecha', 'Hora', 'Origen', 'Motivo'].map((h) => (
                         <th key={h} className="pb-2 font-medium">{h}</th>
                       ))}
                     </tr>
@@ -106,6 +147,19 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                         <td className="py-1.5 whitespace-nowrap">{m.hora}</td>
                         <td className="py-1.5 whitespace-nowrap text-app-muted">
                           {m.matched ? 'intento real' : 'hora del turno'}
+                        </td>
+                        <td className="py-1.5">
+                          <select
+                            value={motivoDe(m, i)}
+                            onChange={(e) =>
+                              setMotivos((prev) => new Map(prev).set(i, e.target.value))
+                            }
+                            className="text-sm border border-app-line rounded px-1.5 py-0.5"
+                          >
+                            {[...new Set([...MOTIVOS.filter((x) => x !== 'Otro'), motivoDe(m, i)])].map(
+                              (op) => <option key={op}>{op}</option>
+                            )}
+                          </select>
                         </td>
                       </tr>
                     ))}

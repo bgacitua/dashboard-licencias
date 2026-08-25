@@ -355,12 +355,13 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
   const conMarca = rows.filter((r) => marcasMorpho?.has(claveMorpho(r)) && seleccionable(r))
   const conIntento = rows.filter((r) => clavesIntento.has(claveMorpho(r)) && seleccionable(r))
 
-  const registrar = async () => {
+  // `marcas` llega desde el modal, ya con el motivo resuelto por fila.
+  const registrar = async (marcas) => {
     setEnviando(true)
     try {
       const r = await AsistenciaService.registrarMarcas(
         obraId,
-        marcasAEnviar.map(({ rut, i, fecha, hora, mov }) => ({ rut, i, fecha, hora, mov }))
+        marcas.map(({ rut, i, fecha, hora, mov }) => ({ rut, i, fecha, hora, mov }))
       )
       // En dry-run nada se registró: no marcamos las filas como sincronizadas.
       if (!r.dry_run) {
