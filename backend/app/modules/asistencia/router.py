@@ -30,7 +30,13 @@ from .reportes.schemas import ReporteRequest
 from .reportes.service import ReportService
 from .recintos import fetch_employees, filas_recinto_trabajador, filtrar_por_obra
 from .schemas import DataResponse
-from .service import exigir_configurado, get_client, get_marcajes, get_recintos
+from .service import (
+    exigir_configurado,
+    get_client,
+    get_marcajes,
+    get_por_obra,
+    get_recintos,
+)
 
 # require_module("asistencia") exige la fila en app.modulos y su asignación al
 # rol. Aplicado a nivel de router: ningún endpoint del módulo queda expuesto
@@ -92,9 +98,7 @@ def _endpoint_por_obra(nombre: str, url_attr: str):
     ) -> DataResponse:
         exigir_configurado(settings)
         params = _rango_params(desde, hasta)
-        if obra_id:
-            params["obra_id"] = obra_id
-        rows = await get_client().get_paged(getattr(settings, url_attr), params)
+        rows = await get_por_obra(getattr(settings, url_attr), params, obra_id, settings)
         # Las columnas se calculan antes de filtrar: si no queda ninguna fila,
         # la tabla del frontend igual sabe qué encabezados dibujar.
         cols = columnas_crudas(rows)

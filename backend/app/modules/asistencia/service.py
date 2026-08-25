@@ -4,6 +4,7 @@ Los singletons viven acá y se crean de forma perezosa, no en el lifespan de la
 plataforma: el módulo no toca `app/main.py`, y con el flag apagado nada de esto
 llega a instanciarse.
 """
+from asyncio import Semaphore, gather
 from functools import lru_cache
 
 from fastapi import HTTPException
@@ -80,6 +81,46 @@ async def get_marcajes(
     return rows, descartados
 
 
+async def get_por_obra(
+    url: str,
+    params: dict,
+    obra_id: str | None,
+    settings: AsistenciaSettings,
+) -> list[dict]:
+    """Consulta un endpoint de Buk que exige `obra_id`.
+
+    Auditoría e inasistencias lo declaran obligatorio: sin él responden 400. Con
+    "Todas" seleccionada no hay un obra_id que mandar, así que se consultan todas
+    las obras configuradas en paralelo y se unen los resultados.
+
+    Una obra que falle (id que no pertenece a la empresa, timeout) se omite con
+    un warning en vez de tumbar la consulta completa: es preferible mostrar el
+    resto de las obras a no mostrar nada.
+    """
+    if obra_id:
+        return await get_client().get_paged(url, {**params, "obra_id": obra_id})
+
+    obras = [o["id"] for o in settings.obras_list]
+    if not obras:
+        raise HTTPException(
+            status_code=503,
+            detail="Esta vista necesita al menos una obra configurada (ASISTENCIA_OBRAS).",
+        )
+
+    sem = Semaphore(settings.crawl_concurrency)
+
+    async def una(oid: str) -> list[dict]:
+        try:
+            async with sem:
+                return await get_client().get_paged(url, {**params, "obra_id": oid})
+        except Exception as exc:
+            logger.warning("[asistencia] obra %s omitida: %s", oid, exc)
+            return []
+
+    partes = await gather(*(una(o) for o in obras))
+    return [fila for parte in partes for fila in parte]
+
+
 def _demo() -> None:
     """python -m app.modules.asistencia.service — check del filtro de fantasmas."""
     from .recintos import recinto_actual
@@ -103,7 +144,54 @@ def _demo() -> None:
 
     # endpoint caído => mapa vacío => nada se filtra
     assert filtrar_recinto_actual(rows, {}) == rows
+
+    _demo_por_obra()
     print("ok")
+
+
+def _demo_por_obra() -> None:
+    """Sin obra elegida se consultan todas, y una obra caída no tumba el resto."""
+    import asyncio
+
+    # Se parchea sobre este mismo módulo: `python -m` lo carga como __main__ y
+    # un `from . import service` traería una segunda copia con otro get_client.
+    aqui = globals()
+
+    llamadas: list[str] = []
+
+    class _ClienteFalso:
+        async def get_paged(self, _url, params):
+            oid = params["obra_id"]
+            llamadas.append(oid)
+            if oid == "rota":
+                raise RuntimeError("400")
+            return [{"obra": oid}]
+
+    class _SettingsFalsas:
+        crawl_concurrency = 5
+        obras_list = [{"id": "a"}, {"id": "rota"}, {"id": "b"}]
+
+    original, aqui["get_client"] = get_client, lambda: _ClienteFalso()
+    try:
+        filas = asyncio.run(get_por_obra("u", {}, None, _SettingsFalsas()))
+        assert sorted(llamadas) == ["a", "b", "rota"], llamadas
+        assert sorted(f["obra"] for f in filas) == ["a", "b"], filas
+
+        llamadas.clear()
+        filas = asyncio.run(get_por_obra("u", {}, "b", _SettingsFalsas()))
+        assert llamadas == ["b"] and filas == [{"obra": "b"}], (llamadas, filas)
+
+        # Sin obras configuradas no hay nada que mandar: 503, no un 400 de Buk.
+        class _SinObras(_SettingsFalsas):
+            obras_list: list = []
+
+        try:
+            asyncio.run(get_por_obra("u", {}, None, _SinObras()))
+            raise AssertionError("debía exigir obras configuradas")
+        except HTTPException as exc:
+            assert exc.status_code == 503, exc
+    finally:
+        aqui["get_client"] = original
 
 
 if __name__ == "__main__":
