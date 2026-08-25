@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import SidebarLayout from '../components/SidebarLayout'
 import TablaDinamica from '../features/asistencia/TablaDinamica'
+import { descargarCsv } from '../features/asistencia/exportar'
 import { useObras, useVista } from '../features/asistencia/useVista'
-import AsistenciaService from '../services/asistencia.service'
 
 // Las cuatro vistas comparten la forma de respuesta del backend; lo único que
 // cambia es el endpoint y si usan el rango de fechas.
@@ -34,16 +34,6 @@ const Asistencia = () => {
     vista,
     actual.rango ? { desde, hasta, obraId } : { obraId }
   )
-
-  const [descargando, setDescargando] = useState(false)
-  const descargar = async () => {
-    setDescargando(true)
-    try {
-      await AsistenciaService.descargarCsv({ desde, hasta, obraId })
-    } finally {
-      setDescargando(false)
-    }
-  }
 
   return (
     <SidebarLayout>
@@ -126,15 +116,13 @@ const Asistencia = () => {
               <span className="material-symbols-outlined">refresh</span>
             </button>
 
-            {vista === 'marcajes' && (
-              <button
-                onClick={descargar}
-                disabled={descargando || loading}
-                className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
-              >
-                {descargando ? 'Generando…' : 'Exportar CSV'}
-              </button>
-            )}
+            <button
+              onClick={() => descargarCsv(rows, columns, vista)}
+              disabled={loading || !rows.length}
+              className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+            >
+              Exportar CSV
+            </button>
           </div>
 
           <TablaDinamica

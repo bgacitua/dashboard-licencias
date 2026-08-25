@@ -11,13 +11,10 @@ fuera de su carpeta, y nada más:
 Cualquier import adicional hacia `app.*` es acoplamiento: revisarlo antes de
 agregarlo.
 """
-import csv
-import io
 from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.logging_config import logger
@@ -68,26 +65,6 @@ async def marcajes(
     rows, descartados = await get_marcajes(desde, hasta, obra_id)
     return DataResponse(
         rows=rows, total=len(rows), columns=ordered_columns(rows), descartados=descartados
-    )
-
-
-@router.get("/marcajes/export.csv")
-async def marcajes_csv(
-    desde: str | None = Query(None),
-    hasta: str | None = Query(None),
-    obra_id: str | None = Query(None),
-) -> StreamingResponse:
-    rows, _ = await get_marcajes(desde, hasta, obra_id)
-    cols = ordered_columns(rows)
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
-    writer.writeheader()
-    writer.writerows(rows)
-    # BOM para que Excel abra el CSV en UTF-8 sin romper los acentos.
-    return StreamingResponse(
-        iter(["﻿" + buf.getvalue()]),
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="asistencia.csv"'},
     )
 
 

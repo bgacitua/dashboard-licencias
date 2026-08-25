@@ -42,21 +42,6 @@ const AsistenciaService = {
     })
     return new Set(data.busquedas)
   },
-
-  // El CSV lo arma el backend (mismo filtro de recinto que la tabla). Se
-  // descarga como blob para poder mandar el header de autorización.
-  descargarCsv: async (rango = {}) => {
-    const { data } = await axios.get(`${API_URL}/marcajes/export.csv${qs(rango)}`, {
-      headers: authHeaders(),
-      responseType: 'blob',
-    })
-    const url = URL.createObjectURL(data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'asistencia.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-  },
 }
 
 export default AsistenciaService

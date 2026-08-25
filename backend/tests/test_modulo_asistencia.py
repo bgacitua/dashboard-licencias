@@ -43,7 +43,6 @@ def test_flag_encendido_monta_las_lecturas():
         "/asistencia/health",
         "/asistencia/obras",
         "/asistencia/marcajes",
-        "/asistencia/marcajes/export.csv",
         "/asistencia/auditoria",
         "/asistencia/inasistencias",
         "/asistencia/asignacion-turnos",
