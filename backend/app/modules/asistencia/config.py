@@ -53,9 +53,10 @@ class AsistenciaSettings(BaseSettings):
     marcas_api_key_header: str = "token"
     recinto_keys: str = ""   # "obra_id:clave_recinto,obra_id:clave_recinto"
 
-    # Base pública para el link del formulario de jefatura: tiene que ser
-    # alcanzable desde fuera, porque lo abre alguien sin cuenta en la plataforma.
-    public_base_url: str = "http://localhost:8090"
+    # Base del link del formulario de jefatura. Vacía = se usa PUBLIC_URL de la
+    # plataforma, que ya arma los links de alertas de contrato y horas extras
+    # hacia las mismas jefaturas. Solo se completa para apuntar a otro host.
+    public_base_url: str = ""
 
     buk_api_url: str = ""  # https://<empresa>.buk.cl/api/v1/chile/employees/active
     buk_api_key: SecretStr = SecretStr("")

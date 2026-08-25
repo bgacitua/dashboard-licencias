@@ -10,6 +10,7 @@ fuera de su carpeta, y nada más:
     app.core.logging_config.logger     -> logs
     app.services.email_service         -> aviso a jefatura
     app.services.email_token_service   -> saber si hay sesión de Microsoft
+    app.core.config.settings.PUBLIC_URL -> base del link del formulario
 
 Cualquier import adicional hacia `app.*` es acoplamiento: revisarlo antes de
 agregarlo.

@@ -29,6 +29,7 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.config import settings as plataforma
 from app.core.logging_config import logger
 from app.db.deps import get_db
 from app.services.email_service import send_email_graph
@@ -37,6 +38,23 @@ from app.services.email_token_service import AuthRequiredError, get_access_token
 from .config import AsistenciaSettings
 
 OPCIONES = ["Olvidó marcar", "Permiso pagado", "Permiso sin goce", "Inasistencia"]
+
+
+def base_publica(settings: AsistenciaSettings) -> str:
+    """Host desde el que la jefatura abre el formulario.
+
+    Por defecto el mismo PUBLIC_URL con el que la plataforma manda los links de
+    alertas de contrato y horas extras: son las mismas jefaturas y el mismo
+    problema, y tener dos valores solo abre la puerta a que uno quede mal.
+    """
+    base = settings.public_base_url or plataforma.PUBLIC_URL
+    if not base:
+        raise HTTPException(
+            status_code=503,
+            detail="Falta PUBLIC_URL (o ASISTENCIA_PUBLIC_BASE_URL): sin eso el correo "
+                   "llevaría un link que no abre.",
+        )
+    return base.rstrip("/")
 
 
 def dmy(iso: str) -> str:
@@ -267,6 +285,7 @@ async def notificar(
                        "para revisar los correos sin enviarlos.",
             )
 
+    base = base_publica(settings)
     agrupado = consolidar(req.avisos)
     enviados = 0
     detalles: list[str] = []
@@ -277,7 +296,7 @@ async def notificar(
         if not fechas:
             continue
         token = crear(db, req.obra_id, rut, aviso.nombre, jefatura, fechas)
-        url = f"{settings.public_base_url.rstrip('/')}/api/v1/asistencia/notificacion/{token}"
+        url = f"{base}/api/v1/asistencia/notificacion/{token}"
         asunto = f"Inasistencias sin justificar — {aviso.nombre or rut} ({len(fechas)} día(s))"
         html_correo = cuerpo(aviso.nombre, rut, fechas, url)
 
@@ -455,6 +474,8 @@ def _demo() -> None:
     assert dmy("2026-01-31") == "31-01-2026", dmy("2026-01-31")
     assert dmy("basura") == "basura", "una fecha ilegible se deja como está"
 
+    _demo_base_publica()
+
     # El nombre del trabajador viaja escapado: entra al HTML del correo.
     html_correo = cuerpo('<script>alert(1)</script>', '1-9', ['2026-01-01'], 'http://x/y')
     assert "<script>" not in html_correo, html_correo
@@ -463,6 +484,32 @@ def _demo() -> None:
 
     _demo_dry_run()
     print("ok")
+
+
+def _demo_base_publica() -> None:
+    """Sin base no se manda: un correo con un link muerto no sirve de nada."""
+    aqui = globals()
+
+    class _Plataforma:
+        PUBLIC_URL = "http://personas.cramer.cl/"
+
+    original, aqui["plataforma"] = plataforma, _Plataforma()
+    try:
+        # Sin override, hereda el PUBLIC_URL de la plataforma (sin la barra final).
+        assert base_publica(AsistenciaSettings(_env_file=None)) == "http://personas.cramer.cl"
+        # Con override, manda el del módulo.
+        assert base_publica(
+            AsistenciaSettings(_env_file=None, public_base_url="http://otro:8444/")
+        ) == "http://otro:8444"
+
+        _Plataforma.PUBLIC_URL = ""
+        try:
+            base_publica(AsistenciaSettings(_env_file=None))
+            raise AssertionError("sin ninguna base debería cortar")
+        except HTTPException as exc:
+            assert exc.status_code == 503, exc
+    finally:
+        aqui["plataforma"] = original
 
 
 def _demo_correo_para_word() -> None:
@@ -510,6 +557,7 @@ def _demo_dry_run() -> None:
             AvisoIn(rut="1", nombre="Ana", jefatura="a@x.cl", fechas=["2026-01-02", "2026-01-01"]),
         ])
         seca = AsistenciaSettings(dry_run=True, public_base_url="http://local/")
+        assert base_publica(seca) == "http://local", "el override manda"
         res = asyncio.run(notificar(req, None, seca))
 
         assert res.dry_run and res.enviados == 0 and res.fallidos == 0, res

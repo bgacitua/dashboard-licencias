@@ -64,12 +64,9 @@ ASISTENCIA_MARCAS_API_KEY_HEADER=token
 ASISTENCIA_MARCAS_API_URL=https://app.ctrlit.cl/ctrl/api/v2/registrar
 ```
 
-Para el aviso a jefatura, la base del link del formulario. Tiene que ser
-alcanzable desde fuera: lo abre alguien sin cuenta en la plataforma.
-
-```
-ASISTENCIA_PUBLIC_BASE_URL=https://personas.cramer.cl
-```
+El link del formulario de jefatura sale de `PUBLIC_URL`, el mismo que la
+plataforma usa para las alertas de contrato y las horas extras. Solo hace falta
+`ASISTENCIA_PUBLIC_BASE_URL` para apuntar a otro host; vacía, hereda aquella.
 
 Sin `ASISTENCIA_EXTERNAL_API_KEY` los endpoints devuelven 503 en vez de fallar
 al arrancar: una credencial faltante no puede tumbar el resto de la plataforma.
