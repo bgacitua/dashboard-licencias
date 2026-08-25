@@ -49,6 +49,16 @@ ASISTENCIA_BUK_API_KEY=<token>
 ASISTENCIA_RECINTO_CODES=CRAMER:36787,APP:42123
 ```
 
+Solo para registrar marcas (la única escritura). Sin `RECINTO_KEYS` el registro
+corta en 400 antes de tocar la red; el resto del módulo funciona igual:
+
+```
+ASISTENCIA_RECINTO_KEYS=36787:<clave del recinto>,36790:<clave del recinto>
+ASISTENCIA_MARCAS_API_KEY=<token>          # opcional: cae al de lectura
+ASISTENCIA_MARCAS_API_KEY_HEADER=token
+ASISTENCIA_MARCAS_API_URL=https://app.ctrlit.cl/ctrl/api/v2/registrar
+```
+
 Sin `ASISTENCIA_EXTERNAL_API_KEY` los endpoints devuelven 503 en vez de fallar
 al arrancar: una credencial faltante no puede tumbar el resto de la plataforma.
 
