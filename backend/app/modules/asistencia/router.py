@@ -9,6 +9,7 @@ fuera de su carpeta, y nada más:
     app.db.deps.get_marcas_db          -> sesión SQL Server del reloj Morpho
     app.core.logging_config.logger     -> logs
     app.services.email_service         -> aviso a jefatura
+    app.services.email_token_service   -> saber si hay sesión de Microsoft
 
 Cualquier import adicional hacia `app.*` es acoplamiento: revisarlo antes de
 agregarlo.

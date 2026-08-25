@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 from app.core.logging_config import logger
 from app.db.deps import get_db
 from app.services.email_service import send_email_graph
+from app.services.email_token_service import AuthRequiredError, get_access_token
 
 from .config import AsistenciaSettings, get_settings
 
@@ -179,6 +180,16 @@ def cuerpo(nombre: str, rut: str, fechas: list[str], url: str) -> str:
 async def notificar(
     req: NotificarRequest, db: Session, settings: AsistenciaSettings
 ) -> NotificarResponse:
+    # Sin sesión de Microsoft no sale ningún correo: se corta antes de crear las
+    # notificaciones, para no dejar tokens colgando de avisos que nadie recibió.
+    try:
+        await run_in_threadpool(get_access_token)
+    except AuthRequiredError:
+        raise HTTPException(
+            status_code=503,
+            detail="No hay sesión de Microsoft activa. Autorízala en /api/v1/contract-alerts/auth/login.",
+        )
+
     agrupado = consolidar(req.avisos)
     enviados = 0
     detalles: list[str] = []
