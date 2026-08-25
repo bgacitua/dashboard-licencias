@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import SidebarLayout from '../components/SidebarLayout'
 import TablaDinamica from '../features/asistencia/TablaDinamica'
 import { descargarCsv } from '../features/asistencia/exportar'
-import Inasistencias from '../features/asistencia/Inasistencias'
+import CorreccionMarcas from '../features/asistencia/CorreccionMarcas'
+import Historial from '../features/asistencia/Historial'
 import Reportes from '../features/asistencia/Reportes'
 import { useObras, useVista } from '../features/asistencia/useVista'
 
@@ -11,8 +12,9 @@ import { useObras, useVista } from '../features/asistencia/useVista'
 const VISTAS = [
   { id: 'marcajes', label: 'Marcajes', rango: true },
   { id: 'auditoria', label: 'Auditoría de Marcas', rango: true },
-  { id: 'inasistencias', label: 'Inasistencias', rango: true, propia: true },
+  { id: 'correccion', label: 'Corrección de Marcas', rango: true, propia: true },
   { id: 'recinto-trabajador', label: 'Recinto por Trabajador', rango: false },
+  { id: 'historial', label: 'Historial', rango: true, propia: true },
   // Reportes trae sus propios filtros (quincenas + archivo de atrasos), así que
   // no usa el rango ni la obra de la barra común.
   { id: 'reportes', label: 'Bono de Asistencia', propio: true },
@@ -140,8 +142,10 @@ const Asistencia = () => {
             )}
           </div>
 
-          {actual.propia ? (
-            <Inasistencias desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
+          {vista === 'correccion' ? (
+            <CorreccionMarcas desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
+          ) : vista === 'historial' ? (
+            <Historial desde={desde} hasta={hasta} />
           ) : (
           <TablaDinamica
             rows={rows}

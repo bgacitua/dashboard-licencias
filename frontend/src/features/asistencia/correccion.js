@@ -294,6 +294,105 @@ export function rangoDeJornadas(rows) {
   return { desde: fechas[0] ?? '', hasta: fechas[fechas.length - 1] ?? '' }
 }
 
+// === Ingreso manual ===
+// Mismo destino que las otras pestañas (una marca en Buk), pero el usuario
+// escribe las filas o sube una planilla con las cuatro columnas mínimas.
+
+export const COLUMNAS_MANUAL = ['RUT', 'Fecha', 'Hora', 'Sentido']
+
+let _secuencia = 0
+export const proximoId = () => `m${++_secuencia}`
+
+/** Fecha en los formatos que usa la gente -> yyyy-mm-dd. */
+export function normalizarFecha(raw) {
+  const s = String(raw ?? '').trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  const barras = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s)
+  if (barras) return `${barras[3]}-${barras[2].padStart(2, '0')}-${barras[1].padStart(2, '0')}`
+  const guiones = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(s)
+  if (guiones) return `${guiones[3]}-${guiones[2].padStart(2, '0')}-${guiones[1].padStart(2, '0')}`
+  return s
+}
+
+/** HH:MM -> HH:MM:SS. */
+export function normalizarHora(raw) {
+  const s = String(raw ?? '').trim()
+  return /^\d{1,2}:\d{2}$/.test(s) ? `${s}:00` : s
+}
+
+export function normalizarSentido(raw) {
+  const v = String(raw ?? '').trim().toLowerCase()
+  if (v === 'entrada' || v === 'e') return 'entrada'
+  if (v === 'salida' || v === 's') return 'salida'
+  return null
+}
+
+/** Template del ingreso manual, con las cabeceras exactas. */
+export function descargarTemplateManual() {
+  const ejemplo = [
+    { RUT: '26.258.345-7', Fecha: '23-06-2026', Hora: '07:52:00', Sentido: 'entrada' },
+    { RUT: '26.258.345-7', Fecha: '23-06-2026', Hora: '16:52:00', Sentido: 'salida' },
+  ]
+  const ws = XLSX.utils.json_to_sheet(ejemplo, { header: COLUMNAS_MANUAL })
+  // "Fecha" (columna B) a texto: si no, Excel la reinterpreta.
+  for (let i = 2; i <= ejemplo.length + 1; i++) {
+    if (ws[`B${i}`]) ws[`B${i}`].t = 's'
+  }
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Ingreso Manual')
+  XLSX.writeFile(wb, 'template-ingreso-manual.xlsx')
+}
+
+/**
+ * Filas de una planilla de ingreso manual.
+ *
+ * Las cabeceras se detectan sin distinguir mayúsculas y aceptando los alias más
+ * comunes. Una fila con sentido ilegible se reporta en vez de descartarse en
+ * silencio: son marcas que van a quedar en Buk.
+ */
+export function leerIngresoManual(raw) {
+  if (!raw.length) return { records: [], errors: ['El archivo está vacío.'] }
+
+  const buscar = (nombres) =>
+    Object.keys(raw[0]).find((k) => nombres.includes(k.toLowerCase().trim())) ?? null
+
+  const colRut = buscar(['rut trabajador', 'rut', 'dni'])
+  const colFecha = buscar(['fecha marca', 'fecha', 'fecha jornada', 'date'])
+  const colHora = buscar(['hora marca', 'hora', 'hora intento', 'time'])
+  const colSentido = buscar(['sentido', 'i', 'direction'])
+
+  const faltan = [
+    !colRut && 'RUT', !colFecha && 'Fecha', !colHora && 'Hora', !colSentido && 'Sentido',
+  ].filter(Boolean)
+  if (faltan.length) {
+    return {
+      records: [],
+      errors: [`Faltan columnas: ${faltan.join(', ')}. Cabeceras leídas: ${Object.keys(raw[0]).join(', ')}.`],
+    }
+  }
+
+  const records = []
+  const errors = []
+  raw.forEach((fila, i) => {
+    const rut = String(fila[colRut] ?? '').trim()
+    const fecha = String(fila[colFecha] ?? '').trim()
+    if (!rut && !fecha) return // fila vacía
+    const sentido = normalizarSentido(fila[colSentido])
+    if (!sentido) {
+      errors.push(`Fila ${i + 2}: sentido inválido “${fila[colSentido]}” (se espera entrada/salida).`)
+      return
+    }
+    records.push({
+      id: proximoId(),
+      rut,
+      fecha: normalizarFecha(fecha),
+      hora: normalizarHora(fila[colHora]),
+      sentido,
+    })
+  })
+  return { records, errors }
+}
+
 // Check: `node frontend/src/features/asistencia/correccion.js`
 if (globalThis.process?.argv?.[1]?.endsWith('correccion.js')) {
   const a = (cond, msg) => { if (!cond) throw new Error('FAIL: ' + msg) }
@@ -395,6 +494,23 @@ if (globalThis.process?.argv?.[1]?.endsWith('correccion.js')) {
 
   a(!normalizarReporte([{ Nombre: 'X', Fecha: '11-06-2026' }]).diag.ok, 'sin RUT se rechaza')
   a(!normalizarReporte([]).diag.ok, 'vacío se rechaza')
+
+  a(normalizarFecha('23-06-2026') === '2026-06-23', 'fecha dd-mm-yyyy')
+  a(normalizarFecha('3/6/2026') === '2026-06-03', 'fecha d/M/yyyy')
+  a(normalizarFecha('2026-06-23') === '2026-06-23', 'fecha ya ISO')
+  a(normalizarHora('7:52') === '7:52:00', 'hora sin segundos')
+  a(normalizarSentido('E') === 'entrada' && normalizarSentido(' Salida ') === 'salida', 'sentido')
+  a(normalizarSentido('x') === null, 'sentido ilegible')
+
+  const planilla = leerIngresoManual([
+    { RUT: '26.258.345-7', Fecha: '23-06-2026', Hora: '07:52', Sentido: 'entrada' },
+    { RUT: '26.258.345-7', Fecha: '23-06-2026', Hora: '16:52:00', Sentido: 'x' },
+    { RUT: '', Fecha: '', Hora: '', Sentido: '' },
+  ])
+  a(planilla.records.length === 1, 'una fila válida')
+  a(planilla.records[0].hora === '07:52:00' && planilla.records[0].fecha === '2026-06-23', 'normaliza')
+  a(planilla.errors.length === 1 && planilla.errors[0].includes('Fila 3'), planilla.errors.join())
+  a(leerIngresoManual([{ Nombre: 'X' }]).errors[0].includes('Faltan columnas'), 'cabeceras faltantes')
 
   console.log('ok')
 }

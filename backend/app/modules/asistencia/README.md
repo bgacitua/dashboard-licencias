@@ -102,5 +102,5 @@ Las migraciones son manuales, no viajan con el deploy.
       hacia `app.*`, el único aceptado de antemano
 - [x] Frontend: `pages/Asistencia.jsx` + `features/asistencia/`, ruta
       `/asistencia` y entrada de sidebar
-- [x] Frontend de corrección: panel en Inasistencias que arma las marcas
-      faltantes desde el turno asignado y las manda en dos pasos
+- [x] Frontend de corrección: pestaña con tres caminos (Inasistencias, Marcas
+      Fallidas, Ingreso Manual) y vista de Historial
