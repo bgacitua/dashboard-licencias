@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 
 import AsistenciaService from '../../services/asistencia.service'
+import ResultadoMarcas from './ResultadoMarcas'
 import {
   COLUMNAS_MANUAL,
   descargarTemplateManual,
@@ -199,24 +200,7 @@ const IngresoManual = ({ obraId, obras }) => {
             </button>
           </div>
 
-          {resultado && (
-            <div className="mb-4 text-sm">
-              {resultado.dry_run ? (
-                <p className="text-app-muted">
-                  Modo de prueba: no se envió nada a Buk. El payload de las{' '}
-                  {resultado.resultados.length} marcas quedó en el log del servidor.
-                </p>
-              ) : (
-                <p className="text-app-ink">
-                  {resultado.enviadas} marcas registradas
-                  {resultado.fallidas > 0 && `, ${resultado.fallidas} fallidas`}.
-                </p>
-              )}
-              {resultado.resultados.filter((r) => !r.ok).map((r, i) => (
-                <p key={i} className="text-red-600">{r.rut} {r.fecha}: {r.detail}</p>
-              ))}
-            </div>
-          )}
+          <ResultadoMarcas resultado={resultado} className="mb-4" />
           {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
           <div className="border border-app-line rounded-xl overflow-x-auto">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 
 import { MOTIVOS, motivoPorDefecto } from './correccion'
+import ResultadoMarcas from './ResultadoMarcas'
 
 /**
  * Confirmación del registro de marcas.
@@ -106,27 +107,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
 
             <div className="overflow-y-auto px-6 py-4 flex-1 min-h-0">
               {resultado ? (
-                <div className="text-sm">
-                  {resultado.dry_run ? (
-                    <p className="text-app-muted">
-                      Modo de prueba: no se envió nada a Buk. El payload de las{' '}
-                      {resultado.resultados.length} marcas quedó en el log del servidor. Para
-                      registrar de verdad hay que apagar ASISTENCIA_DRY_RUN.
-                    </p>
-                  ) : (
-                    <p className="text-app-ink">
-                      {resultado.enviadas} marcas registradas
-                      {resultado.fallidas > 0 && `, ${resultado.fallidas} fallidas`}.
-                    </p>
-                  )}
-                  {resultado.resultados
-                    .filter((r) => !r.ok)
-                    .map((r, i) => (
-                      <p key={i} className="text-red-600 mt-1">
-                        {r.rut} {r.fecha}: {r.detail}
-                      </p>
-                    ))}
-                </div>
+                <ResultadoMarcas resultado={resultado} />
               ) : (
                 // Scroll horizontal propio: el modal no debe empujar la página
                 // cuando la tabla no cabe.
