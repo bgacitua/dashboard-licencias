@@ -52,3 +52,29 @@ CREATE TABLE IF NOT EXISTS app.asistencia_operacion_registro (
 
 CREATE INDEX IF NOT EXISTS asistencia_operacion_registro_op_idx
     ON app.asistencia_operacion_registro (op_id);
+
+-- Avisos a jefatura y sus respuestas.
+--
+-- El token es la única credencial del formulario público: 24 bytes de secrets,
+-- no adivinable, y solo habilita responder esa notificación.
+CREATE TABLE IF NOT EXISTS app.asistencia_notificacion (
+    token         TEXT PRIMARY KEY,
+    ts            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    obra_id       TEXT NOT NULL DEFAULT '',
+    rut           TEXT NOT NULL,
+    nombre        TEXT NOT NULL DEFAULT '',
+    jefatura      TEXT NOT NULL,
+    comentario    TEXT NOT NULL DEFAULT '',
+    respondido_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS app.asistencia_notificacion_fecha (
+    token     TEXT NOT NULL REFERENCES app.asistencia_notificacion(token) ON DELETE CASCADE,
+    fecha     DATE NOT NULL,
+    respuesta TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (token, fecha)
+);
+
+-- La tabla se consulta siempre por rango de fechas.
+CREATE INDEX IF NOT EXISTS asistencia_notificacion_fecha_idx
+    ON app.asistencia_notificacion_fecha (fecha);

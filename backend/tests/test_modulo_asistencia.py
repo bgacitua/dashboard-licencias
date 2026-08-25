@@ -60,7 +60,7 @@ def test_lo_unico_que_escribe_en_buk_es_marcas():
     y /operaciones escribe solo en la base de la plataforma.
     """
     from app.modules.asistencia.router import router
-    locales = ("/reportes/", "/operaciones")
+    locales = ("/reportes/", "/operaciones", "/notificar-jefatura")
     escrituras = {
         r.path for r in router.routes
         if r.methods - {"GET"} and not r.path.startswith(locales)
@@ -73,7 +73,10 @@ def test_las_tablas_del_historial_estan_en_la_migracion():
     import re
     from pathlib import Path
 
-    codigo = Path("app/modules/asistencia/historial.py").read_text(encoding="utf-8")
+    codigo = (
+        Path("app/modules/asistencia/historial.py").read_text(encoding="utf-8")
+        + Path("app/modules/asistencia/notificaciones.py").read_text(encoding="utf-8")
+    )
     sql = Path("../docs/sql/modulo_asistencia_historial.sql").read_text(encoding="utf-8")
 
     usadas = set(re.findall(r"app\.asistencia_\w+", codigo))
@@ -85,6 +88,18 @@ def test_registrar_marcas_exige_rol_ademas_del_modulo():
     from app.modules.asistencia.router import router
     ruta = next(r for r in router.routes if r.path == "/marcas")
     assert ruta.dependencies, "/marcas quedó solo con el require_module del router"
+
+
+def test_el_formulario_de_jefatura_es_publico():
+    """Lo abre alguien sin cuenta: si quedara detrás de require_module, no sirve.
+
+    A cambio, el token del enlace es la única credencial, así que el router
+    público no puede exponer nada más.
+    """
+    from app.modules.asistencia.notificaciones import publico
+    rutas = {r.path for r in publico.routes}
+    assert rutas == {"/notificacion/{token}"}, rutas
+    assert not publico.dependencies, "el router público no debe exigir autorización"
 
 
 def test_dry_run_viene_encendido():
@@ -105,6 +120,7 @@ if __name__ == "__main__":
     test_lo_unico_que_escribe_en_buk_es_marcas()
     test_las_tablas_del_historial_estan_en_la_migracion()
     test_registrar_marcas_exige_rol_ademas_del_modulo()
+    test_el_formulario_de_jefatura_es_publico()
     test_dry_run_viene_encendido()
     test_router_exige_el_modulo()
     print("ok")

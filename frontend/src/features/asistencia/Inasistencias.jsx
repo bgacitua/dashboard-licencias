@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import AsistenciaService from '../../services/asistencia.service'
 import TablaDinamica from './TablaDinamica'
 import EnviarMarcas from './EnviarMarcas'
+import AvisarJefatura from './AvisarJefatura'
 import { descargarCsv } from './exportar'
 import { useMorpho, useVista } from './useVista'
 import { claveMorpho, construirMarcas, estadoIngreso, indexar, claveAsignacion, claveMarcaje } from './marcas'
@@ -77,6 +78,7 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
   const [seleccion, setSeleccion] = useState({})
   const [sincronizadas, setSincronizadas] = useState(new Set())
   const [enviando, setEnviando] = useState(false)
+  const [jefatura, setJefatura] = useState({ respuestas: {}, notificadas: new Set() })
 
   const api = useVista(importador && reporte ? null : 'inasistencias', { desde, hasta, obraId })
   const data = reporte ?? api
@@ -107,6 +109,18 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
     rango.hasta,
     rows.length > 0
   )
+
+  // Motivos que ya respondió la jefatura, para no volver a preguntar por ellos.
+  const cargarJefatura = useCallback(() => {
+    if (!rows.length || !rango.desde || !rango.hasta) return
+    AsistenciaService.getRespuestasJefatura(rango)
+      .then(setJefatura)
+      .catch(() => setJefatura({ respuestas: {}, notificadas: new Set() }))
+  }, [rows.length, rango.desde, rango.hasta])
+
+  useEffect(() => {
+    cargarJefatura()
+  }, [cargarJefatura])
 
   const turnos = useVista(rows.length ? 'asignacion-turnos' : null, { ...rango, obraId })
   const marcajes = useVista(rows.length ? 'marcajes' : null, { ...rango, obraId })
@@ -201,6 +215,21 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
           <span className="text-app-muted">—</span>
         ),
     }
+    const jefaturaCol = {
+      id: 'jefatura',
+      header: 'Jefatura',
+      accessorFn: (r) => {
+        const k = claveMorpho(r)
+        return jefatura.respuestas[k] ?? (jefatura.notificadas.has(k) ? 'enviado' : '')
+      },
+      cell: ({ row }) => {
+        const k = claveMorpho(row.original)
+        const motivo = jefatura.respuestas[k]
+        if (motivo) return <Badge tono="ok">{motivo}</Badge>
+        if (jefatura.notificadas.has(k)) return <Badge tono="mudo">✉ Enviado</Badge>
+        return <span className="text-app-muted">—</span>
+      },
+    }
     const sync = {
       id: 'sincronizacion',
       header: 'Sincronización',
@@ -225,9 +254,10 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
       },
     }))
     return clavesIntento.size > 0
-      ? [seleccionCol, morpho, estado, intento, sync, ...base]
-      : [seleccionCol, morpho, estado, sync, ...base]
-  }, [data.columns, marcasMorpho, cargandoMorpho, clavesIntento, sincronizadas, turnoPorClave, marcajePorClave])
+      ? [seleccionCol, morpho, estado, intento, jefaturaCol, sync, ...base]
+      : [seleccionCol, morpho, estado, jefaturaCol, sync, ...base]
+  }, [data.columns, marcasMorpho, cargandoMorpho, clavesIntento, sincronizadas, jefatura,
+      turnoPorClave, marcajePorClave])
 
   const cargarIntentos = async (file) => {
     if (!file) {
@@ -414,6 +444,11 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
               Deseleccionar todo ({seleccionadas.length})
             </button>
           )}
+          <AvisarJefatura
+            rows={seleccionadas}
+            obraId={obraId}
+            onEnviado={cargarJefatura}
+          />
           <EnviarMarcas
             marcas={marcasAEnviar}
             obra={obras.find((o) => String(o.id) === String(obraId))}

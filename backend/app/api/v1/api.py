@@ -51,3 +51,9 @@ if asistencia_settings.enabled:
     from app.modules.asistencia.router import router as asistencia_router
 
     api_router.include_router(asistencia_router, prefix="/asistencia", tags=["asistencia"])
+
+    # El formulario que responde la jefatura va sin autenticación: quien lo abre
+    # no tiene cuenta en la plataforma. Lo protege el token del enlace.
+    from app.modules.asistencia.notificaciones import publico as asistencia_publico
+
+    api_router.include_router(asistencia_publico, prefix="/asistencia")

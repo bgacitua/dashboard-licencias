@@ -8,6 +8,7 @@ fuera de su carpeta, y nada más:
     app.db.deps.get_db                 -> sesión PostgreSQL (reportes)
     app.db.deps.get_marcas_db          -> sesión SQL Server del reloj Morpho
     app.core.logging_config.logger     -> logs
+    app.services.email_service         -> aviso a jefatura
 
 Cualquier import adicional hacia `app.*` es acoplamiento: revisarlo antes de
 agregarlo.
@@ -25,7 +26,7 @@ from app.db.deps import get_db, get_marcas_db
 from .client import to_buk_date
 from .columnas import columnas_crudas, ordered_columns
 from .config import AsistenciaSettings, get_settings
-from . import historial
+from . import historial, notificaciones
 from .marcas import registrar
 from .morpho import marcas_en_rango
 from .reportes.repository import ReportesRepo
@@ -287,3 +288,27 @@ def eliminar_operacion(op_id: int, db: Db) -> None:
 @router.patch("/operaciones/{op_id}/registros", status_code=204)
 def actualizar_registros(op_id: int, updates: list[RegistroUpdate], db: Db) -> None:
     historial.actualizar_registros(db, op_id, [u.model_dump() for u in updates])
+
+
+# === Aviso a jefatura ===
+
+
+@router.post("/notificar-jefatura", response_model=notificaciones.NotificarResponse)
+async def notificar_jefatura(
+    req: notificaciones.NotificarRequest, db: Db, settings: Settings
+) -> notificaciones.NotificarResponse:
+    """Un correo por trabajador, con todas sus fechas y un link para responder.
+
+    Manda correo de verdad. EMAIL_TEST_REDIRECT en el .env de la plataforma
+    desvía todo a una casilla de prueba.
+    """
+    return await notificaciones.notificar(req, db, settings)
+
+
+@router.get("/respuestas-jefatura")
+def respuestas_jefatura(db: Db, desde: str = Query(...), hasta: str = Query(...)) -> dict:
+    """Motivos ya respondidos y avisos ya enviados, para pintar la columna."""
+    return {
+        "respuestas": notificaciones.respuestas_por_clave(db, desde, hasta),
+        "notificadas": notificaciones.notificadas_por_clave(db, desde, hasta),
+    }

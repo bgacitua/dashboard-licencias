@@ -66,6 +66,58 @@ const AsistenciaService = {
     return data
   },
 
+  // Manda correo real a la jefatura. EMAIL_TEST_REDIRECT en el backend lo
+  // desvía a una casilla de prueba.
+  notificarJefatura: async (obraId, avisos) => {
+    const { data } = await axios.post(
+      `${API_URL}/notificar-jefatura`,
+      { obra_id: obraId, avisos },
+      { headers: authHeaders() }
+    )
+    return data
+  },
+
+  getRespuestasJefatura: async ({ desde, hasta }) => {
+    const { data } = await axios.get(`${API_URL}/respuestas-jefatura`, {
+      headers: authHeaders(),
+      params: { desde, hasta },
+    })
+    return { respuestas: data.respuestas, notificadas: new Set(data.notificadas) }
+  },
+
+  // Historial y operaciones de corrección: no tocan Buk.
+  getHistorial: async ({ desde, hasta }) => {
+    const { data } = await axios.get(`${API_URL}/historial`, {
+      headers: authHeaders(),
+      params: { desde, hasta },
+    })
+    return data
+  },
+
+  getOperaciones: async (obraId) => {
+    const { data } = await axios.get(`${API_URL}/operaciones`, {
+      headers: authHeaders(),
+      params: obraId ? { obra_id: obraId } : {},
+    })
+    return data
+  },
+
+  getOperacion: async (id) => {
+    const { data } = await axios.get(`${API_URL}/operaciones/${id}`, { headers: authHeaders() })
+    return data
+  },
+
+  crearOperacion: async (payload) => {
+    const { data } = await axios.post(`${API_URL}/operaciones`, payload, { headers: authHeaders() })
+    return data
+  },
+
+  eliminarOperacion: (id) =>
+    axios.delete(`${API_URL}/operaciones/${id}`, { headers: authHeaders() }),
+
+  actualizarRegistros: (id, updates) =>
+    axios.patch(`${API_URL}/operaciones/${id}/registros`, updates, { headers: authHeaders() }),
+
   getMorphoMarcas: async ({ desde, hasta }) => {
     const { data } = await axios.get(`${API_URL}/morpho-marcas`, {
       headers: authHeaders(),

@@ -59,6 +59,13 @@ ASISTENCIA_MARCAS_API_KEY_HEADER=token
 ASISTENCIA_MARCAS_API_URL=https://app.ctrlit.cl/ctrl/api/v2/registrar
 ```
 
+Para el aviso a jefatura, la base del link del formulario. Tiene que ser
+alcanzable desde fuera: lo abre alguien sin cuenta en la plataforma.
+
+```
+ASISTENCIA_PUBLIC_BASE_URL=https://personas.cramer.cl
+```
+
 Sin `ASISTENCIA_EXTERNAL_API_KEY` los endpoints devuelven 503 en vez de fallar
 al arrancar: una credencial faltante no puede tumbar el resto de la plataforma.
 
@@ -88,10 +95,11 @@ Las migraciones son manuales, no viajan con el deploy.
       el `xlsx` que la plataforma ya traía. `excel.py`/`openpyxl` no hicieron falta
 - [x] `reportes/` -> bono por quincena, sobre `get_db`; se cayeron el túnel SSH
       y las nueve variables `reportes_pg_*` / `reportes_ssh_*`
-- [ ] Historial: SQLite -> tabla PostgreSQL vía SQLAlchemy (registra lo que
-      escribe `commands.py`: no tiene sentido antes que él)
-- [ ] `notificaciones.py` -> `app.services.email_service` (romperá la regla de
-      acoplamiento con un cuarto import; es el único aceptado de antemano)
+- [x] Historial: SQLite -> PostgreSQL. Guarda cada marca enviada (Buk no deja
+      consultarlas) y las operaciones de corrección a medio terminar
+- [x] `notificaciones.py` -> `app.services.email_service`, que ya respeta
+      EMAIL_TEST_REDIRECT; se cayeron las variables GRAPH_*. Es el cuarto import
+      hacia `app.*`, el único aceptado de antemano
 - [x] Frontend: `pages/Asistencia.jsx` + `features/asistencia/`, ruta
       `/asistencia` y entrada de sidebar
 - [x] Frontend de corrección: panel en Inasistencias que arma las marcas
