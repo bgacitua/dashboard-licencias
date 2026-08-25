@@ -2383,7 +2383,7 @@ const CrearFiniquito = () => {
                           </button>
                           {/* Group Toggle */}
                           <div
-                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${allActive ? "bg-app-ink" : "bg-app-line"}`}
+                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${allActive ? "bg-app-on" : "bg-app-line"}`}
                             onClick={() => {
                               const newState = !allActive;
 
@@ -2705,7 +2705,7 @@ const CrearFiniquito = () => {
 
                               {/* Item Toggle */}
                               <div
-                                className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${bonus.active !== false ? "bg-app-ink" : "bg-app-line"}`}
+                                className={`w-10 h-5 rounded-full p-0.5 cursor-pointer transition-colors ${bonus.active !== false ? "bg-app-on" : "bg-app-line"}`}
                                 onClick={() => {
                                   if (bonus.type === "fetched") {
                                     const newItems = [...variableItems];

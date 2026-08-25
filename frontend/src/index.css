@@ -63,6 +63,9 @@
   --color-app-outline: #a39b8d;
   --color-app-brand: #b4291f;
   --color-app-surface: #f6f4f0;
+  /* Estado encendido de un control (toggles). Verde para que "activo" se lea
+     de un vistazo, sin confundirse con app-ink, que es solo texto y relleno. */
+  --color-app-on: #2f7d4f;
 
   --font-app: "Inter", system-ui, sans-serif;
   --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
