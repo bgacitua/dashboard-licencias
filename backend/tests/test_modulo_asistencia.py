@@ -53,18 +53,32 @@ def test_flag_encendido_monta_las_lecturas():
     assert esperadas <= set(rutas), esperadas - set(rutas)
 
 
-def test_la_unica_escritura_es_marcas():
+def test_lo_unico_que_escribe_en_buk_es_marcas():
     """Buk no tiene ambiente de pruebas: cada escritura nueva debe ser deliberada.
 
-    Los POST de /reportes son cálculo: usan el cuerpo para recibir el archivo de
-    atrasos ya parseado, no para escribir.
+    Los POST de /reportes son cálculo (reciben el archivo de atrasos ya parseado)
+    y /operaciones escribe solo en la base de la plataforma.
     """
     from app.modules.asistencia.router import router
+    locales = ("/reportes/", "/operaciones")
     escrituras = {
         r.path for r in router.routes
-        if r.methods - {"GET"} and not r.path.startswith("/reportes/")
+        if r.methods - {"GET"} and not r.path.startswith(locales)
     }
     assert escrituras == {"/marcas"}, escrituras
+
+
+def test_las_tablas_del_historial_estan_en_la_migracion():
+    """El SQL se corre a mano: un nombre de tabla que no exista falla en runtime."""
+    import re
+    from pathlib import Path
+
+    codigo = Path("app/modules/asistencia/historial.py").read_text(encoding="utf-8")
+    sql = Path("../docs/sql/modulo_asistencia_historial.sql").read_text(encoding="utf-8")
+
+    usadas = set(re.findall(r"app\.asistencia_\w+", codigo))
+    creadas = set(re.findall(r"CREATE TABLE IF NOT EXISTS (app\.asistencia_\w+)", sql))
+    assert usadas <= creadas, usadas - creadas
 
 
 def test_registrar_marcas_exige_rol_ademas_del_modulo():
@@ -88,7 +102,8 @@ def test_router_exige_el_modulo():
 if __name__ == "__main__":
     test_flag_apagado_no_monta_ni_importa_el_router()
     test_flag_encendido_monta_las_lecturas()
-    test_la_unica_escritura_es_marcas()
+    test_lo_unico_que_escribe_en_buk_es_marcas()
+    test_las_tablas_del_historial_estan_en_la_migracion()
     test_registrar_marcas_exige_rol_ademas_del_modulo()
     test_dry_run_viene_encendido()
     test_router_exige_el_modulo()

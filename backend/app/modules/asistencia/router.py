@@ -25,13 +25,20 @@ from app.db.deps import get_db, get_marcas_db
 from .client import to_buk_date
 from .columnas import columnas_crudas, ordered_columns
 from .config import AsistenciaSettings, get_settings
+from . import historial
 from .marcas import registrar
 from .morpho import marcas_en_rango
 from .reportes.repository import ReportesRepo
 from .reportes.schemas import ReporteRequest
 from .reportes.service import ReportService
 from .recintos import fetch_employees, filas_recinto_trabajador, filtrar_por_obra
-from .schemas import DataResponse, RegistrarRequest, RegistrarResponse
+from .schemas import (
+    DataResponse,
+    OperacionCreate,
+    RegistrarRequest,
+    RegistrarResponse,
+    RegistroUpdate,
+)
 from .service import (
     exigir_configurado,
     get_client,
@@ -229,5 +236,54 @@ async def reporte_bono_hojas(
     response_model=RegistrarResponse,
     dependencies=[Depends(require_role(["admin"]))],
 )
-async def registrar_marcas(req: RegistrarRequest, settings: Settings) -> RegistrarResponse:
-    return await registrar(req.obra_id, req.marcas, settings)
+async def registrar_marcas(
+    req: RegistrarRequest, settings: Settings, db: Db
+) -> RegistrarResponse:
+    return await registrar(req.obra_id, req.marcas, settings, db=db, op_id=req.op_id)
+
+
+# === Historial y operaciones de corrección ===
+# Lecturas y escrituras locales: no tocan Buk. Guardan qué se envió (Buk no deja
+# consultarlo) y permiten retomar una corrección a medias sin volver a subir los
+# archivos.
+
+
+@router.get("/historial")
+def ver_historial(
+    db: Db,
+    desde: str | None = Query(None, description="yyyy-mm-dd"),
+    hasta: str | None = Query(None, description="yyyy-mm-dd"),
+) -> list[dict]:
+    return historial.consultar(db, desde, hasta)
+
+
+@router.get("/operaciones")
+def listar_operaciones(db: Db, obra_id: str | None = Query(None)) -> list[dict]:
+    return historial.listar_operaciones(db, obra_id)
+
+
+@router.get("/operaciones/{op_id}")
+def obtener_operacion(op_id: int, db: Db) -> dict:
+    op = historial.obtener_operacion(db, op_id)
+    if op is None:
+        raise HTTPException(status_code=404, detail="La operación no existe.")
+    return op
+
+
+@router.post("/operaciones", status_code=201)
+def crear_operacion(body: OperacionCreate, db: Db) -> dict:
+    op_id = historial.crear_operacion(
+        db, body.obra_id, body.desde, body.hasta, body.label,
+        [r.model_dump() for r in body.registros],
+    )
+    return historial.obtener_operacion(db, op_id)
+
+
+@router.delete("/operaciones/{op_id}", status_code=204)
+def eliminar_operacion(op_id: int, db: Db) -> None:
+    historial.eliminar_operacion(db, op_id)
+
+
+@router.patch("/operaciones/{op_id}/registros", status_code=204)
+def actualizar_registros(op_id: int, updates: list[RegistroUpdate], db: Db) -> None:
+    historial.actualizar_registros(db, op_id, [u.model_dump() for u in updates])

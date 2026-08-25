@@ -22,11 +22,14 @@ class MarcaIn(BaseModel):
     fecha: str      # d/M/yyyy
     hora: str       # H:m:s
     mov: str = "sistema automático"
+    # Registro de la operación al que pertenece, para marcarlo sincronizado.
+    record_id: str | None = None
 
 
 class RegistrarRequest(BaseModel):
     obra_id: str
     marcas: list[MarcaIn]
+    op_id: int | None = None
 
 
 class MarcaResult(BaseModel):
@@ -43,3 +46,30 @@ class RegistrarResponse(BaseModel):
     enviadas: int
     fallidas: int
     resultados: list[MarcaResult]
+
+
+class RegistroIn(BaseModel):
+    """Un registro preparado para corregir, dentro de una operación."""
+
+    record_id: str
+    rut: str
+    nombre: str = ""
+    fecha: str          # yyyy-mm-dd
+    hora_intento: str = ""
+    sentido: str
+    turno_inicio: str = ""
+    turno_fin: str = ""
+    status: str = "pending"
+
+
+class OperacionCreate(BaseModel):
+    obra_id: str
+    desde: str
+    hasta: str
+    label: str = ""
+    registros: list[RegistroIn]
+
+
+class RegistroUpdate(BaseModel):
+    record_id: str
+    status: str         # pending | synced | discarded

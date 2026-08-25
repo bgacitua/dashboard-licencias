@@ -9,9 +9,11 @@ El original no tenía esta guarda: enviaba siempre.
 """
 import httpx
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
 
 from app.core.logging_config import logger
 
+from . import historial
 from .config import AsistenciaSettings
 from .schemas import MarcaIn, MarcaResult, RegistrarResponse
 from .service import get_client
@@ -29,7 +31,11 @@ def _payload(marca: MarcaIn, recinto_id: str) -> dict:
 
 
 async def registrar(
-    obra_id: str, marcas: list[MarcaIn], settings: AsistenciaSettings
+    obra_id: str,
+    marcas: list[MarcaIn],
+    settings: AsistenciaSettings,
+    db: Session | None = None,
+    op_id: int | None = None,
 ) -> RegistrarResponse:
     recinto_id = settings.recinto_keys_map.get(obra_id)
     if not recinto_id:
@@ -80,6 +86,21 @@ async def registrar(
 
     enviadas = sum(1 for r in resultados if r.ok)
     logger.info("[asistencia/marcas] obra=%s enviadas=%d/%d", obra_id, enviadas, len(resultados))
+
+    if db is not None:
+        # Buk no permite consultar ni deshacer lo que mandamos: este es el único
+        # registro de qué se escribió. Se guarda incluso lo que falló.
+        historial.registrar(db, obra_id, [
+            {"rut": r.rut, "sentido": r.i, "fecha": r.fecha, "hora": m.hora,
+             "mov": m.mov, "ok": r.ok, "detail": r.detail}
+            for m, r in zip(marcas, resultados)
+        ])
+        if op_id is not None:
+            historial.actualizar_registros(db, op_id, [
+                {"record_id": m.record_id, "status": "synced" if r.ok else "pending"}
+                for m, r in zip(marcas, resultados)
+                if m.record_id
+            ])
 
     # La lectura siguiente tiene que ver lo recién registrado.
     get_client().invalidate(settings.external_api_url)
