@@ -48,15 +48,23 @@ def test_flag_encendido_monta_las_lecturas():
         "/asistencia/asignacion-turnos",
         "/asistencia/recinto-trabajador",
         "/asistencia/morpho-marcas",
+        "/asistencia/reportes/bono",
     }
     assert esperadas <= set(rutas), esperadas - set(rutas)
 
 
-def test_solo_lecturas_por_ahora():
-    """Ningún endpoint de escritura hasta que DRY_RUN esté probado end-to-end."""
+def test_nada_escribe_todavia():
+    """Ningún endpoint muta nada hasta que DRY_RUN esté probado end-to-end.
+
+    Los POST de /reportes son cálculo: usan el cuerpo para recibir el archivo de
+    atrasos ya parseado, no para escribir.
+    """
     from app.modules.asistencia.router import router
-    metodos = {m for r in router.routes for m in r.methods}
-    assert metodos == {"GET"}, metodos
+    escrituras = {
+        r.path for r in router.routes
+        if r.methods - {"GET"} and not r.path.startswith("/reportes/")
+    }
+    assert not escrituras, escrituras
 
 
 def test_router_exige_el_modulo():
@@ -68,6 +76,6 @@ def test_router_exige_el_modulo():
 if __name__ == "__main__":
     test_flag_apagado_no_monta_ni_importa_el_router()
     test_flag_encendido_monta_las_lecturas()
-    test_solo_lecturas_por_ahora()
+    test_nada_escribe_todavia()
     test_router_exige_el_modulo()
     print("ok")

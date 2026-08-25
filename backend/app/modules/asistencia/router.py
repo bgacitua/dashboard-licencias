@@ -4,7 +4,7 @@ Contrato con la plataforma — este módulo importa exactamente tres cosas de
 fuera de su carpeta, y nada más:
 
     app.core.security.require_module   -> autorización
-    app.db.deps.get_db                 -> sesión SQLAlchemy (aún sin usar)
+    app.db.deps.get_db                 -> sesión PostgreSQL (reportes)
     app.db.deps.get_marcas_db          -> sesión SQL Server del reloj Morpho
     app.core.logging_config.logger     -> logs
 
@@ -14,17 +14,20 @@ agregarlo.
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.logging_config import logger
 from app.core.security import require_module
-from app.db.deps import get_marcas_db
+from app.db.deps import get_db, get_marcas_db
 
 from .client import to_buk_date
 from .columnas import columnas_crudas, ordered_columns
 from .config import AsistenciaSettings, get_settings
 from .morpho import marcas_en_rango
+from .reportes.repository import ReportesRepo
+from .reportes.schemas import ReporteRequest
+from .reportes.service import ReportService
 from .recintos import fetch_employees, filas_recinto_trabajador, filtrar_por_obra
 from .schemas import DataResponse
 from .service import exigir_configurado, get_client, get_marcajes, get_recintos
@@ -36,6 +39,7 @@ router = APIRouter(dependencies=[Depends(require_module("asistencia"))])
 
 Settings = Annotated[AsistenciaSettings, Depends(get_settings)]
 MarcasDb = Annotated[Session, Depends(get_marcas_db)]
+Db = Annotated[Session, Depends(get_db)]
 
 
 @router.get("/health")
@@ -162,3 +166,47 @@ def morpho_marcas(
     """
     claves = marcas_en_rango(db, desde, hasta)
     return {"busquedas": sorted(claves), "total": len(claves)}
+
+
+# === Reportes: bono de asistencia ===
+# POST porque el reporte de atrasos llega en el cuerpo: lo parsea el frontend
+# (xls/xlsx/csv) y viaja como filas, así el backend no lee binarios. Son
+# lecturas: no escriben nada, ni en la plataforma ni en Buk.
+
+
+def _servicio_reportes(db: Db, settings: Settings) -> ReportService:
+    return ReportService(ReportesRepo(db), settings, buk=get_client())
+
+
+def _exigir_atrasos(req: ReporteRequest) -> None:
+    """Sin reporte de atrasos, Atrasos queda en 0 y los bonos salen inflados:
+    mejor 400 que un reporte silenciosamente incorrecto."""
+    if not req.atrasos:
+        raise HTTPException(status_code=400, detail="Falta el reporte de atrasos.")
+
+
+@router.post("/reportes/bono", response_model=DataResponse)
+async def reporte_bono(
+    req: ReporteRequest,
+    servicio: Annotated[ReportService, Depends(_servicio_reportes)],
+) -> DataResponse:
+    _exigir_atrasos(req)
+    try:
+        rows = await servicio.generar(req, atrasos_rows=req.atrasos)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    return DataResponse(rows=rows, total=len(rows), columns=ReportService.columnas(rows))
+
+
+@router.post("/reportes/bono/hojas")
+async def reporte_bono_hojas(
+    req: ReporteRequest,
+    servicio: Annotated[ReportService, Depends(_servicio_reportes)],
+) -> list[dict]:
+    """Reporte + hojas de auditoría. El .xlsx lo arma el frontend con estas filas."""
+    _exigir_atrasos(req)
+    try:
+        hojas = await servicio.generar_sheets(req, atrasos_rows=req.atrasos)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    return [{"nombre": n, "rows": rows, "columns": cols} for n, rows, cols in hojas]
