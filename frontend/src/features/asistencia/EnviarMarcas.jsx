@@ -66,7 +66,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
           onClick={() => !enviando && cerrar()}
         >
           <div
-            className="bg-white rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col"
+            className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] flex flex-col"
             role="dialog"
             aria-modal="true"
             aria-label="Registrar marcas"
@@ -104,7 +104,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
               </div>
             )}
 
-            <div className="overflow-auto px-6 py-4 flex-1">
+            <div className="overflow-y-auto px-6 py-4 flex-1 min-h-0">
               {resultado ? (
                 <div className="text-sm">
                   {resultado.dry_run ? (
@@ -128,33 +128,36 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                     ))}
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="text-left text-app-muted">
+                // Scroll horizontal propio: el modal no debe empujar la página
+                // cuando la tabla no cabe.
+                <div className="overflow-x-auto -mx-2 px-2">
+                <table className="w-full text-sm min-w-[54rem]">
+                  <thead className="text-left text-app-muted sticky top-0 bg-white">
                     <tr>
                       {['RUT', 'Nombre', 'Turno', 'Marca', 'Fecha', 'Hora', 'Origen', 'Motivo'].map((h) => (
-                        <th key={h} className="pb-2 font-medium">{h}</th>
+                        <th key={h} className="pb-2 pr-4 font-medium whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {marcas.map((m, i) => (
                       <tr key={`${m.rut}-${m.i}-${m.fecha}-${i}`} className="border-t border-app-line">
-                        <td className="py-1.5 whitespace-nowrap">{m.rut}</td>
-                        <td className="py-1.5 whitespace-nowrap">{m.nombre}</td>
-                        <td className="py-1.5 whitespace-nowrap">{m.turno}</td>
-                        <td className="py-1.5 whitespace-nowrap">{m.i}</td>
-                        <td className="py-1.5 whitespace-nowrap">{m.fecha}</td>
-                        <td className="py-1.5 whitespace-nowrap">{m.hora}</td>
-                        <td className="py-1.5 whitespace-nowrap text-app-muted">
+                        <td className="py-2 pr-4 whitespace-nowrap">{m.rut}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{m.nombre}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{m.turno}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{m.i}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{m.fecha}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{m.hora}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap text-app-muted">
                           {m.matched ? 'intento real' : 'hora del turno'}
                         </td>
-                        <td className="py-1.5">
+                        <td className="py-2">
                           <select
                             value={motivoDe(m, i)}
                             onChange={(e) =>
                               setMotivos((prev) => new Map(prev).set(i, e.target.value))
                             }
-                            className="text-sm border border-app-line rounded px-1.5 py-0.5"
+                            className="text-sm border border-app-line rounded px-2 py-1 w-full"
                           >
                             {[...new Set([...MOTIVOS.filter((x) => x !== 'Otro'), motivoDe(m, i)])].map(
                               (op) => <option key={op}>{op}</option>
@@ -165,6 +168,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
               {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
             </div>

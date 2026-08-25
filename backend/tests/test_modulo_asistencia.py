@@ -114,6 +114,23 @@ def test_la_marca_exige_motivo():
         pass
 
 
+def test_el_motivo_de_olvido_calza_con_el_dispositivo_del_bono():
+    """El bono cuenta olvidos por el dispositivo que Buk arma con el motivo.
+
+    Buk expone la marca como "API-<motivo>", y el reporte de bono busca
+    "API-Olvido de marca". Si el motivo que manda el frontend cambia, el olvido
+    deja de contarse y el bono sale inflado, sin ningún error visible.
+    """
+    import re
+    from pathlib import Path
+
+    from app.modules.asistencia.reportes.incidencias import AUD_DISPOSITIVO_OLVIDO
+
+    js = Path("../frontend/src/features/asistencia/correccion.js").read_text(encoding="utf-8")
+    motivo = re.search(r"MOTIVO_OLVIDO = '([^']+)'", js).group(1)
+    assert AUD_DISPOSITIVO_OLVIDO == f"API-{motivo}", (AUD_DISPOSITIVO_OLVIDO, motivo)
+
+
 def test_dry_run_viene_encendido():
     """Sin configurar nada, el registro de marcas no envía a Buk."""
     from app.modules.asistencia.config import AsistenciaSettings
@@ -134,6 +151,7 @@ if __name__ == "__main__":
     test_registrar_marcas_exige_rol_ademas_del_modulo()
     test_el_formulario_de_jefatura_es_publico()
     test_la_marca_exige_motivo()
+    test_el_motivo_de_olvido_calza_con_el_dispositivo_del_bono()
     test_dry_run_viene_encendido()
     test_router_exige_el_modulo()
     print("ok")

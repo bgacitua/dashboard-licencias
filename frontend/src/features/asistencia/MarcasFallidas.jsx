@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import AsistenciaService from '../../services/asistencia.service'
 import { useVista } from './useVista'
 import {
+  MOTIVOS,
   TURNOS_DISPONIBLES,
   clasificar,
   construirJornadas,
@@ -10,6 +11,7 @@ import {
   filtrarYOrdenar,
   horaApiDesdeHms,
   leerPlanilla,
+  motivoPorDefecto,
   rangoDeJornadas,
 } from './correccion'
 
@@ -25,7 +27,6 @@ import {
  * se puede corregir fila por fila antes de enviar.
  */
 
-const MOVS = ['Corrección Sentido Marca', 'Olvido de marca', 'Otro']
 // Fin de turno típico, cuando la fila no tiene turno del cual sacarlo.
 const HORA_POR_DEFECTO = '17:00:00'
 // La selección masiva es por hoja, para no mandar cientos de marcas de un click.
@@ -50,8 +51,10 @@ const MarcasFallidas = ({ obraId, obras }) => {
   const [sincronizadas, setSincronizadas] = useState(new Set())
   const [pagina, setPagina] = useState(0)
 
-  const [mov, setMov] = useState(MOVS[0])
+  // null = cada fila usa su propio motivo, que es lo correcto por defecto.
+  const [movGlobal, setMovGlobal] = useState(null)
   const [movLibre, setMovLibre] = useState('')
+  const [movs, setMovs] = useState(new Map())
   const [operacion, setOperacion] = useState(null)
   const [enviando, setEnviando] = useState(false)
   const [resultado, setResultado] = useState(null)
@@ -197,7 +200,14 @@ const MarcasFallidas = ({ obraId, obras }) => {
   }
 
   const aEnviar = visibles.filter((r) => seleccion.has(r.id) && utilizable(r))
-  const movEfectivo = mov === 'Otro' ? movLibre : mov
+
+  // El motivo distingue una marca que existió y se corrige (hubo intento) de
+  // una que nunca se hizo (fila manual). El bono de asistencia se calcula con
+  // esa diferencia, así que no puede ir un valor único para todas.
+  const movDe = (r) =>
+    movs.get(r.id) ??
+    (movGlobal === 'Otro' ? movLibre : movGlobal) ??
+    motivoPorDefecto(r)
 
   const registrar = async () => {
     if (!obraId || !aEnviar.length) return
@@ -212,7 +222,7 @@ const MarcasFallidas = ({ obraId, obras }) => {
           i: sentidoDe(rec),
           fecha: fechaApiDesdeIso(rec.fecha),
           hora: horaApiDesdeHms(horaDe(rec)),
-          mov: movEfectivo,
+          mov: movDe(rec),
           record_id: rec.id,
         })),
         operacion
@@ -268,12 +278,17 @@ const MarcasFallidas = ({ obraId, obras }) => {
         <>
           <div className="flex flex-wrap items-end gap-3 mb-4">
             <label className="text-sm text-app-muted">
-              Motivo
-              <select value={mov} onChange={(e) => setMov(e.target.value)} className={`${campo} block mt-1`}>
-                {MOVS.map((m) => <option key={m}>{m}</option>)}
+              Motivo para todas
+              <select
+                value={movGlobal ?? ''}
+                onChange={(e) => setMovGlobal(e.target.value || null)}
+                className={`${campo} block mt-1`}
+              >
+                <option value="">Según sea intento real o manual</option>
+                {MOTIVOS.map((m) => <option key={m}>{m}</option>)}
               </select>
             </label>
-            {mov === 'Otro' && (
+            {movGlobal === 'Otro' && (
               <input value={movLibre} onChange={(e) => setMovLibre(e.target.value)}
                 placeholder="Motivo" className={campo} />
             )}
@@ -318,7 +333,7 @@ const MarcasFallidas = ({ obraId, obras }) => {
               <thead className="bg-app-surface text-xs uppercase text-app-muted">
                 <tr>
                   <th className="px-3 py-2" />
-                  {['RUT', 'Nombre', 'Fecha', 'Hora', 'Turno', 'Sentido', 'Origen'].map((h) => (
+                  {['RUT', 'Nombre', 'Fecha', 'Hora', 'Turno', 'Sentido', 'Origen', 'Motivo'].map((h) => (
                     <th key={h} className="px-3 py-2 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -378,6 +393,17 @@ const MarcasFallidas = ({ obraId, obras }) => {
                     <td className="px-3 py-1.5 whitespace-nowrap text-app-muted">
                       {r.matched ? 'intento real' : 'manual'}
                       {r.ambiguo && ' · hora ambigua'}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <select
+                        value={movDe(r)}
+                        onChange={(e) => setMovs((m) => new Map(m).set(r.id, e.target.value))}
+                        className={campo}
+                      >
+                        {[...new Set([...MOTIVOS.filter((x) => x !== 'Otro'), movDe(r)])].map(
+                          (op) => <option key={op}>{op}</option>
+                        )}
+                      </select>
                     </td>
                   </tr>
                 ))}
