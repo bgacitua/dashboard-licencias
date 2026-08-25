@@ -4,6 +4,7 @@ Contrato con la plataforma — este módulo importa exactamente tres cosas de
 fuera de su carpeta, y nada más:
 
     app.core.security.require_module   -> autorización
+    app.core.security.require_role     -> restringe la escritura de marcas
     app.db.deps.get_db                 -> sesión PostgreSQL (reportes)
     app.db.deps.get_marcas_db          -> sesión SQL Server del reloj Morpho
     app.core.logging_config.logger     -> logs
@@ -18,18 +19,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.logging_config import logger
-from app.core.security import require_module
+from app.core.security import require_module, require_role
 from app.db.deps import get_db, get_marcas_db
 
 from .client import to_buk_date
 from .columnas import columnas_crudas, ordered_columns
 from .config import AsistenciaSettings, get_settings
+from .marcas import registrar
 from .morpho import marcas_en_rango
 from .reportes.repository import ReportesRepo
 from .reportes.schemas import ReporteRequest
 from .reportes.service import ReportService
 from .recintos import fetch_employees, filas_recinto_trabajador, filtrar_por_obra
-from .schemas import DataResponse
+from .schemas import DataResponse, RegistrarRequest, RegistrarResponse
 from .service import (
     exigir_configurado,
     get_client,
@@ -214,3 +216,18 @@ async def reporte_bono_hojas(
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     return [{"nombre": n, "rows": rows, "columns": cols} for n, rows, cols in hojas]
+
+
+# === Registro de marcas ===
+# Única escritura del módulo, y va a un sistema sin ambiente de pruebas ni
+# rollback: además del módulo se exige rol admin, y ASISTENCIA_DRY_RUN=true
+# (el default) hace que el payload quede en el log en vez de enviarse.
+
+
+@router.post(
+    "/marcas",
+    response_model=RegistrarResponse,
+    dependencies=[Depends(require_role(["admin"]))],
+)
+async def registrar_marcas(req: RegistrarRequest, settings: Settings) -> RegistrarResponse:
+    return await registrar(req.obra_id, req.marcas, settings)

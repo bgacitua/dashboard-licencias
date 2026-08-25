@@ -53,8 +53,8 @@ def test_flag_encendido_monta_las_lecturas():
     assert esperadas <= set(rutas), esperadas - set(rutas)
 
 
-def test_nada_escribe_todavia():
-    """Ningún endpoint muta nada hasta que DRY_RUN esté probado end-to-end.
+def test_la_unica_escritura_es_marcas():
+    """Buk no tiene ambiente de pruebas: cada escritura nueva debe ser deliberada.
 
     Los POST de /reportes son cálculo: usan el cuerpo para recibir el archivo de
     atrasos ya parseado, no para escribir.
@@ -64,7 +64,19 @@ def test_nada_escribe_todavia():
         r.path for r in router.routes
         if r.methods - {"GET"} and not r.path.startswith("/reportes/")
     }
-    assert not escrituras, escrituras
+    assert escrituras == {"/marcas"}, escrituras
+
+
+def test_registrar_marcas_exige_rol_ademas_del_modulo():
+    from app.modules.asistencia.router import router
+    ruta = next(r for r in router.routes if r.path == "/marcas")
+    assert ruta.dependencies, "/marcas quedó solo con el require_module del router"
+
+
+def test_dry_run_viene_encendido():
+    """Sin configurar nada, el registro de marcas no envía a Buk."""
+    from app.modules.asistencia.config import AsistenciaSettings
+    assert AsistenciaSettings(_env_file=None).dry_run is True
 
 
 def test_router_exige_el_modulo():
@@ -76,6 +88,8 @@ def test_router_exige_el_modulo():
 if __name__ == "__main__":
     test_flag_apagado_no_monta_ni_importa_el_router()
     test_flag_encendido_monta_las_lecturas()
-    test_nada_escribe_todavia()
+    test_la_unica_escritura_es_marcas()
+    test_registrar_marcas_exige_rol_ademas_del_modulo()
+    test_dry_run_viene_encendido()
     test_router_exige_el_modulo()
     print("ok")

@@ -45,6 +45,14 @@ class AsistenciaSettings(BaseSettings):
     # El recinto vigente vive en custom_attributes.current_job.recinto_asistencia
     # y se actualiza antes que getAsignacionTurnos. Vacío = fallback a
     # getAsignacionTurnos.
+    # === Registro de marcas (única escritura del módulo) ===
+    # Buk no tiene ambiente de pruebas: lo que se registra acá queda en el
+    # sistema real. Con dry_run el payload se loguea y no se envía.
+    marcas_api_url: str = "https://app.ctrlit.cl/ctrl/api/v2/registrar"
+    marcas_api_key: SecretStr = SecretStr("")  # vacío => usa external_api_key
+    marcas_api_key_header: str = "token"
+    recinto_keys: str = ""   # "obra_id:clave_recinto,obra_id:clave_recinto"
+
     buk_api_url: str = ""  # https://<empresa>.buk.cl/api/v1/chile/employees/active
     buk_api_key: SecretStr = SecretStr("")
     buk_api_key_header: str = "auth_token"
@@ -72,6 +80,16 @@ class AsistenciaSettings(BaseSettings):
             code, _, obra = item.strip().partition(":")
             if code.strip() and obra.strip():
                 out[code.strip().lower()] = obra.strip()
+        return out
+
+    @property
+    def recinto_keys_map(self) -> dict[str, str]:
+        """obra_id -> clave del recinto que exige la API de registro."""
+        out: dict[str, str] = {}
+        for item in self.recinto_keys.split(","):
+            obra, _, clave = item.strip().partition(":")
+            if obra.strip() and clave.strip():
+                out[obra.strip()] = clave.strip()
         return out
 
     @property
