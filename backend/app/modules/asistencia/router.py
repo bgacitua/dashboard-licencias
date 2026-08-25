@@ -10,7 +10,7 @@ fuera de su carpeta, y nada más:
     app.core.logging_config.logger     -> logs
     app.services.email_service         -> aviso a jefatura
     app.services.email_token_service   -> saber si hay sesión de Microsoft
-    app.core.config.settings.PUBLIC_URL -> base del link del formulario
+    app.core.config.settings          -> PUBLIC_URL y credenciales de Buk core
 
 Cualquier import adicional hacia `app.*` es acoplamiento: revisarlo antes de
 agregarlo.
@@ -31,6 +31,7 @@ from .config import AsistenciaSettings, get_settings
 from . import historial, notificaciones
 from .marcas import registrar
 from .morpho import marcas_en_rango
+from .plataforma import buk_core_url
 from .reportes.repository import ReportesRepo
 from .reportes.schemas import ReporteRequest
 from .reportes.service import ReportService
@@ -67,7 +68,7 @@ def health(settings: Settings) -> dict:
         "modulo": "asistencia",
         "dry_run": settings.dry_run,
         "ctrl_configurado": bool(settings.external_api_key.get_secret_value()),
-        "buk_core_configurado": bool(settings.buk_api_url),
+        "buk_core_configurado": bool(buk_core_url(settings)),
         "obras": len(settings.obras_list),
     }
 
@@ -154,10 +155,10 @@ async def recinto_trabajador(settings: Settings) -> DataResponse:
     """Recinto vigente por trabajador desde la API core de Buk.
 
     Misma fuente que alimenta el filtro global de los demás tabs. Sin
-    buk_api_url cae al endpoint de asignación de turnos de hoy.
+    la API core configurada cae al endpoint de asignación de turnos de hoy.
     """
     exigir_configurado(settings)
-    if not settings.buk_api_url:
+    if not buk_core_url(settings):
         hoy = date.today().isoformat()
         return await asignacion_turnos(settings, hoy, hoy)
     employees = await fetch_employees(get_client(), settings)

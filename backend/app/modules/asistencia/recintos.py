@@ -22,6 +22,7 @@ from app.core.logging_config import logger
 
 from .client import ExternalClient, to_buk_date
 from .config import AsistenciaSettings
+from .plataforma import buk_core_key, buk_core_url
 
 
 # Campos donde puede venir el RUT según el reporte: Inasistencias/Auditoría usan DNI,
@@ -84,11 +85,12 @@ async def fetch_employees(client: ExternalClient, settings: AsistenciaSettings) 
 
     El filtro de vigentes lo hace la URL (.../employees/active), no un query param.
     """
-    logger.info("[recintos] consultando %s…", settings.buk_api_url)
+    url = buk_core_url(settings)
+    logger.info("[recintos] consultando %s…", url)
     return await client.get_paged_next(
-        settings.buk_api_url,
+        url,
         {},
-        headers={settings.buk_api_key_header: settings.buk_api_key.get_secret_value()},
+        headers={settings.buk_api_key_header: buk_core_key(settings)},
     )
 
 
@@ -151,12 +153,12 @@ class RecintoDirectory:
 
     async def _fetch_mapa(self) -> dict[str, str]:
         s = self._settings
-        if s.buk_api_url:
+        if buk_core_url(s):
             employees = await fetch_employees(self._client, s)
             mapa = recinto_desde_employees(employees, s.recinto_codes_map)
             logger.info("[recintos] employees: %d con recinto de %d", len(mapa), len(employees))
             return mapa
-        # Fallback: BUK_API_URL sin configurar => asignación de turnos de hoy.
+        # Fallback: sin API core configurada => asignación de turnos de hoy.
         hoy = to_buk_date(date.today().isoformat())
         asignaciones = await self._client.get_array(
             s.asignacion_turnos_api_url,
@@ -166,8 +168,8 @@ class RecintoDirectory:
 
     def invalidate(self) -> None:
         self._cached = None
-        if self._settings.buk_api_url:
-            self._client.invalidate(self._settings.buk_api_url)
+        if (url := buk_core_url(self._settings)):
+            self._client.invalidate(url)
 
 
 def _nombre_area(emp: dict) -> tuple[str, str]:

@@ -45,14 +45,16 @@ ASISTENCIA_EXTERNAL_API_KEY=<token de Buk Ctrl>
 ASISTENCIA_OBRAS=36787:Obra Las Condes,36790:Obra Vitacura
 ```
 
-Opcional, para que el filtro de recinto use la API core de Buk en vez del
-fallback por asignación de turnos:
+El filtro de recinto usa la API core de Buk con las credenciales que la
+plataforma ya tiene (`BUK_API_BASE_URL` + `BUK_API_KEY`). Solo hace falta el
+mapa de códigos:
 
 ```
-ASISTENCIA_BUK_API_URL=https://<empresa>.buk.cl/api/v1/chile/employees/active
-ASISTENCIA_BUK_API_KEY=<token>
 ASISTENCIA_RECINTO_CODES=CRAMER:36787,APP:42123
 ```
+
+`ASISTENCIA_BUK_API_URL` y `ASISTENCIA_BUK_API_KEY` quedan como override, para
+apuntar a otra empresa o a otro token sin tocar el resto de la plataforma.
 
 Solo para registrar marcas (la única escritura). Sin `RECINTO_KEYS` el registro
 corta en 400 antes de tocar la red; el resto del módulo funciona igual:
