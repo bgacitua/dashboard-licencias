@@ -108,3 +108,6 @@ Las migraciones son manuales, no viajan con el deploy.
       `/asistencia` y entrada de sidebar
 - [x] Frontend de corrección: pestaña con tres caminos (Inasistencias, Marcas
       Fallidas, Ingreso Manual) y vista de Historial
+- [x] Bonos que salen de Marcajes: especial (turno nocturno), contratista y
+      colación/movilización. Se calculan en el navegador sobre las filas ya
+      cargadas, con la misma metodología de ancla al jueves

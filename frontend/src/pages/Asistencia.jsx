@@ -3,21 +3,26 @@ import SidebarLayout from '../components/SidebarLayout'
 import TablaDinamica from '../features/asistencia/TablaDinamica'
 import { descargarCsv } from '../features/asistencia/exportar'
 import CorreccionMarcas from '../features/asistencia/CorreccionMarcas'
+import DescargasBonos from '../features/asistencia/DescargasBonos'
 import Historial from '../features/asistencia/Historial'
 import Reportes from '../features/asistencia/Reportes'
 import { useObras, useVista } from '../features/asistencia/useVista'
 
-// Las cuatro vistas comparten la forma de respuesta del backend; lo único que
+// Orden de uso: se mira lo que pasó (Marcajes), se corrige, y recién después
+// vienen las vistas de consulta y los reportes. Auditoría queda al final porque
+// se abre cuando algo no cuadra, no todos los días.
+//
+// Las vistas comunes comparten la forma de respuesta del backend; lo único que
 // cambia es el endpoint y si usan el rango de fechas.
 const VISTAS = [
   { id: 'marcajes', label: 'Marcajes', rango: true },
-  { id: 'auditoria', label: 'Auditoría de Marcas', rango: true },
   { id: 'correccion', label: 'Corrección de Marcas', rango: true, propia: true },
   { id: 'recinto-trabajador', label: 'Recinto por Trabajador', rango: false },
-  { id: 'historial', label: 'Historial', rango: true, propia: true },
   // Reportes trae sus propios filtros (quincenas + archivo de atrasos), así que
   // no usa el rango ni la obra de la barra común.
   { id: 'reportes', label: 'Bono de Asistencia', propio: true },
+  { id: 'historial', label: 'Historial', rango: true, propia: true },
+  { id: 'auditoria', label: 'Auditoría de Marcas', rango: true },
 ]
 
 const hoy = () => new Date().toISOString().slice(0, 10)
@@ -141,6 +146,14 @@ const Asistencia = () => {
             </button>
             )}
           </div>
+
+          {/* Los bonos se calculan sobre las filas de Marcajes que ya están en
+              memoria; por eso viven acá y no en su propia pestaña. */}
+          {vista === 'marcajes' && (
+            <div className="mb-6">
+              <DescargasBonos rows={rows} desde={desde} hasta={hasta} />
+            </div>
+          )}
 
           {vista === 'correccion' ? (
             <CorreccionMarcas desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
