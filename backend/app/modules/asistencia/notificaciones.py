@@ -189,17 +189,61 @@ def consolidar(avisos: list[AvisoIn]) -> dict[tuple[str, str], AvisoIn]:
     return agrupado
 
 
+# Outlook de escritorio renderiza con el motor de Word: sin font-family inline
+# el correo sale en Times New Roman, y ni `<div>` con ancho ni un `<a>` con
+# padding y bordes redondeados sobreviven. De ahí las tablas y el estilo inline,
+# que es lo único que ese motor respeta de forma consistente.
+_FUENTE_CORREO = "font-family:Segoe UI,Calibri,Arial,Helvetica,sans-serif"
+_TEXTO = f"{_FUENTE_CORREO};font-size:15px;line-height:22px;color:#1f2328"
+
+
 def cuerpo(nombre: str, rut: str, fechas: list[str], url: str) -> str:
-    filas = ''.join(f'<li>{html.escape(dmy(f))}</li>' for f in fechas)
-    return f"""
-<p>Hola,</p>
-<p>Se detectaron <strong>{len(fechas)}</strong> día(s) sin marcas de asistencia de
-<strong>{html.escape(nombre or rut)}</strong> (RUT {html.escape(rut)}):</p>
-<ul>{filas}</ul>
-<p>Por favor indica el motivo de cada fecha en el siguiente formulario:</p>
-<p><a href="{html.escape(url)}">Responder motivos de inasistencia</a></p>
-<p style="color:#666;font-size:12px">Correo automático — Control de Asistencia.</p>
-"""
+    """HTML del correo. Pensado para el motor de Word, no para un navegador."""
+    # Word ignora los márgenes de <ul>: la lista va como filas de una tabla.
+    filas = ''.join(
+        f'<tr><td style="{_TEXTO};padding:2px 0 2px 14px">• {html.escape(dmy(f))}</td></tr>'
+        for f in fechas
+    )
+    plural = "día" if len(fechas) == 1 else "días"
+
+    return f"""<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+       style="background:#f6f8fa;padding:24px 12px">
+ <tr><td align="center">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560"
+         style="width:560px;max-width:560px;background:#ffffff;border:1px solid #d0d7de">
+   <tr><td style="padding:20px 24px;border-bottom:1px solid #d0d7de">
+     <p style="{_FUENTE_CORREO};font-size:17px;line-height:24px;color:#1f2328;
+               font-weight:bold;margin:0">Inasistencias sin justificar</p>
+     <p style="{_FUENTE_CORREO};font-size:14px;line-height:20px;color:#656d76;margin:4px 0 0">
+       {html.escape(nombre or rut)} &middot; RUT {html.escape(rut)}</p>
+   </td></tr>
+   <tr><td style="padding:20px 24px">
+     <p style="{_TEXTO};margin:0 0 12px">Hola,</p>
+     <p style="{_TEXTO};margin:0 0 12px">
+       Se detectaron <strong>{len(fechas)}</strong> {plural} sin marcas de asistencia de
+       <strong>{html.escape(nombre or rut)}</strong>:</p>
+     <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+            style="margin:0 0 16px">{filas}</table>
+     <p style="{_TEXTO};margin:0 0 16px">
+       Por favor indica el motivo de cada fecha en el siguiente formulario:</p>
+     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+      <tr><td bgcolor="#1f6feb" style="padding:11px 22px">
+        <a href="{html.escape(url)}"
+           style="{_FUENTE_CORREO};font-size:15px;font-weight:bold;color:#ffffff;
+                  text-decoration:none;display:inline-block">Responder motivos</a>
+      </td></tr>
+     </table>
+     <p style="{_FUENTE_CORREO};font-size:12px;line-height:18px;color:#656d76;margin:16px 0 0">
+       Si el botón no funciona, copia este enlace:<br>
+       <span style="color:#0969da;word-break:break-all">{html.escape(url)}</span></p>
+   </td></tr>
+   <tr><td style="padding:14px 24px;border-top:1px solid #d0d7de">
+     <p style="{_FUENTE_CORREO};font-size:12px;line-height:18px;color:#656d76;margin:0">
+       Correo automático &mdash; Control de Asistencia.</p>
+   </td></tr>
+  </table>
+ </td></tr>
+</table>"""
 
 
 async def notificar(
@@ -415,8 +459,30 @@ def _demo() -> None:
     html_correo = cuerpo('<script>alert(1)</script>', '1-9', ['2026-01-01'], 'http://x/y')
     assert "<script>" not in html_correo, html_correo
 
+    _demo_correo_para_word()
+
     _demo_dry_run()
     print("ok")
+
+
+def _demo_correo_para_word() -> None:
+    """El correo tiene que sobrevivir al motor de Word, que usa Outlook."""
+    correo = cuerpo("Ana Soto", "17.291.849-2", ["2026-08-18", "2026-08-19"], "http://x/tok")
+
+    # Word ignora <style> y las clases: todo estilo va inline.
+    assert "<style" not in correo and "class=" not in correo, correo
+    # Sin font-family inline, Outlook lo renderiza en Times New Roman.
+    assert correo.count(_FUENTE_CORREO) >= 5, correo.count(_FUENTE_CORREO)
+    # El layout va en tablas; un <div> con ancho no sobrevive.
+    assert "<div" not in correo, correo
+    # Word no dibuja el fondo de un <a>: el botón es una celda con bgcolor.
+    assert 'bgcolor="#1f6feb"' in correo, correo
+    # Y si el botón igual no anda, el enlace tiene que estar a la vista.
+    assert correo.count("http://x/tok") == 2, correo
+
+    assert "18-08-2026" in correo and "2026-08-18" not in correo, "fechas en dd-mm-yyyy"
+    assert "<strong>2</strong> días" in correo, "plural"
+    assert "<strong>1</strong> día " in cuerpo("A", "1", ["2026-08-18"], "http://x"), "singular"
 
 
 def _demo_dry_run() -> None:

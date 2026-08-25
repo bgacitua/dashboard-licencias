@@ -55,7 +55,10 @@ export function previewHtml(previews, { obra = '', desde = '', hasta = '' } = {}
   dl div{display:flex;gap:.5rem}
   dt{color:#656d76;min-width:5.5rem}
   dd{margin:0}
-  .correo{padding:1rem}
+  .correo{padding:0;background:#f6f8fa;border-bottom:1px solid #d0d7de}
+  /* El correo trae sus propios estilos inline, pensados para el motor de Word
+     que usa Outlook: nada de acá debe pisarlos. */
+  .correo table{border-collapse:collapse}
   .link{padding:0 1rem 1rem;font-size:.9rem;word-break:break-all}
   .aviso{background:#fff8c5;border:1px solid #d4a72c;border-radius:6px;padding:.75rem 1rem;margin-bottom:2rem;font-size:.9rem}
 </style>
