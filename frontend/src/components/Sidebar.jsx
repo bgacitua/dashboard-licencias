@@ -11,6 +11,7 @@ const allMenuItems = [
   { icon: 'more_time',            label: 'Horas Extras',           path: '/dashboard/horas-extras', module: 'dashboard' },
   { icon: 'person_search',        label: 'Selección de Personal',  path: '/seleccion',           module: 'seleccion',      requiredRole: ['rrhh', 'admin', 'seleccion'] },
   { icon: 'payments',             label: 'Créditos',               path: '/creditos',            module: 'creditos',       requiredRole: ['rrhh', 'admin'] },
+  { icon: 'fingerprint',          label: 'Asistencia',             path: '/asistencia',          module: 'asistencia' },
   { icon: 'settings',             label: 'Administración',         path: '/admin',               module: 'admin',          requiredRole: ['admin'] },
 ];
 
