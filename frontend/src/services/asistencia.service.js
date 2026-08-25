@@ -55,6 +55,17 @@ const AsistenciaService = {
     return data
   },
 
+  // Registro de marcas: única escritura del módulo. Con ASISTENCIA_DRY_RUN=true
+  // el backend loguea el payload y no envía nada a Buk; la respuesta lo dice.
+  registrarMarcas: async (obraId, marcas) => {
+    const { data } = await axios.post(
+      `${API_URL}/marcas`,
+      { obra_id: obraId, marcas },
+      { headers: authHeaders() }
+    )
+    return data
+  },
+
   getMorphoMarcas: async ({ desde, hasta }) => {
     const { data } = await axios.get(`${API_URL}/morpho-marcas`, {
       headers: authHeaders(),

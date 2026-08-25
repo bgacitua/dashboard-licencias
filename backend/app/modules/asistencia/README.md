@@ -72,7 +72,8 @@ Las migraciones son manuales, no viajan con el deploy.
       turnos, recinto por trabajador, obras
 - [x] `morpho.py` -> cruce de Inasistencias, sobre el engine de MorphoManager
       que la plataforma ya tiene (`get_marcas_db`); sin `pyodbc` propio
-- [ ] `commands.py` -> registrar marcas (respetando DRY_RUN)
+- [x] `commands.py` -> `marcas.py`: registrar marcas respetando DRY_RUN,
+      con rol admin además del módulo
 - [x] Export: CSV en el cliente para las vistas, y el `.xlsx` de reportes con
       el `xlsx` que la plataforma ya traía. `excel.py`/`openpyxl` no hicieron falta
 - [x] `reportes/` -> bono por quincena, sobre `get_db`; se cayeron el túnel SSH
@@ -83,4 +84,5 @@ Las migraciones son manuales, no viajan con el deploy.
       acoplamiento con un cuarto import; es el único aceptado de antemano)
 - [x] Frontend: `pages/Asistencia.jsx` + `features/asistencia/`, ruta
       `/asistencia` y entrada de sidebar
-- [ ] Frontend de corrección de marcas (depende de commands.py)
+- [x] Frontend de corrección: panel en Inasistencias que arma las marcas
+      faltantes desde el turno asignado y las manda en dos pasos

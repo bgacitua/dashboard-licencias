@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import SidebarLayout from '../components/SidebarLayout'
 import TablaDinamica from '../features/asistencia/TablaDinamica'
 import { descargarCsv } from '../features/asistencia/exportar'
+import Correccion from '../features/asistencia/Correccion'
 import Reportes from '../features/asistencia/Reportes'
 import { useObras, useVista } from '../features/asistencia/useVista'
 
@@ -142,6 +143,16 @@ const Asistencia = () => {
             loading={loading}
             error={error}
           />
+          {vista === 'inasistencias' && (
+            <Correccion
+              inasistencias={rows}
+              desde={desde}
+              hasta={hasta}
+              obraId={obraId}
+              obras={obras}
+              onRegistrado={recargar}
+            />
+          )}
           </>
           )}
         </div>
