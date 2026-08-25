@@ -5,6 +5,12 @@
  * avisos, así que devuelve el correo tal como saldría y el link real al
  * formulario. Esto arma un HTML con todo junto para revisarlo de una vez.
  */
+/** yyyy-mm-dd -> dd-mm-yyyy. Solo para mostrar; el dato sigue siendo ISO. */
+export const dmy = (iso) => {
+  const p = String(iso ?? '').split('-')
+  return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : String(iso ?? '')
+}
+
 const esc = (v) =>
   String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 
@@ -18,7 +24,7 @@ export function previewHtml(previews, { obra = '', desde = '', hasta = '' } = {}
       <dl>
         <div><dt>RUT</dt><dd>${esc(p.rut)}</dd></div>
         <div><dt>Jefatura</dt><dd>${esc(p.jefatura)}</dd></div>
-        <div><dt>Fechas</dt><dd>${esc(p.fechas.join(', '))}</dd></div>
+        <div><dt>Fechas</dt><dd>${esc(p.fechas.map(dmy).join(', '))}</dd></div>
         <div><dt>Asunto</dt><dd>${esc(p.asunto)}</dd></div>
       </dl>
     </header>
@@ -55,7 +61,7 @@ export function previewHtml(previews, { obra = '', desde = '', hasta = '' } = {}
 </style>
 <h1>Vista previa de avisos a jefatura</h1>
 <p class="meta">
-  ${esc(previews.length)} correo(s)${obra ? ` · ${esc(obra)}` : ''}${desde ? ` · ${esc(desde)} → ${esc(hasta)}` : ''}
+  ${esc(previews.length)} correo(s)${obra ? ` · ${esc(obra)}` : ''}${desde ? ` · ${esc(dmy(desde))} → ${esc(dmy(hasta))}` : ''}
   · generado el ${new Date().toLocaleString('es-CL')}
 </p>
 <p class="aviso">
@@ -90,9 +96,12 @@ if (globalThis.process?.argv?.[1]?.endsWith('previewCorreo.js')) {
   const tiene = (s) => { if (!html.includes(s)) throw new Error(`falta: ${s}`) }
   tiene('jefe@x.cl')
   tiene('19117548-9')
-  tiene('2026-08-05, 2026-08-06')
+  tiene('05-08-2026, 06-08-2026')
+  tiene('01-08-2026 → 31-08-2026')
   tiene('http://local/api/v1/asistencia/notificacion/tok')
   tiene('No se envió ningún correo')
+  if (dmy('2026-08-05') !== '05-08-2026') throw new Error('dmy')
+  if (dmy('basura') !== 'basura') throw new Error('dmy con basura')
   // Los datos de la tarjeta se escapan; el cuerpo del correo entra tal cual.
   const conScript = previewHtml([{
     jefatura: 'a@x.cl', rut: '1', nombre: '<script>alert(1)</script>',

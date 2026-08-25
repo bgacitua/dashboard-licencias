@@ -39,6 +39,15 @@ from .config import AsistenciaSettings
 OPCIONES = ["Olvidó marcar", "Permiso pagado", "Permiso sin goce", "Inasistencia"]
 
 
+def dmy(iso: str) -> str:
+    """yyyy-mm-dd -> dd-mm-yyyy, que es como se leen las fechas acá.
+
+    Solo para mostrar: el valor que viaja en el formulario sigue siendo ISO.
+    """
+    partes = iso.split("-")
+    return f"{partes[2]}-{partes[1]}-{partes[0]}" if len(partes) == 3 else iso
+
+
 # === Storage ===
 
 def crear(db: Session, obra_id: str, rut: str, nombre: str, jefatura: str, fechas: list[str]) -> str:
@@ -181,7 +190,7 @@ def consolidar(avisos: list[AvisoIn]) -> dict[tuple[str, str], AvisoIn]:
 
 
 def cuerpo(nombre: str, rut: str, fechas: list[str], url: str) -> str:
-    filas = ''.join(f'<li>{html.escape(f)}</li>' for f in fechas)
+    filas = ''.join(f'<li>{html.escape(dmy(f))}</li>' for f in fechas)
     return f"""
 <p>Hola,</p>
 <p>Se detectaron <strong>{len(fechas)}</strong> día(s) sin marcas de asistencia de
@@ -264,20 +273,40 @@ async def notificar(
 
 publico = APIRouter(tags=["asistencia-notificaciones"])
 
-_CSS = (
-    "body{font-family:system-ui,sans-serif;max-width:640px;margin:2rem auto;padding:0 1rem;"
-    "color:#222}h1{font-size:1.25rem}label{display:block;margin:.75rem 0}"
-    "select,textarea{width:100%;padding:.5rem;font:inherit;margin-top:.25rem}"
-    "button{padding:.6rem 1.2rem;font:inherit;background:#1d4ed8;color:#fff;border:0;"
-    "border-radius:4px;cursor:pointer}.ok{color:#15803d}"
-)
+_CSS = """
+  :root{color-scheme:light}
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:0;padding:2rem 1rem;
+       background:#f6f8fa;color:#1f2328;line-height:1.5}
+  .card{max-width:560px;margin:0 auto;background:#fff;border:1px solid #d0d7de;
+        border-radius:12px;overflow:hidden}
+  .card__head{padding:1.25rem 1.5rem;border-bottom:1px solid #d0d7de}
+  h1{font-size:1.15rem;margin:0 0 .35rem}
+  .persona{font-size:1.05rem;font-weight:600;margin:0}
+  .rut{color:#656d76;font-size:.9rem;margin:.15rem 0 0}
+  .card__body{padding:1.25rem 1.5rem}
+  .intro{color:#656d76;font-size:.9rem;margin:0 0 1.25rem}
+  label{display:block;margin-bottom:1rem}
+  .fecha{display:block;font-weight:600;font-size:.95rem;margin-bottom:.35rem}
+  select,textarea{width:100%;padding:.55rem .6rem;font:inherit;border:1px solid #d0d7de;
+                  border-radius:8px;background:#fff}
+  select:focus,textarea:focus{outline:2px solid #0969da;outline-offset:-1px;border-color:#0969da}
+  textarea{resize:vertical}
+  button{width:100%;padding:.7rem 1.2rem;font:inherit;font-weight:600;background:#1f6feb;
+         color:#fff;border:0;border-radius:8px;cursor:pointer;margin-top:.5rem}
+  button:hover{background:#1a5fd0}
+  .ok{color:#1a7f37;font-size:1.15rem;font-weight:600;margin:0 0 .5rem}
+  .nota{color:#656d76;font-size:.9rem;margin:0}
+  @media (max-width:480px){body{padding:1rem .75rem}.card__head,.card__body{padding:1rem}}
+"""
 
 
 def _pagina(titulo: str, body: str) -> HTMLResponse:
     return HTMLResponse(
         f"<!doctype html><html lang=es><meta charset=utf-8>"
         f"<meta name=viewport content='width=device-width,initial-scale=1'>"
-        f"<title>{html.escape(titulo)}</title><style>{_CSS}</style>{body}"
+        f"<title>{html.escape(titulo)}</title><style>{_CSS}</style>"
+        f"<div class=card>{body}</div>"
     )
 
 
@@ -288,22 +317,38 @@ def formulario(token: str, db: Session = Depends(get_db)) -> HTMLResponse:
         raise HTTPException(404, "Enlace no válido.")
     if n["respondido_at"]:
         return _pagina("Ya respondido",
-                       "<h1 class=ok>✓ Este formulario ya fue respondido</h1>"
-                       "<p>Gracias, no es necesario hacer nada más.</p>")
+                       "<div class=card__body><p class=ok>✓ Este formulario ya fue respondido</p>"
+                       "<p class=nota>Gracias, no es necesario hacer nada más.</p></div>")
 
     opciones = ''.join(f'<option>{html.escape(o)}</option>' for o in OPCIONES)
+    # La etiqueta va en dd-mm-yyyy; el name conserva la fecha ISO, que es la
+    # clave con la que se guarda la respuesta.
     campos = ''.join(
-        f"<label>{html.escape(f)}<select name='f_{html.escape(f)}' required>"
+        f"<label><span class=fecha>{html.escape(dmy(f))}</span>"
+        f"<select name='f_{html.escape(f)}' required>"
         f"<option value='' selected disabled>Selecciona un motivo</option>{opciones}</select></label>"
         for f in n["fechas"]
     )
+    dias = len(n["fechas"])
+    # Sin nombre resuelto queda el RUT como identificación: mejor eso que un
+    # encabezado vacío, aunque el aviso debería traerlo desde los turnos.
+    nombre = n["nombre"] or n["rut"]
     return _pagina(
         "Motivo de inasistencia",
+        f"<div class=card__head>"
         f"<h1>Motivo de inasistencia</h1>"
-        f"<p><strong>{html.escape(n['nombre'] or n['rut'])}</strong> — RUT {html.escape(n['rut'])}</p>"
+        f"<p class=persona>{html.escape(nombre)}</p>"
+        f"<p class=rut>RUT {html.escape(n['rut'])}</p>"
+        f"</div>"
+        f"<div class=card__body>"
+        f"<p class=intro>Se registr{'ó' if dias == 1 else 'aron'} {dias} "
+        f"d{'ía' if dias == 1 else 'ías'} sin marcas de asistencia. "
+        f"Indica el motivo de cada fecha.</p>"
         f"<form method=post>{campos}"
-        f"<label>Comentario (opcional)<textarea name=comentario rows=3></textarea></label>"
-        f"<button type=submit>Enviar respuesta</button></form>",
+        f"<label><span class=fecha>Comentario (opcional)</span>"
+        f"<textarea name=comentario rows=3></textarea></label>"
+        f"<button type=submit>Enviar respuesta</button></form>"
+        f"</div>",
     )
 
 
@@ -315,7 +360,8 @@ async def responder_formulario(
     if not n:
         raise HTTPException(404, "Enlace no válido.")
     if n["respondido_at"]:
-        return _pagina("Ya respondido", "<h1 class=ok>✓ Ya habíamos recibido tu respuesta</h1>")
+        return _pagina("Ya respondido",
+                       "<div class=card__body><p class=ok>✓ Ya habíamos recibido tu respuesta</p></div>")
 
     # parse_qs de stdlib: el form es urlencoded y así no depende de python-multipart.
     form = {
@@ -332,8 +378,9 @@ async def responder_formulario(
         respuestas[f] = valor
 
     responder(db, token, respuestas, form.get("comentario", "")[:1000])
-    return _pagina("Gracias", "<h1 class=ok>✓ Respuesta registrada</h1>"
-                              "<p>Gracias. Puedes cerrar esta ventana.</p>")
+    return _pagina("Gracias",
+                   "<div class=card__body><p class=ok>✓ Respuesta registrada</p>"
+                   "<p class=nota>Gracias. Puedes cerrar esta ventana.</p></div>")
 
 
 def _demo() -> None:
@@ -360,6 +407,9 @@ def _demo() -> None:
         raise AssertionError("debía rechazar una fecha que no sea ISO")
     except ValueError:
         pass
+
+    assert dmy("2026-01-31") == "31-01-2026", dmy("2026-01-31")
+    assert dmy("basura") == "basura", "una fecha ilegible se deja como está"
 
     # El nombre del trabajador viaja escapado: entra al HTML del correo.
     html_correo = cuerpo('<script>alert(1)</script>', '1-9', ['2026-01-01'], 'http://x/y')
@@ -403,6 +453,9 @@ def _demo_dry_run() -> None:
         assert vista.url == "http://local/api/v1/asistencia/notificacion/token-1", vista.url
         assert vista.fechas == ["2026-01-01", "2026-01-02"], vista.fechas
         assert "Ana" in vista.asunto and vista.url in vista.html, vista
+        # Las fechas se muestran dd-mm-yyyy, pero viajan en ISO.
+        assert "01-01-2026" in vista.html and "2026-01-01" not in vista.html, vista.html
+        assert vista.fechas == ["2026-01-01", "2026-01-02"], vista.fechas
     finally:
         aqui["crear"], aqui["send_email_graph"] = originales
 

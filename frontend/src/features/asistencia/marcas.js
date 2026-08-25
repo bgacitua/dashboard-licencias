@@ -151,6 +151,22 @@ export function construirMarcas(inasistencias, asignaciones, marcajes) {
   return out
 }
 
+/**
+ * Mapa rut -> nombre del trabajador.
+ *
+ * La API de inasistencias devuelve solo DNI, fecha y motivo: el nombre hay que
+ * sacarlo de la asignación de turnos, que es la otra fuente que ya se consulta.
+ */
+export function nombresPorRut(asignaciones) {
+  const m = new Map()
+  for (const r of asignaciones) {
+    const rut = limpiarRut(r.dni ?? '')
+    const nombre = String(r.nombreTrabajador ?? '').trim()
+    if (rut && nombre && !m.has(rut)) m.set(rut, nombre)
+  }
+  return m
+}
+
 /** Payload del POST: sin los campos que solo sirven para mostrar. */
 export const aPayload = (m) => ({ rut: m.rut, i: m.i, fecha: m.fecha, hora: m.hora, mov: m.mov })
 
@@ -163,6 +179,15 @@ if (globalThis.process?.argv?.[1]?.endsWith('marcas.js')) {
   eq(limpiarRut('19.117.548-9'), '19117548')
   eq(limpiarRut('20573842-K'), '20573842')
   eq(claveMorpho({ DNI: '19117548-9', ano: 2026, mes: 8, dia: 5 }), '19117548|2026-08-05')
+
+  // El nombre no viene en las inasistencias: sale de la asignación de turnos.
+  const nombres = nombresPorRut([
+    { dni: '19117548-9', nombreTrabajador: 'Ana Soto' },
+    { dni: '19117548-9', nombreTrabajador: 'Ana S.' },
+    { dni: '1-9', nombreTrabajador: '' },
+  ])
+  eq(nombres.get('19117548'), 'Ana Soto')
+  eq(nombres.has('1'), false)
 
   // Turno diurno: entrada y salida el mismo día.
   const ina = { DNI: '19117548-9', ano: 2026, mes: 8, dia: 5 }

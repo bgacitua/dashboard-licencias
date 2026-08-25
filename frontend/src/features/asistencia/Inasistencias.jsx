@@ -6,7 +6,15 @@ import EnviarMarcas from './EnviarMarcas'
 import AvisarJefatura from './AvisarJefatura'
 import { descargarCsv } from './exportar'
 import { useMorpho, useVista } from './useVista'
-import { claveMorpho, construirMarcas, estadoIngreso, indexar, claveAsignacion, claveMarcaje } from './marcas'
+import {
+  claveAsignacion,
+  claveMarcaje,
+  claveMorpho,
+  construirMarcas,
+  estadoIngreso,
+  indexar,
+  nombresPorRut,
+} from './marcas'
 import {
   COLUMNAS_INTENTOS,
   aplicarIntentos,
@@ -129,6 +137,9 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
   const marcajePorClave = useMemo(() => indexar(marcajes.rows ?? [], claveMarcaje), [marcajes.rows])
 
   const estadoDe = (fila) => estadoIngreso(fila, turnoPorClave, marcajePorClave)
+
+  // El nombre no viene en las inasistencias: se resuelve por RUT contra los turnos.
+  const nombres = useMemo(() => nombresPorRut(turnos.rows ?? []), [turnos.rows])
 
   // "Ya tiene ambas marcas" no es seleccionable: registrar crea una marca nueva,
   // no sobrescribe, así que reenviar duplicaría.
@@ -450,6 +461,7 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
             obra={obras.find((o) => String(o.id) === String(obraId))?.nombre}
             desde={rango.desde}
             hasta={rango.hasta}
+            nombres={nombres}
             onEnviado={cargarJefatura}
           />
           <EnviarMarcas

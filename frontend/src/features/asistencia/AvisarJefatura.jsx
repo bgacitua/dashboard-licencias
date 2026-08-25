@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 
 import AsistenciaService from '../../services/asistencia.service'
 import { fechaIso, limpiarRut } from './marcas'
-import { descargarPreview } from './previewCorreo'
+import { descargarPreview, dmy } from './previewCorreo'
 
 /**
  * Aviso a jefatura de las inasistencias seleccionadas.
@@ -16,19 +16,27 @@ import { descargarPreview } from './previewCorreo'
  * Sin dry-run manda correo real, así que primero se muestra quién lo recibe.
  */
 
-/** Nombre legible: los campos cambian según la fuente de la fila. */
-const nombreDe = (r) =>
-  [r.nombre, r.apellidoPaterno ?? r.apellido_paterno, r.apellidoMaterno ?? r.apellido_materno]
+/**
+ * Nombre legible de una fila.
+ *
+ * La API de inasistencias no lo trae, así que se resuelve contra la asignación
+ * de turnos (`nombres`). Un reporte subido a mano sí puede traerlo en la fila.
+ */
+const nombreDe = (r, nombres) => {
+  const propio = [r.nombre, r.apellidoPaterno ?? r.apellido_paterno,
+                  r.apellidoMaterno ?? r.apellido_materno]
     .map((p) => String(p ?? '').trim())
     .filter(Boolean)
     .join(' ')
+  return propio || nombres?.get(limpiarRut(r.DNI ?? r.dni ?? '')) || ''
+}
 
 /** Un aviso por trabajador, con sus fechas ordenadas y sin repetir. */
-export function avisosDe(rows, jefatura) {
+export function avisosDe(rows, jefatura, nombres) {
   const porRut = new Map()
   for (const r of rows) {
     const rut = limpiarRut(r.DNI ?? r.dni ?? '')
-    const aviso = porRut.get(rut) ?? { rut, nombre: nombreDe(r), jefatura, fechas: [] }
+    const aviso = porRut.get(rut) ?? { rut, nombre: nombreDe(r, nombres), jefatura, fechas: [] }
     const fecha = fechaIso(r)
     if (!aviso.fechas.includes(fecha)) aviso.fechas.push(fecha)
     porRut.set(rut, aviso)
@@ -38,7 +46,7 @@ export function avisosDe(rows, jefatura) {
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
-const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, onEnviado }) => {
+const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }) => {
   const [abierto, setAbierto] = useState(false)
   // La jefatura se escribe y se recuerda: hoy no hay una jefatura por obra en Buk.
   const [jefatura, setJefatura] = useState(() => {
@@ -61,7 +69,7 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, onEnviado }) => {
       .catch(() => setDryRun(null))
   }, [abierto, dryRun])
 
-  const avisos = useMemo(() => avisosDe(rows, jefatura.trim()), [rows, jefatura])
+  const avisos = useMemo(() => avisosDe(rows, jefatura.trim(), nombres), [rows, jefatura, nombres])
   const emailOk = EMAIL.test(jefatura.trim())
 
   const cerrar = () => {
@@ -74,7 +82,7 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, onEnviado }) => {
     setEnviando(true)
     setError(null)
     try {
-      const res = await AsistenciaService.notificarJefatura(obraId, avisosDe(rows, jefatura.trim()))
+      const res = await AsistenciaService.notificarJefatura(obraId, avisosDe(rows, jefatura.trim(), nombres))
       try {
         localStorage.setItem('asistencia_jefatura', jefatura.trim())
       } catch {
@@ -141,7 +149,7 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, onEnviado }) => {
                 {(resultado?.previews ?? avisos).map((a) => (
                   <li key={a.rut}>
                     <strong className="text-app-ink">{a.nombre || a.rut}</strong>{' '}
-                    <span className="text-app-muted">— {a.fechas.join(', ')}</span>
+                    <span className="text-app-muted">— {a.fechas.map(dmy).join(', ')}</span>
                     {resultado?.dry_run && (
                       <>
                         {' · '}
