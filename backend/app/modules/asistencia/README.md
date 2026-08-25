@@ -68,13 +68,17 @@ Las migraciones son manuales, no viajan con el deploy.
 - [x] Esqueleto, flag, autorización, health
 - [x] `shared/external_client.py` -> `client.py` (crawl paginado + caché TTL)
 - [x] `shared/recintos.py` -> `recintos.py` (filtro global de recinto)
-- [x] Lecturas: marcajes (+CSV), auditoría, inasistencias, asignación de
+- [x] Lecturas: marcajes, auditoría, inasistencias, asignación de
       turnos, recinto por trabajador, obras
-- [ ] `morpho.py` (SQL Server) -> cruce de marcas de Inasistencias
+- [x] `morpho.py` -> cruce de Inasistencias, sobre el engine de MorphoManager
+      que la plataforma ya tiene (`get_marcas_db`); sin `pyodbc` propio
 - [ ] `commands.py` -> registrar marcas (respetando DRY_RUN)
-- [ ] `excel.py` -> export xlsx de reportes
-- [ ] `reportes/` -> bonos por quincena
-- [ ] Historial: SQLite -> tabla PostgreSQL vía SQLAlchemy
+- [x] Export: CSV en el cliente para las vistas, y el `.xlsx` de reportes con
+      el `xlsx` que la plataforma ya traía. `excel.py`/`openpyxl` no hicieron falta
+- [x] `reportes/` -> bono por quincena, sobre `get_db`; se cayeron el túnel SSH
+      y las nueve variables `reportes_pg_*` / `reportes_ssh_*`
+- [ ] Historial: SQLite -> tabla PostgreSQL vía SQLAlchemy (registra lo que
+      escribe `commands.py`: no tiene sentido antes que él)
 - [ ] `notificaciones.py` -> `app.services.email_service` (romperá la regla de
       acoplamiento con un cuarto import; es el único aceptado de antemano)
 - [x] Frontend: `pages/Asistencia.jsx` + `features/asistencia/`, ruta
