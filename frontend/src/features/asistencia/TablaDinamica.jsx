@@ -18,12 +18,28 @@ import {
 const titulo = (col) =>
   col.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
-const TablaDinamica = ({ rows, columns, loading, error, descartados, vacio }) => {
+const TablaDinamica = ({
+  rows,
+  columns,
+  loading,
+  error,
+  descartados,
+  vacio,
+  // Columnas ya construidas (con celdas propias). Reemplazan a `columns`.
+  columnasPropias,
+  // Selección de filas: se controla desde afuera porque quien selecciona
+  // también decide qué hacer con lo seleccionado.
+  seleccion,
+  onSeleccion,
+  idDeFila,
+  filaSeleccionable,
+}) => {
   const [sorting, setSorting] = useState([])
   const [filtro, setFiltro] = useState('')
 
   const cols = useMemo(
     () =>
+      columnasPropias ??
       columns.map((c) => ({
         accessorKey: c,
         header: titulo(c),
@@ -36,15 +52,18 @@ const TablaDinamica = ({ rows, columns, loading, error, descartados, vacio }) =>
           )
         },
       })),
-    [columns]
+    [columns, columnasPropias]
   )
 
   const table = useReactTable({
     data: rows,
     columns: cols,
-    state: { sorting, globalFilter: filtro },
+    state: { sorting, globalFilter: filtro, ...(seleccion ? { rowSelection: seleccion } : {}) },
     onSortingChange: setSorting,
     onGlobalFilterChange: setFiltro,
+    ...(onSeleccion ? { onRowSelectionChange: onSeleccion } : {}),
+    ...(idDeFila ? { getRowId: idDeFila } : {}),
+    ...(filaSeleccionable ? { enableRowSelection: filaSeleccionable } : {}),
     initialState: { pagination: { pageSize: 50 } },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

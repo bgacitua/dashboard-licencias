@@ -1,0 +1,143 @@
+import React, { useState } from 'react'
+
+/**
+ * Confirmación del registro de marcas.
+ *
+ * Escribe en Buk y no se puede deshacer desde acá, así que primero se muestra la
+ * lista exacta —RUT, sentido, fecha y hora— y el envío va en un segundo click.
+ * Las marcas cuya hora viene de un intento real se marcan para distinguirlas de
+ * las que usan la hora del turno.
+ */
+const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
+  const [abierto, setAbierto] = useState(false)
+  const [resultado, setResultado] = useState(null)
+  const [error, setError] = useState(null)
+
+  const enviar = async () => {
+    setError(null)
+    try {
+      setResultado(await onEnviar())
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'No se pudieron registrar las marcas.')
+    }
+  }
+
+  const cerrar = () => {
+    setAbierto(false)
+    setResultado(null)
+    setError(null)
+  }
+
+  const titulo = !obraId
+    ? 'Selecciona una obra para poder registrar'
+    : 'Revisa las marcas antes de registrarlas'
+
+  return (
+    <>
+      <button
+        onClick={() => setAbierto(true)}
+        disabled={!obraId || !marcas.length}
+        title={titulo}
+        className="px-3 py-1.5 text-sm rounded bg-app-brand text-white disabled:opacity-40"
+      >
+        Registrar marcas{marcas.length ? ` (${marcas.length})` : ''}
+      </button>
+
+      {abierto && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          onClick={() => !enviando && cerrar()}
+        >
+          <div
+            className="bg-white rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Registrar marcas"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-app-line">
+              <h2 className="text-lg font-semibold text-app-ink">Registrar marcas</h2>
+              <p className="text-sm text-app-muted mt-1">
+                {marcas.length} marcas en {obra?.nombre || `la obra ${obraId}`}. Se registran en Buk
+                y no se pueden deshacer desde acá.
+              </p>
+            </div>
+
+            <div className="overflow-auto px-6 py-4 flex-1">
+              {resultado ? (
+                <div className="text-sm">
+                  {resultado.dry_run ? (
+                    <p className="text-app-muted">
+                      Modo de prueba: no se envió nada a Buk. El payload de las{' '}
+                      {resultado.resultados.length} marcas quedó en el log del servidor. Para
+                      registrar de verdad hay que apagar ASISTENCIA_DRY_RUN.
+                    </p>
+                  ) : (
+                    <p className="text-app-ink">
+                      {resultado.enviadas} marcas registradas
+                      {resultado.fallidas > 0 && `, ${resultado.fallidas} fallidas`}.
+                    </p>
+                  )}
+                  {resultado.resultados
+                    .filter((r) => !r.ok)
+                    .map((r, i) => (
+                      <p key={i} className="text-red-600 mt-1">
+                        {r.rut} {r.fecha}: {r.detail}
+                      </p>
+                    ))}
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="text-left text-app-muted">
+                    <tr>
+                      {['RUT', 'Nombre', 'Turno', 'Marca', 'Fecha', 'Hora', 'Origen'].map((h) => (
+                        <th key={h} className="pb-2 font-medium">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {marcas.map((m, i) => (
+                      <tr key={`${m.rut}-${m.i}-${m.fecha}-${i}`} className="border-t border-app-line">
+                        <td className="py-1.5 whitespace-nowrap">{m.rut}</td>
+                        <td className="py-1.5 whitespace-nowrap">{m.nombre}</td>
+                        <td className="py-1.5 whitespace-nowrap">{m.turno}</td>
+                        <td className="py-1.5 whitespace-nowrap">{m.i}</td>
+                        <td className="py-1.5 whitespace-nowrap">{m.fecha}</td>
+                        <td className="py-1.5 whitespace-nowrap">{m.hora}</td>
+                        <td className="py-1.5 whitespace-nowrap text-app-muted">
+                          {m.matched ? 'intento real' : 'hora del turno'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+            </div>
+
+            <div className="px-6 py-4 border-t border-app-line flex gap-3">
+              {!resultado && (
+                <button
+                  onClick={enviar}
+                  disabled={enviando}
+                  className="px-4 py-1.5 text-sm rounded bg-app-brand text-white disabled:opacity-40"
+                >
+                  {enviando ? 'Registrando…' : `Registrar ${marcas.length} marcas`}
+                </button>
+              )}
+              <button
+                onClick={cerrar}
+                disabled={enviando}
+                className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+              >
+                {resultado ? 'Cerrar' : 'Cancelar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+export default EnviarMarcas

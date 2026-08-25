@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import SidebarLayout from '../components/SidebarLayout'
 import TablaDinamica from '../features/asistencia/TablaDinamica'
 import { descargarCsv } from '../features/asistencia/exportar'
-import Correccion from '../features/asistencia/Correccion'
+import Inasistencias from '../features/asistencia/Inasistencias'
 import Reportes from '../features/asistencia/Reportes'
 import { useObras, useVista } from '../features/asistencia/useVista'
 
@@ -11,7 +11,7 @@ import { useObras, useVista } from '../features/asistencia/useVista'
 const VISTAS = [
   { id: 'marcajes', label: 'Marcajes', rango: true },
   { id: 'auditoria', label: 'Auditoría de Marcas', rango: true },
-  { id: 'inasistencias', label: 'Inasistencias', rango: true },
+  { id: 'inasistencias', label: 'Inasistencias', rango: true, propia: true },
   { id: 'recinto-trabajador', label: 'Recinto por Trabajador', rango: false },
   // Reportes trae sus propios filtros (quincenas + archivo de atrasos), así que
   // no usa el rango ni la obra de la barra común.
@@ -38,7 +38,7 @@ const Asistencia = () => {
   const { rows, columns, descartados, loading, error, recargar } = useVista(
     // Reportes no consulta las vistas comunes; el hook igual corre (no puede ser
     // condicional) pero sin vista no pide nada.
-    actual.propio ? null : vista,
+    actual.propio || actual.propia ? null : vista,
     actual.rango ? { desde, hasta, obraId } : { obraId }
   )
 
@@ -119,6 +119,7 @@ const Asistencia = () => {
               </select>
             </label>
 
+            {!actual.propia && (
             <button
               onClick={recargar}
               className="p-2 text-app-outline hover:text-app-brand hover:bg-app-surface rounded-full transition-colors"
@@ -126,7 +127,9 @@ const Asistencia = () => {
             >
               <span className="material-symbols-outlined">refresh</span>
             </button>
+            )}
 
+            {!actual.propia && (
             <button
               onClick={() => descargarCsv(rows, columns, vista)}
               disabled={loading || !rows.length}
@@ -134,8 +137,12 @@ const Asistencia = () => {
             >
               Exportar CSV
             </button>
+            )}
           </div>
 
+          {actual.propia ? (
+            <Inasistencias desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
+          ) : (
           <TablaDinamica
             rows={rows}
             columns={columns}
@@ -143,15 +150,6 @@ const Asistencia = () => {
             loading={loading}
             error={error}
           />
-          {vista === 'inasistencias' && (
-            <Correccion
-              inasistencias={rows}
-              desde={desde}
-              hasta={hasta}
-              obraId={obraId}
-              obras={obras}
-              onRegistrado={recargar}
-            />
           )}
           </>
           )}

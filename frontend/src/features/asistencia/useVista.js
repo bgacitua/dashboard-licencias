@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import AsistenciaService from '../../services/asistencia.service'
-import { claveMorpho } from './marcas'
 
-export const COL_MORPHO = '¿Marca Morpho?'
-
-/** Carga una vista de asistencia y expone {data, loading, error, recargar}. */
+/**
+ * Carga una vista de asistencia.
+ *
+ * `vista` en null no consulta nada: las pestañas que traen sus propios datos
+ * (Bono de asistencia) igual tienen que llamar al hook, porque no puede ser
+ * condicional.
+ */
 export function useVista(vista, rango) {
   const [data, setData] = useState({ rows: [], columns: [], descartados: 0 })
   const [loading, setLoading] = useState(true)
@@ -38,51 +41,36 @@ export function useVista(vista, rango) {
     cargar()
   }, [cargar])
 
-  const marcas = useMorpho(vista === 'inasistencias' ? rango : null)
-
-  if (marcas) {
-    return {
-      ...data,
-      columns: [COL_MORPHO, ...data.columns],
-      rows: data.rows.map((r) => ({
-        ...r,
-        [COL_MORPHO]: marcas.has(claveMorpho(r)) ? 'Sí marca' : 'Sin marca',
-      })),
-      loading,
-      error,
-      recargar: cargar,
-    }
-  }
-
   return { ...data, loading, error, recargar: cargar }
 }
 
 /**
- * Set de claves con marca en el reloj biométrico, o null si no aplica/falla.
+ * Claves `rut|fecha` con marca en el reloj biométrico, o null si aún no llegan.
  *
- * Solo lo usa Inasistencias: si el reloj registró una marca ese día, la
- * inasistencia que reporta Buk es dudosa. Fail-open — sin Morpho la tabla se
- * muestra igual, sin la columna.
+ * Si el reloj registró una marca ese día, la inasistencia que reporta Buk es
+ * dudosa. Fail-open: si Morpho no responde la tabla se muestra igual.
  */
-function useMorpho(rango) {
+export function useMorpho(desde, hasta, activo = true) {
   const [marcas, setMarcas] = useState(null)
-  const { desde, hasta } = rango || {}
+  const [cargando, setCargando] = useState(false)
 
   useEffect(() => {
-    if (!desde || !hasta) {
+    if (!activo || !desde || !hasta) {
       setMarcas(null)
       return
     }
     let vigente = true
+    setCargando(true)
     AsistenciaService.getMorphoMarcas({ desde, hasta })
       .then((s) => vigente && setMarcas(s))
       .catch(() => vigente && setMarcas(null))
+      .finally(() => vigente && setCargando(false))
     return () => {
       vigente = false
     }
-  }, [desde, hasta])
+  }, [desde, hasta, activo])
 
-  return marcas
+  return { marcas, cargando }
 }
 
 export function useObras() {

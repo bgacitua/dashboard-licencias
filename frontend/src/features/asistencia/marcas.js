@@ -73,18 +73,18 @@ export function aIso(valor) {
   return null
 }
 
-const claveMarcaje = (r) => {
+export const claveMarcaje = (r) => {
   const fecha = aIso(r.dia_entrada) ?? aIso(r.entrada_format ?? r.salida_format)
   return fecha ? `${limpiarRut(r.rut_trabajador ?? '')}|${fecha}` : null
 }
 
-const claveAsignacion = (r) => {
+export const claveAsignacion = (r) => {
   const fecha = aIso(r.diaTurno)
   return fecha ? `${limpiarRut(r.dni ?? '')}|${fecha}` : null
 }
 
 /** Indexa filas por su clave rut|fecha; la primera gana. */
-function indexar(rows, clave) {
+export function indexar(rows, clave) {
   const m = new Map()
   for (const r of rows) {
     const k = clave(r)
@@ -139,6 +139,7 @@ export function construirMarcas(inasistencias, asignaciones, marcajes) {
       turno: String(asignacion.horarioTurno),
       fecha: fechaApi(fila),
       mov: MOV,
+      key: claveMorpho(fila),
     }
     if (estado.entrada) out.push({ ...base, i: 'entrada', hora: horaApi(turno[0]) })
     if (estado.salida) {
