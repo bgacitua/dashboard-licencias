@@ -1,11 +1,12 @@
 """
 Endpoints de autenticación.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.rate_limit import check_rate_limit, client_ip, reset_rate_limit
 from app.db.deps import get_db
 from app.services.auth_service import AuthService
 from app.schemas.auth import (
@@ -19,7 +20,6 @@ from app.schemas.auth import (
     TwoFactorVerifyRequest,
     TwoFactorSetupResponse,
     TwoFactorVerifySetupRequest,
-    TwoFactorDisableRequest,
     TwoFactorInitializeRequest,
     TwoFactorActivateRequest,
     EmailOTPVerifyRequest,
@@ -43,9 +43,11 @@ router = APIRouter()
 @router.post("/set-password", status_code=status.HTTP_204_NO_CONTENT)
 async def set_password_from_invite(
     body: SetPasswordRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """Endpoint público: establece contraseña usando token de invitación."""
+    check_rate_limit(f"set-password:ip:{client_ip(request)}", max_attempts=10, window_seconds=900)
     if len(body.password) < 6:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La contraseña debe tener al menos 6 caracteres.")
     auth_service = AuthService(db)
@@ -57,6 +59,7 @@ async def set_password_from_invite(
 
 @router.post("/login")
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -64,6 +67,13 @@ async def login(
     Autenticar usuario. Si tiene 2FA activo retorna pre_auth_token;
     si no, retorna JWT completo con datos de usuario y módulos.
     """
+    # Dos llaves: la IP frena el barrido de cuentas, el usuario frena el ataque
+    # distribuido contra una sola cuenta.
+    ip_key = f"login:ip:{client_ip(request)}"
+    user_key = f"login:user:{form_data.username.lower()}"
+    check_rate_limit(ip_key, max_attempts=20, window_seconds=900)
+    check_rate_limit(user_key, max_attempts=8, window_seconds=900)
+
     auth_service = AuthService(db)
 
     user = auth_service.authenticate(form_data.username, form_data.password)
@@ -74,6 +84,10 @@ async def login(
             detail="Usuario o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Contraseña correcta: el contador de la cuenta se limpia (el de IP no,
+    # para que un atacante no lo resetee con una credencial válida cualquiera).
+    reset_rate_limit(user_key)
 
     if user.totp_enabled:
         pre_auth_token = create_pre_auth_token(user.id, user.username)
@@ -98,9 +112,11 @@ async def login(
 @router.post("/2fa/verify", response_model=AuthResponse)
 async def verify_2fa(
     request: TwoFactorVerifyRequest,
+    http_request: Request,
     db: Session = Depends(get_db)
 ):
     """Verifica código TOTP y retorna JWT completo si es correcto."""
+    check_rate_limit(f"2fa-verify:ip:{client_ip(http_request)}", max_attempts=10, window_seconds=900)
     payload = decode_pre_auth_token(request.pre_auth_token)
     if not payload:
         raise HTTPException(
@@ -118,6 +134,8 @@ async def verify_2fa(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario no encontrado o inactivo"
         )
+
+    check_rate_limit(f"2fa-verify:user:{user.id}", max_attempts=6, window_seconds=900)
 
     auth_service = AuthService(db)
     if not auth_service.verify_totp(user, request.code):
@@ -140,12 +158,14 @@ async def verify_2fa(
 @router.post("/2fa/verify-email-otp", response_model=QRTokenResponse)
 async def verify_email_otp(
     request: EmailOTPVerifyRequest,
+    http_request: Request,
     db: Session = Depends(get_db)
 ):
     """
     Verifica el OTP enviado al email corporativo.
     Si es válido, retorna qr_token que permite ver el QR y activar TOTP.
     """
+    check_rate_limit(f"otp-verify:ip:{client_ip(http_request)}", max_attempts=10, window_seconds=900)
     payload = decode_setup_token(request.setup_token)
     if not payload:
         raise HTTPException(
@@ -172,6 +192,7 @@ async def verify_email_otp(
 @router.post("/2fa/resend-otp", response_model=SetupRequiredResponse)
 async def resend_email_otp(
     request: TwoFactorInitializeRequest,
+    http_request: Request,
     db: Session = Depends(get_db)
 ):
     """Reenvía OTP al email. Acepta qr_token o setup_token — cualquiera del flujo."""
@@ -181,6 +202,12 @@ async def resend_email_otp(
     user = db.query(Usuario).filter(Usuario.id == payload["user_id"], Usuario.activo == True).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
+
+    # Cada reenvío es un correo de verdad: límite estrecho para no convertir
+    # el endpoint en un cañón de spam contra la casilla del usuario.
+    check_rate_limit(f"otp-resend:user:{user.id}", max_attempts=5, window_seconds=900)
+    check_rate_limit(f"otp-resend:ip:{client_ip(http_request)}", max_attempts=15, window_seconds=900)
+
     auth_service = AuthService(db)
     try:
         auth_service.send_setup_otp(user)
@@ -278,22 +305,6 @@ async def verify_2fa_setup(
             detail="Código incorrecto. Verifica que la hora de tu dispositivo esté sincronizada."
         )
     return {"message": "Verificación en dos pasos activada exitosamente"}
-
-
-@router.delete("/2fa/disable")
-async def disable_2fa(
-    request: TwoFactorDisableRequest,
-    current_user: Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Desactiva 2FA. Requiere contraseña actual como confirmación."""
-    auth_service = AuthService(db)
-    if not auth_service.disable_totp(current_user, request.password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Contraseña incorrecta"
-        )
-    return {"message": "Verificación en dos pasos desactivada"}
 
 
 @router.get("/me", response_model=MeResponse)

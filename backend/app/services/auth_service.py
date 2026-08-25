@@ -5,6 +5,7 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import secrets
+import hashlib
 import pyotp
 import qrcode
 import io
@@ -16,6 +17,7 @@ from app.models.auth import Usuario, Modulo, OTPCode
 from app.core.security import verify_password, get_password_hash, create_access_token, verify_totp_code
 from app.core.logging_config import logger
 from app.services.email_token_service import get_access_token, AuthRequiredError
+from app.services.email_service import apply_test_redirect
 
 
 class AuthService:
@@ -111,16 +113,32 @@ class AuthService:
         if modulo_ids:
             self.repository.set_user_modules(user, modulo_ids)
 
-        if send_invite and email:
-            self._generate_and_send_invite(user)
+        # El usuario ya está commiteado: si el correo falla no lo borramos,
+        # marcamos la falla para que el admin pueda reenviar la invitación.
+        user.invite_email_failed = False
+        if send_invite:
+            try:
+                self._generate_and_send_invite(user)
+            except RuntimeError as e:
+                user.invite_email_failed = True
+                logger.error(f"Usuario {username} creado pero falló el envío de invitación: {e}")
 
         logger.info(f"Usuario creado: {username}")
         return user
 
+    @staticmethod
+    def _hash_invite_token(token: str) -> str:
+        """SHA-256 del token. En DB solo vive el hash: un dump no entrega enlaces vivos.
+
+        No lleva salt a propósito — el token ya son 32 bytes aleatorios, así que
+        la búsqueda por igualdad sigue siendo un índice y no un escaneo.
+        """
+        return hashlib.sha256(token.encode()).hexdigest()
+
     def _generate_and_send_invite(self, user: Usuario) -> None:
-        """Genera token de invitación, lo guarda en DB y envía email al usuario."""
+        """Genera token de invitación, guarda su hash en DB y envía el token al usuario."""
         token = secrets.token_urlsafe(32)
-        user.invite_token = token
+        user.invite_token = self._hash_invite_token(token)
         user.invite_token_expires_at = datetime.utcnow() + timedelta(hours=48)
         self.repository.db.commit()
         self._send_invite_email(user.email, user.nombre_completo or user.username, token)
@@ -130,7 +148,7 @@ class AuthService:
         user = self.repository.get_user_by_id(user_id)
         if not user or not user.email:
             return False
-        self._generate_and_send_invite(user)
+        self._generate_and_send_invite(user)  # RuntimeError si el correo no sale
         return True
 
     def set_password_from_invite(self, token: str, new_password: str) -> bool:
@@ -138,7 +156,7 @@ class AuthService:
         user = (
             self.repository.db.query(Usuario)
             .filter(
-                Usuario.invite_token == token,
+                Usuario.invite_token == self._hash_invite_token(token),
                 Usuario.invite_token_expires_at > datetime.utcnow(),
             )
             .first()
@@ -192,12 +210,15 @@ class AuthService:
         </div>
         """
 
+        to_email, subject = apply_test_redirect(
+            to_email, "[HR Portal] Activa tu cuenta — Establece tu contraseña"
+        )
         resp = httpx.post(
             "https://graph.microsoft.com/v1.0/me/sendMail",
             headers={"Authorization": f"Bearer {access_token}"},
             json={
                 "message": {
-                    "subject": "[HR Portal] Activa tu cuenta — Establece tu contraseña",
+                    "subject": subject,
                     "body": {"contentType": "HTML", "content": html_body},
                     "toRecipients": [{"emailAddress": {"address": to_email}}],
                 }
@@ -357,12 +378,15 @@ class AuthService:
         </div>
         """
 
+        to_email, subject = apply_test_redirect(
+            to_email, f"[HR Portal] Código de verificación: {code}"
+        )
         resp = httpx.post(
             "https://graph.microsoft.com/v1.0/me/sendMail",
             headers={"Authorization": f"Bearer {access_token}"},
             json={
                 "message": {
-                    "subject": f"[HR Portal] Código de verificación: {code}",
+                    "subject": subject,
                     "body": {"contentType": "HTML", "content": html_body},
                     "toRecipients": [{"emailAddress": {"address": to_email}}],
                 }
@@ -414,13 +438,3 @@ class AuthService:
         if not user.totp_enabled or not user.totp_secret:
             return False
         return verify_totp_code(user.totp_secret, code)
-
-    def disable_totp(self, user: Usuario, password: str) -> bool:
-        """Desactiva 2FA previa verificación de contraseña."""
-        if not verify_password(password, user.password_hash):
-            return False
-        user.totp_secret = None
-        user.totp_enabled = False
-        self.repository.db.commit()
-        logger.info(f"2FA desactivado para usuario: {user.username}")
-        return True

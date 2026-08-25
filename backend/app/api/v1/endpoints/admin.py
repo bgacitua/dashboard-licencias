@@ -80,7 +80,10 @@ async def send_user_invite(
 ):
     """Regenera y reenvía el email de invitación a un usuario existente."""
     auth_service = AuthService(db)
-    ok = auth_service.resend_invite(user_id)
+    try:
+        ok = auth_service.resend_invite(user_id)
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado o sin email.")
 

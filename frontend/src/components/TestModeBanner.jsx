@@ -20,9 +20,9 @@ const TestModeBanner = () => {
     >
       <span className="font-semibold">MODO PRUEBA DE CORREO</span>
       <span>
-        Alertas, horas extras, salidas y retorno se desvían a{' '}
-        <strong className="font-semibold">{emailTestRedirect}</strong>. Los correos de
-        acceso (código 2FA e invitación) sí llegan a su destinatario real.
+        Todo el correo saliente se desvía a{' '}
+        <strong className="font-semibold">{emailTestRedirect}</strong>, incluidos los
+        de acceso (código 2FA e invitación).
       </span>
     </div>
   );

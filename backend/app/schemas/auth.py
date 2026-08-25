@@ -120,7 +120,7 @@ class SetPasswordRequest(BaseModel):
 
 class UsuarioUpdate(BaseModel):
     """Request para actualizar usuario"""
-    email: Optional[str] = None
+    email: Optional[str] = None  # None = sin cambios; nunca se puede dejar vacío
     nombre_completo: Optional[str] = None
     rol_id: Optional[int] = None
     activo: Optional[bool] = None
@@ -138,6 +138,8 @@ class UsuarioResponse(UsuarioBase):
     id: int
     activo: bool
     totp_enabled: bool = False
+    invite_pending: bool = False       # invitación vigente sin canjear
+    invite_email_failed: bool = False  # el usuario se creó pero el correo no salió
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     rol: Optional[RoleResponse] = None
@@ -218,6 +220,3 @@ class TwoFactorSetupResponse(BaseModel):
 class TwoFactorVerifySetupRequest(BaseModel):
     code: str
 
-
-class TwoFactorDisableRequest(BaseModel):
-    password: str

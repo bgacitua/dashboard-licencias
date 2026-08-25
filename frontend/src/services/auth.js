@@ -182,24 +182,6 @@ export const confirmSetup2FA = async (code) => {
     return response.json();
 };
 
-/**
- * Desactiva 2FA. Requiere contraseña actual.
- */
-export const disable2FA = async (password) => {
-    const response = await fetch(`${API_URL}/auth/2fa/disable`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ password }),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al desactivar 2FA');
-    }
-
-    return response.json();
-};
-
 export const logout = async () => {
     try {
         await fetch(`${API_URL}/auth/logout`, {

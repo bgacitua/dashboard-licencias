@@ -193,8 +193,12 @@ const AdminPanel = () => {
                 const err = await res.json();
                 throw new Error(err.detail || 'Error al crear usuario');
             }
+            const created = await res.json().catch(() => ({}));
             setShowCreateModal(false);
             setNewUser({ username: '', password: '', nombre_completo: '', email: '', rol_id: '', send_invite: false });
+            if (created.invite_email_failed) {
+                setTabError(`Usuario "${created.username}" creado, pero no se pudo enviar el correo de invitación. Usa el botón de reenviar.`);
+            }
             fetchData();
         } catch (err) { setTabError(err.message); }
     };
@@ -231,6 +235,22 @@ const AdminPanel = () => {
             if (!res.ok) throw new Error('Error al cambiar contraseña');
             setShowPasswordModal(false);
             setPasswordData({ userId: null, newPassword: '' });
+        } catch (err) { setTabError(err.message); }
+    };
+
+    const handleResendInvite = async (userId, username) => {
+        if (!confirm(`¿Reenviar invitación a "${username}"? El enlace anterior dejará de funcionar.`)) return;
+        setTabError('');
+        try {
+            const res = await fetch(`${API_URL}/admin/users/${userId}/send-invite`, {
+                method: 'POST',
+                headers: authHeaders(),
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Error al reenviar la invitación');
+            }
+            fetchData();
         } catch (err) { setTabError(err.message); }
     };
 
@@ -508,6 +528,12 @@ const AdminPanel = () => {
                                                         <span className={`w-1.5 h-1.5 rounded-full ${user.activo ? 'bg-emerald-500' : 'bg-red-400'}`} />
                                                         {user.activo ? 'Activo' : 'Inactivo'}
                                                     </span>
+                                                    {user.invite_pending && (
+                                                        <span className="ml-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">
+                                                            <span className="material-symbols-outlined text-[14px]">hourglass_top</span>
+                                                            Invitación pendiente
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
@@ -529,6 +555,15 @@ const AdminPanel = () => {
                                                             className="p-2 text-app-outline hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors">
                                                             <span className="material-symbols-outlined text-[18px]">key</span>
                                                         </button>
+                                                        {user.email && !user.last_login && (
+                                                            <button
+                                                                onClick={() => handleResendInvite(user.id, user.username)}
+                                                                title="Reenviar invitación"
+                                                                className="p-2 text-app-outline hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">forward_to_inbox</span>
+                                                            </button>
+                                                        )}
                                                         {user.totp_enabled && (
                                                             <button
                                                                 onClick={() => handleReset2FA(user.id, user.username)}

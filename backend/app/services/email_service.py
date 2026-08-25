@@ -6,6 +6,21 @@ Helper compartido por contract_alerts, retorno y horas extras.
 from app.core.logging_config import logger
 
 
+def apply_test_redirect(to: str, subject: str) -> tuple[str, str]:
+    """Con EMAIL_TEST_REDIRECT configurado, desvía el correo a esa casilla.
+
+    Devuelve (destinatario, asunto) ya ajustados. El asunto conserva el
+    destinatario original para poder auditar a quién habría llegado.
+    """
+    from app.core.config import settings
+
+    redirect = getattr(settings, "EMAIL_TEST_REDIRECT", "")
+    if not redirect:
+        return to, subject
+    logger.warning(f"[EMAIL_TEST_REDIRECT] Correo para to={to!r} desviado a {redirect}")
+    return redirect, f"[PRUEBA → {to}] {subject}"
+
+
 def send_email_graph(
     to: str, cc: str, subject: str, html_body: str, bcc: str = "", sender: str = ""
 ) -> bool:
@@ -19,19 +34,12 @@ def send_email_graph(
 
     access_token = get_access_token()  # puede lanzar AuthRequiredError
 
-    # Interruptor de pruebas: con EMAIL_TEST_REDIRECT configurado, todo correo que
-    # salga por acá se desvía a esa casilla y se vacían CC/BCC.
-    # Ojo: auth_service (OTP e invitación) no pasa por esta función y sigue enviando
-    # a su destinatario real.
-    from app.core.config import settings
-    redirect = getattr(settings, "EMAIL_TEST_REDIRECT", "")
-    if redirect:
-        logger.warning(
-            f"[EMAIL_TEST_REDIRECT] Correo para to={to!r} cc={cc!r} bcc={bcc!r} "
-            f"desviado a {redirect}"
-        )
-        subject = f"[PRUEBA → {to}] {subject}"
-        to, cc, bcc = redirect, "", ""
+    # Interruptor de pruebas: con EMAIL_TEST_REDIRECT configurado, todo correo se
+    # desvía a esa casilla y se vacían CC/BCC.
+    redirected, subject = apply_test_redirect(to, subject)
+    if redirected != to:
+        logger.warning(f"[EMAIL_TEST_REDIRECT] Se descartan cc={cc!r} bcc={bcc!r}")
+        to, cc, bcc = redirected, "", ""
 
     cc_recipients = [
         {"emailAddress": {"address": addr.strip()}}

@@ -6,6 +6,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, T
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base import Base
+from datetime import datetime
 import secrets
 
 rol_modulos = Table(
@@ -58,6 +59,15 @@ class Usuario(Base):
 
     rol = relationship("Role", back_populates="usuarios")
     modulos = relationship("Modulo", secondary=usuario_modulos, back_populates="usuarios")
+
+    @property
+    def invite_pending(self) -> bool:
+        """True si el usuario tiene una invitación vigente sin canjear."""
+        return bool(
+            self.invite_token
+            and self.invite_token_expires_at
+            and self.invite_token_expires_at > datetime.utcnow()
+        )
 
 
 class OTPCode(Base):
