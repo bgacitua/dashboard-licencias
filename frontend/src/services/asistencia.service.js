@@ -68,6 +68,13 @@ const AsistenciaService = {
 
   // Manda correo real a la jefatura. EMAIL_TEST_REDIRECT en el backend lo
   // desvía a una casilla de prueba.
+  // Estado del módulo en el servidor: interesa dry_run, que decide si una
+  // acción escribe de verdad o solo deja una vista previa.
+  getSalud: async () => {
+    const { data } = await axios.get(`${API_URL}/health`, { headers: authHeaders() })
+    return data
+  },
+
   notificarJefatura: async (obraId, avisos) => {
     const { data } = await axios.post(
       `${API_URL}/notificar-jefatura`,

@@ -34,7 +34,7 @@ from app.db.deps import get_db
 from app.services.email_service import send_email_graph
 from app.services.email_token_service import AuthRequiredError, get_access_token
 
-from .config import AsistenciaSettings, get_settings
+from .config import AsistenciaSettings
 
 OPCIONES = ["Olvidó marcar", "Permiso pagado", "Permiso sin goce", "Inasistencia"]
 
@@ -144,10 +144,26 @@ class NotificarRequest(BaseModel):
     avisos: list[AvisoIn]
 
 
+class Preview(BaseModel):
+    """El correo tal como saldría, para revisarlo sin mandarlo."""
+
+    jefatura: str
+    rut: str
+    nombre: str
+    fechas: list[str]
+    asunto: str
+    html: str
+    url: str          # link real al formulario: el token ya existe
+
+
 class NotificarResponse(BaseModel):
+    # true = no salió ningún correo; las notificaciones sí se crearon, así que
+    # los formularios de `previews` se pueden abrir y responder.
+    dry_run: bool = False
     enviados: int
     fallidos: int
     detalles: list[str] = []
+    previews: list[Preview] = []
 
 
 def consolidar(avisos: list[AvisoIn]) -> dict[tuple[str, str], AvisoIn]:
@@ -180,19 +196,28 @@ def cuerpo(nombre: str, rut: str, fechas: list[str], url: str) -> str:
 async def notificar(
     req: NotificarRequest, db: Session, settings: AsistenciaSettings
 ) -> NotificarResponse:
-    # Sin sesión de Microsoft no sale ningún correo: se corta antes de crear las
-    # notificaciones, para no dejar tokens colgando de avisos que nadie recibió.
-    try:
-        await run_in_threadpool(get_access_token)
-    except AuthRequiredError:
-        raise HTTPException(
-            status_code=503,
-            detail="No hay sesión de Microsoft activa. Autorízala en /api/v1/contract-alerts/auth/login.",
-        )
+    """Crea las notificaciones y, salvo en dry-run, manda los correos.
+
+    En dry-run los avisos igual se guardan y devuelven su link: el formulario es
+    lo que hay que revisar, y así se prueba completo sin escribirle a nadie.
+    """
+    if not settings.dry_run:
+        # Sin sesión de Microsoft no sale ningún correo: se corta antes de crear
+        # las notificaciones, para no dejar tokens de avisos que nadie recibió.
+        try:
+            await run_in_threadpool(get_access_token)
+        except AuthRequiredError:
+            raise HTTPException(
+                status_code=503,
+                detail="No hay sesión de Microsoft activa. Autorízala en "
+                       "/api/v1/contract-alerts/auth/login, o deja ASISTENCIA_DRY_RUN=true "
+                       "para revisar los correos sin enviarlos.",
+            )
 
     agrupado = consolidar(req.avisos)
     enviados = 0
     detalles: list[str] = []
+    previews: list[Preview] = []
 
     for (jefatura, rut), aviso in agrupado.items():
         fechas = sorted(set(aviso.fechas))
@@ -201,11 +226,23 @@ async def notificar(
         token = crear(db, req.obra_id, rut, aviso.nombre, jefatura, fechas)
         url = f"{settings.public_base_url.rstrip('/')}/api/v1/asistencia/notificacion/{token}"
         asunto = f"Inasistencias sin justificar — {aviso.nombre or rut} ({len(fechas)} día(s))"
+        html_correo = cuerpo(aviso.nombre, rut, fechas, url)
+
+        previews.append(Preview(
+            jefatura=jefatura, rut=rut, nombre=aviso.nombre, fechas=fechas,
+            asunto=asunto, html=html_correo, url=url,
+        ))
+
+        if settings.dry_run:
+            logger.warning(
+                "[asistencia/notificaciones] DRY_RUN: correo NO enviado a %s (%s, %d fechas)",
+                jefatura, aviso.nombre or rut, len(fechas),
+            )
+            continue
+
         # send_email_graph es sync (httpx bloqueante): al threadpool para no
         # frenar el loop mientras se manda un correo por trabajador.
-        ok = await run_in_threadpool(
-            send_email_graph, jefatura, "", asunto, cuerpo(aviso.nombre, rut, fechas, url)
-        )
+        ok = await run_in_threadpool(send_email_graph, jefatura, "", asunto, html_correo)
         if ok:
             enviados += 1
         else:
@@ -213,7 +250,11 @@ async def notificar(
             logger.warning("[asistencia/notificaciones] falló el correo a %s", jefatura)
 
     return NotificarResponse(
-        enviados=enviados, fallidos=len(agrupado) - enviados, detalles=detalles
+        dry_run=settings.dry_run,
+        enviados=enviados,
+        fallidos=0 if settings.dry_run else len(agrupado) - enviados,
+        detalles=detalles,
+        previews=previews,
     )
 
 
@@ -297,6 +338,7 @@ async def responder_formulario(
 
 def _demo() -> None:
     """python -m app.modules.asistencia.notificaciones"""
+
     # Un correo por (jefatura, trabajador), con las fechas unidas y sin repetir.
     grupos = consolidar([
         AvisoIn(rut="1", jefatura="a@x.cl", fechas=["2026-01-01"]),
@@ -322,7 +364,47 @@ def _demo() -> None:
     # El nombre del trabajador viaja escapado: entra al HTML del correo.
     html_correo = cuerpo('<script>alert(1)</script>', '1-9', ['2026-01-01'], 'http://x/y')
     assert "<script>" not in html_correo, html_correo
+
+    _demo_dry_run()
     print("ok")
+
+
+def _demo_dry_run() -> None:
+    """En dry-run no sale ningún correo, pero el aviso sí queda creado.
+
+    Si dejara de crearse, el link de la vista previa abriría un formulario que no
+    existe, que es justo lo que se quiere revisar.
+    """
+    import asyncio
+
+    aqui = globals()
+    creados: list[str] = []
+
+    def _crear_falso(_db, _obra, rut, *_a, **_k):
+        creados.append(rut)
+        return f"token-{rut}"
+
+    def _no_enviar(*_a, **_k):
+        raise AssertionError("dry-run no debe mandar correo")
+
+    originales = crear, send_email_graph
+    aqui["crear"], aqui["send_email_graph"] = _crear_falso, _no_enviar
+    try:
+        req = NotificarRequest(obra_id="36787", avisos=[
+            AvisoIn(rut="1", nombre="Ana", jefatura="a@x.cl", fechas=["2026-01-02", "2026-01-01"]),
+        ])
+        seca = AsistenciaSettings(dry_run=True, public_base_url="http://local/")
+        res = asyncio.run(notificar(req, None, seca))
+
+        assert res.dry_run and res.enviados == 0 and res.fallidos == 0, res
+        assert creados == ["1"], creados
+        assert len(res.previews) == 1, res.previews
+        vista = res.previews[0]
+        assert vista.url == "http://local/api/v1/asistencia/notificacion/token-1", vista.url
+        assert vista.fechas == ["2026-01-01", "2026-01-02"], vista.fechas
+        assert "Ana" in vista.asunto and vista.url in vista.html, vista
+    finally:
+        aqui["crear"], aqui["send_email_graph"] = originales
 
 
 if __name__ == "__main__":

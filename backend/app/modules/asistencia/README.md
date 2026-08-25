@@ -26,6 +26,11 @@ terminada.
 
 ## DRY_RUN
 
+`ASISTENCIA_DRY_RUN=true` (por defecto) también corta el envío de correos: los
+avisos a jefatura se crean igual y devuelven su formulario, pero nada sale por
+Graph. Sirve para revisar el contenido sin escribirle a nadie ni necesitar la
+sesión de Microsoft.
+
 `ASISTENCIA_DRY_RUN=true` (por defecto) hace que el registro de marcas loguee
 el payload en vez de escribirlo en el Buk productivo. Dejarlo en true en local:
 el entorno de desarrollo apunta a los sistemas reales.

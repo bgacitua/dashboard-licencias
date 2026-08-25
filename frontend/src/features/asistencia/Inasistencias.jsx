@@ -447,6 +447,9 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
           <AvisarJefatura
             rows={seleccionadas}
             obraId={obraId}
+            obra={obras.find((o) => String(o.id) === String(obraId))?.nombre}
+            desde={rango.desde}
+            hasta={rango.hasta}
             onEnviado={cargarJefatura}
           />
           <EnviarMarcas
