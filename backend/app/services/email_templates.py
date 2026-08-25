@@ -115,8 +115,8 @@ def callout(html: str, kind: str = "info") -> str:
 
 # ------------------------------------------------------------------ shell
 _FOOTER_DEFAULT = (
-    "Correo automático — en caso de que considere que existe un error en la "
-    'información, contactar a <a href="mailto:bgacitua@cramer.cl" '
+    "Correo automático - Si considera existe un error en la información, "
+    'contactar a <a href="mailto:bgacitua@cramer.cl" '
     f'style="color:{C.MUTED}">bgacitua@cramer.cl</a>'
 )
 

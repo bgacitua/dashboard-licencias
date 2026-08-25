@@ -251,13 +251,12 @@ def cuerpo(nombre: str, rut: str, fechas: list[str], url: str) -> str:
                   text-decoration:none;display:inline-block">Responder motivos</a>
       </td></tr>
      </table>
-     <p style="{_FUENTE_CORREO};font-size:12px;line-height:18px;color:#656d76;margin:16px 0 0">
-       Si el botón no funciona, copia este enlace:<br>
-       <span style="color:#0969da;word-break:break-all">{html.escape(url)}</span></p>
    </td></tr>
    <tr><td style="padding:14px 24px;border-top:1px solid #d0d7de">
      <p style="{_FUENTE_CORREO};font-size:12px;line-height:18px;color:#656d76;margin:0">
-       Correo automático &mdash; Control de Asistencia.</p>
+       Correo automático - Si considera existe un error en la información,
+       contactar a <a href="mailto:bgacitua@cramer.cl"
+       style="color:#656d76">bgacitua@cramer.cl</a></p>
    </td></tr>
   </table>
  </td></tr>
