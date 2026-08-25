@@ -32,6 +32,17 @@ const AsistenciaService = {
     return data
   },
 
+  // Set de claves `rut|fecha` con marca en el reloj biométrico. Se pide el
+  // rango completo de una vez: son pocas decenas de miles de claves y evita
+  // una consulta por cada inasistencia.
+  getMorphoMarcas: async ({ desde, hasta }) => {
+    const { data } = await axios.get(`${API_URL}/morpho-marcas`, {
+      headers: authHeaders(),
+      params: { desde, hasta },
+    })
+    return new Set(data.busquedas)
+  },
+
   // El CSV lo arma el backend (mismo filtro de recinto que la tabla). Se
   // descarga como blob para poder mandar el header de autorización.
   descargarCsv: async (rango = {}) => {

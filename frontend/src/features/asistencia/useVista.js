@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import AsistenciaService from '../../services/asistencia.service'
+import { claveMorpho } from './marcas'
+
+export const COL_MORPHO = '¿Marca Morpho?'
 
 /** Carga una vista de asistencia y expone {data, loading, error, recargar}. */
 export function useVista(vista, rango) {
@@ -31,7 +34,51 @@ export function useVista(vista, rango) {
     cargar()
   }, [cargar])
 
+  const marcas = useMorpho(vista === 'inasistencias' ? rango : null)
+
+  if (marcas) {
+    return {
+      ...data,
+      columns: [COL_MORPHO, ...data.columns],
+      rows: data.rows.map((r) => ({
+        ...r,
+        [COL_MORPHO]: marcas.has(claveMorpho(r)) ? 'Sí marca' : 'Sin marca',
+      })),
+      loading,
+      error,
+      recargar: cargar,
+    }
+  }
+
   return { ...data, loading, error, recargar: cargar }
+}
+
+/**
+ * Set de claves con marca en el reloj biométrico, o null si no aplica/falla.
+ *
+ * Solo lo usa Inasistencias: si el reloj registró una marca ese día, la
+ * inasistencia que reporta Buk es dudosa. Fail-open — sin Morpho la tabla se
+ * muestra igual, sin la columna.
+ */
+function useMorpho(rango) {
+  const [marcas, setMarcas] = useState(null)
+  const { desde, hasta } = rango || {}
+
+  useEffect(() => {
+    if (!desde || !hasta) {
+      setMarcas(null)
+      return
+    }
+    let vigente = true
+    AsistenciaService.getMorphoMarcas({ desde, hasta })
+      .then((s) => vigente && setMarcas(s))
+      .catch(() => vigente && setMarcas(null))
+    return () => {
+      vigente = false
+    }
+  }, [desde, hasta])
+
+  return marcas
 }
 
 export function useObras() {

@@ -5,6 +5,7 @@ fuera de su carpeta, y nada más:
 
     app.core.security.require_module   -> autorización
     app.db.deps.get_db                 -> sesión SQLAlchemy (aún sin usar)
+    app.db.deps.get_marcas_db          -> sesión SQL Server del reloj Morpho
     app.core.logging_config.logger     -> logs
 
 Cualquier import adicional hacia `app.*` es acoplamiento: revisarlo antes de
@@ -17,13 +18,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 
 from app.core.logging_config import logger
 from app.core.security import require_module
+from app.db.deps import get_marcas_db
 
 from .client import to_buk_date
 from .columnas import columnas_crudas, ordered_columns
 from .config import AsistenciaSettings, get_settings
+from .morpho import marcas_en_rango
 from .recintos import fetch_employees, filas_recinto_trabajador, filtrar_por_obra
 from .schemas import DataResponse
 from .service import exigir_configurado, get_client, get_marcajes, get_recintos
@@ -34,6 +38,7 @@ from .service import exigir_configurado, get_client, get_marcajes, get_recintos
 router = APIRouter(dependencies=[Depends(require_module("asistencia"))])
 
 Settings = Annotated[AsistenciaSettings, Depends(get_settings)]
+MarcasDb = Annotated[Session, Depends(get_marcas_db)]
 
 
 @router.get("/health")
@@ -165,3 +170,18 @@ async def recinto_trabajador(settings: Settings) -> DataResponse:
         logger.warning("[asistencia/recinto-trabajador] codes sin ASISTENCIA_RECINTO_CODES: %s",
                        sorted(sin_mapeo))
     return DataResponse(rows=rows, total=len(rows), columns=columnas_crudas(rows))
+
+
+@router.get("/morpho-marcas")
+def morpho_marcas(
+    db: MarcasDb,
+    desde: str = Query(..., description="yyyy-mm-dd"),
+    hasta: str = Query(..., description="yyyy-mm-dd"),
+) -> dict:
+    """Claves `rut|fecha` con marca en el reloj biométrico, para cruzar Inasistencias.
+
+    Devuelve el set completo del rango en vez de resolver fila por fila: son
+    pocas decenas de miles de claves y evita una consulta por inasistencia.
+    """
+    claves = marcas_en_rango(db, desde, hasta)
+    return {"busquedas": sorted(claves), "total": len(claves)}

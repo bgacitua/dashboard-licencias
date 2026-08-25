@@ -48,6 +48,7 @@ def test_flag_encendido_monta_las_lecturas():
         "/asistencia/inasistencias",
         "/asistencia/asignacion-turnos",
         "/asistencia/recinto-trabajador",
+        "/asistencia/morpho-marcas",
     }
     assert esperadas <= set(rutas), esperadas - set(rutas)
 
