@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import SidebarLayout from '../components/SidebarLayout'
 import TablaDinamica from '../features/asistencia/TablaDinamica'
 import { descargarCsv } from '../features/asistencia/exportar'
+import Reportes from '../features/asistencia/Reportes'
 import { useObras, useVista } from '../features/asistencia/useVista'
 
 // Las cuatro vistas comparten la forma de respuesta del backend; lo único que
@@ -11,6 +12,9 @@ const VISTAS = [
   { id: 'auditoria', label: 'Auditoría de Marcas', rango: true },
   { id: 'inasistencias', label: 'Inasistencias', rango: true },
   { id: 'recinto-trabajador', label: 'Recinto por Trabajador', rango: false },
+  // Reportes trae sus propios filtros (quincenas + archivo de atrasos), así que
+  // no usa el rango ni la obra de la barra común.
+  { id: 'reportes', label: 'Bono de Asistencia', propio: true },
 ]
 
 const hoy = () => new Date().toISOString().slice(0, 10)
@@ -31,7 +35,9 @@ const Asistencia = () => {
   // Las vistas sin rango ignoran las fechas: no las mandamos para no romper su
   // clave de caché en el backend.
   const { rows, columns, descartados, loading, error, recargar } = useVista(
-    vista,
+    // Reportes no consulta las vistas comunes; el hook igual corre (no puede ser
+    // condicional) pero sin vista no pide nada.
+    actual.propio ? null : vista,
     actual.rango ? { desde, hasta, obraId } : { obraId }
   )
 
@@ -68,6 +74,10 @@ const Asistencia = () => {
             ))}
           </div>
 
+          {actual.propio ? (
+            <Reportes />
+          ) : (
+          <>
           <div className="flex flex-wrap items-end gap-3 mb-6">
             {actual.rango && (
               <>
@@ -132,6 +142,8 @@ const Asistencia = () => {
             loading={loading}
             error={error}
           />
+          </>
+          )}
         </div>
       </main>
     </SidebarLayout>

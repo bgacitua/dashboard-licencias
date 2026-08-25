@@ -13,6 +13,10 @@ export function useVista(vista, rango) {
   const { desde, hasta, obraId } = rango
 
   const cargar = useCallback(async () => {
+    if (!vista) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError(null)
     try {

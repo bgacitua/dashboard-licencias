@@ -35,6 +35,26 @@ const AsistenciaService = {
   // Set de claves `rut|fecha` con marca en el reloj biométrico. Se pide el
   // rango completo de una vez: son pocas decenas de miles de claves y evita
   // una consulta por cada inasistencia.
+  // El reporte de atrasos viaja en el cuerpo ya parseado: el backend no lee
+  // binarios. `jc` acota el reporte a los cargos y empresas de la lista JC.
+  getReporteBono: async (params, atrasos) => {
+    const { data } = await axios.post(
+      `${API_URL}/reportes/bono`,
+      { ...params, atrasos },
+      { headers: authHeaders() }
+    )
+    return data
+  },
+
+  getReporteBonoHojas: async (params, atrasos, jc = false) => {
+    const { data } = await axios.post(
+      `${API_URL}/reportes/bono/hojas`,
+      { ...params, jc, atrasos },
+      { headers: authHeaders() }
+    )
+    return data
+  },
+
   getMorphoMarcas: async ({ desde, hasta }) => {
     const { data } = await axios.get(`${API_URL}/morpho-marcas`, {
       headers: authHeaders(),
