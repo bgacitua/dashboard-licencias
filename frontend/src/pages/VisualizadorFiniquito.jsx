@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import FiniquitosService from '../services/finiquitos.service';
 import SidebarLayout from '../components/SidebarLayout';
 import { useReactToPrint } from 'react-to-print';
+import { sufijoCuotas } from '../lib/descuentos';
 
 const VisualizadorFiniquito = () => {
   const { rut } = useParams();
@@ -720,7 +721,7 @@ const VisualizadorFiniquito = () => {
                     const loanItem = finiquitoData.descuentosPersonalizados?.find(d => d.descripcion?.toLowerCase().includes('préstamo'));
                     return (
                       <div className="flex justify-between">
-                        <span>Préstamo interno {loanItem?.detalle ? `(${loanItem.detalle})` : ''}</span>
+                        <span>Préstamo interno{sufijoCuotas(loanItem?.cuotas)}</span>
                         <span>{formatCurrency(prestamoInterno)}</span>
                       </div>
                     );
@@ -741,7 +742,7 @@ const VisualizadorFiniquito = () => {
                 ))}
                 {finiquitoData.descuentosPersonalizados?.filter(d => parseFloat(d.monto) > 0 && !d.descripcion?.toLowerCase().includes('préstamo')).map((d, idx) => (
                   <div key={`custom-${idx}`} className="flex justify-between">
-                    <span>{d.descripcion} {d.detalle ? `${d.detalle}` : ''}</span>
+                    <span>{d.descripcion}{sufijoCuotas(d.cuotas)}</span>
                     <span>{formatCurrency(deudaDescuentoCustom(d))}</span>
                   </div>
                 ))}

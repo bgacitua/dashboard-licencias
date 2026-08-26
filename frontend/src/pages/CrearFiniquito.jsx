@@ -4,6 +4,7 @@ import Docxtemplater from "docxtemplater";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import SidebarLayout from "../components/SidebarLayout";
 import { truncDias } from "../lib/vacationDays";
+import { sufijoCuotas } from "../lib/descuentos";
 import FiniquitosService from "../services/finiquitos.service";
 import EmployeesService from "../services/employees.service";
 import { getLicenciasByRut } from "../services/licencias";
@@ -1623,7 +1624,8 @@ const CrearFiniquito = () => {
         }
         const total = Math.round(monto) * cuotas;
         if (total > 0) {
-          descuentosLines.push(`${d.descripcion || "Descuento"}\t${fmtCurrency(total)}`);
+          const label = `${d.descripcion || "Descuento"}${sufijoCuotas(d.cuotas)}`;
+          descuentosLines.push(`${label}\t${fmtCurrency(total)}`);
           totalDescuentosTabla += total;
         }
       });
