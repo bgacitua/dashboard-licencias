@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
     loginStep1,
-    verify2FA as verify2FAService,
-    activate2FA as activate2FAService,
+    completeDuoLogin as completeDuoLoginService,
     logout as logoutService,
     getCurrentUser,
     isAuthenticated as checkAuth,
@@ -67,17 +66,8 @@ export const AuthProvider = ({ children }) => {
 
         try {
             const data = await loginStep1(username, password);
-
-            if (data.requires_2fa) {
-                return { success: false, requires_2fa: true, pre_auth_token: data.pre_auth_token };
-            }
-            if (data.requires_setup) {
-                return { success: false, requires_setup: true, setup_token: data.setup_token };
-            }
-
-            setUser(data.user);
-            setModules(data.modulos);
-            return { success: true };
+            // La 2FA con Duo es obligatoria: siempre hay que ir al prompt.
+            return { success: false, requires_2fa: true, duo_auth_url: data.duo_auth_url };
         } catch (err) {
             setError(err.message);
             return { success: false, error: err.message };
@@ -86,27 +76,14 @@ export const AuthProvider = ({ children }) => {
         }
     }, []);
 
-    const verify2FA = useCallback(async (preAuthToken, code) => {
+    /**
+     * Completa el login con los parámetros que devuelve el redirect de Duo.
+     */
+    const completeDuoLogin = useCallback(async (state, duoCode) => {
         setError(null);
         setLoading(true);
         try {
-            const data = await verify2FAService(preAuthToken, code);
-            setUser(data.user);
-            setModules(data.modulos);
-            return { success: true };
-        } catch (err) {
-            setError(err.message);
-            return { success: false, error: err.message };
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    const activate2FA = useCallback(async (setupToken, code) => {
-        setError(null);
-        setLoading(true);
-        try {
-            const data = await activate2FAService(setupToken, code);
+            const data = await completeDuoLoginService(state, duoCode);
             setUser(data.user);
             setModules(data.modulos);
             return { success: true };
@@ -153,8 +130,7 @@ export const AuthProvider = ({ children }) => {
         emailTestRedirect,
         isAuthenticated: !!user,
         login,
-        verify2FA,
-        activate2FA,
+        completeDuoLogin,
         logout,
         hasModuleAccess,
         hasRole,

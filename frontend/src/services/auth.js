@@ -26,8 +26,8 @@ export const getAuthHeaders = () => {
 };
 
 /**
- * Paso 1 del login. Si el usuario tiene 2FA retorna { requires_2fa: true, pre_auth_token }.
- * Si no, almacena token y retorna datos completos.
+ * Paso 1 del login. Si las credenciales son correctas devuelve
+ * { requires_2fa: true, duo_auth_url } y el navegador debe redirigirse ahí.
  */
 export const loginStep1 = async (username, password) => {
     const formData = new URLSearchParams();
@@ -45,31 +45,22 @@ export const loginStep1 = async (username, password) => {
         throw new Error(error.detail || 'Error al iniciar sesión');
     }
 
-    const data = await response.json();
-
-    if (data.requires_2fa) {
-        return data; // { requires_2fa: true, pre_auth_token }
-    }
-
-    setToken(data.access_token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    localStorage.setItem('modules', JSON.stringify(data.modulos));
-    return data;
+    return response.json(); // { requires_2fa: true, duo_auth_url }
 };
 
 /**
- * Paso 2: verifica código TOTP y completa el login.
+ * Paso 2: canjea el state + duo_code del redirect de Duo por el JWT de sesión.
  */
-export const verify2FA = async (preAuthToken, code) => {
-    const response = await fetch(`${API_URL}/auth/2fa/verify`, {
+export const completeDuoLogin = async (state, duoCode) => {
+    const response = await fetch(`${API_URL}/auth/duo/callback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pre_auth_token: preAuthToken, code }),
+        body: JSON.stringify({ state, duo_code: duoCode }),
     });
 
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Código incorrecto');
+        throw new Error(error.detail || 'No se pudo completar la verificación');
     }
 
     const data = await response.json();
@@ -77,109 +68,6 @@ export const verify2FA = async (preAuthToken, code) => {
     localStorage.setItem('user', JSON.stringify(data.user));
     localStorage.setItem('modules', JSON.stringify(data.modulos));
     return data;
-};
-
-/**
- * Verifica OTP enviado al email corporativo. Retorna { qr_token }.
- */
-export const verifyEmailOTP = async (setupToken, otpCode) => {
-    const response = await fetch(`${API_URL}/auth/2fa/verify-email-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ setup_token: setupToken, otp_code: otpCode }),
-    });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Código incorrecto');
-    }
-    return response.json(); // { qr_token }
-};
-
-/**
- * Reenvía OTP al email. Retorna nuevo setup_token.
- */
-export const resendEmailOTP = async (token) => {
-    const response = await fetch(`${API_URL}/auth/2fa/resend-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qr_token: token }),
-    });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al reenviar código');
-    }
-    return response.json(); // { setup_token }
-};
-
-/**
- * Setup paso 2: genera QR usando qr_token (email ya verificado).
- */
-export const initialize2FA = async (qrToken) => {
-    const response = await fetch(`${API_URL}/auth/2fa/initialize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qr_token: qrToken }),
-    });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al inicializar 2FA');
-    }
-    return response.json();
-};
-
-/**
- * Setup paso 3: activa 2FA y retorna JWT completo.
- */
-export const activate2FA = async (qrToken, code) => {
-    const response = await fetch(`${API_URL}/auth/2fa/activate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qr_token: qrToken, code }),
-    });
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Código incorrecto');
-    }
-    const data = await response.json();
-    setToken(data.access_token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    localStorage.setItem('modules', JSON.stringify(data.modulos));
-    return data;
-};
-
-/**
- * Inicia el proceso de reconfiguración de 2FA (usuario ya autenticado).
- */
-export const setup2FA = async () => {
-    const response = await fetch(`${API_URL}/auth/2fa/setup`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al configurar 2FA');
-    }
-
-    return response.json();
-};
-
-/**
- * Confirma el código TOTP para activar 2FA definitivamente.
- */
-export const confirmSetup2FA = async (code) => {
-    const response = await fetch(`${API_URL}/auth/2fa/verify-setup`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ code }),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Código incorrecto');
-    }
-
-    return response.json();
 };
 
 export const logout = async () => {

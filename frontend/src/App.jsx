@@ -17,6 +17,7 @@ const LoadingSpinner = () => (
 import Login from './pages/Login';
 import MainMenu from './pages/MainMenu';
 import SetPassword from './pages/SetPassword';
+import DuoCallback from './pages/DuoCallback';
 
 
 // Páginas protegidas con lazy loading (carga bajo demanda)
@@ -50,6 +51,7 @@ function App() {
             {/* Rutas públicas */}
             <Route path="/login" element={<Login />} />
             <Route path="/set-password" element={<SetPassword />} />
+            <Route path="/duo/callback" element={<DuoCallback />} />
             
             {/* Redirigir raíz al menú */}
             <Route path="/" element={<Navigate to="/menu" replace />} />

@@ -52,8 +52,6 @@ class Usuario(Base):
     activo = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
     last_login = Column(DateTime)
-    totp_secret = Column(String(64), nullable=True)
-    totp_enabled = Column(Boolean, default=False)
     invite_token = Column(String(64), nullable=True, unique=True, index=True)
     invite_token_expires_at = Column(DateTime, nullable=True)
 
@@ -68,21 +66,6 @@ class Usuario(Base):
             and self.invite_token_expires_at
             and self.invite_token_expires_at > datetime.utcnow()
         )
-
-
-class OTPCode(Base):
-    """Códigos OTP de un solo uso para verificar email antes de configurar 2FA."""
-    __tablename__ = 'otp_codes'
-    __table_args__ = {'schema': 'app'}
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('app.usuarios.id'), nullable=False)
-    code_hash = Column(String(255), nullable=False)
-    expires_at = Column(DateTime, nullable=False)
-    used = Column(Boolean, default=False)
-    created_at = Column(DateTime, server_default=func.now())
-
-    usuario = relationship("Usuario")
 
 
 class Modulo(Base):
