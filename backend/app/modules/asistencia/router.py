@@ -308,6 +308,12 @@ async def notificar_jefatura(
     return await notificaciones.notificar(req, db, settings)
 
 
+@router.get("/jefaturas")
+def jefaturas(db: Db, ruts: str = Query(..., description="RUTs sin DV, separados por coma")) -> dict:
+    """Correo del jefe directo de cada RUT, para no escribirlo a mano."""
+    return notificaciones.jefaturas_por_rut(db, [r.strip() for r in ruts.split(",")])
+
+
 @router.get("/respuestas-jefatura")
 def respuestas_jefatura(db: Db, desde: str = Query(...), hasta: str = Query(...)) -> dict:
     """Motivos ya respondidos y avisos ya enviados, para pintar la columna."""

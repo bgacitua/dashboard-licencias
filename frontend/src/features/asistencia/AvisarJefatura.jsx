@@ -31,12 +31,18 @@ const nombreDe = (r, nombres) => {
   return propio || nombres?.get(limpiarRut(r.DNI ?? r.dni ?? '')) || ''
 }
 
-/** Un aviso por trabajador, con sus fechas ordenadas y sin repetir. */
-export function avisosDe(rows, jefatura, nombres) {
+/**
+ * Un aviso por trabajador, con sus fechas ordenadas y sin repetir.
+ *
+ * La jefatura sale de `porRut` (jefe directo en rh.employees); `jefatura` es el
+ * respaldo manual para los RUT que la base no resuelve.
+ */
+export function avisosDe(rows, jefatura, nombres, jefaturasPorRut = {}) {
   const porRut = new Map()
   for (const r of rows) {
     const rut = limpiarRut(r.DNI ?? r.dni ?? '')
-    const aviso = porRut.get(rut) ?? { rut, nombre: nombreDe(r, nombres), jefatura, fechas: [] }
+    const aviso = porRut.get(rut) ??
+      { rut, nombre: nombreDe(r, nombres), jefatura: jefaturasPorRut[rut] || jefatura, fechas: [] }
     const fecha = fechaIso(r)
     if (!aviso.fechas.includes(fecha)) aviso.fechas.push(fecha)
     porRut.set(rut, aviso)
@@ -61,6 +67,8 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
   const [resultado, setResultado] = useState(null)
   // El botón no puede decir "enviar" si el servidor está en modo de prueba.
   const [dryRun, setDryRun] = useState(null)
+  // rut -> correo del jefe directo, resuelto en la base al abrir el modal.
+  const [autoJefaturas, setAutoJefaturas] = useState({})
 
   useEffect(() => {
     if (!abierto || dryRun !== null) return
@@ -69,8 +77,23 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
       .catch(() => setDryRun(null))
   }, [abierto, dryRun])
 
-  const avisos = useMemo(() => avisosDe(rows, jefatura.trim(), nombres), [rows, jefatura, nombres])
-  const emailOk = EMAIL.test(jefatura.trim())
+  const ruts = useMemo(
+    () => [...new Set(rows.map((r) => limpiarRut(r.DNI ?? r.dni ?? '')).filter(Boolean))],
+    [rows],
+  )
+
+  useEffect(() => {
+    if (!abierto || !ruts.length) return
+    // Fail-open: si la consulta falla queda el correo manual, como antes.
+    AsistenciaService.getJefaturas(ruts).then(setAutoJefaturas).catch(() => setAutoJefaturas({}))
+  }, [abierto, ruts])
+
+  const avisos = useMemo(
+    () => avisosDe(rows, jefatura.trim(), nombres, autoJefaturas),
+    [rows, jefatura, nombres, autoJefaturas],
+  )
+  const sinJefatura = avisos.filter((a) => !EMAIL.test(a.jefatura))
+  const emailOk = sinJefatura.length === 0
 
   const cerrar = () => {
     setAbierto(false)
@@ -82,7 +105,7 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
     setEnviando(true)
     setError(null)
     try {
-      const res = await AsistenciaService.notificarJefatura(obraId, avisosDe(rows, jefatura.trim(), nombres))
+      const res = await AsistenciaService.notificarJefatura(obraId, avisos)
       try {
         localStorage.setItem('asistencia_jefatura', jefatura.trim())
       } catch {
@@ -135,7 +158,7 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
 
             <div className="px-6 py-4 overflow-auto flex-1">
               <label className="text-sm text-app-muted">
-                Correo de la jefatura
+                Correo de la jefatura (solo para quienes no la tengan en la base)
                 <input
                   type="email"
                   value={jefatura}
@@ -150,6 +173,10 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
                   <li key={a.rut}>
                     <strong className="text-app-ink">{a.nombre || a.rut}</strong>{' '}
                     <span className="text-app-muted">— {a.fechas.map(dmy).join(', ')}</span>
+                    {' · '}
+                    {EMAIL.test(a.jefatura)
+                      ? <span className="text-app-muted">{a.jefatura}</span>
+                      : <span className="text-red-600">sin jefatura</span>}
                     {resultado?.dry_run && (
                       <>
                         {' · '}
@@ -173,6 +200,13 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
               {resultado && !resultado.dry_run && (
                 <p className="mt-4 text-sm text-app-ink">
                   {resultado.enviados} correo(s) enviados.
+                </p>
+              )}
+
+              {!resultado && sinJefatura.length > 0 && (
+                <p className="mt-3 text-sm text-app-muted">
+                  {sinJefatura.length} trabajador(es) sin jefatura en la base: escribe un correo
+                  arriba para cubrirlos.
                 </p>
               )}
 

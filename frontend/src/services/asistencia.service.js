@@ -84,6 +84,14 @@ const AsistenciaService = {
     return data
   },
 
+  getJefaturas: async (ruts) => {
+    const { data } = await axios.get(`${API_URL}/jefaturas`, {
+      headers: authHeaders(),
+      params: { ruts: ruts.join(',') },
+    })
+    return data
+  },
+
   getRespuestasJefatura: async ({ desde, hasta }) => {
     const { data } = await axios.get(`${API_URL}/respuestas-jefatura`, {
       headers: authHeaders(),

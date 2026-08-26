@@ -140,6 +140,29 @@ def notificadas_por_clave(db: Session, desde: str, hasta: str) -> list[str]:
     return [f"{r['rut']}|{r['fecha'].isoformat()}" for r in filas]
 
 
+def jefaturas_por_rut(db: Session, ruts: list[str]) -> dict[str, str]:
+    """rut_sin_dv -> correo del jefe directo, desde rh.employees.
+
+    ponytail: el RUT se normaliza en SQL quitando el DV (left(..., -1)), que es
+    exactamente lo que hace limpiarRut() en el front. Si rh.employees cambiara
+    de formato, esto es lo único que hay que tocar.
+    """
+    if not ruts:
+        return {}
+    filas = db.execute(
+        text("""SELECT DISTINCT ON (rut) rut, email FROM (
+                    SELECT ltrim(left(regexp_replace(e.rut, '[^0-9kK]', '', 'g'), -1), '0') AS rut,
+                           e2.email AS email
+                    FROM rh.employees e
+                    JOIN rh.employees e2 ON e.rut_boss = e2.rut
+                    WHERE e.status = 'activo' AND e2.email IS NOT NULL AND e2.email <> ''
+                ) t
+                WHERE rut = ANY(:ruts)"""),
+        {"ruts": list({r for r in ruts if r})},
+    ).mappings()
+    return {r["rut"]: r["email"] for r in filas}
+
+
 # === Entrada ===
 
 class AvisoIn(BaseModel):
