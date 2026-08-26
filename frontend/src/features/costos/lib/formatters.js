@@ -6,22 +6,30 @@ const MESES_ABREV = [
   'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
 ]
 
-export function formatCLP(value) {
+// Cada país formatea en su propia moneda. No hay conversión entre ellas.
+const MONEDA = {
+  chile: { locale: 'es-CL', currency: 'CLP', simbolo: '$' },
+  peru: { locale: 'es-PE', currency: 'PEN', simbolo: 'S/ ' },
+}
+
+export function formatMoneda(value, pais = 'chile') {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
-  return new Intl.NumberFormat('es-CL', {
+  const m = MONEDA[pais] || MONEDA.chile
+  return new Intl.NumberFormat(m.locale, {
     style: 'currency',
-    currency: 'CLP',
+    currency: m.currency,
     maximumFractionDigits: 0,
   }).format(value)
 }
 
-export function formatCLPCompact(value) {
+export function formatMonedaCompact(value, pais = 'chile') {
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  const s = (MONEDA[pais] || MONEDA.chile).simbolo
   const abs = Math.abs(value)
-  if (abs >= 1e9) return `$${(value / 1e9).toFixed(1)}MM`
-  if (abs >= 1e6) return `$${(value / 1e6).toFixed(1)}M`
-  if (abs >= 1e3) return `$${(value / 1e3).toFixed(0)}K`
-  return `$${Math.round(value)}`
+  if (abs >= 1e9) return `${s}${(value / 1e9).toFixed(1)}MM`
+  if (abs >= 1e6) return `${s}${(value / 1e6).toFixed(1)}M`
+  if (abs >= 1e3) return `${s}${(value / 1e3).toFixed(0)}K`
+  return `${s}${Math.round(value)}`
 }
 
 export function formatPct(value) {

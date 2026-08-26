@@ -9,41 +9,49 @@ const authHeaders = () => {
 }
 
 const CostosService = {
-  getDimensiones: async ({ empresas = [], areas = [], subareas = [] } = {}) => {
+  getDimensiones: async ({ empresas = [], areas = [], subareas = [], pais = 'chile' } = {}) => {
     const params = new URLSearchParams()
+    params.set('pais', pais)
     empresas.forEach((v) => params.append('empresa', v))
     areas.forEach((v) => params.append('area', v))
     subareas.forEach((v) => params.append('subarea', v))
     const qs = params.toString()
-    const { data } = await axios.get(`${API_URL}/dimensiones${qs ? `?${qs}` : ''}`, {
+    const { data } = await axios.get(`${API_URL}/dimensiones?${qs}`, {
       headers: authHeaders(),
     })
     return data
   },
 
-  getIncomeTypes: async () => {
-    const { data } = await axios.get(`${API_URL}/income-types`, { headers: authHeaders() })
+  getIncomeTypes: async (pais = 'chile') => {
+    const { data } = await axios.get(`${API_URL}/income-types`, {
+      params: { pais },
+      headers: authHeaders(),
+    })
     return data
   },
 
-  getConceptos: async () => {
-    const { data } = await axios.get(`${API_URL}/conceptos`, { headers: authHeaders() })
+  getConceptos: async (pais = 'chile') => {
+    const { data } = await axios.get(`${API_URL}/conceptos`, {
+      params: { pais },
+      headers: authHeaders(),
+    })
     return data
   },
 
-  buscarPersonas: async (q, limit = 20) => {
+  buscarPersonas: async (q, { pais = 'chile', limit = 20 } = {}) => {
     const { data } = await axios.get(`${API_URL}/personas/buscar`, {
-      params: { q, limit },
+      params: { q, limit, pais },
       headers: authHeaders(),
     })
     return data
   },
 
   buscarJefes: async (q, opts = {}) => {
-    const { limit = 20, empresas = [], areas = [], subareas = [] } = opts
+    const { limit = 20, empresas = [], areas = [], subareas = [], pais = 'chile' } = opts
     const params = new URLSearchParams()
     params.set('q', q)
     params.set('limit', String(limit))
+    params.set('pais', pais)
     empresas.forEach((v) => params.append('empresa', v))
     areas.forEach((v) => params.append('area', v))
     subareas.forEach((v) => params.append('subarea', v))

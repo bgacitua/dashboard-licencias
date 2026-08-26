@@ -32,6 +32,7 @@ export function FiltersBar({ filtros, setFiltros, onReset, disabled = false }) {
   useEffect(() => {
     let cancelled = false
     CostosService.getDimensiones({
+      pais: filtros.pais,
       empresas: filtros.empresas,
       areas: filtros.areas,
       subareas: filtros.subareas,
@@ -39,18 +40,19 @@ export function FiltersBar({ filtros, setFiltros, onReset, disabled = false }) {
       .then((d) => { if (!cancelled) setDim(d) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [empresasKey, areasKey, subareasKey])
+  }, [filtros.pais, empresasKey, areasKey, subareasKey])
 
   // Búsqueda de jefes restringida por los filtros organizacionales activos.
   const searchJefes = useCallback(
     (q) =>
       CostosService.buscarJefes(q, {
+        pais: filtros.pais,
         empresas: filtros.empresas,
         areas: filtros.areas,
         subareas: filtros.subareas,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [empresasKey, areasKey, subareasKey],
+    [filtros.pais, empresasKey, areasKey, subareasKey],
   )
 
   return (
@@ -146,7 +148,7 @@ export function FiltersBar({ filtros, setFiltros, onReset, disabled = false }) {
               persona_label: item?.label || null,
             })
           }
-          search={(q) => CostosService.buscarPersonas(q)}
+          search={(q) => CostosService.buscarPersonas(q, { pais: filtros.pais })}
           getKey={(it) => it.rut}
           getLabel={(it) => it.full_name}
           getRut={(it) => it.rut}

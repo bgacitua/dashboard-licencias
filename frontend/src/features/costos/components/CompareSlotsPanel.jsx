@@ -11,7 +11,7 @@ const TIPO_LABEL = {
   persona: 'Persona',
 }
 
-export function CompareSlotsPanel({ slots, onAdd, onRemove, onClearAll, nextLetter, canAdd }) {
+export function CompareSlotsPanel({ slots, onAdd, onRemove, onClearAll, nextLetter, canAdd, pais = 'chile' }) {
   const [building, setBuilding] = useState(false)
 
   return (
@@ -66,6 +66,7 @@ export function CompareSlotsPanel({ slots, onAdd, onRemove, onClearAll, nextLett
 
       {building ? (
         <SlotBuilder
+          pais={pais}
           nextLetter={nextLetter}
           onConfirm={(slot) => {
             onAdd(slot)

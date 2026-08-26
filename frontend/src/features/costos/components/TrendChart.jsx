@@ -8,22 +8,22 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { formatCLP, formatCLPCompact, formatMesAbrev } from '../lib/formatters'
+import { formatMoneda, formatMonedaCompact, formatMesAbrev } from '../lib/formatters'
 
-function CustomTooltip({ active, payload, label }) {
+function CustomTooltip({ active, payload, label, pais }) {
   if (!active || !payload || !payload.length) return null
   const c = payload.find((p) => p.dataKey === 'costo')
   const h = payload.find((p) => p.dataKey === 'headcount')
   return (
     <div className="cx-card p-2.5 text-xs">
       <div className="font-semibold mb-1 cx-text-primary">{formatMesAbrev(label)}</div>
-      {c && <div className="cx-text-secondary">Costo: <span className="cx-text-primary tabular-nums font-medium">{formatCLP(c.value)}</span></div>}
+      {c && <div className="cx-text-secondary">Costo: <span className="cx-text-primary tabular-nums font-medium">{formatMoneda(c.value, pais)}</span></div>}
       {h && <div className="cx-text-secondary">HC: <span className="cx-text-primary tabular-nums font-medium">{h.value}</span></div>}
     </div>
   )
 }
 
-export function TrendChart({ data = [], height = 280 }) {
+export function TrendChart({ data = [], height = 280, pais = 'chile' }) {
   const serie = data.map((p) => ({
     pay_period: p.pay_period,
     costo: p.costo,
@@ -47,7 +47,7 @@ export function TrendChart({ data = [], height = 280 }) {
           />
           <YAxis
             yAxisId="left"
-            tickFormatter={formatCLPCompact}
+            tickFormatter={(v) => formatMonedaCompact(v, pais)}
             tick={{ fontSize: 11, fill: 'var(--text-secondary)' }}
             stroke="var(--border-color)"
           />
@@ -57,7 +57,7 @@ export function TrendChart({ data = [], height = 280 }) {
             tick={{ fontSize: 11, fill: 'var(--text-secondary)' }}
             stroke="var(--border-color)"
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border-color)' }} />
+          <Tooltip content={<CustomTooltip pais={pais} />} cursor={{ stroke: 'var(--border-color)' }} />
           <Legend wrapperStyle={{ fontSize: 11, color: 'var(--text-secondary)' }} />
           <Line
             yAxisId="left"

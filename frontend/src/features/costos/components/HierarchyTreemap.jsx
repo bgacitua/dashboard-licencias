@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { ResponsiveContainer, Tooltip, Treemap } from 'recharts'
-import { formatCLP, formatCLPCompact } from '../lib/formatters'
+import { formatMoneda, formatMonedaCompact } from '../lib/formatters'
 
 // Paleta determinística por empresa (verde esmeralda + acentos sobrios).
 const PALETTE = [
@@ -78,14 +78,14 @@ function CustomNode(props) {
       )}
       {showAmount && size != null && (
         <text x={x + 8} y={y + 32} fontSize={11} fill="#FFFFFF" opacity={0.85} style={{ pointerEvents: 'none' }}>
-          {formatCLPCompact(size)}
+          {formatMonedaCompact(size, props.pais)}
         </text>
       )}
     </g>
   )
 }
 
-function TreemapTooltip({ active, payload }) {
+function TreemapTooltip({ active, payload, pais }) {
   if (!active || !payload?.length) return null
   const p = payload[0].payload
   if (p.children) {
@@ -99,13 +99,13 @@ function TreemapTooltip({ active, payload }) {
     <div className="cx-card p-2.5 text-xs">
       <div className="font-semibold cx-text-primary">{p.name}</div>
       <div className="cx-text-muted">{p.empresa} · {p.area}</div>
-      <div className="mt-1 cx-text-secondary">Costo: <span className="cx-text-primary tabular-nums font-medium">{formatCLP(p.size)}</span></div>
+      <div className="mt-1 cx-text-secondary">Costo: <span className="cx-text-primary tabular-nums font-medium">{formatMoneda(p.size, pais)}</span></div>
       {p.headcount != null && <div className="cx-text-secondary">HC: <span className="cx-text-primary tabular-nums font-medium">{p.headcount}</span></div>}
     </div>
   )
 }
 
-export function HierarchyTreemap({ nodos = [], onSelectArea }) {
+export function HierarchyTreemap({ nodos = [], onSelectArea, pais = 'chile' }) {
   const data = useMemo(() => buildTree(nodos), [nodos])
 
   const hojasTotales = useMemo(
@@ -127,7 +127,7 @@ export function HierarchyTreemap({ nodos = [], onSelectArea }) {
           dataKey="size"
           stroke="var(--bg-base)"
           aspectRatio={4 / 3}
-          content={<CustomNode />}
+          content={<CustomNode pais={pais} />}
           isAnimationActive={false}
           onClick={(node) => {
             if (!node?.payload) return
@@ -137,7 +137,7 @@ export function HierarchyTreemap({ nodos = [], onSelectArea }) {
             }
           }}
         >
-          <Tooltip content={<TreemapTooltip />} />
+          <Tooltip content={<TreemapTooltip pais={pais} />} />
         </Treemap>
       </ResponsiveContainer>
     </div>

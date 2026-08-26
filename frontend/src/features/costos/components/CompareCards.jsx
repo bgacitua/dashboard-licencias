@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { formatCLP, formatPct, colorVariacion } from '../lib/formatters'
+import { formatMoneda, formatPct, colorVariacion } from '../lib/formatters'
 import { SLOT_COLORS } from '../lib/useCompareSlots'
 
 const TIPO_LABEL = {
@@ -19,7 +19,7 @@ function deltaPct(actual, base) {
  * Cada card muestra: letra+color, tipo, label, costo total período, headcount,
  * costo prom/persona, MoM, YoY, y Δ vs slot A (excepto A).
  */
-export function CompareCards({ resultados, onRemove }) {
+export function CompareCards({ resultados, onRemove, pais = 'chile' }) {
   if (!resultados?.length) return null
 
   const baseline = resultados[0]
@@ -72,7 +72,7 @@ export function CompareCards({ resultados, onRemove }) {
               <div>
                 <div className="text-[11px] cx-text-secondary">Costo total período</div>
                 <div className="cx-kpi-sm">
-                  {formatCLP(k.costo_total_periodo)}
+                  {formatMoneda(k.costo_total_periodo, pais)}
                 </div>
                 {dTotal !== null && (
                   <div className={`text-[11px] ${colorVariacion(dTotal)}`}>
@@ -95,7 +95,7 @@ export function CompareCards({ resultados, onRemove }) {
               <div>
                 <div className="text-[11px] cx-text-secondary">Costo prom./persona</div>
                 <div className="text-base font-semibold tabular-nums cx-text-primary">
-                  {formatCLP(k.costo_promedio_persona)}
+                  {formatMoneda(k.costo_promedio_persona, pais)}
                 </div>
                 {dProm !== null && (
                   <div className={`text-[11px] ${colorVariacion(dProm)}`}>

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { formatCLP, formatCLPCompact, formatPct, colorVariacion } from '../lib/formatters'
+import { formatMoneda, formatMonedaCompact, formatPct, colorVariacion } from '../lib/formatters'
 
-function Desplegable({ titulo, total, etiqueta, desglose, defaultOpen = false }) {
+function Desplegable({ titulo, total, etiqueta, desglose, defaultOpen = false, pais }) {
   const [open, setOpen] = useState(defaultOpen)
   const Icon = open ? ChevronDown : ChevronRight
   return (
@@ -15,7 +15,7 @@ function Desplegable({ titulo, total, etiqueta, desglose, defaultOpen = false })
         <span className="flex items-center gap-1.5 text-sm font-medium cx-text-primary">
           <Icon className="size-4 cx-text-secondary" />
           {titulo}
-          <span className="cx-text-secondary font-normal ml-1.5 tabular-nums">{formatCLPCompact(total)}</span>
+          <span className="cx-text-secondary font-normal ml-1.5 tabular-nums">{formatMonedaCompact(total, pais)}</span>
         </span>
         <span className="text-xs cx-text-muted">{etiqueta}</span>
       </button>
@@ -27,7 +27,7 @@ function Desplegable({ titulo, total, etiqueta, desglose, defaultOpen = false })
           {desglose.map((d, i) => (
             <li key={`${d.concepto || '_'}-${i}`} className="flex items-center justify-between text-xs">
               <span className="truncate cx-text-primary pr-2">{d.concepto || '(sin clasificar)'}</span>
-              <span className="cx-text-secondary tabular-nums shrink-0">{formatCLP(d.monto)}</span>
+              <span className="cx-text-secondary tabular-nums shrink-0">{formatMoneda(d.monto, pais)}</span>
             </li>
           ))}
         </ul>
@@ -36,7 +36,7 @@ function Desplegable({ titulo, total, etiqueta, desglose, defaultOpen = false })
   )
 }
 
-export function CostoTotalCard({ kpis, etiquetaPeriodo, className = '' }) {
+export function CostoTotalCard({ kpis, etiquetaPeriodo, className = '', pais = 'chile' }) {
   if (!kpis) {
     return (
       <div className={`cx-card p-5 ${className}`}>
@@ -58,7 +58,7 @@ export function CostoTotalCard({ kpis, etiquetaPeriodo, className = '' }) {
         )}
       </div>
 
-      <div className="mt-2 cx-kpi">{formatCLP(costo_total_periodo)}</div>
+      <div className="mt-2 cx-kpi">{formatMoneda(costo_total_periodo, pais)}</div>
 
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
         <span>
@@ -78,12 +78,14 @@ export function CostoTotalCard({ kpis, etiquetaPeriodo, className = '' }) {
         total={costo_mensual?.valor_real || 0}
         etiqueta={costo_mensual?.etiqueta || ''}
         desglose={costo_mensual?.desglose_concepto || []}
+        pais={pais}
       />
       <Desplegable
         titulo="Costo anual"
         total={costo_anual?.valor_real || 0}
         etiqueta={costo_anual?.etiqueta || 'últimos 12 meses'}
         desglose={costo_anual?.desglose_concepto || []}
+        pais={pais}
       />
     </div>
   )

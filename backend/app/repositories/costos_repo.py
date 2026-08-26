@@ -1,4 +1,10 @@
-"""Repositorio del módulo Costos. Queries SQL crudas sobre costos.* y rh.*."""
+"""Repositorio del módulo Costos. Queries SQL crudas sobre costos.*.
+
+El país sólo cambia el *origen* de los datos: las vistas de Chile y Perú exponen
+las mismas columnas (`rut` transporta el RUT o el DNI según el país), de modo que
+el SQL de filtrado es idéntico. Las fuentes salen únicamente de COUNTRY_SOURCES;
+nunca se interpola un nombre de tabla recibido en la request.
+"""
 from datetime import date
 from typing import Any, Optional
 from sqlalchemy import text, bindparam
@@ -7,12 +13,31 @@ from sqlalchemy.orm import Session
 from app.schemas.costos import FilterRequest
 
 
+COUNTRY_SOURCES: dict[str, dict[str, str]] = {
+    "chile": {
+        "costos": "costos.mv_costos_colaboradores",
+        "jerarquia": "costos.mv_jerarquia_jefatura",
+        "dimensiones": "costos.v_dimensiones",
+        "personas": "costos.v_personas_chile",
+        "jefes": "costos.v_jefes",
+    },
+    "peru": {
+        "costos": "costos.v_costos_colaboradores_peru",
+        "jerarquia": "costos.v_jerarquia_jefatura_peru",
+        "dimensiones": "costos.v_dimensiones_peru",
+        "personas": "costos.v_personas_peru",
+        "jefes": "costos.v_jefes_peru",
+    },
+}
+
+
 # ---------------------------------------------------------------------------
 # Helper: traduce FilterRequest a fragmento WHERE parametrizado.
 # ---------------------------------------------------------------------------
 def build_where(
     f: FilterRequest,
     *,
+    jerarquia: str,
     incluir_periodo: bool = True,
     alias: str = "",
 ) -> tuple[str, dict[str, Any], list[Any]]:
@@ -23,6 +48,7 @@ def build_where(
     - `params`: dict para bind escalares.
     - `expanding_binds`: lista de bindparam(..., expanding=True) que el caller
       debe pasar a `text(...).bindparams(*expanding_binds)`.
+    - `jerarquia`: vista de jerarquía del país activo (viene de COUNTRY_SOURCES).
     """
     p = f"{alias}." if alias else ""
     parts: list[str] = []
@@ -66,7 +92,7 @@ def build_where(
         expanding.append(bindparam("conceptos", expanding=True))
     if f.jefatura_rut:
         parts.append(
-            f"{p}rut IN (SELECT descendiente_rut FROM costos.mv_jerarquia_jefatura "
+            f"{p}rut IN (SELECT descendiente_rut FROM {jerarquia} "
             f"WHERE jefe_rut = :jefatura_rut)"
         )
         params["jefatura_rut"] = f.jefatura_rut
@@ -76,8 +102,15 @@ def build_where(
 
 
 class CostosRepository:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, pais: str = "chile"):
+        if pais not in COUNTRY_SOURCES:
+            raise ValueError(f"País no soportado en Costos: {pais!r}")
         self.db = db
+        self.pais = pais
+        self.src = COUNTRY_SOURCES[pais]
+
+    def _where(self, f: FilterRequest, **kwargs):
+        return build_where(f, jerarquia=self.src["jerarquia"], **kwargs)
 
     # ------------------------------------------------------------------ catálogos
     def get_dimensiones(
@@ -106,7 +139,7 @@ class CostosRepository:
         where = " AND ".join(conds)
         sql = text(f"""
             SELECT empresa, area, subarea, centro_costo, cargo
-            FROM costos.v_dimensiones
+            FROM {self.src['dimensiones']}
             WHERE {where}
         """)
         if binds:
@@ -126,32 +159,29 @@ class CostosRepository:
         }
 
     def get_income_types(self) -> list[str]:
-        sql = text("""
+        sql = text(f"""
             SELECT DISTINCT income_type
-            FROM costos.mv_costos_colaboradores
+            FROM {self.src['costos']}
             WHERE income_type IS NOT NULL
             ORDER BY income_type
         """)
         return [r[0] for r in self.db.execute(sql).all()]
 
     def get_conceptos(self) -> list[str]:
-        sql = text("""
+        sql = text(f"""
             SELECT DISTINCT concepto
-            FROM costos.mv_costos_colaboradores
+            FROM {self.src['costos']}
             WHERE concepto IS NOT NULL
             ORDER BY concepto
         """)
         return [r[0] for r in self.db.execute(sql).all()]
 
     def buscar_personas(self, q: str, limit: int = 20) -> list[dict]:
-        sql = text("""
-            SELECT e.rut, e.full_name, e.name_role AS cargo,
-                   a.first_level_name AS empresa, a.name AS area
-            FROM rh.employees e
-            LEFT JOIN rh.areas a ON a.id = e.area_id
-            WHERE e.status = 'activo'
-              AND e.full_name ILIKE :q
-            ORDER BY e.full_name
+        sql = text(f"""
+            SELECT rut, full_name, cargo, empresa, area
+            FROM {self.src['personas']}
+            WHERE full_name ILIKE :q
+            ORDER BY full_name
             LIMIT :limit
         """)
         rows = self.db.execute(sql, {"q": f"%{q}%", "limit": limit}).mappings().all()
@@ -173,42 +203,27 @@ class CostosRepository:
         extra: list[str] = []
 
         if empresas:
-            extra.append("a.first_level_name IN :empresas")
+            extra.append("empresa IN :empresas")
             params["empresas"] = empresas
             binds.append(bindparam("empresas", expanding=True))
         if subareas:
-            extra.append("a.second_level_name IN :subareas")
+            extra.append("subarea IN :subareas")
             params["subareas"] = subareas
             binds.append(bindparam("subareas", expanding=True))
         if areas:
-            extra.append("a.name IN :areas")
+            extra.append("area IN :areas")
             params["areas"] = areas
             binds.append(bindparam("areas", expanding=True))
 
         extra_sql = (" AND " + " AND ".join(extra)) if extra else ""
 
         sql = text(f"""
-            SELECT e.rut,
-                   e.full_name,
-                   e.name_role,
-                   a.first_level_name AS empresa,
-                   a.name             AS area,
-                   a.second_level_name AS subarea,
-                   (
-                     SELECT COUNT(*)
-                     FROM rh.employees sub
-                     WHERE sub.rut_boss = e.rut AND sub.status = 'activo'
-                   ) AS subordinados_directos
-            FROM rh.employees e
-            LEFT JOIN rh.areas a ON a.id = e.area_id
-            WHERE e.status = 'activo'
-              AND e.full_name ILIKE :q
-              AND EXISTS (
-                SELECT 1 FROM rh.employees sub
-                WHERE sub.rut_boss = e.rut AND sub.status = 'activo'
-              )
+            SELECT rut, full_name, name_role, empresa, area, subarea,
+                   subordinados_directos
+            FROM {self.src['jefes']}
+            WHERE full_name ILIKE :q
               {extra_sql}
-            ORDER BY e.full_name
+            ORDER BY full_name
             LIMIT :limit
         """)
         if binds:
@@ -228,10 +243,10 @@ class CostosRepository:
             "fecha_inicio": date(2019, 1, 1),
             "fecha_fin": date(2099, 12, 31),
         })
-        where, params, binds = build_where(f_eval, incluir_periodo=True)
+        where, params, binds = self._where(f_eval, incluir_periodo=True)
         sql = text(f"""
             SELECT MAX(pay_period) AS ultimo
-            FROM costos.mv_costos_colaboradores
+            FROM {self.src['costos']}
             WHERE 1 = 1 {where}
         """)
         if binds:
@@ -240,10 +255,10 @@ class CostosRepository:
         return row[0] if row and row[0] else None
 
     def costo_total(self, f: FilterRequest) -> float:
-        where, params, binds = build_where(f)
+        where, params, binds = self._where(f)
         sql = text(f"""
             SELECT COALESCE(SUM(amount), 0) AS total
-            FROM costos.mv_costos_colaboradores
+            FROM {self.src['costos']}
             WHERE 1 = 1 {where}
         """)
         if binds:
@@ -254,30 +269,16 @@ class CostosRepository:
         self, f: FilterRequest, mes: date
     ) -> tuple[float, list[dict]]:
         """Costo total + desglose por concepto (Sueldo Base, Hora Extra, …) para un pay_period."""
-        f_mes = f.model_copy(update={"fecha_inicio": mes, "fecha_fin": mes})
-        where, params, binds = build_where(f_mes)
-        sql = text(f"""
-            SELECT concepto, COALESCE(SUM(amount), 0) AS monto
-            FROM costos.mv_costos_colaboradores
-            WHERE 1 = 1 {where}
-            GROUP BY concepto
-            ORDER BY monto DESC
-        """)
-        if binds:
-            sql = sql.bindparams(*binds)
-        rows = self.db.execute(sql, params).mappings().all()
-        desglose = [{"concepto": r["concepto"], "monto": float(r["monto"])} for r in rows]
-        total = sum(d["monto"] for d in desglose)
-        return total, desglose
+        return self.costo_rango_con_desglose(f, mes, mes)
 
     def costo_rango_con_desglose(
         self, f: FilterRequest, mes_inicio: date, mes_fin: date
     ) -> tuple[float, list[dict]]:
         f_rango = f.model_copy(update={"fecha_inicio": mes_inicio, "fecha_fin": mes_fin})
-        where, params, binds = build_where(f_rango)
+        where, params, binds = self._where(f_rango)
         sql = text(f"""
             SELECT concepto, COALESCE(SUM(amount), 0) AS monto
-            FROM costos.mv_costos_colaboradores
+            FROM {self.src['costos']}
             WHERE 1 = 1 {where}
             GROUP BY concepto
             ORDER BY monto DESC
@@ -291,10 +292,10 @@ class CostosRepository:
 
     def headcount_mes(self, f: FilterRequest, mes: date) -> int:
         f_mes = f.model_copy(update={"fecha_inicio": mes, "fecha_fin": mes})
-        where, params, binds = build_where(f_mes)
+        where, params, binds = self._where(f_mes)
         sql = text(f"""
             SELECT COUNT(DISTINCT rut) AS hc
-            FROM costos.mv_costos_colaboradores
+            FROM {self.src['costos']}
             WHERE 1 = 1 {where}
         """)
         if binds:
@@ -303,12 +304,12 @@ class CostosRepository:
 
     # ------------------------------------------------------------------ tendencia
     def serie_mensual(self, f: FilterRequest) -> list[dict]:
-        where, params, binds = build_where(f)
+        where, params, binds = self._where(f)
         sql = text(f"""
             SELECT pay_period,
                    COALESCE(SUM(amount), 0) AS costo,
                    COUNT(DISTINCT rut)      AS headcount
-            FROM costos.mv_costos_colaboradores
+            FROM {self.src['costos']}
             WHERE 1 = 1 {where}
             GROUP BY pay_period
             ORDER BY pay_period
@@ -334,12 +335,12 @@ class CostosRepository:
 
     # ------------------------------------------------------------------ jerarquía y top
     def jerarquia_treemap(self, f: FilterRequest) -> list[dict]:
-        where, params, binds = build_where(f)
+        where, params, binds = self._where(f)
         sql = text(f"""
             SELECT empresa, area, centro_costo_efectivo AS centro_costo,
                    COALESCE(SUM(amount), 0)             AS costo,
                    COUNT(DISTINCT rut)                  AS headcount
-            FROM costos.mv_costos_colaboradores
+            FROM {self.src['costos']}
             WHERE 1 = 1 {where}
             GROUP BY empresa, area, centro_costo_efectivo
             ORDER BY costo DESC
@@ -359,7 +360,7 @@ class CostosRepository:
         ]
 
     def top_personas(self, f: FilterRequest, limit: int = 10) -> list[dict]:
-        where, params, binds = build_where(f)
+        where, params, binds = self._where(f)
         params["limit"] = limit
         sql = text(f"""
             SELECT rut,
@@ -369,13 +370,13 @@ class CostosRepository:
                    MAX(rut_boss)                 AS jefatura_rut,
                    COALESCE(SUM(amount), 0)      AS costo,
                    (SELECT concepto
-                      FROM costos.mv_costos_colaboradores m2
+                      FROM {self.src['costos']} m2
                       WHERE m2.rut = m.rut
                         AND m2.pay_period BETWEEN :fecha_inicio AND :fecha_fin
                       GROUP BY concepto
                       ORDER BY SUM(amount) DESC
                       LIMIT 1)                   AS concepto_principal
-            FROM costos.mv_costos_colaboradores m
+            FROM {self.src['costos']} m
             WHERE 1 = 1 {where}
             GROUP BY rut
             ORDER BY costo DESC
