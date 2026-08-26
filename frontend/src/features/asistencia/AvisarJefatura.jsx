@@ -93,6 +93,8 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
     [rows, jefatura, nombres, autoJefaturas],
   )
   const sinJefatura = avisos.filter((a) => !EMAIL.test(a.jefatura))
+  // Antes de mandar hay que poder leer de una sola vez a quién le llega.
+  const destinatarios = [...new Set(avisos.map((a) => a.jefatura).filter((j) => EMAIL.test(j)))].sort()
   const emailOk = sinJefatura.length === 0
 
   const cerrar = () => {
@@ -167,6 +169,24 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
                   className="block mt-1 w-full text-sm border border-app-line rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-app-ink"
                 />
               </label>
+
+              {!resultado && destinatarios.length > 0 && (
+                <div className="mt-4 px-3 py-2 text-sm border border-app-line rounded bg-app-surface">
+                  <p className="text-app-muted">
+                    Se enviará a {destinatarios.length} jefatura{destinatarios.length === 1 ? '' : 's'}:
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {destinatarios.map((d) => (
+                      <li key={d} className="text-app-ink">
+                        {d}{' '}
+                        <span className="text-app-muted">
+                          ({avisos.filter((a) => a.jefatura === d).length} correo(s))
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <ul className="mt-4 text-sm space-y-1">
                 {(resultado?.previews ?? avisos).map((a) => (
