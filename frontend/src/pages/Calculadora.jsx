@@ -162,13 +162,13 @@ export default function Calculadora() {
     }
   }, [pais])
 
-  // El % de utilidades arranca en PORCENTAJE_UTILIDADES_SECTOR (BD) y queda
-  // editable por el usuario para consultas puntuales.
-  useEffect(() => {
-    if (pais !== 'peru') return
-    const pct = config?.tasas?.PORCENTAJE_UTILIDADES_SECTOR
-    setPorcentajeUtilidades(pct != null ? String(pct * 100) : '')
-  }, [pais, config])
+  // Reparto de utilidades en pausa: el % arrancaba en PORCENTAJE_UTILIDADES_SECTOR
+  // (BD) y quedaba editable por el usuario.
+  // useEffect(() => {
+  //   if (pais !== 'peru') return
+  //   const pct = config?.tasas?.PORCENTAJE_UTILIDADES_SECTOR
+  //   setPorcentajeUtilidades(pct != null ? String(pct * 100) : '')
+  // }, [pais, config])
 
   const resultadosBase = useCalculator({
     modo,
@@ -183,6 +183,7 @@ export default function Calculadora() {
     bonos,
     pais,
     config,
+    tieneAsignacionFamiliar,
   })
 
   const { utilidades, utilidadesError } = usePeruUtilidades({

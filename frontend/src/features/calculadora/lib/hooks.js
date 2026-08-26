@@ -41,7 +41,8 @@ export function useCalculator(params) {
       params.bonos,
       params.pais,
       params.config,
-      Boolean(tipoObj?.imponible)
+      Boolean(tipoObj?.imponible),
+      Boolean(params.tieneAsignacionFamiliar)
     )
   }, [
     params.modo,
@@ -56,13 +57,14 @@ export function useCalculator(params) {
     params.bonos,
     params.pais,
     params.config,
+    params.tieneAsignacionFamiliar,
   ])
 }
 
 /**
- * Perú: pide al backend el reparto de utilidades estimado, la asignación
- * familiar y la canasta navideña (anuales). Debounce de 400ms para no
- * consultar rh_peru en cada tecla.
+ * Perú: pide al backend la canasta navideña anual (y la asignación familiar
+ * anual, hoy informativa: el cálculo mensual ya la incluye). El reparto de
+ * utilidades está EN PAUSA y vuelve en 0. Debounce de 400ms.
  *
  * Devuelve { utilidades, utilidadesError }. En cualquier otro país devuelve
  * ambos en null y no hace request.

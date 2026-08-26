@@ -82,13 +82,18 @@ function simular(
 // ============================================================================
 
 /**
- * Impuesto de 5ta categoría (anual).
+ * Impuesto de 5ta categoría (anual) sobre la renta neta (ya descontadas las 7 UIT).
  * Tramos en config.tasas.TRAMOS_IMPUESTO con desde_uf/hasta_uf como múltiplos de UIT.
+ *
+ * Los tramos se ordenan acá: el recorrido corta en el primer tramo que supera la
+ * renta, así que un catálogo cargado en otro orden devolvía 0 impuesto en vez de
+ * fallar. El backend valida el resto (tramos contiguos, tasas, UIT, deducción).
  */
 function calcularImpuesto5taAnual(rentaAnualImponible, tasas) {
   if (rentaAnualImponible <= 0) return 0
   const UIT = tasas.UIT || 0
-  const tramos = tasas.TRAMOS_IMPUESTO || []
+  const tramos = [...(tasas.TRAMOS_IMPUESTO || [])]
+    .sort((a, b) => (a.desde_uf ?? 0) - (b.desde_uf ?? 0))
   if (UIT === 0 || tramos.length === 0) return 0
 
   let impuesto = 0
@@ -204,6 +209,7 @@ function simularPeru(
   bonosNoImponibles,
   bonoEmpresaMonto,
   bonoEmpresaTasa,
+  asignacionFamiliar,
   config
 ) {
   const { afpData, tasas } = config
@@ -212,8 +218,11 @@ function simularPeru(
   const tasaSeguroInvalidez = tasas.TASA_SEGUROS_INVALIDEZ ?? 0.0137
   const refrigerio = tasas.REFRIGERIO ?? 0
 
-  // Refrigerio es imponible en Peru → suma a la base AFP/SIS/impuesto
-  const imponible = sueldoBase + refrigerio + bonosImponibles
+  // Todo lo imponible es remuneración computable: una sola base para AFP/SIS,
+  // impuesto de 5ta, las 2 gratificaciones y la CTS. Incluye la asignación
+  // familiar (10% de la RMV), el refrigerio y los bonos imponibles — que la
+  // calculadora modela como fijos y mensuales, o sea remuneración regular.
+  const imponible = sueldoBase + asignacionFamiliar + refrigerio + bonosImponibles
 
   // Aportes patronales: se resuelven antes del impuesto porque la tasa de la
   // bonificación extraordinaria depende del esquema de salud configurado.
@@ -231,44 +240,54 @@ function simularPeru(
     ? Math.round(sueldoBase * bonoEmpresaTasa)
     : bonoEmpresaMonto
 
-  // Impuesto 5ta categoría — renta anual proyectada:
-  //   sueldoBase × SUELDOS_ANUALES (14 = 12 sueldos + 2 gratificaciones)
-  //   refrigerio y bonos imponibles se pagan 12 veces (no entran a gratificación)
+  // Impuesto 5ta categoría — renta ORDINARIA anual proyectada:
+  //   imponible × SUELDOS_ANUALES (14 = 12 remuneraciones + 2 gratificaciones)
   //   BBE: bonificación extraordinaria sobre las 2 gratificaciones (afecta 5ta cat.)
-  //   bonoEmpresa: anual (utilidades / bono gestión)
+  // El bono empresa (utilidades / bono gestión) NO entra acá: es renta
+  // extraordinaria y se retiene sólo en el mes en que se paga (art. 40 inc. e
+  // del Reglamento LIR). Si entrara, cambiar el tipo o el % del bono movería el
+  // líquido mensual —y con él el sueldo base en modo líquido→base—, que es
+  // justamente lo que no debe pasar.
   const sueldosAnuales = tasas.SUELDOS_ANUALES ?? 14
   const UIT = tasas.UIT ?? 0
   // Deducción automática = 7 UIT (DEDUCCION_FIJA_UIT).
   // Las 3 UIT adicionales (DEDUCCION_ADICIONAL_UIT) requieren gastos deducibles
   // sustentados con comprobantes — no se aplican por defecto.
   const deduccion = (tasas.DEDUCCION_FIJA_UIT ?? 0) * UIT
-  const bonifExtraordinaria = sueldoBase * 2 * tasaBonifExtraordinaria
-  const rentaAnualBruta =
-    sueldoBase * sueldosAnuales +
-    (refrigerio + bonosImponibles) * 12 +
-    bonifExtraordinaria +
-    bonoEmpresa
-  const rentaAnualImponible = Math.max(0, rentaAnualBruta - deduccion)
-  const impuestoAnual = calcularImpuesto5taAnual(rentaAnualImponible, tasas)
+  const bonifExtraordinaria = imponible * 2 * tasaBonifExtraordinaria
+  const rentaAnualOrdinaria = imponible * sueldosAnuales + bonifExtraordinaria
+  const impuestoAnual = calcularImpuesto5taAnual(
+    Math.max(0, rentaAnualOrdinaria - deduccion), tasas
+  )
   const impuestoMensual = impuestoAnual / 12
+
+  // Impuesto del bono empresa: diferencial sobre la renta ordinaria. Se retiene
+  // en el mes de pago del bono; no altera la retencion mensual ordinaria.
+  const impuestoBonoEmpresa = bonoEmpresa > 0
+    ? calcularImpuesto5taAnual(
+        Math.max(0, rentaAnualOrdinaria + bonoEmpresa - deduccion), tasas
+      ) - impuestoAnual
+    : 0
 
   const totalDescuentos = afpObligatorio + comisionAFP + seguroInvalidez + impuestoMensual
 
   const totalHaberes = imponible + movilizacion + bonosNoImponibles
   const liquido = totalHaberes - totalDescuentos
 
-  // Gratificaciones Peru: 2 sueldos extra (julio + diciembre).
+  // Gratificaciones Peru: 2 remuneraciones computables extra (julio + diciembre).
   // No prorrateadas mensualmente — se pagan como evento anual.
-  const gratificacionesAnual = sueldoBase * 2
+  const gratificacionesAnual = imponible * 2
 
   return {
     imponible,
     refrigerio,
+    asignacionFamiliar,
     afpObligatorio,
     comisionAFP,
     seguroInvalidez,
     impuestoAnual,
     impuestoMensual,
+    impuestoBonoEmpresa,
     totalDescuentos,
     bonoEmpresa,
     totalHaberes,
@@ -288,14 +307,21 @@ function calcularPeru(
   bonoEmpresaMonto,
   bonoEmpresaTasa,
   bonos,
-  config
+  config,
+  tieneAsignacionFamiliar
 ) {
   const bonosImponibles = bonos.filter(b => b.imponible).reduce((s, b) => s + b.monto, 0)
   const bonosNoImponibles = bonos.filter(b => !b.imponible).reduce((s, b) => s + b.monto, 0)
 
+  // Asignación familiar: monto fijo mensual = ASIGNACION_FAMILIAR_PCT × RMV.
+  // Ambos factores salen de country_config.tasas; sin ellos queda en cero.
+  const asignacionFamiliar = tieneAsignacionFamiliar
+    ? Math.round((config.tasas.SUELDO_MINIMO ?? 0) * (config.tasas.ASIGNACION_FAMILIAR_PCT ?? 0))
+    : 0
+
   const sim = (base) =>
     simularPeru(base, afpNombre, movilizacion, bonosImponibles, bonosNoImponibles,
-                bonoEmpresaMonto, bonoEmpresaTasa, config)
+                bonoEmpresaMonto, bonoEmpresaTasa, asignacionFamiliar, config)
 
   let sueldoBase
   if (modo === 'base_a_liquido') {
@@ -323,17 +349,23 @@ function calcularPeru(
   // Bono empresa anual + gratificaciones (2 sueldos base)
   const bonoEmpresaAnual = {
     montoImponible: d.bonoEmpresa,
-    descuentoTrabajador: 0,
+    descuentoTrabajador: Math.round(d.impuestoBonoEmpresa),
     costoEmpresa: d.bonoEmpresa,
   }
   // Sobre las gratificaciones no se aporta a salud: la empresa paga en su lugar
   // la bonificación extraordinaria al trabajador.
-  const bonificacionExtraordinaria = d.gratificacionesAnual * d.tasaBonifExtraordinaria
+  const bonificacionExtraordinaria = Math.round(
+    d.gratificacionesAnual * d.tasaBonifExtraordinaria
+  )
   const gratificacionesCostoAnual = d.gratificacionesAnual + bonificacionExtraordinaria
+  // CTS estimada para una posición anual completa: remuneración computable más
+  // un sexto de las gratificaciones. Es una provisión anual, no mensual.
+  const ctsAnual = Math.round(d.imponible + d.gratificacionesAnual / 12)
 
   const costoTotalEmpresaAnual =
     Math.round(costoTotalEmpresa) * 12 +
     gratificacionesCostoAnual +
+    ctsAnual +
     bonoEmpresaAnual.costoEmpresa
 
   const zeroBono = { montoImponible: 0, descuentoTrabajador: 0, costoEmpresa: 0 }
@@ -367,6 +399,8 @@ function calcularPeru(
     bonoEscolaridad:        zeroBono,
     costoTotalEmpresaAnual,
     // Peru-specific
+    ctsAnual,
+    asignacionFamiliar:     Math.round(d.asignacionFamiliar),
     refrigerio:             Math.round(d.refrigerio),
     afpObligatorio:         Math.round(d.afpObligatorio),
     comisionAFP:            Math.round(d.comisionAFP),
@@ -617,6 +651,7 @@ const RESULTADO_BRASIL_VACIO = {
   bonoNavidad: CERO_BONO, bonoFiestasPatrias: CERO_BONO, bonoEscolaridad: CERO_BONO,
   costoTotalEmpresaAnual: 0,
   // Perú en 0
+  ctsAnual: 0, asignacionFamiliar: 0,
   refrigerio: 0, afpObligatorio: 0, comisionAFP: 0, seguroInvalidez: 0,
   essaludEmpleador: 0, gratificacionesAnual: 0, gratificacionesCostoAnual: 0,
   aportesPatronales: [], erroresAportes: [],
@@ -728,7 +763,8 @@ export function calcularRemuneracion(
   bonos,
   pais,
   config,
-  bonoEmpresaImponible = false
+  bonoEmpresaImponible = false,
+  tieneAsignacionFamiliar = false
 ) {
   if (pais === 'brasil') {
     return calcularBrasil(
@@ -738,7 +774,8 @@ export function calcularRemuneracion(
 
   if (pais === 'peru') {
     return calcularPeru(modo, montoIngresado, afpNombre, movilizacion,
-                        bonoEmpresaMonto, bonoEmpresaTasa, bonos, config)
+                        bonoEmpresaMonto, bonoEmpresaTasa, bonos, config,
+                        tieneAsignacionFamiliar)
   }
 
   // Chile (y default)
@@ -820,6 +857,8 @@ export function calcularRemuneracion(
     bonoEscolaridad,
     costoTotalEmpresaAnual,
     // Peru-specific (en 0 para Chile)
+    ctsAnual:               0,
+    asignacionFamiliar:     0,
     refrigerio:             0,
     afpObligatorio:         0,
     comisionAFP:            0,
@@ -835,8 +874,15 @@ export function calcularRemuneracion(
 }
 
 /**
- * Perú: suma al Costo Empresa Anual ya calculado los tres ítems que devuelve
- * el backend (reparto de utilidades, asignación familiar y canasta navideña).
+ * Perú: suma al Costo Empresa Anual ya calculado la canasta navideña que
+ * devuelve el backend.
+ *
+ * La asignación familiar ya no se suma acá: desde que es parte de la
+ * remuneración mensual entra al costo empresa mensual (×12) y a las
+ * gratificaciones, así que sumar el anual del backend la duplicaría.
+ *
+ * El reparto de utilidades queda en pausa (ver calculadora_service.py): el
+ * backend devuelve 0 y no se muestra.
  *
  * No toca ningún otro cálculo: sueldo, AFP, EsSalud, 5ta categoría y
  * gratificaciones quedan exactamente iguales. Si `extras` es null (país
@@ -846,19 +892,17 @@ export function calcularRemuneracion(
 export function aplicarExtrasPeru(resultados, extras) {
   if (!extras) return resultados
 
-  const repartoUtilidades = Math.round(extras.reparto_utilidades_estimado || 0)
-  const asignacionFamiliarAnual = Math.round(extras.asignacion_familiar_anual || 0)
+  // Reparto de utilidades — en pausa, no se usa por ahora.
+  // const repartoUtilidades = Math.round(extras.reparto_utilidades_estimado || 0)
+  // Asignación familiar anual — ya incluida en el cálculo mensual.
+  // const asignacionFamiliarAnual = Math.round(extras.asignacion_familiar_anual || 0)
   const canastaNavidena = Math.round(extras.canasta_navidena_anual || 0)
 
   return {
     ...resultados,
-    repartoUtilidades,
-    asignacionFamiliarAnual,
+    repartoUtilidades: 0,
+    asignacionFamiliarAnual: 0,
     canastaNavidena,
-    costoTotalEmpresaAnual:
-      resultados.costoTotalEmpresaAnual +
-      repartoUtilidades +
-      asignacionFamiliarAnual +
-      canastaNavidena,
+    costoTotalEmpresaAnual: resultados.costoTotalEmpresaAnual + canastaNavidena,
   }
 }

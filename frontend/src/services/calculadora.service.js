@@ -31,9 +31,11 @@ const CalculadoraService = {
   },
 
   /**
-   * Perú: reparto de utilidades estimado + asignación familiar + canasta
-   * navideña (anual). Los factores salen de calculadora.country_config.tasas;
-   * el único valor editable por el usuario es el porcentaje de utilidades.
+   * Perú: asignación familiar + canasta navideña (anual). Los factores salen de
+   * calculadora.country_config.tasas.
+   *
+   * El reparto de utilidades está EN PAUSA: el backend lo devuelve en 0 y
+   * renta_imponible_proyectada / porcentaje_utilidades viajan en 0.
    * @param {{
    *   sueldo_base_calculado: number,
    *   renta_imponible_proyectada: number,
