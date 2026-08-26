@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect, useMemo } from "react";
+﻿import React, { useState, useEffect, useMemo, useRef } from "react";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import SidebarLayout from "../components/SidebarLayout";
+import { truncDias } from "../lib/vacationDays";
 import FiniquitosService from "../services/finiquitos.service";
 import EmployeesService from "../services/employees.service";
 import { getLicenciasByRut } from "../services/licencias";
@@ -248,6 +249,10 @@ const CrearFiniquito = () => {
   const [noticeGiven, setNoticeGiven] = useState(true);
   const [vacationDays, setVacationDays] = useState(0);
   const [vacationDaysStock, setVacationDaysStock] = useState(0); // Original API value
+  // Texto crudo del input. Separado del numero para poder escribir "12." o borrar
+  // el campo sin que un toFixed reformatee en cada tecla y mueva el cursor.
+  const [vacationDaysInput, setVacationDaysInput] = useState("");
+  const vacationInputRef = useRef(null);
   const [vacationDaysManuallyEdited, setVacationDaysManuallyEdited] =
     useState(false);
   const [vacationValue, setVacationValue] = useState(0);
@@ -423,13 +428,13 @@ const CrearFiniquito = () => {
             vacacionesResult.status === "fulfilled" &&
             vacacionesResult.value?.total_dias_disponibles != null
           ) {
-            const rawDays = vacacionesResult.value.total_dias_disponibles;
+            const rawDays = truncDias(vacacionesResult.value.total_dias_disponibles);
             setVacationDaysStock(rawDays);
-            setVacationDays(rawDays);
           } else {
             setVacationDaysStock(0);
-            setVacationDays(0);
           }
+          // vacationDays lo fija el efecto con fecha (y respeta la edicion manual);
+          // aqui solo se guarda el stock para mostrarlo de referencia.
 
           // Sueldo base (fallback a "Sueldo Base" desde items)
           const baseSalaryItem =
@@ -532,6 +537,8 @@ const CrearFiniquito = () => {
       if (data.terminationReason) setTerminationReason(data.terminationReason);
       if (data.noticeGiven !== undefined) setNoticeGiven(data.noticeGiven);
       if (data.selectedManager?.id) setSelectedManager(data.selectedManager.id);
+      if (data.vacationDaysManuallyEdited !== undefined)
+        setVacationDaysManuallyEdited(data.vacationDaysManuallyEdited);
       if (data.vacationDays) setVacationDays(data.vacationDays);
       if (data.yearsForIndemnity) setYearsForIndemnity(data.yearsForIndemnity);
       if (data.descuentosPersonalizados)
@@ -884,6 +891,36 @@ const CrearFiniquito = () => {
     }
   };
 
+  // Cache de dias de vacaciones por (rut, fecha). La API devuelve siempre lo mismo para
+  // la misma fecha, asi que basta con recordar la respuesta: al volver desde el
+  // visualizador no se vuelve a consultar ni se pisa el valor en pantalla.
+  // localStorage y no sessionStorage: el valor debe seguir ahi despues de cerrar el navegador.
+  // ponytail: sin expiracion ni limpieza; si Buk corrige dias hacia atras, el boton
+  // "Restaurar" fuerza la reconsulta.
+  const vacationCacheKey = (fecha) => `vacDays:${rut}:${fecha || "stock"}`;
+  const readVacationCache = (fecha) => {
+    try {
+      const raw = localStorage.getItem(vacationCacheKey(fecha));
+      return raw == null ? null : parseFloat(raw);
+    } catch {
+      return null;
+    }
+  };
+  const writeVacationCache = (fecha, dias) => {
+    try {
+      localStorage.setItem(vacationCacheKey(fecha), String(dias));
+    } catch {
+      /* localStorage lleno o bloqueado: seguir sin cache */
+    }
+  };
+  const clearVacationCache = (fecha) => {
+    try {
+      localStorage.removeItem(vacationCacheKey(fecha));
+    } catch {
+      /* nada que hacer */
+    }
+  };
+
   // Fetch vacation days from backend when termination date changes
   // The backend calculates the projection using the BUK API with the date parameter
   // Uses debounce to avoid excessive API calls when user changes date rapidly
@@ -893,6 +930,13 @@ const CrearFiniquito = () => {
     const fetchVacationDays = async () => {
       if (!rut) return;
 
+      const cached = readVacationCache(lastDayWork);
+      if (cached != null && !Number.isNaN(cached)) {
+        if (!lastDayWork) setVacationDaysStock(cached);
+        setVacationDays(cached);
+        return;
+      }
+
       setIsLoadingVacation(true);
       try {
         // Pass the termination date to the API if selected
@@ -900,7 +944,8 @@ const CrearFiniquito = () => {
           rut,
           lastDayWork || null,
         );
-        const rawDays = vacationData.total_dias_disponibles || 0;
+        const rawDays = truncDias(vacationData.total_dias_disponibles);
+        writeVacationCache(lastDayWork, rawDays);
 
         // Update both stock (initial value without date) and current value
         if (!lastDayWork) {
@@ -924,6 +969,17 @@ const CrearFiniquito = () => {
 
     return () => clearTimeout(debounceTimer);
   }, [rut, lastDayWork, vacationDaysManuallyEdited]);
+
+  const ajustarVacationDays = (delta) => {
+    setVacationDaysManuallyEdited(true);
+    setVacationDays((prev) => Math.max(0, truncDias(prev + delta)));
+  };
+
+  // Espejo numero -> texto. Si el usuario esta escribiendo (foco en el input) no se toca.
+  useEffect(() => {
+    if (document.activeElement === vacationInputRef.current) return;
+    setVacationDaysInput(vacationDays.toFixed(1));
+  }, [vacationDays]);
 
   // Auto-calculate Vacation Value
   // Formula: (Sueldo Base + Promedio Bonos / 30) * Días corridos
@@ -1297,6 +1353,7 @@ const CrearFiniquito = () => {
       totalHaberes,
       yearsForIndemnity,
       vacationDays,
+      vacationDaysManuallyEdited,
       vacationCalendarDays: lastDayWork
         ? calculateDiasCorridos(parseLocalDate(lastDayWork), vacationDays)
         : 0,
@@ -2819,30 +2876,63 @@ const CrearFiniquito = () => {
                   </span>
                 </label>
               </div>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="0.01"
-                  className="w-full p-3 bg-white border-2 border-app-ink rounded-lg focus:ring-2 focus:ring-app-ink focus:border-app-ink outline-none font-medium text-app-ink"
-                  value={vacationDays.toFixed(2)}
-                  onChange={(e) => {
-                    setVacationDays(parseFloat(e.target.value) || 0);
-                    setVacationDaysManuallyEdited(true);
-                  }}
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-app-outline text-sm flex items-center gap-2">
-                  {isLoadingVacation && (
-                    <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-app-ink"></span>
-                  )}
-                  Días
-                </span>
+              <div className="flex items-stretch gap-2">
+                <button
+                  type="button"
+                  aria-label="Restar medio día"
+                  className="px-3 rounded-lg border-2 border-app-ink bg-white font-bold text-app-ink hover:bg-app-ink hover:text-white transition-colors"
+                  onClick={() => ajustarVacationDays(-0.5)}
+                >
+                  −
+                </button>
+                <div className="relative flex-1">
+                  <input
+                    ref={vacationInputRef}
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    inputMode="decimal"
+                    className="w-full p-3 bg-white border-2 border-app-ink rounded-lg focus:ring-2 focus:ring-app-ink focus:border-app-ink outline-none font-medium text-app-ink"
+                    value={vacationDaysInput}
+                    onChange={(e) => {
+                      const texto = e.target.value;
+                      setVacationDaysInput(texto);
+                      setVacationDaysManuallyEdited(true);
+                      // Campo vacío o a medio escribir ("12.") no vale como número todavía:
+                      // se deja el texto y el número se fija al salir del campo.
+                      const n = parseFloat(texto);
+                      if (!Number.isNaN(n)) setVacationDays(truncDias(n));
+                    }}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={() => {
+                      const n = truncDias(parseFloat(vacationDaysInput));
+                      const limpio = Number.isFinite(n) && n > 0 ? n : 0;
+                      setVacationDays(limpio);
+                      setVacationDaysInput(limpio.toFixed(1));
+                    }}
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-app-outline text-sm flex items-center gap-2 pointer-events-none">
+                    {isLoadingVacation && (
+                      <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-app-ink"></span>
+                    )}
+                    Días
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Sumar medio día"
+                  className="px-3 rounded-lg border-2 border-app-ink bg-white font-bold text-app-ink hover:bg-app-ink hover:text-white transition-colors"
+                  onClick={() => ajustarVacationDays(0.5)}
+                >
+                  +
+                </button>
               </div>
               <div className="mt-1 space-y-0.5">
                 <p className="text-xs text-app-brand flex items-center gap-1">
                   <span className="material-symbols-outlined text-[10px]">
                     check_circle
                   </span>
-                  Stock Buk: {vacationDaysStock.toFixed(2)} días
+                  Stock Buk: {vacationDaysStock.toFixed(1)} días
                 </p>
                 {lastDayWork &&
                   vacationDays !== vacationDaysStock &&
@@ -2853,7 +2943,7 @@ const CrearFiniquito = () => {
                       </span>
                       Proyectado al{" "}
                       {parseLocalDate(lastDayWork).toLocaleDateString("es-CL")}:
-                      +{(vacationDays - vacationDaysStock).toFixed(2)} días
+                      +{truncDias(vacationDays - vacationDaysStock).toFixed(1)} días
                     </p>
                   )}
                 {vacationDaysManuallyEdited && (
@@ -2865,6 +2955,7 @@ const CrearFiniquito = () => {
                     <button
                       className="ml-1 underline hover:no-underline"
                       onClick={() => {
+                        clearVacationCache(lastDayWork);
                         setVacationDaysManuallyEdited(false);
                       }}
                     >
