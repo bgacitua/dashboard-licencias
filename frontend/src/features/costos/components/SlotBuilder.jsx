@@ -14,7 +14,7 @@ import CostosService from '../../../services/costos.service'
  * - onConfirm(slot)
  * - onCancel()
  */
-export function SlotBuilder({ nextLetter, onConfirm, onCancel }) {
+export function SlotBuilder({ nextLetter, onConfirm, onCancel, pais = 'chile' }) {
   const [tipo, setTipo] = useState('area')
 
   // Para slot tipo "area" cargamos dimensiones.
@@ -31,19 +31,19 @@ export function SlotBuilder({ nextLetter, onConfirm, onCancel }) {
 
   useEffect(() => {
     if (tipo === 'area' || tipo === 'cargo') {
-      CostosService.getDimensiones().then((d) => {
+      CostosService.getDimensiones({ pais }).then((d) => {
         setEmpresas(d.empresas)
         setCargos(d.cargos)
       }).catch(() => {})
     }
-  }, [tipo])
+  }, [tipo, pais])
 
   useEffect(() => {
     if (tipo !== 'area' || !empresa) { setAreas([]); return }
-    CostosService.getDimensiones({ empresas: [empresa] })
+    CostosService.getDimensiones({ pais, empresas: [empresa] })
       .then((d) => setAreas(d.areas))
       .catch(() => {})
-  }, [tipo, empresa])
+  }, [tipo, empresa, pais])
 
   // ¿Slot listo para confirmar?
   const valido = (() => {
@@ -146,7 +146,7 @@ export function SlotBuilder({ nextLetter, onConfirm, onCancel }) {
             placeholder="Buscar jefatura…"
             value={jefe}
             onChange={setJefe}
-            search={(q) => CostosService.buscarJefes(q)}
+            search={(q) => CostosService.buscarJefes(q, { pais })}
             getKey={(it) => it.rut}
             getLabel={(it) => it.full_name}
             getRut={(it) => it.rut}
@@ -165,7 +165,7 @@ export function SlotBuilder({ nextLetter, onConfirm, onCancel }) {
             placeholder="Buscar persona…"
             value={persona}
             onChange={setPersona}
-            search={(q) => CostosService.buscarPersonas(q)}
+            search={(q) => CostosService.buscarPersonas(q, { pais })}
             getKey={(it) => it.rut}
             getLabel={(it) => it.full_name}
             getRut={(it) => it.rut}

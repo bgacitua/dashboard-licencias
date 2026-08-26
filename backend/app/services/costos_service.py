@@ -21,7 +21,6 @@ from app.schemas.costos import FilterRequest
 _cache_dimensiones: TTLCache = TTLCache(maxsize=128, ttl=3600)
 _cache_income_types: TTLCache = TTLCache(maxsize=8, ttl=3600)
 _cache_conceptos: TTLCache = TTLCache(maxsize=8, ttl=3600)
-_cache_kpis: TTLCache = TTLCache(maxsize=512, ttl=900)
 _cache_lock = Lock()
 
 
@@ -39,7 +38,7 @@ class CostosService:
 
     # ------------------------------------------------------------------ catálogos
     def get_dimensiones(self, empresas=None, areas=None, subareas=None) -> dict:
-        key = ("dim", tuple(empresas or []), tuple(areas or []), tuple(subareas or []))
+        key = (self.repo.pais, "dim", tuple(empresas or []), tuple(areas or []), tuple(subareas or []))
         with _cache_lock:
             if key in _cache_dimensiones:
                 return _cache_dimensiones[key]
@@ -49,21 +48,23 @@ class CostosService:
         return data
 
     def get_income_types(self) -> list[str]:
+        key = self.repo.pais
         with _cache_lock:
-            if "all" in _cache_income_types:
-                return _cache_income_types["all"]
+            if key in _cache_income_types:
+                return _cache_income_types[key]
         data = self.repo.get_income_types()
         with _cache_lock:
-            _cache_income_types["all"] = data
+            _cache_income_types[key] = data
         return data
 
     def get_conceptos(self) -> list[str]:
+        key = self.repo.pais
         with _cache_lock:
-            if "all" in _cache_conceptos:
-                return _cache_conceptos["all"]
+            if key in _cache_conceptos:
+                return _cache_conceptos[key]
         data = self.repo.get_conceptos()
         with _cache_lock:
-            _cache_conceptos["all"] = data
+            _cache_conceptos[key] = data
         return data
 
     def buscar_personas(self, q: str, limit: int = 20):
@@ -112,8 +113,13 @@ class CostosService:
             else:
                 banner = f"Sin datos en el rango. Mostrando {_formatear_mes(ultimo)} (último cerrado)."
 
-        # 3. Costo total del rango filtrado (real, sin fallback).
-        costo_total_periodo = self.repo.costo_total(f)
+        # 3. Costo total del período. Si el rango filtrado no tenía datos, se
+        #    calcula sobre el mes al que cayó el fallback: mostrar 0 junto a un
+        #    banner que anuncia otro mes deja la cifra principal mintiendo.
+        f_periodo = f if banner is None else f.model_copy(
+            update={"fecha_inicio": ultimo, "fecha_fin": ultimo}
+        )
+        costo_total_periodo = self.repo.costo_total(f_periodo)
 
         # 4. Costo del último mes con desglose por income_type.
         costo_mes, desglose_mes = self.repo.costo_mes_con_desglose(f, ultimo)
@@ -210,6 +216,7 @@ class CostosService:
         for s in slots:
             # Slot.valor → FilterRequest extra
             extra = {
+                "pais": self.repo.pais,
                 "fecha_inicio": fecha_inicio,
                 "fecha_fin": fecha_fin,
                 "income_types": income_types,
@@ -255,11 +262,25 @@ class CostosService:
         return {"slots": results}
 
     # ------------------------------------------------------------------ Fase 3
+    def _rango_efectivo(self, f: FilterRequest) -> FilterRequest:
+        """Si el rango filtrado no tiene datos, cae al último mes cerrado.
+
+        Es el mismo fallback que anuncia el banner de KPIs. Sin esto, el mes en
+        curso deja treemap y top vacíos mientras las tarjetas muestran el mes
+        anterior — en Perú, que sólo publica meses cerrados, pasaría siempre.
+        """
+        if self.repo.get_max_pay_period(f, dentro_del_periodo=True):
+            return f
+        ultimo = self.repo.get_max_pay_period(f, dentro_del_periodo=False)
+        if ultimo is None:
+            return f
+        return f.model_copy(update={"fecha_inicio": ultimo, "fecha_fin": ultimo})
+
     def get_jerarquia(self, f: FilterRequest) -> dict:
-        return {"nodos": self.repo.jerarquia_treemap(f)}
+        return {"nodos": self.repo.jerarquia_treemap(self._rango_efectivo(f))}
 
     def get_top_personas(self, f: FilterRequest, limit: int = 10) -> dict:
-        rows = self.repo.top_personas(f, limit)
+        rows = self.repo.top_personas(self._rango_efectivo(f), limit)
         items = [
             {
                 "rank": i + 1,

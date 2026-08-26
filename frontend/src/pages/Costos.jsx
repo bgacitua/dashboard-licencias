@@ -24,7 +24,7 @@ import CostosService from '../services/costos.service'
 import '../features/costos/costos.css'
 
 export default function Costos() {
-  const { filtros, setFiltros, reset, payload } = useCostosFilters()
+  const { filtros, setFiltros, setPais, reset, payload } = useCostosFilters()
   const rules = useViewportRules(filtros)
   const { slots, add: addSlot, remove: removeSlot, clear: clearSlots, nextLetter, canAdd } = useCompareSlots()
   const { darkMode, toggleDarkMode } = useDarkMode()
@@ -42,11 +42,25 @@ export default function Costos() {
 
   useEffect(() => {
     let cancelled = false
-    CostosService.getConceptos()
+    CostosService.getConceptos(filtros.pais)
       .then((d) => { if (!cancelled) setConceptos(d) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [])
+  }, [filtros.pais])
+
+  // Cambiar de país: se descartan los resultados del país anterior para no
+  // mostrar montos de un país con el símbolo del otro mientras carga.
+  const cambiarPais = (p) => {
+    if (p === filtros.pais) return
+    clearSlots()
+    setKpis(null)
+    setTendencia([])
+    setHistorico([])
+    setJerarquia([])
+    setTopItems([])
+    setCompareResult([])
+    setPais(p)
+  }
 
   const payloadKey = useMemo(() => JSON.stringify(payload), [payload])
   const slotsKey = useMemo(() => JSON.stringify(slots), [slots])
@@ -58,6 +72,7 @@ export default function Costos() {
 
     if (isComparing) {
       CostosService.comparar({
+        pais: payload.pais,
         fecha_inicio: payload.fecha_inicio,
         fecha_fin: payload.fecha_fin,
         conceptos: payload.conceptos,
@@ -129,6 +144,25 @@ export default function Costos() {
             </p>
           </div>
 
+          <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-md overflow-hidden border cx-border">
+            {[['chile', 'Chile'], ['peru', 'Perú']].map(([valor, etiqueta]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => cambiarPais(valor)}
+                aria-pressed={filtros.pais === valor}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  filtros.pais === valor
+                    ? 'bg-[var(--accent)] text-white'
+                    : 'cx-text-secondary hover:cx-text-primary'
+                }`}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
+
           <button
             type="button"
             onClick={toggleDarkMode}
@@ -138,6 +172,7 @@ export default function Costos() {
             {darkMode ? <Sun className="size-4" /> : <Moon className="size-4" />}
             <span>{darkMode ? 'Claro' : 'Oscuro'}</span>
           </button>
+          </div>
         </div>
 
         <FiltersBar
@@ -154,6 +189,7 @@ export default function Costos() {
         )}
 
         <CompareSlotsPanel
+          pais={filtros.pais}
           slots={slots}
           onAdd={addSlot}
           onRemove={removeSlot}
@@ -177,8 +213,8 @@ export default function Costos() {
 
         {isComparing && (
           <>
-            <CompareCards resultados={compareResult} onRemove={removeSlot} />
-            <CompareChart resultados={compareResult} />
+            <CompareCards resultados={compareResult} onRemove={removeSlot} pais={filtros.pais} />
+            <CompareChart resultados={compareResult} pais={filtros.pais} />
             {loading && <div className="text-xs cx-text-muted">Cargando…</div>}
           </>
         )}
@@ -188,7 +224,7 @@ export default function Costos() {
         {kpis?.banner && <EmptyStateBanner message={kpis.banner} />}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <CostoTotalCard kpis={kpis} className="md:col-span-2" />
+          <CostoTotalCard kpis={kpis} className="md:col-span-2" pais={filtros.pais} />
           <KpiSimpleCard
             label="Headcount al cierre"
             value={kpis?.headcount_cierre}
@@ -199,22 +235,24 @@ export default function Costos() {
             label="Costo prom./persona"
             value={kpis?.costo_promedio_persona}
             isCurrency
+            pais={filtros.pais}
             sub={kpis?.costo_mensual?.etiqueta ? `Mensual · ${kpis.costo_mensual.etiqueta}` : ''}
           />
         </div>
 
         {rules.trendMode === 'full' && tendencia.length > 0 && (
-          <TrendChart data={tendencia} />
+          <TrendChart data={tendencia} pais={filtros.pais} />
         )}
         {rules.trendMode === 'sparkline' && tendencia.length > 0 && (
-          <TrendSparkline data={tendencia} />
+          <TrendSparkline data={tendencia} pais={filtros.pais} />
         )}
         {rules.showHistorical && historico.length > 0 && (
-          <HistoricalContext data={historico} />
+          <HistoricalContext data={historico} pais={filtros.pais} />
         )}
 
         {rules.showTreemap && jerarquia.length > 0 && (
           <HierarchyTreemap
+            pais={filtros.pais}
             nodos={jerarquia}
             onSelectArea={({ empresa, area }) =>
               setFiltros({ empresas: [empresa], areas: [area] })
@@ -224,6 +262,7 @@ export default function Costos() {
 
         {rules.showTopJefaturas && (
           <TopJefaturasTable
+            pais={filtros.pais}
             items={topItems}
             onSelectJefatura={(it) => {
               if (!it?.jefatura_rut) return

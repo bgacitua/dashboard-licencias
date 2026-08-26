@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { Button } from '../../calculadora/components/ui/button'
-import { formatCLP, formatCLPCompact, formatMesAbrev } from '../lib/formatters'
+import { formatMoneda, formatMonedaCompact, formatMesAbrev } from '../lib/formatters'
 import { SLOT_COLORS } from '../lib/useCompareSlots'
 
 /**
@@ -19,7 +19,7 @@ import { SLOT_COLORS } from '../lib/useCompareSlots'
  *
  * Espera `resultados`: [{ slot_id, label, serie: [{pay_period, costo, headcount}] }]
  */
-export function CompareChart({ resultados }) {
+export function CompareChart({ resultados, pais = 'chile' }) {
   const [metric, setMetric] = useState('costo')   // 'costo' | 'prom'
 
   // Combina las series por pay_period en un único dataset:
@@ -73,9 +73,9 @@ export function CompareChart({ resultados }) {
         <LineChart data={merged} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
           <XAxis dataKey="pay_period" tickFormatter={formatMesAbrev} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} stroke="var(--border-color)" />
-          <YAxis tickFormatter={formatCLPCompact} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} stroke="var(--border-color)" />
+          <YAxis tickFormatter={(v) => formatMonedaCompact(v, pais)} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} stroke="var(--border-color)" />
           <Tooltip
-            formatter={(v) => formatCLP(v)}
+            formatter={(v) => formatMoneda(v, pais)}
             labelFormatter={(l) => formatMesAbrev(l)}
             contentStyle={{
               fontSize: 11,

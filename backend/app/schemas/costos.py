@@ -7,7 +7,11 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 # Filtros (body común para los endpoints POST)
 # ---------------------------------------------------------------------------
+PaisCostos = Literal["chile", "peru"]
+
+
 class FilterRequest(BaseModel):
+    pais: PaisCostos = "chile"                 # chile = RUT, peru = DNI
     fecha_inicio: date                         # primer día del mes
     fecha_fin: date                            # último día del mes
     empresas: Optional[list[str]] = None
@@ -142,6 +146,7 @@ class SlotInput(BaseModel):
 
 
 class CompareRequest(BaseModel):
+    pais: PaisCostos = "chile"
     fecha_inicio: date
     fecha_fin: date
     income_types: Optional[list[str]] = None

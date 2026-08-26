@@ -1,11 +1,11 @@
-import { formatCLP, colorVariacion } from '../lib/formatters'
+import { formatMoneda, colorVariacion } from '../lib/formatters'
 
-export function KpiSimpleCard({ label, value, sub, isCurrency = false, delta = null }) {
+export function KpiSimpleCard({ label, value, sub, isCurrency = false, delta = null, pais = 'chile' }) {
   const display =
     value === null || value === undefined
       ? '—'
       : isCurrency
-        ? formatCLP(value)
+        ? formatMoneda(value, pais)
         : new Intl.NumberFormat('es-CL').format(value)
 
   let deltaNode = null

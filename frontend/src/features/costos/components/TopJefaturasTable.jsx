@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
-import { formatCLP } from '../lib/formatters'
+import { formatMoneda } from '../lib/formatters'
 
-export function TopJefaturasTable({ items = [], onSelectJefatura }) {
+export function TopJefaturasTable({ items = [], onSelectJefatura, pais = 'chile' }) {
   const [sort, setSort] = useState({ key: 'rank', dir: 'asc' })
 
   const sorted = useMemo(() => {
@@ -101,7 +101,7 @@ export function TopJefaturasTable({ items = [], onSelectJefatura }) {
                   <td className="px-3 py-2.5 cx-text-primary font-medium text-[13px]">{it.full_name || '—'}</td>
                   <td className="px-3 py-2.5 cx-text-secondary text-xs">{it.cargo || '—'}</td>
                   <td className="px-3 py-2.5 cx-text-secondary text-xs">{it.jefatura_nombre || '—'}</td>
-                  <td className="px-3 py-2.5 text-right cx-text-primary tabular-nums font-medium text-[13px]">{formatCLP(it.costo)}</td>
+                  <td className="px-3 py-2.5 text-right cx-text-primary tabular-nums font-medium text-[13px]">{formatMoneda(it.costo, pais)}</td>
                   <td className="px-3 py-2.5 cx-text-muted text-xs">{it.concepto_principal || '—'}</td>
                 </tr>
               )

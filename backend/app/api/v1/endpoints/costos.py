@@ -9,6 +9,7 @@ from app.repositories.costos_repo import CostosRepository
 from app.services.costos_service import CostosService
 from app.schemas.costos import (
     CompareRequest,
+    PaisCostos,
     CompareResponse,
     DimensionesResponse,
     FilterRequest,
@@ -23,8 +24,8 @@ from app.schemas.costos import (
 router = APIRouter()
 
 
-def _service(db: Session) -> CostosService:
-    return CostosService(CostosRepository(db))
+def _service(db: Session, pais: str = "chile") -> CostosService:
+    return CostosService(CostosRepository(db, pais))
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +33,7 @@ def _service(db: Session) -> CostosService:
 # ---------------------------------------------------------------------------
 @router.get("/dimensiones", response_model=DimensionesResponse)
 def get_dimensiones(
+    pais: PaisCostos = Query(default="chile"),
     empresa: list[str] | None = Query(default=None),
     area: list[str] | None = Query(default=None),
     subarea: list[str] | None = Query(default=None),
@@ -42,39 +44,43 @@ def get_dimensiones(
 
     Query repetidos: ?empresa=A&empresa=B&area=X
     """
-    return _service(db).get_dimensiones(empresa, area, subarea)
+    return _service(db, pais).get_dimensiones(empresa, area, subarea)
 
 
 @router.get("/income-types", response_model=list[str])
 def get_income_types(
+    pais: PaisCostos = Query(default="chile"),
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
-    return _service(db).get_income_types()
+    return _service(db, pais).get_income_types()
 
 
 @router.get("/conceptos", response_model=list[str])
 def get_conceptos(
+    pais: PaisCostos = Query(default="chile"),
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
     """Lista distinct de conceptos (hsi.name) para filtro fino: Sueldo Base, Hora Extra, etc."""
-    return _service(db).get_conceptos()
+    return _service(db, pais).get_conceptos()
 
 
 @router.get("/personas/buscar", response_model=list[PersonaSearchItem])
 def buscar_personas(
     q: str = Query(min_length=2),
+    pais: PaisCostos = Query(default="chile"),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
-    return _service(db).buscar_personas(q, limit)
+    return _service(db, pais).buscar_personas(q, limit)
 
 
 @router.get("/jefes/buscar", response_model=list[JefeSearchItem])
 def buscar_jefes(
     q: str = Query(min_length=2),
+    pais: PaisCostos = Query(default="chile"),
     limit: int = Query(default=20, ge=1, le=100),
     empresa: list[str] | None = Query(default=None),
     area: list[str] | None = Query(default=None),
@@ -82,7 +88,7 @@ def buscar_jefes(
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
-    return _service(db).buscar_jefes(
+    return _service(db, pais).buscar_jefes(
         q, limit, empresas=empresa, areas=area, subareas=subarea
     )
 
@@ -96,7 +102,7 @@ def get_kpis(
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
-    return _service(db).get_kpis(filtros)
+    return _service(db, filtros.pais).get_kpis(filtros)
 
 
 @router.post("/tendencia", response_model=TendenciaResponse)
@@ -105,7 +111,7 @@ def get_tendencia(
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
-    return _service(db).get_tendencia(filtros)
+    return _service(db, filtros.pais).get_tendencia(filtros)
 
 
 @router.post("/historico-contexto", response_model=TendenciaResponse)
@@ -114,7 +120,7 @@ def get_historico_contexto(
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
-    return _service(db).get_historico_contexto(filtros)
+    return _service(db, filtros.pais).get_historico_contexto(filtros)
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +132,7 @@ def get_jerarquia(
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
-    return _service(db).get_jerarquia(filtros)
+    return _service(db, filtros.pais).get_jerarquia(filtros)
 
 
 @router.post("/jefaturas-top", response_model=JefaturasTopResponse)
@@ -136,7 +142,7 @@ def get_jefaturas_top(
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
-    return _service(db).get_top_personas(filtros, limit)
+    return _service(db, filtros.pais).get_top_personas(filtros, limit)
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +154,7 @@ def comparar(
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
-    return _service(db).comparar(
+    return _service(db, body.pais).comparar(
         body.fecha_inicio,
         body.fecha_fin,
         body.slots,
