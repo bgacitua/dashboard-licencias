@@ -56,17 +56,19 @@ class FiniquitosService:
         Raises:
             HTTPException: Si hay error en la comunicación con la API externa
         """
-        logger.info(f"Consultando vacaciones disponibles para rut: {rut}, fecha: {date}")
+        logger.info(f"Consultando vacaciones disponibles para rut: {rut}, fecha: {date}, discount: true")
         
         # Debug: Verificar si la API Key se está cargando
         if not settings.BUK_API_KEY:
             logger.error("CRITICAL: BUK_API_KEY no está configurada o está vacía.")
 
-        # Construir URL con parámetro de fecha si está disponible
         url = f"{settings.BUK_API_BASE_URL}/employees/{rut}/vacations_available"
+        # discount=true: Buk descuenta los días ya tomados y los pendientes de aprobación.
+        # Sin el parámetro devuelve el stock bruto, que sobreestima el finiquito.
+        params = {"discount": "true"}
         if date:
-            url += f"?date={date}"
-            
+            params["date"] = date
+
         headers = {
             "auth_token": settings.BUK_API_KEY,
             "Content-Type": "application/json"
@@ -74,7 +76,7 @@ class FiniquitosService:
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(url, headers=headers)
+                response = await client.get(url, headers=headers, params=params)
                 response.raise_for_status()
                 
                 data = response.json()

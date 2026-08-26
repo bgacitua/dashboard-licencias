@@ -897,7 +897,8 @@ const CrearFiniquito = () => {
   // localStorage y no sessionStorage: el valor debe seguir ahi despues de cerrar el navegador.
   // ponytail: sin expiracion ni limpieza; si Buk corrige dias hacia atras, el boton
   // "Restaurar" fuerza la reconsulta.
-  const vacationCacheKey = (fecha) => `vacDays:${rut}:${fecha || "stock"}`;
+  // v2 en la clave: lo guardado antes se pidio sin discount=true y sobreestima los dias.
+  const vacationCacheKey = (fecha) => `vacDaysV2:${rut}:${fecha || "stock"}`;
   const readVacationCache = (fecha) => {
     try {
       const raw = localStorage.getItem(vacationCacheKey(fecha));
