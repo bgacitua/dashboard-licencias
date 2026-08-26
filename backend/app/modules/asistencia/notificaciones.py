@@ -141,38 +141,32 @@ def notificadas_por_clave(db: Session, desde: str, hasta: str) -> list[str]:
 
 
 def jefaturas_por_rut(db: Session, ruts: list[str]) -> dict[str, str]:
-    """rut -> correo del jefe directo, desde rh.employees.
+    """rut_sin_dv -> correo del jefe directo, para trabajadores activos.
 
-    ponytail: no asumimos el formato de rh.employees.rut. Se compara contra las
-    dos formas (con y sin dígito verificador) y se devuelven ambas como clave,
-    así el front encuentra la suya sin que importe cuál guarda la base.
+    rh.employees guarda el RUT como xx.xxx.xxx-x, tanto en `rut` como en
+    `rut_boss`: sacando puntos, guion y DV queda el mismo cuerpo que manda
+    limpiarRut() en el front. Si ese formato cambiara, esto es lo único a tocar.
     """
-    pedidos = {r for r in ruts if r}
+    pedidos = sorted({r for r in ruts if r})
     if not pedidos:
         return {}
     filas = db.execute(
-        text("""SELECT DISTINCT completo, email FROM (
-                    SELECT ltrim(regexp_replace(e.rut, '[^0-9kK]', '', 'g'), '0') AS completo,
+        text("""SELECT DISTINCT rut, email FROM (
+                    SELECT ltrim(left(regexp_replace(e.rut, '[^0-9kK]', '', 'g'), -1), '0') AS rut,
                            e2.email AS email
                     FROM rh.employees e
-                    JOIN rh.employees e2 ON e.rut_boss = e2.rut
-                    WHERE e2.email IS NOT NULL AND e2.email <> ''
+                    JOIN rh.employees e2 ON e2.rut = e.rut_boss
+                    WHERE e.status = 'activo' AND e2.email IS NOT NULL AND e2.email <> ''
                 ) t
-                WHERE completo <> ''
-                  AND (completo = ANY(:ruts) OR left(completo, -1) = ANY(:ruts))"""),
-        {"ruts": list(pedidos)},
+                WHERE rut = ANY(:ruts)"""),
+        {"ruts": pedidos},
     ).mappings().all()
 
     out: dict[str, str] = {}
     for f in filas:
-        completo = f["completo"]
-        sin_dv = completo[:-1]
-        for clave in (completo, sin_dv):
-            if clave in pedidos:
-                out.setdefault(clave, f["email"])
+        out.setdefault(f["rut"], f["email"])
     logger.info(
-        "[asistencia/jefaturas] %d de %d RUT resueltos (%d filas en rh.employees)",
-        len(out), len(pedidos), len(filas),
+        "[asistencia/jefaturas] %d de %d RUT resueltos", len(out), len(pedidos)
     )
     return out
 
