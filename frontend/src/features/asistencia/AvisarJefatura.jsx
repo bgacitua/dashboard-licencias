@@ -69,6 +69,7 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
   const [dryRun, setDryRun] = useState(null)
   // rut -> correo del jefe directo, resuelto en la base al abrir el modal.
   const [autoJefaturas, setAutoJefaturas] = useState({})
+  const [errorJefaturas, setErrorJefaturas] = useState(null)
 
   useEffect(() => {
     if (!abierto || dryRun !== null) return
@@ -84,8 +85,17 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
 
   useEffect(() => {
     if (!abierto || !ruts.length) return
-    // Fail-open: si la consulta falla queda el correo manual, como antes.
-    AsistenciaService.getJefaturas(ruts).then(setAutoJefaturas).catch(() => setAutoJefaturas({}))
+    // Si la consulta falla queda el correo manual, pero el motivo se muestra:
+    // un fallback silencioso se lee igual que "la base no tiene la jefatura".
+    AsistenciaService.getJefaturas(ruts)
+      .then((m) => {
+        setAutoJefaturas(m)
+        setErrorJefaturas(null)
+      })
+      .catch((e) => {
+        setAutoJefaturas({})
+        setErrorJefaturas(e?.response?.data?.detail || e?.message || 'error desconocido')
+      })
   }, [abierto, ruts])
 
   const avisos = useMemo(
@@ -220,6 +230,13 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
               {resultado && !resultado.dry_run && (
                 <p className="mt-4 text-sm text-app-ink">
                   {resultado.enviados} correo(s) enviados.
+                </p>
+              )}
+
+              {errorJefaturas && (
+                <p className="mt-3 text-sm text-red-600">
+                  No se pudo consultar la jefatura en la base ({errorJefaturas}). Escribe el correo
+                  arriba para enviar igual.
                 </p>
               )}
 

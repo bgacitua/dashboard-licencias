@@ -141,26 +141,40 @@ def notificadas_por_clave(db: Session, desde: str, hasta: str) -> list[str]:
 
 
 def jefaturas_por_rut(db: Session, ruts: list[str]) -> dict[str, str]:
-    """rut_sin_dv -> correo del jefe directo, desde rh.employees.
+    """rut -> correo del jefe directo, desde rh.employees.
 
-    ponytail: el RUT se normaliza en SQL quitando el DV (left(..., -1)), que es
-    exactamente lo que hace limpiarRut() en el front. Si rh.employees cambiara
-    de formato, esto es lo único que hay que tocar.
+    ponytail: no asumimos el formato de rh.employees.rut. Se compara contra las
+    dos formas (con y sin dígito verificador) y se devuelven ambas como clave,
+    así el front encuentra la suya sin que importe cuál guarda la base.
     """
-    if not ruts:
+    pedidos = {r for r in ruts if r}
+    if not pedidos:
         return {}
     filas = db.execute(
-        text("""SELECT DISTINCT ON (rut) rut, email FROM (
-                    SELECT ltrim(left(regexp_replace(e.rut, '[^0-9kK]', '', 'g'), -1), '0') AS rut,
+        text("""SELECT DISTINCT completo, email FROM (
+                    SELECT ltrim(regexp_replace(e.rut, '[^0-9kK]', '', 'g'), '0') AS completo,
                            e2.email AS email
                     FROM rh.employees e
                     JOIN rh.employees e2 ON e.rut_boss = e2.rut
-                    WHERE e.status = 'activo' AND e2.email IS NOT NULL AND e2.email <> ''
+                    WHERE e2.email IS NOT NULL AND e2.email <> ''
                 ) t
-                WHERE rut = ANY(:ruts)"""),
-        {"ruts": list({r for r in ruts if r})},
-    ).mappings()
-    return {r["rut"]: r["email"] for r in filas}
+                WHERE completo <> ''
+                  AND (completo = ANY(:ruts) OR left(completo, -1) = ANY(:ruts))"""),
+        {"ruts": list(pedidos)},
+    ).mappings().all()
+
+    out: dict[str, str] = {}
+    for f in filas:
+        completo = f["completo"]
+        sin_dv = completo[:-1]
+        for clave in (completo, sin_dv):
+            if clave in pedidos:
+                out.setdefault(clave, f["email"])
+    logger.info(
+        "[asistencia/jefaturas] %d de %d RUT resueltos (%d filas en rh.employees)",
+        len(out), len(pedidos), len(filas),
+    )
+    return out
 
 
 # === Entrada ===
