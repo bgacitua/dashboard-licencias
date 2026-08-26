@@ -93,10 +93,14 @@ class CountryConfigOut(BaseModel):
 
 
 class ProyeccionUtilidadesPeruIn(BaseModel):
-    """Entrada del reparto de utilidades estimado (Perú).
+    """Entrada de los adicionales anuales de Perú.
 
     `sueldo_base_calculado` es el sueldo base que ya devolvió la calculadora,
     en cualquiera de los dos modos (Base → Líquido / Líquido → Base).
+
+    `renta_imponible_proyectada` y `porcentaje_utilidades` sólo los usa el
+    reparto de utilidades, que está EN PAUSA: se siguen aceptando (llegan en 0)
+    para no romper el contrato mientras el cálculo esté comentado.
     """
     sueldo_base_calculado: float = Field(ge=0)
     renta_imponible_proyectada: float = Field(ge=0)

@@ -1,5 +1,5 @@
 /**
- * Self-check de calculations.js: verifica que los tres ítems Perú entran al
+ * Self-check de calculations.js: verifica que CTS y los extras Perú entran al
  * Costo Empresa Anual y que Chile/Brasil no cambian.
  *
  * Ejecutar:  node src/features/calculadora/lib/calculations.selfcheck.mjs
@@ -22,6 +22,7 @@ const CONFIG_PERU = {
   tasas: {
     UIT: 5500,
     SUELDO_MINIMO: 1130,
+    ASIGNACION_FAMILIAR_PCT: 0.1,
     TASA_AFP_OBLIGATORIA: 0.1,
     TASA_SEGUROS_INVALIDEZ: 0.0137,
     TASA_SALUD_PATRONAL: 0.09,
@@ -91,21 +92,48 @@ const peru = (modo = 'base_a_liquido', monto = 3500) =>
 const chile = (modo = 'base_a_liquido', monto = 1500000) =>
   calcularRemuneracion(modo, monto, 'Uno', 'fonasa', 0, 40000, 0, 0, [], 'chile', CONFIG_CHILE)
 
-console.log('\n[Perú — los tres ítems entran al Costo Empresa Anual]')
+console.log('\n[Perú — CTS y extras entran al Costo Empresa Anual]')
 {
   const base = peru()
   const final = aplicarExtrasPeru(base, EXTRAS)
-  const esperado = base.costoTotalEmpresaAnual + 12346 + 1582 + 200
 
-  check('reparto de utilidades expuesto', final.repartoUtilidades === 12346)
-  check('asignación familiar anual expuesta', final.asignacionFamiliarAnual === 1582)
+  check('reparto de utilidades en pausa: siempre 0', final.repartoUtilidades === 0)
+  check('asignación familiar anual no se suma (ya está en el mensual)',
+        final.asignacionFamiliarAnual === 0)
   check('canasta navideña expuesta', final.canastaNavidena === 200)
-  check('costo empresa anual suma los tres ítems', final.costoTotalEmpresaAnual === esperado)
+  check('costo empresa anual sólo suma la canasta',
+        final.costoTotalEmpresaAnual === base.costoTotalEmpresaAnual + 200)
   check(
     'el detalle anual existente sigue visible (gratificaciones)',
     final.gratificacionesCostoAnual === base.gratificacionesCostoAnual &&
       final.gratificacionesCostoAnual > 0,
   )
+}
+
+console.log('\n[Perú — CTS anual]')
+{
+  for (const modo of ['base_a_liquido', 'liquido_a_base']) {
+    const base = peru(modo, 3500)
+    const ctsEsperada = Math.round(base.totalHaberesImponibles + base.gratificacionesAnual / 12)
+    const anualEsperado =
+      base.costoTotalEmpresa * 12 +
+      base.gratificacionesCostoAnual +
+      ctsEsperada +
+      base.bonoEmpresaAnual.costoEmpresa
+
+    check(`${modo}: CTS = remuneración computable + 1/6 de gratificaciones`,
+          base.ctsAnual === ctsEsperada)
+    check(`${modo}: gratificaciones = 2 remuneraciones computables`,
+          base.gratificacionesAnual === base.totalHaberesImponibles * 2)
+    check(`${modo}: CTS entra una sola vez al costo anual`, base.costoTotalEmpresaAnual === anualEsperado)
+    const desdeBase = peru('base_a_liquido', base.sueldoBase)
+    check(
+      `${modo}: CTS no altera líquido, descuentos ni costo mensual`,
+      desdeBase.sueldoLiquido === Math.round(desdeBase.totalHaberes - desdeBase.totalDescuentos) &&
+        desdeBase.totalDescuentos === base.totalDescuentos &&
+        desdeBase.costoTotalEmpresa === Math.round(desdeBase.totalHaberes + desdeBase.totalPatronal),
+    )
+  }
 }
 
 console.log('\n[Perú — nada más se toca]')
@@ -130,20 +158,37 @@ console.log('\n[Perú — ambos modos]')
     check(
       `${modo}: sueldo base > 0 y extras aplicados`,
       base.sueldoBase > 0 &&
-        final.costoTotalEmpresaAnual === base.costoTotalEmpresaAnual + 12346 + 1582 + 200,
+        final.costoTotalEmpresaAnual === base.costoTotalEmpresaAnual + 200,
     )
   }
 }
 
-console.log('\n[Perú — asignación familiar desactivada]')
+console.log('\n[Perú — asignación familiar mensual]')
 {
-  const base = peru()
-  const sinAsignacion = aplicarExtrasPeru(base, { ...EXTRAS, asignacion_familiar_anual: 0 })
-  check('asignación en 0 no suma', sinAsignacion.asignacionFamiliarAnual === 0)
-  check(
-    'total sólo suma utilidades + canasta',
-    sinAsignacion.costoTotalEmpresaAnual === base.costoTotalEmpresaAnual + 12346 + 200,
-  )
+  const conAsignacion = (modo = 'base_a_liquido', monto = 3500) =>
+    calcularRemuneracion(modo, monto, 'Integra', 'essalud', 0, 0, 0, 0, [], 'peru',
+                         CONFIG_PERU, false, true)
+
+  const sin = peru()
+  const con = conAsignacion()
+
+  check('sin marcar la casilla no hay asignación', sin.asignacionFamiliar === 0)
+  check('marcada = 10% de la RMV (1130 → 113)', con.asignacionFamiliar === 113)
+  check('entra a Total Haberes mensual', con.totalHaberes === sin.totalHaberes + 113)
+  check('es imponible: sube la base de AFP', con.afpObligatorio > sin.afpObligatorio)
+  check('sube el líquido, pero menos que los 113 (paga AFP e impuesto)',
+        con.sueldoLiquido > sin.sueldoLiquido && con.sueldoLiquido < sin.sueldoLiquido + 113)
+  check('es computable para gratificaciones',
+        con.gratificacionesAnual === sin.gratificacionesAnual + 113 * 2)
+  check('es computable para la CTS',
+        con.ctsAnual === Math.round(sin.ctsAnual + 113 + 113 * 2 / 12))
+  check('no se cuenta dos veces en el costo anual',
+        aplicarExtrasPeru(con, EXTRAS).costoTotalEmpresaAnual === con.costoTotalEmpresaAnual + 200)
+
+  const inv = conAsignacion('liquido_a_base', 3000)
+  check('líquido→base: con asignación se necesita menos sueldo base',
+        inv.sueldoBase < peru('liquido_a_base', 3000).sueldoBase)
+  check('líquido→base: el líquido objetivo se respeta', inv.sueldoLiquido === 3000)
 }
 
 console.log('\n[Sin datos del backend / config incompleta]')
@@ -317,6 +362,7 @@ console.log('\n[Chile / Brasil sin cambios funcionales]')
   check('Chile: costo anual > 0', cl.costoTotalEmpresaAnual > 0)
   check('Chile: bonos anuales intactos', cl.bonoNavidad.costoEmpresa > 0)
   check('Chile: sin campos Perú', cl.repartoUtilidades === undefined)
+  check('Chile: CTS en 0', cl.ctsAnual === 0)
   check('Chile: sin aportes patronales de Perú', cl.aportesPatronales.length === 0)
   check('Chile: sin bonificación extraordinaria', cl.bonificacionExtraordinaria === 0)
   check(
@@ -341,8 +387,91 @@ console.log('\n[Chile / Brasil sin cambios funcionales]')
   check('Brasil: no cae en la lógica de Chile', /Configuración de Brasil incompleta/.test(br.configError))
   check('Brasil: no produce costo empresa chileno', br.costoTotalEmpresaAnual === 0)
   check('Brasil: sin campos Perú', br.repartoUtilidades === undefined)
+  check('Brasil: CTS en 0', br.ctsAnual === 0)
   check('Brasil: sin aportes patronales de Perú', br.aportesPatronales.length === 0)
   check('Brasil: aplicarExtrasPeru no se le aplica', aplicarExtrasPeru(br, null) === br)
+}
+
+// El bono empresa es renta extraordinaria: se retiene en su mes de pago, así que
+// no puede mover el líquido mensual ni —en modo líquido→base— el sueldo base.
+console.log()
+console.log('[Perú — el bono empresa no altera sueldo base ni líquido]')
+{
+  const conBono = (bonoMonto, bonoTasa, modo = 'base_a_liquido', monto = 8000) =>
+    calcularRemuneracion(modo, monto, 'Integra', 'essalud', 0, 0,
+                         bonoMonto, bonoTasa, [], 'peru', CONFIG_PERU_APORTES)
+
+  const sinBono = conBono(0, 0)
+  const sinBonoInv = conBono(0, 0, 'liquido_a_base', 6000)
+  for (const [bm, bt, etiqueta] of [[10000, 0, 'monto fijo'], [0, 1, 'tasa 1 sueldo'], [0, 2, 'tasa 2 sueldos']]) {
+    const r = conBono(bm, bt)
+    check(`base→líquido: ${etiqueta} no cambia el líquido`, r.sueldoLiquido === sinBono.sueldoLiquido)
+    check(`base→líquido: ${etiqueta} no cambia el impuesto mensual`, r.impuesto === sinBono.impuesto)
+    check(`base→líquido: ${etiqueta} no cambia el costo empresa mensual`,
+          r.costoTotalEmpresa === sinBono.costoTotalEmpresa)
+    check(`líquido→base: ${etiqueta} no cambia el sueldo base`,
+          conBono(bm, bt, 'liquido_a_base', 6000).sueldoBase === sinBonoInv.sueldoBase)
+  }
+
+  // Pero el bono sí paga su propio impuesto de 5ta, retenido en el mes de pago.
+  const conMonto = conBono(10000, 0)
+  check('el bono declara su impuesto 5ta cat.', conMonto.bonoEmpresaAnual.descuentoTrabajador > 0)
+  check('sin bono no hay impuesto asociado', sinBono.bonoEmpresaAnual.descuentoTrabajador === 0)
+  check('el impuesto del bono no supera su monto',
+        conMonto.bonoEmpresaAnual.descuentoTrabajador < conMonto.bonoEmpresaAnual.montoImponible)
+  check('el bono sí entra al costo empresa anual',
+        conMonto.costoTotalEmpresaAnual === sinBono.costoTotalEmpresaAnual + 10000)
+}
+
+// Impuesto de 5ta categoría: el número contra el cálculo a mano, y que el orden
+// en que venga TRAMOS_IMPUESTO desde la BD no cambie el resultado.
+console.log()
+console.log('[Perú — impuesto de 5ta categoría]')
+{
+  // Base 5000 con refrigerio 300 (computable) y EsSalud 9% (CONFIG_PERU sin catálogo):
+  //   remuneración   = 5000 + 300 = 5300, que se paga 14 veces
+  //   renta ordinaria = 5300×14 + (5300×2)×9% = 74200 + 954 = 75154
+  //   renta neta      = 75154 − 7×5500 = 36654
+  //   impuesto        = 5×5500×8% + (36654 − 27500)×14% = 2200 + 1281,56 = 3481,56 al año
+  const r = peru('base_a_liquido', 5000)
+  check('coincide con el cálculo a mano: 3481,56/año → 290/mes', r.impuesto === 290)
+
+  // Bajo las 7 UIT proyectadas no hay retención.
+  check('renta anual bajo 7 UIT no retiene', peru('base_a_liquido', 2000).impuesto === 0)
+
+  // El orden de los tramos en la BD no es contrato: se ordenan antes de aplicar.
+  const alReves = {
+    ...CONFIG_PERU,
+    tasas: { ...CONFIG_PERU.tasas, TRAMOS_IMPUESTO: [...CONFIG_PERU.tasas.TRAMOS_IMPUESTO].reverse() },
+  }
+  check('tramos cargados al revés dan el mismo impuesto',
+        peruCon(alReves, 5000).impuesto === r.impuesto)
+
+  // Progresividad: la tasa efectiva sube con la renta y nunca llega a la marginal.
+  const efectiva = (base) =>
+    peru('base_a_liquido', base).impuesto * 12 / (peru('base_a_liquido', base).totalHaberesImponibles * 14)
+  check('la tasa efectiva es creciente',
+        efectiva(3500) < efectiva(8000) && efectiva(8000) < efectiva(40000))
+  check('la tasa efectiva se queda bajo la marginal máxima (30%)', efectiva(40000) < 0.30)
+}
+
+// El refrigerio es remuneración computable: no puede quedar sólo en el imponible.
+console.log()
+console.log('[Perú — refrigerio computable]')
+{
+  const sinRefrigerio = {
+    ...CONFIG_PERU,
+    tasas: { ...CONFIG_PERU.tasas, REFRIGERIO: 0 },
+  }
+  const con = peru('base_a_liquido', 5000)
+  const sin = peruCon(sinRefrigerio, 5000)
+  const R = CONFIG_PERU.tasas.REFRIGERIO
+
+  check('entra al imponible', con.totalHaberesImponibles === sin.totalHaberesImponibles + R)
+  check('entra a las gratificaciones', con.gratificacionesAnual === sin.gratificacionesAnual + R * 2)
+  check('entra a la CTS', con.ctsAnual === Math.round(sin.ctsAnual + R + R * 2 / 12))
+  check('entra al impuesto de 5ta', con.impuesto > sin.impuesto)
+  check('entra a los aportes patronales', con.totalPatronal > sin.totalPatronal)
 }
 
 console.log('\nTodo OK\n')

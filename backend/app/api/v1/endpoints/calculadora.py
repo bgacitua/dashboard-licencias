@@ -41,7 +41,9 @@ def proyeccion_utilidades_peru(
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("calculadora")),
 ):
-    """Reparto de utilidades estimado, asignación familiar y canasta navideña (Perú).
+    """Asignación familiar y canasta navideña anuales (Perú).
+
+    El reparto de utilidades está EN PAUSA: se devuelve en 0.
 
     Anual, sobre la nómina activa y los días trabajados del año en curso.
     Los factores salen de calculadora.country_config.tasas; el único valor

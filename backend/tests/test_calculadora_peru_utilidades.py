@@ -1,4 +1,8 @@
-"""Self-check del reparto de utilidades Perú (calculadora).
+"""Self-check de los adicionales anuales de Perú (calculadora).
+
+EL REPARTO DE UTILIDADES ESTÁ EN PAUSA: el servicio devuelve 0 y no consulta
+rh_peru, así que todo lo que verificaba ese cálculo quedó comentado acá abajo.
+Se reactiva junto con el bloque comentado de `proyeccion_utilidades_peru`.
 
 No toca la BD: usa una sesión falsa que responde a las dos queries de
 rh_peru y una fila de country_config en memoria.
@@ -178,16 +182,17 @@ def test_repo_params():
           repo_null.get_peru_sueldo_base_mensual_activo() == Decimal("0"))
 
 
-def test_anio_calendario_backend():
-    print("\n[Anio calendario]")
-    svc, db = _service()
-    svc.proyeccion_utilidades_peru(_req())
-    params = [p for _, p in db.calls if p][-1]
-    anio = date.today().year
-    check("inicio = 1-ene del anio actual",
-          params["inicio_anio_actual"] == date(anio, 1, 1))
-    check("fin = 1-ene del anio siguiente",
-          params["inicio_anio_siguiente"] == date(anio + 1, 1, 1))
+# EN PAUSA — el servicio ya no consulta rh_peru
+# def test_anio_calendario_backend():
+#     print("\n[Anio calendario]")
+#     svc, db = _service()
+#     svc.proyeccion_utilidades_peru(_req())
+#     params = [p for _, p in db.calls if p][-1]
+#     anio = date.today().year
+#     check("inicio = 1-ene del anio actual",
+#           params["inicio_anio_actual"] == date(anio, 1, 1))
+#     check("fin = 1-ene del anio siguiente",
+#           params["inicio_anio_siguiente"] == date(anio + 1, 1, 1))
 
 
 # ---------------------------------------------------------------------------
@@ -205,66 +210,75 @@ def test_asignacion_familiar():
     on = svc.proyeccion_utilidades_peru(_req(tiene_asignacion_familiar=True))
     check("activada -> 1130 x 10% = 113", on["asignacion_familiar_mensual"] == 113.0)
     check("activada -> 113 x 14 = 1582 anual", on["asignacion_familiar_anual"] == 1582.0)
-    check("activada sube la remuneracion anual proyectada",
-          on["nuevo_sueldo_anual"] > off["nuevo_sueldo_anual"])
-    check("activada sube el reparto estimado",
-          on["reparto_utilidades_estimado"] > off["reparto_utilidades_estimado"])
-    check("activada coincide con la formula",
-          abs(on["reparto_utilidades_estimado"]
-              - _formula(100000, 6000, 3500, 0.10, asignacion=True)) < 0.02)
+    check("canasta navidena sale de BD", on["canasta_navidena_anual"] == 200.0)
+    check("reparto de utilidades en pausa -> 0", on["reparto_utilidades_estimado"] == 0.0)
+    check("total adicional = asignacion + canasta",
+          abs(on["total_adicional_anual"]
+              - (on["asignacion_familiar_anual"] + on["canasta_navidena_anual"])) < 0.01)
+    # EN PAUSA — el reparto reaccionaba a la asignación familiar:
+    # check("activada sube la remuneracion anual proyectada",
+    #       on["nuevo_sueldo_anual"] > off["nuevo_sueldo_anual"])
+    # check("activada sube el reparto estimado",
+    #       on["reparto_utilidades_estimado"] > off["reparto_utilidades_estimado"])
+    # check("activada coincide con la formula",
+    #       abs(on["reparto_utilidades_estimado"]
+    #           - _formula(100000, 6000, 3500, 0.10, asignacion=True)) < 0.02)
 
 
-def test_formula_y_porcentajes():
-    print("\n[Formula / porcentaje]")
-    svc, _ = _service(sueldos=100000, dias=6000)
-    r_default = svc.proyeccion_utilidades_peru(_req(porcentaje_utilidades=0.10))
-    check("reparto coincide con la formula del enunciado",
-          abs(r_default["reparto_utilidades_estimado"]
-              - _formula(100000, 6000, 3500, 0.10)) < 0.02)
-    check("% por defecto expuesto desde BD (0.10)",
-          r_default["porcentaje_utilidades_default"] == 0.10)
-
-    svc, _ = _service(sueldos=100000, dias=6000)
-    r_user = svc.proyeccion_utilidades_peru(_req(porcentaje_utilidades=0.05))
-    check("% editado por el usuario cambia el resultado (mitad del pozo)",
-          abs(r_user["reparto_utilidades_estimado"]
-              - r_default["reparto_utilidades_estimado"] / 2) < 0.02)
-
-    check("pozo = renta x porcentaje", r_user["pozo_total"] == 25000.0)
-    check("canasta navidena sale de BD", r_default["canasta_navidena_anual"] == 200.0)
-    check("total adicional = reparto + asignacion + canasta",
-          abs(r_default["total_adicional_anual"]
-              - (r_default["reparto_utilidades_estimado"]
-                 + r_default["asignacion_familiar_anual"]
-                 + r_default["canasta_navidena_anual"])) < 0.01)
-
-
-def test_tope():
-    print("\n[Tope de utilidades]")
-    svc, _ = _service(sueldos=100000, dias=6000)
-    sin_tope = svc.proyeccion_utilidades_peru(_req(renta_imponible_proyectada=500000))
-    check("no aplica tope con renta normal", sin_tope["tope_aplicado"] is False)
-    check("reparto = preliminar cuando no hay tope",
-          sin_tope["reparto_utilidades_estimado"] == sin_tope["utilidad_preliminar"])
-
-    svc, _ = _service(sueldos=100000, dias=6000)
-    con_tope = svc.proyeccion_utilidades_peru(_req(renta_imponible_proyectada=900000000))
-    check("aplica tope con renta enorme", con_tope["tope_aplicado"] is True)
-    check("tope = 18 x 3500 = 63000", con_tope["tope_utilidad"] == 63000.0)
-    check("reparto queda topado", con_tope["reparto_utilidades_estimado"] == 63000.0)
+# EN PAUSA — fórmula del reparto de utilidades
+# def test_formula_y_porcentajes():
+#     print("\n[Formula / porcentaje]")
+#     svc, _ = _service(sueldos=100000, dias=6000)
+#     r_default = svc.proyeccion_utilidades_peru(_req(porcentaje_utilidades=0.10))
+#     check("reparto coincide con la formula del enunciado",
+#           abs(r_default["reparto_utilidades_estimado"]
+#               - _formula(100000, 6000, 3500, 0.10)) < 0.02)
+#     check("% por defecto expuesto desde BD (0.10)",
+#           r_default["porcentaje_utilidades_default"] == 0.10)
+#
+#     svc, _ = _service(sueldos=100000, dias=6000)
+#     r_user = svc.proyeccion_utilidades_peru(_req(porcentaje_utilidades=0.05))
+#     check("% editado por el usuario cambia el resultado (mitad del pozo)",
+#           abs(r_user["reparto_utilidades_estimado"]
+#               - r_default["reparto_utilidades_estimado"] / 2) < 0.02)
+#
+#     check("pozo = renta x porcentaje", r_user["pozo_total"] == 25000.0)
+#     check("canasta navidena sale de BD", r_default["canasta_navidena_anual"] == 200.0)
+#     check("total adicional = reparto + asignacion + canasta",
+#           abs(r_default["total_adicional_anual"]
+#               - (r_default["reparto_utilidades_estimado"]
+#                  + r_default["asignacion_familiar_anual"]
+#                  + r_default["canasta_navidena_anual"])) < 0.01)
 
 
-def test_canasta_fuera_del_denominador():
-    print("\n[Canasta fuera del denominador]")
-    svc, _ = _service()
-    base = svc.proyeccion_utilidades_peru(_req())["reparto_utilidades_estimado"]
+# EN PAUSA — tope de 18 remuneraciones del reparto
+# def test_tope():
+#     print("\n[Tope de utilidades]")
+#     svc, _ = _service(sueldos=100000, dias=6000)
+#     sin_tope = svc.proyeccion_utilidades_peru(_req(renta_imponible_proyectada=500000))
+#     check("no aplica tope con renta normal", sin_tope["tope_aplicado"] is False)
+#     check("reparto = preliminar cuando no hay tope",
+#           sin_tope["reparto_utilidades_estimado"] == sin_tope["utilidad_preliminar"])
+#
+#     svc, _ = _service(sueldos=100000, dias=6000)
+#     con_tope = svc.proyeccion_utilidades_peru(_req(renta_imponible_proyectada=900000000))
+#     check("aplica tope con renta enorme", con_tope["tope_aplicado"] is True)
+#     check("tope = 18 x 3500 = 63000", con_tope["tope_utilidad"] == 63000.0)
+#     check("reparto queda topado", con_tope["reparto_utilidades_estimado"] == 63000.0)
 
-    svc, _ = _service(tasas={**TASAS_OK, "CANASTA_NAVIDENA_MONTO": 99999})
-    otra = svc.proyeccion_utilidades_peru(_req())
-    check("subir la canasta no mueve el reparto de utilidades",
-          otra["reparto_utilidades_estimado"] == base)
-    check("subir la canasta no mueve la remuneracion anual proyectada",
-          otra["nuevo_sueldo_anual"] == 3500 * 14)
+
+# EN PAUSA — denominador del reparto
+# def test_canasta_fuera_del_denominador():
+#     print("\n[Canasta fuera del denominador]")
+#     svc, _ = _service()
+#     base = svc.proyeccion_utilidades_peru(_req())["reparto_utilidades_estimado"]
+#
+#     svc, _ = _service(tasas={**TASAS_OK, "CANASTA_NAVIDENA_MONTO": 99999})
+#     otra = svc.proyeccion_utilidades_peru(_req())
+#     check("subir la canasta no mueve el reparto de utilidades",
+#           otra["reparto_utilidades_estimado"] == base)
+#     check("subir la canasta no mueve la remuneracion anual proyectada",
+#           otra["nuevo_sueldo_anual"] == 3500 * 14)
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +287,7 @@ def test_canasta_fuera_del_denominador():
 
 def test_validaciones():
     print("\n[Validaciones]")
-    faltante = {k: v for k, v in TASAS_OK.items() if k != "BASE_DIAS_PROYECCION"}
+    faltante = {k: v for k, v in TASAS_OK.items() if k != "CANASTA_NAVIDENA_MONTO"}
     svc, _ = _service(tasas=faltante)
     _espera_http("configuracion incompleta",
                  lambda: svc.proyeccion_utilidades_peru(_req()), 503)
@@ -283,15 +297,16 @@ def test_validaciones():
         svc.proyeccion_utilidades_peru(_req())
     except HTTPException as e:
         check("el error nombra los factores faltantes",
-              "BASE_DIAS_PROYECCION" in e.detail and "SUELDO_MINIMO" in e.detail)
+              "CANASTA_NAVIDENA_MONTO" in e.detail and "SUELDO_MINIMO" in e.detail)
 
-    svc, _ = _service(sueldos=0)
-    _espera_http("sin empleados activos",
-                 lambda: svc.proyeccion_utilidades_peru(_req()), 409)
-
-    svc, _ = _service(dias=0)
-    _espera_http("sin dias trabajados",
-                 lambda: svc.proyeccion_utilidades_peru(_req()), 409)
+    # EN PAUSA — sin consulta a rh_peru ya no hay 409 por nómina vacía:
+    # svc, _ = _service(sueldos=0)
+    # _espera_http("sin empleados activos",
+    #              lambda: svc.proyeccion_utilidades_peru(_req()), 409)
+    #
+    # svc, _ = _service(dias=0)
+    # _espera_http("sin dias trabajados",
+    #              lambda: svc.proyeccion_utilidades_peru(_req()), 409)
 
     svc, _ = _service(tasas={**TASAS_OK, "SUELDOS_ANUALES": 0})
     _espera_http("SUELDOS_ANUALES = 0 (division por cero)",
@@ -309,21 +324,22 @@ def test_validaciones():
         check(f"{campo}={valor} rechazado por el schema", rechazado)
 
 
-def test_cache():
-    print("\n[Cache de nomina]")
-    svc, db = _service()
-    svc.proyeccion_utilidades_peru(_req())
-    n = len([c for c in db.calls if "rh_peru" in c[0]])
-    check("primera llamada consulta rh_peru (2 queries)", n == 2)
-
-    svc.proyeccion_utilidades_peru(_req(porcentaje_utilidades=0.07))
-    check("segunda llamada no vuelve a consultar rh_peru",
-          len([c for c in db.calls if "rh_peru" in c[0]]) == n)
-
-    CalculadoraService.invalidate_cache()
-    svc.proyeccion_utilidades_peru(_req())
-    check("invalidate_cache limpia tambien las metricas de nomina",
-          len([c for c in db.calls if "rh_peru" in c[0]]) == 2 * n)
+# EN PAUSA — ya no se consulta la nómina, no hay nada que cachear
+# def test_cache():
+#     print("\n[Cache de nomina]")
+#     svc, db = _service()
+#     svc.proyeccion_utilidades_peru(_req())
+#     n = len([c for c in db.calls if "rh_peru" in c[0]])
+#     check("primera llamada consulta rh_peru (2 queries)", n == 2)
+#
+#     svc.proyeccion_utilidades_peru(_req(porcentaje_utilidades=0.07))
+#     check("segunda llamada no vuelve a consultar rh_peru",
+#           len([c for c in db.calls if "rh_peru" in c[0]]) == n)
+#
+#     CalculadoraService.invalidate_cache()
+#     svc.proyeccion_utilidades_peru(_req())
+#     check("invalidate_cache limpia tambien las metricas de nomina",
+#           len([c for c in db.calls if "rh_peru" in c[0]]) == 2 * n)
 
 
 def test_chile_brasil_intactos():
@@ -349,12 +365,13 @@ def test_chile_brasil_intactos():
 if __name__ == "__main__":
     test_sql_shape()
     test_repo_params()
-    test_anio_calendario_backend()
     test_asignacion_familiar()
-    test_formula_y_porcentajes()
-    test_tope()
-    test_canasta_fuera_del_denominador()
     test_validaciones()
-    test_cache()
     test_chile_brasil_intactos()
+    # EN PAUSA — reparto de utilidades:
+    # test_anio_calendario_backend()
+    # test_formula_y_porcentajes()
+    # test_tope()
+    # test_canasta_fuera_del_denominador()
+    # test_cache()
     print("\nTodo OK\n")

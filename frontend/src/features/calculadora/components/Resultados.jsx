@@ -157,6 +157,9 @@ export function Resultados({
           format={fmt}
         >
           <ResultRow label="Sueldo Base" value={resultados.sueldoBase} format={fmt} />
+          {esPeru && resultados.asignacionFamiliar > 0 && (
+            <ResultRow label="Asignación familiar" value={resultados.asignacionFamiliar} format={fmt} />
+          )}
           {!esPeru && resultados.gratificacion > 0 && (
             <ResultRow label="Gratificación" value={resultados.gratificacion} format={fmt} />
           )}
@@ -224,6 +227,9 @@ export function Resultados({
           {esPeru ? (
             <>
               <ResultRow label="Sueldo Base" value={resultados.sueldoBase} format={fmt} />
+              {resultados.asignacionFamiliar > 0 && (
+                <ResultRow label="Asignación familiar" value={resultados.asignacionFamiliar} format={fmt} />
+              )}
               {resultados.refrigerio > 0 && (
                 <ResultRow label="Refrigerio" value={resultados.refrigerio} format={fmt} />
               )}
@@ -289,7 +295,7 @@ export function Resultados({
               <div className="py-0.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
-                    Gratificaciones <span className="text-violet-500 font-medium">(2 sueldos base)</span>
+                    Gratificaciones <span className="text-violet-500 font-medium">(2 remuneraciones)</span>
                   </span>
                   <span className="text-xs text-muted-foreground">{fmt(resultados.gratificacionesAnual)}</span>
                 </div>
@@ -306,6 +312,11 @@ export function Resultados({
                   </span>
                 </div>
               </div>
+              <ResultRow
+                label="CTS estimada (provisión anual)"
+                value={resultados.ctsAnual}
+                format={fmt}
+              />
               {bonoEmpresaAnual.montoImponible > 0 && (
                 <>
                   <div className="mt-2 mb-1">
@@ -313,47 +324,48 @@ export function Resultados({
                       Bonos Anuales
                     </span>
                   </div>
-                  <BonoAnualRow label="Bono Empresa" bono={bonoEmpresaAnual} format={fmt} />
+                  <BonoAnualRow
+                    label="Bono Empresa"
+                    bono={bonoEmpresaAnual}
+                    format={fmt}
+                    impuestoLabel="→ Impuesto 5ta cat. (retenido en el mes de pago)"
+                  />
                 </>
               )}
 
-              {utilidadesError ? (
+              {utilidadesError && (
                 <p className="mt-2 text-[11px] text-red-600 dark:text-red-400">
-                  No se pudo estimar utilidades: {utilidadesError}
+                  No se pudieron cargar los adicionales anuales: {utilidadesError}
                 </p>
-              ) : (
-                <>
-                  {resultados.asignacionFamiliarAnual > 0 && (
-                    <ResultRow
-                      label="Asignación Familiar"
-                      value={resultados.asignacionFamiliarAnual}
-                      format={fmt}
-                    />
-                  )}
-                  {resultados.canastaNavidena > 0 && (
-                    <ResultRow label="Canasta Navideña" value={resultados.canastaNavidena} format={fmt} />
-                  )}
-                  {resultados.repartoUtilidades > 0 && (
-                    <ResultRow
-                      label="Reparto de Utilidades Estimado"
-                      value={resultados.repartoUtilidades}
-                      format={fmt}
-                    />
-                  )}
-                  <Separator className="my-1.5" />
-                  <ResultRow
-                    label="Total Costo Empresa Anual"
-                    value={resultados.costoTotalEmpresaAnual}
-                    variant="total"
-                    format={fmt}
-                  />
-                  {resultados.repartoUtilidades > 0 && (
-                    <p className="text-[11px] text-muted-foreground pt-1">
-                      Utilidades estimadas según nómina activa y días registrados del año actual.
-                    </p>
-                  )}
-                </>
               )}
+              {/* Asignación familiar anual: ya viene incluida en el costo empresa
+                  mensual (×12) y en las gratificaciones, no se suma otra vez acá. */}
+              {resultados.canastaNavidena > 0 && (
+                <ResultRow label="Canasta Navideña" value={resultados.canastaNavidena} format={fmt} />
+              )}
+              {/* Reparto de utilidades — EN PAUSA: por ahora no se usa este cálculo.
+              {resultados.repartoUtilidades > 0 && (
+                <ResultRow
+                  label="Reparto de Utilidades Estimado"
+                  value={resultados.repartoUtilidades}
+                  format={fmt}
+                />
+              )}
+              */}
+              <Separator className="my-1.5" />
+              <ResultRow
+                label="Total Costo Empresa Anual"
+                value={resultados.costoTotalEmpresaAnual}
+                variant="total"
+                format={fmt}
+              />
+              {/* Reparto de utilidades — EN PAUSA.
+              {resultados.repartoUtilidades > 0 && (
+                <p className="text-[11px] text-muted-foreground pt-1">
+                  Utilidades estimadas según nómina activa y días registrados del año actual.
+                </p>
+              )}
+              */}
             </>
           ) : (
             <>
@@ -629,7 +641,7 @@ function AccordionSection({ icon, label, value, variant, isOpen, onToggle, forma
   )
 }
 
-function BonoAnualRow({ label, uf, bono, format }) {
+function BonoAnualRow({ label, uf, bono, format, impuestoLabel }) {
   return (
     <div className="py-0.5">
       <div className="flex items-center justify-between">
@@ -639,6 +651,12 @@ function BonoAnualRow({ label, uf, bono, format }) {
         </span>
         <span className="text-xs text-muted-foreground">{format(bono.montoImponible)}</span>
       </div>
+      {impuestoLabel && bono.descuentoTrabajador > 0 && (
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground pl-3">{impuestoLabel}</span>
+          <span className="text-xs text-muted-foreground">-{format(bono.descuentoTrabajador)}</span>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground pl-3">→ Costo empresa</span>
         <span className="text-xs font-medium text-violet-600 dark:text-violet-400">

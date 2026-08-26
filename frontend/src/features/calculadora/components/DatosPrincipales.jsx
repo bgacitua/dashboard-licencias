@@ -338,7 +338,10 @@ export function DatosPrincipales({
         </div>
         )}
 
-        {/* Perú — utilidades / asignación familiar */}
+        {/* Reparto de utilidades — EN PAUSA: por ahora no se usa este cálculo.
+            Quedan acá la renta imponible proyectada, el % de utilidades y las
+            métricas de nómina; descomentar para reactivarlo.
+
         {esPeru && (
           <div className="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
             <div className="space-y-1.5">
@@ -390,6 +393,7 @@ export function DatosPrincipales({
             </div>
           </div>
         )}
+        */}
 
       </CardContent>
     </Card>

@@ -258,9 +258,10 @@ FACTORES_UTILIDADES_PERU = (
     "SUELDO_MINIMO",
     "ASIGNACION_FAMILIAR_PCT",
     "CANASTA_NAVIDENA_MONTO",
-    "BASE_DIAS_PROYECCION",
-    "TOPE_UTILIDADES_MESES",
-    "PORCENTAJE_UTILIDADES_SECTOR",
+    # Sólo los usa el reparto de utilidades — EN PAUSA:
+    # "BASE_DIAS_PROYECCION",
+    # "TOPE_UTILIDADES_MESES",
+    # "PORCENTAJE_UTILIDADES_SECTOR",
 )
 
 # Métricas de nómina: cambian una vez al mes, cachear 5 min evita golpear
@@ -275,11 +276,70 @@ def _money(v: Decimal) -> float:
     return float(v.quantize(_CENT, rounding=ROUND_HALF_UP))
 
 
+def validar_impuesto_5ta_peru(tasas: dict[str, Any] | None) -> list[str]:
+    """Errores de los factores del impuesto de 5ta categoría (Perú).
+
+    Sin esta validación una config a medias no falla: da un número plausible
+    pero equivocado (sin UIT o sin tramos el impuesto sale 0; sin las 7 UIT de
+    deducción sale más del doble). Son sueldos, así que se avisa.
+    """
+    t = tasas or {}
+    errores: list[str] = []
+
+    for clave, minimo in (("UIT", 0), ("SUELDOS_ANUALES", 0), ("DEDUCCION_FIJA_UIT", -1)):
+        valor = t.get(clave)
+        if not _es_numero(valor):
+            errores.append(f"{clave} es obligatorio y debe ser numérico")
+        elif valor <= minimo:
+            errores.append(f"{clave} debe ser mayor que {minimo}")
+
+    tramos = t.get("TRAMOS_IMPUESTO")
+    if not isinstance(tramos, list) or not tramos:
+        errores.append("TRAMOS_IMPUESTO es obligatorio y debe ser una lista no vacía")
+        return errores
+
+    # Se ordenan igual que en la calculadora: el orden en la BD no es contrato.
+    ordenados = sorted(
+        (x for x in tramos if isinstance(x, dict)),
+        key=lambda x: x.get("desde_uf") if _es_numero(x.get("desde_uf")) else 0,
+    )
+    if len(ordenados) != len(tramos):
+        errores.append("TRAMOS_IMPUESTO: cada tramo debe ser un objeto")
+
+    esperado_desde = 0
+    for i, tramo in enumerate(ordenados):
+        etiqueta = f"TRAMOS_IMPUESTO[{i}]"
+        desde, hasta, tasa = tramo.get("desde_uf"), tramo.get("hasta_uf"), tramo.get("tasa")
+
+        if not _es_numero(tasa) or not 0 <= tasa <= 1:
+            errores.append(f"{etiqueta}: 'tasa' debe ser un número entre 0 y 1")
+        if not _es_numero(desde) or desde < 0:
+            errores.append(f"{etiqueta}: 'desde_uf' debe ser numérico y no negativo")
+            continue
+        if desde != esperado_desde:
+            errores.append(
+                f"{etiqueta}: los tramos deben ser contiguos "
+                f"(empieza en {desde} UIT y se esperaba {esperado_desde})"
+            )
+        ultimo = i == len(ordenados) - 1
+        if hasta is None:
+            if not ultimo:
+                errores.append(f"{etiqueta}: sólo el último tramo puede ser abierto (hasta_uf null)")
+        elif not _es_numero(hasta) or hasta <= desde:
+            errores.append(f"{etiqueta}: 'hasta_uf' debe ser mayor que 'desde_uf' o null")
+        else:
+            esperado_desde = hasta
+            if ultimo:
+                errores.append(f"{etiqueta}: el último tramo debe quedar abierto (hasta_uf null)")
+
+    return errores
+
+
 def _validar_config(pais: str, tasas: dict[str, Any] | None) -> list[str]:
     if pais == "brasil":
         return validar_config_brasil(tasas)
     if pais == "peru":
-        return validar_aportes_patronales_peru(tasas)
+        return validar_aportes_patronales_peru(tasas) + validar_impuesto_5ta_peru(tasas)
     return []
 
 
@@ -350,6 +410,8 @@ class CalculadoraService:
     def _peru_payroll_metrics(self) -> tuple[Decimal, Decimal]:
         """(sueldo base mensual activo, días trabajados del año en curso).
 
+        Sin uso mientras el reparto de utilidades esté en pausa.
+
         Año calendario actual resuelto en backend; cache de 5 min.
         """
         anio = date.today().year
@@ -367,10 +429,13 @@ class CalculadoraService:
         return metrics
 
     def proyeccion_utilidades_peru(self, req: ProyeccionUtilidadesPeruIn) -> dict[str, Any]:
-        """Reparto de utilidades + asignación familiar + canasta navideña (anual).
+        """Asignación familiar + canasta navideña (anual).
 
-        Proyecta la nueva contratación por año completo sobre la nómina activa.
-        La canasta navideña no entra al denominador de remuneraciones.
+        REPARTO DE UTILIDADES EN PAUSA: por ahora no se usa ese cálculo, así que
+        `reparto_utilidades_estimado` sale en 0 y no se consulta la nómina de
+        rh_peru. Todo lo relacionado quedó comentado más abajo; para reactivarlo
+        basta descomentarlo, junto con BASE_DIAS_PROYECCION, TOPE_UTILIDADES_MESES
+        y PORCENTAJE_UTILIDADES_SECTOR en FACTORES_UTILIDADES_PERU.
         """
         tasas = self.get_country_config("peru").get("tasas") or {}
         faltantes = [k for k in FACTORES_UTILIDADES_PERU if tasas.get(k) is None]
@@ -390,8 +455,8 @@ class CalculadoraService:
         sueldo_minimo = d(tasas["SUELDO_MINIMO"])
         asignacion_pct = d(tasas["ASIGNACION_FAMILIAR_PCT"])
         canasta = d(tasas["CANASTA_NAVIDENA_MONTO"])
-        base_dias_proyeccion = d(tasas["BASE_DIAS_PROYECCION"])
-        tope_meses = d(tasas["TOPE_UTILIDADES_MESES"])
+        # base_dias_proyeccion = d(tasas["BASE_DIAS_PROYECCION"])
+        # tope_meses = d(tasas["TOPE_UTILIDADES_MESES"])
 
         if sueldos_anuales <= 0:
             raise HTTPException(
@@ -399,49 +464,52 @@ class CalculadoraService:
                 detail="SUELDOS_ANUALES debe ser mayor que 0 en la configuración de Perú",
             )
 
-        sueldo_base = d(req.sueldo_base_calculado)
-        renta = d(req.renta_imponible_proyectada)
-        porcentaje = d(req.porcentaje_utilidades)
-
-        empresa_mensual, empresa_dias = self._peru_payroll_metrics()
-        if empresa_mensual <= 0:
-            raise HTTPException(
-                status_code=409,
-                detail="No hay empleados activos en rh_peru para estimar el reparto de utilidades",
-            )
-        if empresa_dias <= 0:
-            raise HTTPException(
-                status_code=409,
-                detail=f"No hay días trabajados registrados en {date.today().year} para estimar el reparto de utilidades",
-            )
-
-        empresa_sueldos_actual_anual = empresa_mensual * sueldos_anuales
-
         asignacion_mensual = sueldo_minimo * asignacion_pct if req.tiene_asignacion_familiar else Decimal(0)
         asignacion_anual = asignacion_mensual * sueldos_anuales
 
-        remuneracion_mensual_nueva = sueldo_base + asignacion_mensual
-        nuevo_sueldo_anual = remuneracion_mensual_nueva * sueldos_anuales
-        nuevo_dias_proyectados = base_dias_proyeccion
-
-        empresa_sueldos_total_nuevo = empresa_sueldos_actual_anual + nuevo_sueldo_anual
-        empresa_dias_total_nuevo = empresa_dias + nuevo_dias_proyectados
-        if empresa_sueldos_total_nuevo <= 0 or empresa_dias_total_nuevo <= 0:
-            raise HTTPException(
-                status_code=409,
-                detail="Denominador cero: no se puede prorratear el reparto de utilidades",
-            )
-
-        pozo_total = renta * porcentaje
-        fondo_dias = pozo_total / 2
-        fondo_sueldos = pozo_total / 2
-
-        utilidad_preliminar = (
-            nuevo_dias_proyectados * (fondo_dias / empresa_dias_total_nuevo)
-            + nuevo_sueldo_anual * (fondo_sueldos / empresa_sueldos_total_nuevo)
-        )
-        tope_utilidad = tope_meses * sueldo_base
-        reparto = min(utilidad_preliminar, tope_utilidad)
+        # -- Reparto de utilidades — EN PAUSA -------------------------------
+        # Prorrateo del pozo (mitad por días, mitad por remuneraciones) sobre la
+        # nómina activa de rh_peru, con tope de TOPE_UTILIDADES_MESES sueldos.
+        #
+        # sueldo_base = d(req.sueldo_base_calculado)
+        # renta = d(req.renta_imponible_proyectada)
+        # porcentaje = d(req.porcentaje_utilidades)
+        #
+        # empresa_mensual, empresa_dias = self._peru_payroll_metrics()
+        # if empresa_mensual <= 0:
+        #     raise HTTPException(
+        #         status_code=409,
+        #         detail="No hay empleados activos en rh_peru para estimar el reparto de utilidades",
+        #     )
+        # if empresa_dias <= 0:
+        #     raise HTTPException(
+        #         status_code=409,
+        #         detail=f"No hay días trabajados registrados en {date.today().year} para estimar el reparto de utilidades",
+        #     )
+        #
+        # empresa_sueldos_actual_anual = empresa_mensual * sueldos_anuales
+        # remuneracion_mensual_nueva = sueldo_base + asignacion_mensual
+        # nuevo_sueldo_anual = remuneracion_mensual_nueva * sueldos_anuales
+        # nuevo_dias_proyectados = base_dias_proyeccion
+        #
+        # empresa_sueldos_total_nuevo = empresa_sueldos_actual_anual + nuevo_sueldo_anual
+        # empresa_dias_total_nuevo = empresa_dias + nuevo_dias_proyectados
+        # if empresa_sueldos_total_nuevo <= 0 or empresa_dias_total_nuevo <= 0:
+        #     raise HTTPException(
+        #         status_code=409,
+        #         detail="Denominador cero: no se puede prorratear el reparto de utilidades",
+        #     )
+        #
+        # pozo_total = renta * porcentaje
+        # fondo_dias = pozo_total / 2
+        # fondo_sueldos = pozo_total / 2
+        # utilidad_preliminar = (
+        #     nuevo_dias_proyectados * (fondo_dias / empresa_dias_total_nuevo)
+        #     + nuevo_sueldo_anual * (fondo_sueldos / empresa_sueldos_total_nuevo)
+        # )
+        # tope_utilidad = tope_meses * sueldo_base
+        # reparto = min(utilidad_preliminar, tope_utilidad)
+        reparto = Decimal(0)
 
         return {
             # Ítems que suman al Costo Empresa Anual
@@ -449,19 +517,19 @@ class CalculadoraService:
             "asignacion_familiar_anual": _money(asignacion_anual),
             "canasta_navidena_anual": _money(canasta),
             "total_adicional_anual": _money(reparto + asignacion_anual + canasta),
-            # Informativos para "Datos Principales"
-            "empresa_sueldos_actual_anual": _money(empresa_sueldos_actual_anual),
-            "empresa_dias_actual": float(empresa_dias),
             # Internos (no se muestran en el panel de resultados)
             "asignacion_familiar_mensual": _money(asignacion_mensual),
-            "nuevo_sueldo_anual": _money(nuevo_sueldo_anual),
-            "nuevo_dias_proyectados": float(nuevo_dias_proyectados),
-            "pozo_total": _money(pozo_total),
-            "utilidad_preliminar": _money(utilidad_preliminar),
-            "tope_utilidad": _money(tope_utilidad),
-            "tope_aplicado": tope_utilidad < utilidad_preliminar,
-            "porcentaje_utilidades_default": float(tasas["PORCENTAJE_UTILIDADES_SECTOR"]),
             "anio": date.today().year,
+            # -- Informativos del reparto de utilidades — EN PAUSA -----------
+            # "empresa_sueldos_actual_anual": _money(empresa_sueldos_actual_anual),
+            # "empresa_dias_actual": float(empresa_dias),
+            # "nuevo_sueldo_anual": _money(nuevo_sueldo_anual),
+            # "nuevo_dias_proyectados": float(nuevo_dias_proyectados),
+            # "pozo_total": _money(pozo_total),
+            # "utilidad_preliminar": _money(utilidad_preliminar),
+            # "tope_utilidad": _money(tope_utilidad),
+            # "tope_aplicado": tope_utilidad < utilidad_preliminar,
+            # "porcentaje_utilidades_default": float(tasas["PORCENTAJE_UTILIDADES_SECTOR"]),
         }
 
     @staticmethod

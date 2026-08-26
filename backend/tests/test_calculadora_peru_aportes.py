@@ -15,6 +15,7 @@ from app.services.calculadora_service import (
     CalculadoraService,
     validar_aportes_patronales_peru,
     validar_config_brasil,
+    validar_impuesto_5ta_peru,
 )
 
 
@@ -31,6 +32,14 @@ APORTES_OK = [
      "tasa": 0.0027, "base": "imponible", "tope": 12600, "activo": True},
 ]
 
+TRAMOS_OK = [
+    {"desde_uf": 0, "hasta_uf": 5, "tasa": 0.08},
+    {"desde_uf": 5, "hasta_uf": 20, "tasa": 0.14},
+    {"desde_uf": 20, "hasta_uf": 35, "tasa": 0.17},
+    {"desde_uf": 35, "hasta_uf": 45, "tasa": 0.20},
+    {"desde_uf": 45, "hasta_uf": None, "tasa": 0.30},
+]
+
 TASAS_PERU = {
     "UIT": 5500,
     "SUELDO_MINIMO": 1130,
@@ -38,6 +47,8 @@ TASAS_PERU = {
     "TASA_SEGUROS_INVALIDEZ": 0.0137,
     "TASA_SALUD_PATRONAL": 0.09,
     "SUELDOS_ANUALES": 14,
+    "DEDUCCION_FIJA_UIT": 7,
+    "TRAMOS_IMPUESTO": TRAMOS_OK,
     "APORTES_PATRONALES": APORTES_OK,
 }
 
@@ -227,6 +238,57 @@ def test_payload_expone_errores():
     check("con catálogo válido no hay errores", ok["_meta"]["configErrors"] == [])
 
 
+def test_impuesto_5ta_factores():
+    print("\n[Impuesto 5ta: factores obligatorios]")
+    check("config completa no reporta errores", validar_impuesto_5ta_peru(TASAS_PERU) == [])
+
+    for clave in ("UIT", "SUELDOS_ANUALES", "DEDUCCION_FIJA_UIT", "TRAMOS_IMPUESTO"):
+        faltante = {k: v for k, v in TASAS_PERU.items() if k != clave}
+        errores = validar_impuesto_5ta_peru(faltante)
+        check(f"sin {clave} se reporta", any(clave in e for e in errores))
+
+    check("UIT en 0 se reporta (daría impuesto 0 en silencio)",
+          any("UIT" in e for e in validar_impuesto_5ta_peru({**TASAS_PERU, "UIT": 0})))
+    check("DEDUCCION_FIJA_UIT en 0 es válida (no todos deducen)",
+          validar_impuesto_5ta_peru({**TASAS_PERU, "DEDUCCION_FIJA_UIT": 0}) == [])
+    check("TRAMOS_IMPUESTO vacío se reporta",
+          any("TRAMOS_IMPUESTO" in e for e in
+              validar_impuesto_5ta_peru({**TASAS_PERU, "TRAMOS_IMPUESTO": []})))
+
+
+def test_impuesto_5ta_tramos():
+    print("\n[Impuesto 5ta: forma de los tramos]")
+    check("el orden en la BD no importa: se ordenan antes de validar",
+          validar_impuesto_5ta_peru({**TASAS_PERU, "TRAMOS_IMPUESTO": list(reversed(TRAMOS_OK))}) == [])
+
+    hueco = [TRAMOS_OK[0], {"desde_uf": 8, "hasta_uf": None, "tasa": 0.14}]
+    check("hueco entre tramos se reporta",
+          any("contiguos" in e for e in validar_impuesto_5ta_peru({**TASAS_PERU, "TRAMOS_IMPUESTO": hueco})))
+
+    cerrado = TRAMOS_OK[:-1] + [{"desde_uf": 45, "hasta_uf": 100, "tasa": 0.30}]
+    check("el último tramo debe quedar abierto",
+          any("abierto" in e for e in validar_impuesto_5ta_peru({**TASAS_PERU, "TRAMOS_IMPUESTO": cerrado})))
+
+    abierto_al_medio = [{"desde_uf": 0, "hasta_uf": None, "tasa": 0.08}] + TRAMOS_OK[1:]
+    check("un tramo abierto en el medio se reporta",
+          any("último tramo" in e for e in
+              validar_impuesto_5ta_peru({**TASAS_PERU, "TRAMOS_IMPUESTO": abierto_al_medio})))
+
+    for tasa in (-0.1, 1.5, "8%"):
+        check(f"tasa {tasa!r} rechazada",
+              any("'tasa'" in e for e in validar_impuesto_5ta_peru(
+                  {**TASAS_PERU, "TRAMOS_IMPUESTO": [{"desde_uf": 0, "hasta_uf": None, "tasa": tasa}]})))
+
+    check("tramo que no es objeto se reporta",
+          any("objeto" in e for e in validar_impuesto_5ta_peru({**TASAS_PERU, "TRAMOS_IMPUESTO": ["0-5"]})))
+
+    print("\n[La config incompleta de 5ta llega a la vista]")
+    CalculadoraService.invalidate_cache()
+    sin_uit = {k: v for k, v in TASAS_PERU.items() if k != "UIT"}
+    errores = _config(sin_uit)["_meta"]["configErrors"]
+    check("configErrors incluye el factor de 5ta faltante", any("UIT" in e for e in errores))
+
+
 def test_chile_y_brasil_sin_cambios():
     print("\n[Chile y Brasil no se ven afectados]")
     # Chile no valida aportes patronales: su config no los tiene y sigue limpia.
@@ -264,6 +326,8 @@ if __name__ == "__main__":
     test_base_soportada()
     test_estructura_invalida()
     test_payload_expone_errores()
+    test_impuesto_5ta_factores()
+    test_impuesto_5ta_tramos()
     test_chile_y_brasil_sin_cambios()
     CalculadoraService.invalidate_cache()
     print("\nTodo OK\n")
