@@ -9,7 +9,7 @@
 Entregar a RR.HH. y ejecutivos de Perú una estimación simple y consistente del
 costo anual de una posición. La persona usuaria ingresa sueldo base o líquido
 deseado; la calculadora resuelve el sueldo base y muestra el costo empresa
-anual estándar, incluyendo la CTS.
+anual estimado, incluyendo la CTS y los adicionales aplicables.
 
 El diseño usa los aportes, beneficios y flujos ya presentes en la calculadora.
 No busca reemplazar una liquidación de remuneraciones ni modelar excepciones
@@ -18,10 +18,10 @@ individuales.
 ## Alcance funcional
 
 El cálculo aplica al supuesto de una posición anual de régimen privado general
-con remuneración estable. El costo estándar considera:
+con remuneración estable. El componente anual base considera:
 
 ```text
-Costo anual estándar =
+Costo anual base =
     (Costo empresa mensual actual × 12)
   + Gratificaciones anuales y bonificación extraordinaria
   + CTS anual estimada
@@ -49,9 +49,9 @@ líquido, descuentos del trabajador ni el costo mensual mostrado.
 
 ## Beneficios y proyecciones adicionales
 
-Los beneficios que dependen de una decisión de la empresa o de contexto no
-forman parte del costo estándar. Se conservan y se presentan como adiciones
-al costo anual estándar:
+Los beneficios que dependen de una decisión de la empresa o de contexto se
+conservan como ítems separados en el detalle, pero siempre se suman al único
+**Costo Empresa Anual** cuando son aplicables:
 
 | Concepto | Tratamiento |
 |---|---|
@@ -61,19 +61,9 @@ al costo anual estándar:
 | Asignación familiar | Concepto existente activado por el usuario; permanece en el bloque de proyecciones de esta mejora. |
 | Canasta navideña | Beneficio anual configurable existente; permanece en el bloque de proyecciones. |
 
-La interfaz debe distinguir claramente ambos resultados:
-
-```text
-Costo empresa anual estándar
-  = costo mensual × 12 + gratificaciones + CTS
-
-Costo anual con proyecciones
-  = costo estándar + bono empresa + utilidades estimadas
-    + asignación familiar + canasta navideña
-```
-
-El segundo total sólo se muestra cuando existe al menos una adición. Una falla
-al obtener utilidades no puede ocultar ni invalidar el costo anual estándar.
+Una falla al obtener utilidades no puede ocultar ni invalidar el total de los
+costos que sí se pudieron calcular. En ese caso, la interfaz advierte que las
+utilidades no están incluidas en el total mostrado.
 
 ## Vida Ley
 
@@ -97,9 +87,8 @@ La fórmula usa los valores que ya devuelve el cálculo Perú:
 El resultado Perú expondrá explícitamente:
 
 - `ctsAnual`: CTS anual estimada.
-- `costoTotalEmpresaAnual`: costo anual estándar.
-- `costoTotalEmpresaAnualProyectado`: costo anual estándar más los beneficios
-  y proyecciones adicionales aplicables.
+- `costoTotalEmpresaAnual`: único total anual; incluye el costo anual base,
+  CTS y cada beneficio o proyección disponible.
 
 En Chile y Brasil, `ctsAnual` será `0` y el contrato actual de sus resultados
 no cambiará funcionalmente.
@@ -113,19 +102,18 @@ Costo mensual × 12
 Gratificaciones (Jul + Dic)
   → Bonificación extraordinaria
 CTS estimada (2 depósitos semestrales)
-Total costo empresa anual estándar
 
-Proyecciones y beneficios adicionales (sólo si existen)
+Beneficios y proyecciones adicionales (sólo si existen)
   Bono empresa
   Asignación familiar
   Canasta navideña
   Reparto de utilidades estimado
-Total costo anual con proyecciones
+Total costo empresa anual
 ```
 
-La tarjeta de resultado principal debe usar el total anual estándar. El texto
-de ayuda de CTS indicará que es una provisión anual aproximada para una
-posición de doce meses.
+La tarjeta de resultado principal y el total del acordeón usan el mismo total
+anual. El texto de ayuda de CTS indicará que es una provisión anual aproximada
+para una posición de doce meses.
 
 ## Fuera de alcance
 
@@ -143,16 +131,14 @@ posición de doce meses.
 1. Para Perú, `ctsAnual` es `sueldoBase + gratificacionesAnual / 12`,
    redondeada a soles.
 2. `costoTotalEmpresaAnual` es igual a `costoTotalEmpresa × 12`, más
-   `gratificacionesCostoAnual`, más `ctsAnual`; no incluye bono empresa,
-   utilidades, asignación familiar ni canasta.
-3. `costoTotalEmpresaAnualProyectado` suma al estándar el bono empresa anual y
+   `gratificacionesCostoAnual`, más `ctsAnual`, más el bono empresa anual y
    los extras disponibles de Perú.
-4. Si no hay extras o falla la proyección de utilidades, el total estándar se
-   sigue mostrando correctamente.
-5. La vista anual identifica CTS como costo estimado y muestra ambos totales
-   sólo cuando corresponda.
-6. Los resultados de Chile y Brasil se conservan; no reciben CTS ni el bloque
+3. Si no hay extras, el total anual contiene sólo sus componentes base. Si
+   falla la proyección de utilidades, se muestra el total de los conceptos
+   disponibles y una advertencia explícita de la omisión.
+4. La vista anual identifica CTS como costo estimado, desglosa los beneficios
+   aplicables y muestra un solo total anual.
+5. Los resultados de Chile y Brasil se conservan; no reciben CTS ni el bloque
    de proyecciones Perú.
-7. Las pruebas existentes de aportes, gratificaciones y utilidades se ajustan
+6. Las pruebas existentes de aportes, gratificaciones y utilidades se ajustan
    a los nuevos nombres de totales y se agregan pruebas específicas para CTS.
-
