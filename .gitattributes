@@ -1,0 +1,15 @@
+# Git guarda todo texto con LF. Evita que una herramienta que escribe CRLF en
+# Windows convierta un cambio de 100 lineas en un diff de archivo completo.
+* text=auto eol=lf
+
+# Binarios: sin conversion.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.woff binary
+*.woff2 binary
