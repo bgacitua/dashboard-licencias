@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
@@ -68,6 +68,15 @@ const menuItems = [
     requiredRole: ['rrhh', 'admin'],
   },
   {
+    id: 'asistencia',
+    title: 'Asistencia',
+    description: 'Revisa marcas, turnos y bonos de asistencia del personal.',
+    path: '/asistencia',
+    icon: 'schedule',
+    moduleCode: 'asistencia',
+    requiredRole: ['rrhh', 'admin'],
+  },
+  {
     id: 'admin',
     title: 'Administración',
     description: 'Configura usuarios, roles y parámetros del sistema.',
@@ -78,6 +87,10 @@ const menuItems = [
   },
 ];
 
+// ponytail: ventana fija de 8 tarjetas que avanza de a 2; sin animacion ni virtualizacion
+const PAGE = 8;
+const STEP = 2;
+
 const now = new Date();
 const hour = now.getHours();
 const greeting =
@@ -85,11 +98,16 @@ const greeting =
 
 const MainMenu = () => {
   const { user, hasModuleAccess, hasRole } = useAuth();
+  const [offset, setOffset] = useState(0);
 
   const visibleItems = menuItems.filter(item => {
     if (item.requiredRole && !hasRole(item.requiredRole)) return false;
     return hasModuleAccess(item.moduleCode);
   });
+
+  const maxOffset = Math.max(0, visibleItems.length - PAGE);
+  const start = Math.min(offset, maxOffset);
+  const pageItems = visibleItems.slice(start, start + PAGE);
 
   const firstName = (user?.nombre_completo || user?.username || 'Usuario')
     .split(' ')[0];
@@ -102,19 +120,44 @@ const MainMenu = () => {
       <main className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[1280px] flex-col justify-center px-4 py-8 md:px-10">
 
         {/* Header */}
-        <header className="mb-6">
+        <header className="mb-6 flex items-end justify-between gap-4">
+          <div>
           <h1 className="text-[20px] font-semibold tracking-tight text-app-ink">
             {greeting}, {firstName}
           </h1>
           <p className="mt-1 text-[14px] text-app-muted">
             Selecciona un módulo para comenzar.
           </p>
+          </div>
+
+          {maxOffset > 0 && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Módulos anteriores"
+                disabled={start === 0}
+                onClick={() => setOffset(Math.max(0, start - STEP))}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-app-line text-app-ink transition-colors hover:border-app-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-app-ink focus:ring-offset-2"
+              >
+                <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Módulos siguientes"
+                disabled={start >= maxOffset}
+                onClick={() => setOffset(Math.min(maxOffset, start + STEP))}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-app-line text-app-ink transition-colors hover:border-app-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-app-ink focus:ring-offset-2"
+              >
+                <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+              </button>
+            </div>
+          )}
         </header>
 
         {/* Grid: 4 columnas en pantallas anchas para que 8 módulos entren en 2 filas */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
-          {visibleItems.map(item => (
+          {pageItems.map(item => (
             <Link
               key={item.id}
               to={item.path}
