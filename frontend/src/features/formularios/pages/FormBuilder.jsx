@@ -5,7 +5,15 @@ import 'survey-core/survey-core.css';
 
 import ListaPreguntas from '../components/ListaPreguntas';
 import PanelPropiedades from '../components/PanelPropiedades';
-import { TIPOS, definicionVacia, nuevaPagina, nuevaPregunta } from '../components/tipos';
+import TextareaBuffer from '../components/TextareaBuffer';
+import {
+    TIPOS,
+    aCompletedHtml,
+    deCompletedHtml,
+    definicionVacia,
+    nuevaPagina,
+    nuevaPregunta,
+} from '../components/tipos';
 import {
     actualizarFormulario,
     crearFormulario,
@@ -185,6 +193,23 @@ export default function FormBuilder() {
                                     value={actual.n8n_webhook_url || ''}
                                     onChange={(e) => setActual({ ...actual, n8n_webhook_url: e.target.value })}
                                     placeholder="https://n8n.cramer.cl/webhook/..."
+                                />
+                            </div>
+                            <div className="sm:col-span-2">
+                                <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="mensaje-final">
+                                    Mensaje final (lo que ve el trabajador al enviar)
+                                </label>
+                                <TextareaBuffer
+                                    key={actual.id ?? 'nuevo'}
+                                    id="mensaje-final"
+                                    rows={2}
+                                    className={input}
+                                    valor={deCompletedHtml(definicion.completedHtml)}
+                                    normalizar={(texto) => deCompletedHtml(aCompletedHtml(texto))}
+                                    onChange={(texto) =>
+                                        setDefinicion({ ...definicion, completedHtml: aCompletedHtml(texto) })
+                                    }
+                                    placeholder="Vacío = el mensaje por defecto de la encuesta."
                                 />
                             </div>
                             <label className="flex items-center gap-2 text-sm text-gray-700">

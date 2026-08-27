@@ -17,7 +17,6 @@ export default function FormPublico() {
 
     const [formulario, setFormulario] = useState(null);
     const [error, setError] = useState('');
-    const [enviado, setEnviado] = useState(false);
 
     useEffect(() => {
         getFormularioPublico(slug, token)
@@ -34,7 +33,6 @@ export default function FormPublico() {
             try {
                 await enviarRespuesta(slug, token, sender.data);
                 options.showSaveSuccess();
-                setEnviado(true);
             } catch (err) {
                 options.showSaveError(err.message);
             }
@@ -65,12 +63,9 @@ export default function FormPublico() {
         <main className="min-h-screen bg-gray-50 py-8 px-4">
             <div className="mx-auto max-w-2xl">
                 <h1 className="mb-4 text-xl font-semibold text-gray-900">{formulario.titulo}</h1>
+                {/* El mensaje final lo pone survey-core con el completedHtml
+                    que se define en el builder. */}
                 <Survey model={model} />
-                {enviado && (
-                    <p className="mt-4 text-sm text-green-700">
-                        Respuesta recibida. Puedes cerrar esta página.
-                    </p>
-                )}
             </div>
         </main>
     );

@@ -40,3 +40,33 @@ export const nuevaPagina = (indice) => ({
 });
 
 export const definicionVacia = () => ({ pages: [nuevaPagina(0)] });
+
+/**
+ * Mensaje de agradecimiento -> `completedHtml` de survey-core.
+ *
+ * survey-core inyecta ese campo como HTML en una página pública, así que el
+ * texto del builder se escapa acá: lo escribe un admin, pero un admin no
+ * debería poder meter script en el formulario que ve todo el mundo.
+ */
+export const aCompletedHtml = (texto) => {
+    const limpio = String(texto ?? '').trim();
+    if (!limpio) return undefined;
+    const escapado = limpio
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/\n/g, '<br>');
+    return `<div style="text-align:center;padding:1.5rem 1rem;font-size:1rem">${escapado}</div>`;
+};
+
+/** completedHtml -> el texto plano que se muestra en el builder. */
+export const deCompletedHtml = (html) =>
+    String(html ?? '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&')
+        .trim();

@@ -1,10 +1,14 @@
 import React from 'react';
 
+import TextareaBuffer from './TextareaBuffer';
 import { OPERADORES, parsear, preguntasAnteriores, serializar } from './logica';
 import { TIPOS, TIPOS_CON_OPCIONES } from './tipos';
 
 const input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 const label = 'block text-xs font-medium text-gray-600 mt-4 mb-1';
+
+const textoDeOpcion = (c) => (typeof c === 'string' ? c : c.text ?? c.value ?? '');
+const lineasUtiles = (texto) => texto.split('\n').filter((l) => l.trim() !== '');
 
 /** Panel de propiedades de la pregunta seleccionada. */
 export default function PanelPropiedades({ definicion, pregunta, onChange, onEliminar }) {
@@ -57,14 +61,16 @@ export default function PanelPropiedades({ definicion, pregunta, onChange, onEli
                 <div key={campo.key}>
                     <label className={label} htmlFor={`prop-${campo.key}`}>{campo.label}</label>
                     {campo.tipo === 'opciones' ? (
-                        <textarea
+                        // Una opción por línea: editar una lista corta en un
+                        // textarea es menos fricción que N inputs con botones.
+                        <TextareaBuffer
+                            key={pregunta.name}
                             id={`prop-${campo.key}`}
                             rows={5}
                             className={input}
-                            // Una opción por línea: editar una lista corta en un
-                            // textarea es menos fricción que N inputs con botones.
-                            value={(pregunta[campo.key] || []).map((c) => (typeof c === 'string' ? c : c.text ?? c.value)).join('\n')}
-                            onChange={(e) => set(campo.key, e.target.value.split('\n').filter((l) => l.trim() !== ''))}
+                            valor={(pregunta[campo.key] || []).map(textoDeOpcion).join('\n')}
+                            normalizar={(texto) => lineasUtiles(texto).join('\n')}
+                            onChange={(texto) => set(campo.key, lineasUtiles(texto))}
                         />
                     ) : (
                         <input
