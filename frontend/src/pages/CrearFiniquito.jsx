@@ -1540,6 +1540,7 @@ const CrearFiniquito = () => {
           aporteCesantiaVal: aporteCesantiaNum,
           totalSettlementResult: totalSettlement,
           yearsForIndemnity,
+          yearsForIndemnityCapped,
           salary,
           variableBonus,
           movilizacion,

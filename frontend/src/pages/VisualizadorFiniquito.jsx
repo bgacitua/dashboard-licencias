@@ -199,9 +199,12 @@ const VisualizadorFiniquito = () => {
     setRow(17, 'Gratificación legal', fmtNum(audit.gratificacion));
     setRow(18, 'Movilización', fmtNum(audit.movilizacion));
     setRow(20, 'Total haber', fmtNum(audit.haberes));
+    // Los mismos años topeados que muestran la pantalla, la carta y el finiquito:
+    // la auditoría no puede decir 15 donde el monto se calculó sobre 11.
+    const anosAuditoria = audit.yearsForIndemnityCapped ?? audit.yearsForIndemnity;
     setRow(
       23,
-      `Indemnización por Años de Servicio${audit.yearsForIndemnity != null ? ` (${audit.yearsForIndemnity})` : ''}`,
+      `Indemnización por Años de Servicio${anosAuditoria != null ? ` (${anosAuditoria})` : ''}`,
       audit.yearsIndemnityResult != null && audit.yearsIndemnityResult > 0 ? fmtNum(audit.yearsIndemnityResult) : ''
     );
     const vacacionesDiasStr =
