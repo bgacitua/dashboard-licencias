@@ -39,6 +39,9 @@ const Seleccion = lazy(() => import('./pages/Seleccion'));
 const HorasExtras = lazy(() => import('./pages/HorasExtras'));
 const Creditos = lazy(() => import('./pages/Creditos'));
 const Asistencia = lazy(() => import('./pages/Asistencia'));
+const FormValidar = lazy(() => import('./features/formularios/pages/FormValidar'));
+const FormPublico = lazy(() => import('./features/formularios/pages/FormPublico'));
+const FormBuilder = lazy(() => import('./features/formularios/pages/FormBuilder'));
 
 
 function App() {
@@ -234,6 +237,19 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="asistencia">
                   <Asistencia />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Módulo Formularios. Las dos primeras rutas son públicas: se
+                llega por QR, sin sesión, y las protege el token de un solo uso. */}
+            <Route path="/formularios/validar" element={<FormValidar />} />
+            <Route path="/formularios/f/:slug" element={<FormPublico />} />
+            <Route
+              path="/formularios/admin"
+              element={
+                <ProtectedRoute requiredModule="formularios">
+                  <FormBuilder />
                 </ProtectedRoute>
               }
             />

@@ -71,3 +71,19 @@ if asistencia_settings.enabled:
     from app.modules.asistencia.notificaciones import publico as asistencia_publico
 
     api_router.include_router(asistencia_publico, prefix="/asistencia")
+
+# === Módulo de formularios (builder + gate público) ===
+# Mismo patrón que asistencia: import perezoso detrás del flag, para que un
+# error del módulo no pueda tumbar el arranque de la plataforma.
+from app.modules.formularios.config import settings as formularios_settings
+
+if formularios_settings.enabled:
+    from app.modules.formularios.router import router as formularios_router
+
+    api_router.include_router(formularios_router, prefix="/formularios", tags=["formularios"])
+
+    # El formulario que responde el trabajador va sin autenticación: quien lo
+    # abre llega por un QR y no tiene cuenta. Lo protege el token de un solo uso.
+    from app.modules.formularios.publico import publico as formularios_publico
+
+    api_router.include_router(formularios_publico, prefix="/formularios")
