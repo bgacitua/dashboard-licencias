@@ -1067,6 +1067,86 @@ const CrearFiniquito = () => {
 
 
 
+  // Autoguardado del borrador. Antes el formulario solo se persistía al generar la carta,
+  // así que cerrar el navegador a medio llenar perdía movilización, remuneración adeudada,
+  // descuentos y el resto de lo escrito a mano. El proceso queda en estado 'borrador'
+  // hasta que se selle un hito, que es lo que derivar_estado() ya contemplaba.
+  // ponytail: se reescribe el registro completo cada vez; el payload es chico y son
+  // pocos usuarios. Si el guardado empieza a pesar, mandar solo los campos que cambiaron.
+  const autoguardadoListo = useRef(false);
+  useEffect(() => {
+    // La primera pasada tras hidratar es el estado recién restaurado, no una edición:
+    // guardarla crearía un borrador en el listado por el solo hecho de abrir el RUT.
+    autoguardadoListo.current = false;
+  }, [rut]);
+
+  useEffect(() => {
+    if (!rut || !hidratado) return;
+    if (!autoguardadoListo.current) {
+      autoguardadoListo.current = true;
+      return;
+    }
+
+    const borrador = {
+      // Solo los campos que `aplicar()` sabe restaurar. Se fusiona sobre el payload
+      // existente para no borrar lo que la carta guardó de más.
+      terminationReason,
+      noticeGiven,
+      lastDayWork,
+      selectedManager: selectedManager ? { id: selectedManager } : null,
+      vacationDays,
+      vacationDaysManuallyEdited,
+      yearsForIndemnity,
+      movilizacion,
+      liquidacionMesActual: Math.round(parseFloat(liquidacionMesActual) || 0),
+      descuentos: Math.round(parseFloat(descuentos) || 0),
+      aporteCesantia: Math.round(parseFloat(aporteCesantia) || 0),
+      ufValue,
+      descuentosPersonalizados,
+      variableCustomAdditions,
+      variableFilledActive,
+      variableItemsActive: Object.fromEntries(
+        variableItems.map((i) => [`${i.concepto}|${i.periodo}`, i.active !== false]),
+      ),
+      descuentosMoneda: Object.fromEntries(
+        descuentosPersonalizados.map((d) => [d.descripcion, d.moneda || "CLP"]),
+      ),
+    };
+
+    const guardar = setTimeout(() => {
+      // `total` va sin valor a propósito: el monto congelado lo fija la carta, no el borrador.
+      FiniquitosService.guardarProceso(rut, {
+        causal: terminationReason,
+        fechaTermino: lastDayWork,
+        payload: { ...(proceso?.payload_json || {}), ...borrador },
+      }).catch((e) => console.warn("No se pudo autoguardar el borrador:", e));
+    }, 1500);
+
+    return () => clearTimeout(guardar);
+    // `proceso` queda fuera de las dependencias a propósito: guardarProceso lo devuelve
+    // actualizado y volvería a disparar este efecto en bucle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    rut,
+    hidratado,
+    terminationReason,
+    noticeGiven,
+    lastDayWork,
+    selectedManager,
+    vacationDays,
+    vacationDaysManuallyEdited,
+    yearsForIndemnity,
+    movilizacion,
+    liquidacionMesActual,
+    descuentos,
+    aporteCesantia,
+    ufValue,
+    descuentosPersonalizados,
+    variableCustomAdditions,
+    variableFilledActive,
+    variableItems,
+  ]);
+
   if (loading) {
     // ponytail: skeleton estático con animate-pulse; sin librería de skeletons
     const bar = "bg-app-line rounded animate-pulse";
@@ -1287,86 +1367,6 @@ const CrearFiniquito = () => {
     vacationIndemnity +
     liquidacionMesActualNum -
     totalDescuentos;
-
-  // Autoguardado del borrador. Antes el formulario solo se persistía al generar la carta,
-  // así que cerrar el navegador a medio llenar perdía movilización, remuneración adeudada,
-  // descuentos y el resto de lo escrito a mano. El proceso queda en estado 'borrador'
-  // hasta que se selle un hito, que es lo que derivar_estado() ya contemplaba.
-  // ponytail: se reescribe el registro completo cada vez; el payload es chico y son
-  // pocos usuarios. Si el guardado empieza a pesar, mandar solo los campos que cambiaron.
-  const autoguardadoListo = useRef(false);
-  useEffect(() => {
-    // La primera pasada tras hidratar es el estado recién restaurado, no una edición:
-    // guardarla crearía un borrador en el listado por el solo hecho de abrir el RUT.
-    autoguardadoListo.current = false;
-  }, [rut]);
-
-  useEffect(() => {
-    if (!rut || !hidratado) return;
-    if (!autoguardadoListo.current) {
-      autoguardadoListo.current = true;
-      return;
-    }
-
-    const borrador = {
-      // Solo los campos que `aplicar()` sabe restaurar. Se fusiona sobre el payload
-      // existente para no borrar lo que la carta guardó de más.
-      terminationReason,
-      noticeGiven,
-      lastDayWork,
-      selectedManager: selectedManager ? { id: selectedManager } : null,
-      vacationDays,
-      vacationDaysManuallyEdited,
-      yearsForIndemnity,
-      movilizacion,
-      liquidacionMesActual: liquidacionMesActualNum,
-      descuentos: descuentosNum,
-      aporteCesantia: aporteCesantiaNum,
-      ufValue,
-      descuentosPersonalizados,
-      variableCustomAdditions,
-      variableFilledActive,
-      variableItemsActive: Object.fromEntries(
-        variableItems.map((i) => [`${i.concepto}|${i.periodo}`, i.active !== false]),
-      ),
-      descuentosMoneda: Object.fromEntries(
-        descuentosPersonalizados.map((d) => [d.descripcion, d.moneda || "CLP"]),
-      ),
-    };
-
-    const guardar = setTimeout(() => {
-      // `total` va sin valor a propósito: el monto congelado lo fija la carta, no el borrador.
-      FiniquitosService.guardarProceso(rut, {
-        causal: terminationReason,
-        fechaTermino: lastDayWork,
-        payload: { ...(proceso?.payload_json || {}), ...borrador },
-      }).catch((e) => console.warn("No se pudo autoguardar el borrador:", e));
-    }, 1500);
-
-    return () => clearTimeout(guardar);
-    // `proceso` queda fuera de las dependencias a propósito: guardarProceso lo devuelve
-    // actualizado y volvería a disparar este efecto en bucle.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    rut,
-    hidratado,
-    terminationReason,
-    noticeGiven,
-    lastDayWork,
-    selectedManager,
-    vacationDays,
-    vacationDaysManuallyEdited,
-    yearsForIndemnity,
-    movilizacion,
-    liquidacionMesActualNum,
-    descuentosNum,
-    aporteCesantiaNum,
-    ufValue,
-    descuentosPersonalizados,
-    variableCustomAdditions,
-    variableFilledActive,
-    variableItems,
-  ]);
 
   // ponytail: guardia en dev. Si algún monto vuelve a quedar con decimales,
   // la pantalla y el Excel se desalinean otra vez; esto lo avisa al tiro.
