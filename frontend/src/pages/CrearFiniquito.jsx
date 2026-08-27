@@ -1437,6 +1437,10 @@ const CrearFiniquito = () => {
       vacationIndemnity,
       totalHaberes,
       yearsForIndemnity,
+      // Años ya topeados por causal (11 en necesidades/mutuo especial, tramos en mutuo
+      // acuerdo). La pantalla y la carta muestran este; el finiquito mostraba el bruto
+      // y quedaba en 15 años donde el cálculo pagó 11.
+      yearsForIndemnityCapped,
       vacationDays,
       vacationDaysManuallyEdited,
       vacationCalendarDays: lastDayWork

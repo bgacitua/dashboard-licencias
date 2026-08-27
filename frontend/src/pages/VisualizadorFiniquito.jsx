@@ -670,7 +670,7 @@ const VisualizadorFiniquito = () => {
                   )}
                   {anosServicio > 0 && (
                     <div className="flex justify-between">
-                      <span>Indemnización años de Servicios ({finiquitoData.yearsForIndemnity || 0} años)</span>
+                      <span>Indemnización años de Servicios ({finiquitoData.yearsForIndemnityCapped ?? finiquitoData.yearsForIndemnity ?? 0} años)</span>
                       <span>{formatCurrency(anosServicio)}</span>
                     </div>
                   )}
