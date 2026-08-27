@@ -1,12 +1,11 @@
 """Acceso a datos del módulo. Lo único que se lee fuera de `app` es rh.employees."""
 import re
 import secrets
-from datetime import datetime, timedelta
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from .models import Formulario, FormRespuesta, FormToken
+from .models import Formulario, FormRespuesta
 
 
 def limpiar_rut(value: object) -> str:
@@ -37,13 +36,20 @@ def get_por_slug(db: Session, slug: str) -> Formulario | None:
 
 
 def crear_token(db: Session, formulario_id: int, rut: str, ttl_min: int) -> str:
+    """El vencimiento lo calcula Postgres, no Python.
+
+    La columna es TIMESTAMP sin zona y las validaciones comparan contra NOW():
+    con un datetime.now() del contenedor (UTC) contra un NOW() del servidor
+    (America/Santiago) el TTL real sería de 15 min más el desfase horario.
+    """
     token = secrets.token_urlsafe(32)
-    db.add(FormToken(
-        token=token,
-        formulario_id=formulario_id,
-        rut=limpiar_rut(rut),
-        expira_at=datetime.now() + timedelta(minutes=ttl_min),
-    ))
+    db.execute(
+        text("""
+            INSERT INTO app.form_tokens (token, formulario_id, rut, expira_at)
+            VALUES (:t, :f, :r, NOW() + make_interval(mins => :ttl))
+        """),
+        {"t": token, "f": formulario_id, "r": limpiar_rut(rut), "ttl": ttl_min},
+    )
     db.commit()
     return token
 

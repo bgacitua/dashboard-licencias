@@ -8,8 +8,6 @@ Ejecutar dentro del contenedor backend:
     python -m tests.test_formularios_token
 """
 
-from datetime import datetime, timedelta
-
 from app.modules.formularios.config import FormulariosSettings
 from app.modules.formularios.repository import limpiar_rut
 
@@ -75,9 +73,11 @@ def test_token_un_solo_uso():
 
         # Expirado.
         t2 = repo.crear_token(db, a.id, "12345678-9", ttl_min=15)
+        # El vencimiento se mueve con el reloj de Postgres, que es el mismo con
+        # el que se compara: Python y la base no están en la misma zona.
         db.execute(
-            text("UPDATE app.form_tokens SET expira_at = :e WHERE token = :t"),
-            {"e": datetime.now() - timedelta(minutes=1), "t": t2},
+            text("UPDATE app.form_tokens SET expira_at = NOW() - interval '1 minute' WHERE token = :t"),
+            {"t": t2},
         )
         db.commit()
         assert not repo.token_vigente(db, t2, a.id)
