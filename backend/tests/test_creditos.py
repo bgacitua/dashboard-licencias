@@ -199,6 +199,10 @@ def demo():
     from app.services.pagare_pdf import _monto, _pesos, _uf
     assert _pesos(600000) == "$600.000", _pesos(600000)
     assert _uf(24.5) == "UF 24,50", _uf(24.5)
+    # Redondea a dos decimales, igual que NUMERIC(12,2) en la base.
+    assert _uf("24.567") == "UF 24,57", _uf("24.567")
+    assert _uf("1.005") == "UF 1,01", _uf("1.005")
+    assert _uf(12345.6) == "UF 12.345,60", _uf(12345.6)
     assert _monto(None, "peso") == "", repr(_monto(None, "peso"))
 
     # --- Params de la subida y del PUT de firmas ---

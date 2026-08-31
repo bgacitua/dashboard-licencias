@@ -9,7 +9,7 @@ editarlos sin deploy, moverlos a un .txt en app/templates y leerlo con open().
 """
 
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from fpdf import FPDF
 
 MESES = [
@@ -43,9 +43,14 @@ def _pesos(valor) -> str:
 
 
 def _uf(valor) -> str:
+    """UF con dos decimales, redondeando igual que NUMERIC(12,2) en la base.
+
+    Antes truncaba, asi que un valor con tres decimales se imprimia distinto
+    de lo que quedaba guardado.
+    """
     if valor in (None, ""):
         return ""
-    d = Decimal(str(valor))
+    d = Decimal(str(valor)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     entero, decimales = divmod(d * 100, 100)
     return f"UF {int(entero):,}".replace(",", ".") + f",{int(decimales):02d}"
 

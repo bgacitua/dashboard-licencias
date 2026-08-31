@@ -5,7 +5,7 @@ import {
   subirDocumento, iniciarFirma, verificarFirma, crearCreditoBuk,
   verificarCreditoBuk, abrirPagare,
 } from '../services/creditos';
-import { aNumero, soloDecimal } from '../features/creditos/montos';
+import { aNumero, soloDecimal, redondear, avisoRedondeo } from '../features/creditos/montos';
 
 // Tipo que se imprime en el comprobante. A BUK se le manda siempre
 // 'credito_personal', que es lo que acepta su enum en /credits/create.
@@ -70,6 +70,12 @@ const FORM_INICIAL = {
   overwrite: false,
   path: 'préstamo',
   buk_file_id: '',
+};
+
+/** Avisa mientras se escribe si el monto se va a guardar redondeado. */
+const NotaRedondeo = ({ valor }) => {
+  const aviso = avisoRedondeo(valor);
+  return aviso ? <p className="mt-1 text-xs text-amber-700">⚠ {aviso}</p> : null;
 };
 
 const fmtMonto = (v, moneda) =>
@@ -171,10 +177,10 @@ const Creditos = () => {
     const payload = {
       ...form,
       employee_id: Number(form.employee_id),
-      amount,
+      amount: redondear(amount),
       duracion: Number(form.duracion),
       cuota_actual: Number(form.cuota_actual),
-      monto_original: aNumero(form.monto_original),
+      monto_original: redondear(aNumero(form.monto_original)),
       equivalente_pesos: aNumero(form.equivalente_pesos),
       buk_file_id: form.buk_file_id ? Number(form.buk_file_id) : null,
       path: form.path || null,
@@ -519,6 +525,7 @@ const Creditos = () => {
                         <input type="text" inputMode="decimal" value={form.monto_original}
                           onChange={e => set('monto_original', soloDecimal(e.target.value))}
                           className={inputClass} />
+                        <NotaRedondeo valor={form.monto_original} />
                       </div>
 
                       <div>
@@ -532,6 +539,7 @@ const Creditos = () => {
                         <input type="text" inputMode="decimal" required value={form.amount}
                           onChange={e => set('amount', soloDecimal(e.target.value))}
                           className={inputClass} />
+                        <NotaRedondeo valor={form.amount} />
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
