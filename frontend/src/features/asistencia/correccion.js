@@ -130,6 +130,24 @@ export function fechaApiDesdeIso(iso) {
   return `${Number(dd)}/${Number(mm)}/${yyyy}`
 }
 
+/** "H:m:s" -> "HH:MM:SS", el formato que pide <input type="time">. '' si no calza. */
+export function hmsDesdeHoraApi(hms) {
+  const p = String(hms ?? '').trim().split(':')
+  if (p.length < 2 || p.some((x) => !/^\d+$/.test(x))) return ''
+  const [h, m, sg = '0'] = p
+  if (Number(h) > 23 || Number(m) > 59 || Number(sg) > 59) return ''
+  return [h, m, sg].map((x) => String(Number(x)).padStart(2, '0')).join(':')
+}
+
+/** "d/M/yyyy" -> "yyyy-mm-dd", el formato que pide <input type="date">. '' si no calza. */
+export function isoDesdeFechaApi(fecha) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(fecha ?? '').trim())
+  if (!m) return ''
+  const [, dd, mm, yyyy] = m
+  if (Number(mm) < 1 || Number(mm) > 12 || Number(dd) < 1 || Number(dd) > 31) return ''
+  return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`
+}
+
 function agruparPorClave(intentos) {
   const m = new Map()
   for (const r of intentos) {
@@ -417,6 +435,13 @@ if (globalThis.process?.argv?.[1]?.endsWith('correccion.js')) {
 
   a(fechaApiDesdeIso('2026-06-15') === '15/6/2026', 'fecha api')
   a(horaApiDesdeHms('07:50:00') === '7:50:0', 'hora api')
+  a(hmsDesdeHoraApi('7:50:0') === '07:50:00', 'hora api -> input time')
+  a(hmsDesdeHoraApi('17:5') === '17:05:00', 'hora api sin segundos')
+  a(hmsDesdeHoraApi('25:00:00') === '', 'hora fuera de rango')
+  a(hmsDesdeHoraApi('mediodia') === '', 'hora ilegible')
+  a(isoDesdeFechaApi('15/6/2026') === '2026-06-15', 'fecha api -> input date')
+  a(isoDesdeFechaApi('15-06-2026') === '', 'fecha con separador equivocado')
+  a(isoDesdeFechaApi('15/13/2026') === '', 'mes fuera de rango')
 
   const jornadas = [
     { Fecha: '11-06-2026', RUT: '26258345-7', 'Primer Apellido': 'SOTO', Nombre: 'ANA' },

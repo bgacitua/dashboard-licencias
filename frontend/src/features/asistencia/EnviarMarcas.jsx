@@ -1,6 +1,13 @@
 import React, { useState } from 'react'
 
-import { MOTIVOS, motivoPorDefecto } from './correccion'
+import {
+  MOTIVOS,
+  fechaApiDesdeIso,
+  hmsDesdeHoraApi,
+  horaApiDesdeHms,
+  isoDesdeFechaApi,
+  motivoPorDefecto,
+} from './correccion'
 import ResultadoMarcas from './ResultadoMarcas'
 
 /**
@@ -147,8 +154,8 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                         )
                       return (
                       <tr key={i} className="border-t border-app-line">
-                        <td className="py-2 pr-4 whitespace-nowrap">{texto('rut', 'w-28')}</td>
-                        <td className="py-2 pr-4 whitespace-nowrap">{texto('nombre', 'w-40')}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{m.rut}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{m.nombre}</td>
                         <td className="py-2 pr-4 whitespace-nowrap">{texto('turno', 'w-28')}</td>
                         <td className="py-2 pr-4 whitespace-nowrap">
                           {edit ? (
@@ -164,8 +171,41 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                             m.i
                           )}
                         </td>
-                        <td className="py-2 pr-4 whitespace-nowrap">{texto('fecha', 'w-24')}</td>
-                        <td className="py-2 pr-4 whitespace-nowrap">{texto('hora', 'w-20')}</td>
+                        {/* Los inputs nativos validan solos; se convierte al formato
+                            que pide Buk ("d/M/yyyy" y "H:m:s") recién al guardar. */}
+                        <td className="py-2 pr-4 whitespace-nowrap">
+                          {edit ? (
+                            <input
+                              type="date"
+                              value={isoDesdeFechaApi(m.fecha)}
+                              onChange={(e) =>
+                                parchear(i, {
+                                  fecha: e.target.value ? fechaApiDesdeIso(e.target.value) : m.fecha,
+                                })
+                              }
+                              className="text-sm border border-app-line rounded px-1.5 py-0.5"
+                            />
+                          ) : (
+                            m.fecha
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 whitespace-nowrap">
+                          {edit ? (
+                            <input
+                              type="time"
+                              step="1"
+                              value={hmsDesdeHoraApi(m.hora)}
+                              onChange={(e) =>
+                                parchear(i, {
+                                  hora: e.target.value ? horaApiDesdeHms(e.target.value) : m.hora,
+                                })
+                              }
+                              className="text-sm border border-app-line rounded px-1.5 py-0.5"
+                            />
+                          ) : (
+                            m.hora
+                          )}
+                        </td>
                         <td className="py-2 pr-4 whitespace-nowrap text-app-muted">
                           {m.matched ? 'intento real' : 'hora del turno'}
                         </td>
