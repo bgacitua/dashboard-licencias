@@ -9,6 +9,8 @@ import { aNumero, soloDecimal, redondear, avisoRedondeo } from '../features/cred
 
 // Tipo que se imprime en el comprobante. A BUK se le manda siempre
 // 'credito_personal', que es lo que acepta su enum en /credits/create.
+// Espeja TipoPrestamo en backend/app/schemas/creditos.py: una opción que no
+// esté allá se rechaza con 422 al guardar.
 const TIPOS_PRESTAMO = [
   'Préstamo Emergencia',
   'Préstamo Salud',

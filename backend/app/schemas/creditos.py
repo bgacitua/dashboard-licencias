@@ -8,12 +8,15 @@ TipoCredito = Literal["credito_personal", "dental", "leasing", "seguro_vida", "c
 Moneda = Literal["peso", "uf"]
 
 # El que se imprime en el comprobante. BUK siempre recibe TipoCredito aparte.
+# Espeja TIPOS_PRESTAMO en frontend/src/pages/Creditos.jsx: agregar una opcion
+# alla sin sumarla aca hace que el POST falle con 422 al guardar.
 TipoPrestamo = Literal[
     "Préstamo Emergencia",
     "Préstamo Salud",
     "Préstamo Habitacional",
     "Préstamo Automotriz",
     "Préstamo Roaming",
+    "Consolidación de deuda",
 ]
 
 

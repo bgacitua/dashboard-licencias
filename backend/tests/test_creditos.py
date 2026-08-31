@@ -273,7 +273,30 @@ def demo():
     finally:
         CS._buk = real_buk
 
+    _tipos_prestamo_sincronizados()
     print("OK: máquina de estados, comprobante PDF y flujo de firmas")
+
+
+def _tipos_prestamo_sincronizados():
+    """El select del front y el Literal del backend tienen que decir lo mismo.
+
+    Agregar una opcion solo en el front la hace fallar con 422 recien al
+    guardar, y el usuario ve el error del enum completo sin saber que sobra.
+    """
+    import re
+    from pathlib import Path
+    from app.schemas.creditos import TipoPrestamo
+    from typing import get_args
+
+    jsx = Path(__file__).resolve().parents[2] / "frontend" / "src" / "pages" / "Creditos.jsx"
+    if not jsx.exists():  # backend desplegado solo, sin el front al lado
+        return
+    bloque = re.search(r"const TIPOS_PRESTAMO = \[(.*?)\];", jsx.read_text(encoding="utf-8"), re.S)
+    assert bloque, "no se encontro TIPOS_PRESTAMO en Creditos.jsx"
+    front = re.findall(r"'([^']+)'", bloque.group(1))
+    assert front == list(get_args(TipoPrestamo)), (
+        f"TIPOS_PRESTAMO del front {front} != TipoPrestamo del backend {list(get_args(TipoPrestamo))}"
+    )
 
 
 if __name__ == "__main__":
