@@ -93,17 +93,15 @@ const FiniquitosService = {
     return response.data;
   },
 
+  // Pasa por nuestro backend, que lo cachea una hora y corta a los 5 segundos.
+  // Antes iba directo a mindicador.cl desde el navegador: cuando ese servicio
+  // se caia, la pantalla de finiquitos esperaba 2 minutos y terminaba en 502.
   getIndicatorUF: async () => {
     try {
-      const response = await axios.get("https://mindicador.cl/api/uf");
-      // mindicador return { serie: [ { fecha, valor } ... ] } usually, or just root object depending on endpoint
-      // for /api/uf it returns object with serie array. The first one is today (or recent).
-      // Actually standard mindicador /api/uf returns: { ... serie: [{fecha, valor}, ...] }
-      if (response.data && response.data.serie && response.data.serie.length > 0) {
-        return response.data.serie[0].valor;
-      }
-      return null;
+      const response = await axios.get(`${API_URL}/indicadores/uf`);
+      return response.data?.valor ?? null;
     } catch (error) {
+      // Sin UF se sigue: el formulario deja escribirla a mano.
       console.error("Error fetching UF:", error);
       return null;
     }

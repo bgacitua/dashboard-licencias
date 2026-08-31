@@ -1,6 +1,12 @@
+from threading import Lock
+
+import httpx
+from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
+
+from app.core.logging_config import logger
 
 from app.db.deps import get_db
 from app.core.security import get_current_user
@@ -23,6 +29,44 @@ from app.schemas.desvinculacion import (
 )
 
 router = APIRouter()
+
+# La UF cambia una vez al día: se guarda una hora y de ahí sale servida al
+# instante. El timeout es corto a propósito. Antes el navegador le pegaba
+# directo a mindicador.cl y, cuando ese servicio se caía, la pantalla de
+# finiquitos quedaba 2 minutos esperando antes de fallar con 502.
+_uf_cache: TTLCache = TTLCache(maxsize=1, ttl=3600)
+_uf_lock = Lock()
+_UF_TIMEOUT = 5.0
+
+
+@router.get("/indicadores/uf")
+def get_uf():
+    """Valor de la UF de hoy. `valor: null` si no se pudo obtener.
+
+    Se sirve desde el backend y no desde el navegador para poder cachearlo,
+    acotar el timeout, y no exponer al usuario a un tercero.
+    """
+    with _uf_lock:
+        if "uf" in _uf_cache:
+            return _uf_cache["uf"]
+
+    try:
+        resp = httpx.get("https://mindicador.cl/api/uf", timeout=_UF_TIMEOUT)
+        resp.raise_for_status()
+        serie = resp.json().get("serie") or []
+        if not serie:
+            raise ValueError("respuesta sin serie")
+        valor = {"valor": serie[0]["valor"], "fecha": serie[0].get("fecha")}
+    except Exception as e:
+        # Sin valor, el frontend deja que se escriba a mano. No se cachea el
+        # fallo: el proximo intento tiene que poder recuperarse enseguida.
+        logger.warning(f"No se pudo obtener la UF: {e}")
+        return {"valor": None, "fecha": None}
+
+    with _uf_lock:
+        _uf_cache["uf"] = valor
+    return valor
+
 
 @router.get("/", response_model=List[FiniquitoResponse])
 def read_general_finiquitos(db: Session = Depends(get_db)):

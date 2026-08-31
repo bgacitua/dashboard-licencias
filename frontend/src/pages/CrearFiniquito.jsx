@@ -3483,7 +3483,17 @@ const CrearFiniquito = () => {
           </div>
 
           <div className="mt-4 flex justify-end">
-            <div className="flex items-center gap-2 bg-app-surface px-3 py-1.5 rounded-lg text-xs text-app-brand border border-app-line ">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs border ${
+              ufValue > 0
+                ? 'bg-app-surface text-app-brand border-app-line'
+                : 'bg-amber-50 text-amber-800 border-amber-300'
+            }`}>
+              {ufValue > 0 ? null : (
+                <span
+                  className="material-symbols-outlined text-[16px]"
+                  title="No se pudo obtener la UF. Escríbela a mano: sin ella el tope de 90 UF y los descuentos en UF quedan mal calculados."
+                >warning</span>
+              )}
               <span className="font-bold">Valor UF Hoy:</span>
               <span className="text-app-outline ml-1">$</span>
               <input
