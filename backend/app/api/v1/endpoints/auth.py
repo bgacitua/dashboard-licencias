@@ -31,7 +31,7 @@ router = APIRouter()
 
 
 @router.post("/set-password", status_code=status.HTTP_204_NO_CONTENT)
-async def set_password_from_invite(
+def set_password_from_invite(
     body: SetPasswordRequest,
     request: Request,
     db: Session = Depends(get_db)
@@ -48,7 +48,7 @@ async def set_password_from_invite(
 
 
 @router.post("/login", response_model=PreAuthResponse)
-async def login(
+def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
@@ -97,7 +97,7 @@ async def login(
 
 
 @router.post("/duo/callback", response_model=AuthResponse)
-async def duo_callback(
+def duo_callback(
     request: DuoCallbackRequest,
     db: Session = Depends(get_db)
 ):
@@ -146,7 +146,7 @@ async def duo_callback(
 
 
 @router.get("/me", response_model=MeResponse)
-async def get_current_user_info(
+def get_current_user_info(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -162,7 +162,7 @@ async def get_current_user_info(
 
 
 @router.get("/modules", response_model=list[ModuloResponse])
-async def get_user_modules(
+def get_user_modules(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -173,6 +173,6 @@ async def get_user_modules(
 
 
 @router.post("/logout")
-async def logout():
+def logout():
     """Cierra sesión. El cliente debe eliminar el token localmente."""
     return {"message": "Sesión cerrada exitosamente"}
