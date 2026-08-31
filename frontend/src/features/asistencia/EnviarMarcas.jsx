@@ -23,6 +23,15 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
   const [motivoGlobal, setMotivoGlobal] = useState(null)
   const [motivoLibre, setMotivoLibre] = useState('')
   const [motivos, setMotivos] = useState(new Map())
+  // Ajustes finos fila por fila. La lista llega calculada desde afuera, así que
+  // los cambios se guardan acá como parche por índice en vez de mutarla.
+  const [parches, setParches] = useState(new Map())
+  const [editando, setEditando] = useState(null)
+
+  const filas = marcas.map((m, i) => ({ ...m, ...(parches.get(i) ?? {}) }))
+
+  const parchear = (i, patch) =>
+    setParches((prev) => new Map(prev).set(i, { ...(prev.get(i) ?? {}), ...patch }))
 
   const motivoDe = (marca, i) =>
     motivos.get(i) ??
@@ -32,7 +41,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
   const enviar = async () => {
     setError(null)
     try {
-      setResultado(await onEnviar(marcas.map((m, i) => ({ ...m, mov: motivoDe(m, i) }))))
+      setResultado(await onEnviar(filas.map((m, i) => ({ ...m, mov: motivoDe(m, i) }))))
     } catch (e) {
       setError(e?.response?.data?.detail || 'No se pudieron registrar las marcas.')
     }
@@ -44,6 +53,8 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
     setError(null)
     setMotivos(new Map())
     setMotivoGlobal(null)
+    setParches(new Map())
+    setEditando(null)
   }
 
   const titulo = !obraId
@@ -118,17 +129,43 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                       {['RUT', 'Nombre', 'Turno', 'Marca', 'Fecha', 'Hora', 'Origen', 'Motivo'].map((h) => (
                         <th key={h} className="pb-2 pr-4 font-medium whitespace-nowrap">{h}</th>
                       ))}
+                      <th className="pb-2 font-medium" />
                     </tr>
                   </thead>
                   <tbody>
-                    {marcas.map((m, i) => (
-                      <tr key={`${m.rut}-${m.i}-${m.fecha}-${i}`} className="border-t border-app-line">
-                        <td className="py-2 pr-4 whitespace-nowrap">{m.rut}</td>
-                        <td className="py-2 pr-4 whitespace-nowrap">{m.nombre}</td>
-                        <td className="py-2 pr-4 whitespace-nowrap">{m.turno}</td>
-                        <td className="py-2 pr-4 whitespace-nowrap">{m.i}</td>
-                        <td className="py-2 pr-4 whitespace-nowrap">{m.fecha}</td>
-                        <td className="py-2 pr-4 whitespace-nowrap">{m.hora}</td>
+                    {filas.map((m, i) => {
+                      const edit = editando === i
+                      const texto = (campo, extra = '') =>
+                        edit ? (
+                          <input
+                            value={m[campo] ?? ''}
+                            onChange={(e) => parchear(i, { [campo]: e.target.value })}
+                            className={`text-sm border border-app-line rounded px-1.5 py-0.5 ${extra}`}
+                          />
+                        ) : (
+                          m[campo]
+                        )
+                      return (
+                      <tr key={i} className="border-t border-app-line">
+                        <td className="py-2 pr-4 whitespace-nowrap">{texto('rut', 'w-28')}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{texto('nombre', 'w-40')}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{texto('turno', 'w-28')}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">
+                          {edit ? (
+                            <select
+                              value={m.i}
+                              onChange={(e) => parchear(i, { i: e.target.value })}
+                              className="text-sm border border-app-line rounded px-1.5 py-0.5"
+                            >
+                              <option value="entrada">entrada</option>
+                              <option value="salida">salida</option>
+                            </select>
+                          ) : (
+                            m.i
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{texto('fecha', 'w-24')}</td>
+                        <td className="py-2 pr-4 whitespace-nowrap">{texto('hora', 'w-20')}</td>
                         <td className="py-2 pr-4 whitespace-nowrap text-app-muted">
                           {m.matched ? 'intento real' : 'hora del turno'}
                         </td>
@@ -145,8 +182,22 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                             )}
                           </select>
                         </td>
+                        <td className="py-2 pl-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditando(edit ? null : i)}
+                            title={edit ? 'Listo' : 'Editar esta fila'}
+                            aria-label={edit ? 'Terminar de editar la fila' : 'Editar la fila'}
+                            className="text-app-muted hover:text-app-ink"
+                          >
+                            <span className="material-symbols-outlined text-[18px] leading-none align-middle">
+                              {edit ? 'check' : 'edit'}
+                            </span>
+                          </button>
+                        </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
                 </div>

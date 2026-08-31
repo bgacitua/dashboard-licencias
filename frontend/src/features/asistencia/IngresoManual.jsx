@@ -127,6 +127,11 @@ const IngresoManual = ({ obraId, obras }) => {
 
   return (
     <div>
+      {/* Fuera del bloque de la tabla: al registrar bien se vacían los registros,
+          y el aviso tiene que seguir en pantalla igual. */}
+      <ResultadoMarcas resultado={resultado} className="mb-4" />
+      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+
       <div className="border border-app-line rounded-lg p-4 mb-4">
         <p className="text-sm text-app-ink font-medium mb-3">Agregar una marca</p>
         <div className="flex flex-wrap items-end gap-3">
@@ -199,9 +204,6 @@ const IngresoManual = ({ obraId, obras }) => {
               {enviando ? 'Registrando…' : `Registrar ${aEnviar.length} marcas${obra ? ` en ${obra.nombre}` : ''}`}
             </button>
           </div>
-
-          <ResultadoMarcas resultado={resultado} className="mb-4" />
-          {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
           <div className="border border-app-line rounded-xl overflow-x-auto">
             <table className="w-full text-sm text-left">
