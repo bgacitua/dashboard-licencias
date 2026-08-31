@@ -3,6 +3,8 @@ Módulo de seguridad para autenticación JWT y hashing de passwords.
 """
 from datetime import datetime, timedelta
 from typing import Optional
+import threading
+import time
 import uuid
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -181,10 +183,54 @@ def create_oauth_state_token(username: str) -> str:
 
 
 def decode_oauth_state_token(token: str) -> Optional[dict]:
-    """Valida el `state` del callback. Retorna payload o None si no sirve."""
+    """Valida el `state` del callback. Retorna payload o None si no sirve.
+
+    No lo marca como usado: para el canje real usar consume_oauth_state_token.
+    """
     payload = decode_access_token(token)
     if payload is None or payload.get("token_type") != "ms_oauth_state":
         return None
+    return payload
+
+
+# jti de los `state` ya canjeados, con el momento en que dejan de importar.
+# ponytail: vive en el proceso. Con varios workers de uvicorn cada uno tendría
+# su propio registro y un state podría gastarse una vez por worker; si algún día
+# se levanta multi-worker, mover esto a una tabla o a Redis. Reiniciar el
+# backend lo vacía, y eso está bien: los state vivos duran 15 minutos.
+_oauth_states_usados: dict[str, float] = {}
+_oauth_states_lock = threading.Lock()
+
+
+def consume_oauth_state_token(token: str) -> Optional[dict]:
+    """Valida el `state` y lo quema: un segundo intento con el mismo devuelve None.
+
+    Sin esto, quien consiga un state válido (queda en la URL, en el historial,
+    en logs) puede rehacer el flujo con SU cuenta de Microsoft dentro de los 15
+    minutos de vida del token y quedar como remitente de los correos.
+    """
+    payload = decode_oauth_state_token(token)
+    if payload is None:
+        return None
+
+    jti = payload.get("jti")
+    if jti is None:
+        return None
+
+    ahora = time.time()
+    with _oauth_states_lock:
+        # Barrer los vencidos: ya no los acepta la validación de firma, así que
+        # recordarlos no aporta. Son pocos, no hace falta barrer por lotes.
+        for viejo in [k for k, exp in _oauth_states_usados.items() if exp < ahora]:
+            del _oauth_states_usados[viejo]
+
+        if jti in _oauth_states_usados:
+            return None
+
+        # `exp` viene del propio token: el registro se olvida del jti justo
+        # cuando el token deja de ser valido por su cuenta.
+        _oauth_states_usados[jti] = float(payload.get("exp", ahora + 900))
+
     return payload
 
 

@@ -10,8 +10,8 @@ import httpx
 
 from app.core.config import settings
 from app.core.security import (
+    consume_oauth_state_token,
     create_oauth_state_token,
-    decode_oauth_state_token,
     require_role,
 )
 from app.db.deps import get_db
@@ -89,9 +89,10 @@ def microsoft_callback(code: str = None, error: str = None, state: str = None):
 
     # Antes de tocar el código: sin un state válido, el flujo no lo inició
     # nadie de la plataforma y el token que se guardaría no es el que queremos.
-    payload = decode_oauth_state_token(state) if state else None
+    # `consume` además lo quema, para que no sirva dos veces.
+    payload = consume_oauth_state_token(state) if state else None
     if payload is None:
-        logger.warning("Callback OAuth2 rechazado: state ausente, invalido o expirado")
+        logger.warning("Callback OAuth2 rechazado: state ausente, invalido, expirado o ya usado")
         return HTMLResponse(
             content=_auth_html(
                 False,

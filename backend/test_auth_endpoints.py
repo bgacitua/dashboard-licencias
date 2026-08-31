@@ -17,8 +17,8 @@ for var in (
 
 from app.main import app  # noqa: E402
 from app.core.security import (  # noqa: E402
-    create_access_token, create_oauth_state_token, decode_oauth_state_token,
-    get_current_user, get_current_active_user,
+    consume_oauth_state_token, create_access_token, create_oauth_state_token,
+    decode_oauth_state_token, get_current_user, get_current_active_user,
 )
 
 # Rutas que un externo debe poder abrir sin cuenta en la plataforma. Cada una
@@ -83,7 +83,17 @@ def check_oauth_state() -> None:
     assert decode_oauth_state_token("no-es-un-jwt") is None
     assert decode_oauth_state_token("") is None
 
-    print("OK: el state del OAuth rechaza tokens ajenos, alterados y vacios.")
+    # Un solo uso: el segundo canje con el mismo state no vale, aunque la firma
+    # siga siendo buena y el token no haya expirado.
+    quemable = create_oauth_state_token("benja")
+    assert consume_oauth_state_token(quemable)["sub"] == "benja"
+    assert consume_oauth_state_token(quemable) is None
+
+    # Quemar uno no invalida los demas.
+    otro = create_oauth_state_token("otra-persona")
+    assert consume_oauth_state_token(otro)["sub"] == "otra-persona"
+
+    print("OK: el state del OAuth rechaza tokens ajenos, alterados, vacios y reusados.")
 
 
 def main() -> int:
