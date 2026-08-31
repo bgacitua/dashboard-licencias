@@ -1,6 +1,7 @@
 from calendar import monthrange
 from datetime import date
 from threading import Lock
+from urllib.parse import urlencode
 
 import httpx
 from cachetools import TTLCache
@@ -58,17 +59,21 @@ def _pedir_uf(dia: date) -> Optional[float]:
     un error.
     """
     fecha = dia.isoformat()
-    resp = httpx.get(
-        _BCENTRAL_URL,
-        params={
+    # El token es un hash bcrypt: lleva $ y /. Pasado por `params`, httpx los
+    # percent-codifica ($ -> %24, / -> %2F) y la URL deja de ser la que
+    # documenta el Banco Central. Se arma a mano con esos caracteres marcados
+    # como seguros para mandar exactamente lo mismo que un navegador.
+    query = urlencode(
+        {
             "token": settings.BCENTRAL_API_TOKEN,
             "function": "GetSeries",
             "timeseries": settings.BCENTRAL_UF_SERIE,
             "firstdate": fecha,
             "lastdate": fecha,
         },
-        timeout=_UF_TIMEOUT,
+        safe="$/.",
     )
+    resp = httpx.get(f"{_BCENTRAL_URL}?{query}", timeout=_UF_TIMEOUT)
     resp.raise_for_status()
     datos = resp.json()
 
