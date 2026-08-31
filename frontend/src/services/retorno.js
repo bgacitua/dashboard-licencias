@@ -3,7 +3,9 @@ import { getAuthHeaders } from "./auth";
 const API_URL = "/api/v1";
 
 export const getSeguimientoRetorno = async (dias = 7) => {
-  const response = await fetch(`${API_URL}/retorno/seguimiento?dias=${dias}`);
+  const response = await fetch(`${API_URL}/retorno/seguimiento?dias=${dias}`, {
+    headers: getAuthHeaders(),
+  });
   if (!response.ok) throw new Error("Error al obtener seguimiento de retorno");
   return response.json();
 };

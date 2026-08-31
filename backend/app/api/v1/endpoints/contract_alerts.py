@@ -29,6 +29,13 @@ from app.schemas.contract_alerts import (
 
 router = APIRouter()
 
+# Rutas que se abren sin sesión en la plataforma. `router` se incluye en api.py
+# con Depends(get_current_user); estas cuelgan de `publico`, que se incluye sin
+# esa dependencia. Lo que las protege es el token firmado del enlace
+# (decode_response_token) o, en el OAuth, el propio consentimiento de Microsoft.
+# Solo agregar aquí una ruta que un externo DEBE poder abrir sin cuenta.
+publico = APIRouter()
+
 _SCOPES = (
     "https://graph.microsoft.com/Mail.Send "
     "https://graph.microsoft.com/Mail.Send.Shared "  # enviar desde buzones compartidos
@@ -38,7 +45,12 @@ _SCOPES = (
 
 # === OAuth2 Microsoft ===
 
-@router.get("/auth/login")
+@publico.get("/auth/login")
+# Público porque el frontend entra con un <a href>, que no manda el header
+# Authorization. Solo redirige al consentimiento de Microsoft, no expone datos.
+# ponytail: sin `state` firmado, un tercero puede iniciar el flujo y dejar
+# enlazada SU cuenta de Microsoft para el envío de correos. Cerrarlo pide
+# firmar un state en /auth/login y validarlo en /auth/callback.
 def microsoft_login():
     """Redirige al login de Microsoft para autorizar el envío de correos."""
     params = {
@@ -55,7 +67,7 @@ def microsoft_login():
     return RedirectResponse(url=auth_url)
 
 
-@router.get("/auth/callback", response_class=HTMLResponse)
+@publico.get("/auth/callback", response_class=HTMLResponse)
 def microsoft_callback(code: str = None, error: str = None):
     """Recibe el código OAuth2 de Microsoft, obtiene los tokens y los guarda."""
     if error:
@@ -196,7 +208,7 @@ def get_tracking(
     return service.get_tracking()
 
 
-@router.get("/respond", response_class=HTMLResponse)
+@publico.get("/respond", response_class=HTMLResponse)
 def respond_preview(token: str, answer: str, request: Request, db: Session = Depends(get_db)):
     """Muestra página de confirmación. No guarda aún."""
     ip = request.client.host if request.client else None
@@ -243,7 +255,7 @@ def _auto_sync_buk(tracking_id: int) -> None:
         db.close()
 
 
-@router.post("/respond/confirm", response_class=HTMLResponse)
+@publico.post("/respond/confirm", response_class=HTMLResponse)
 async def respond_confirm(
     token: str,
     answer: str,

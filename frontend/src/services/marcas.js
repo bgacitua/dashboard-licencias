@@ -1,3 +1,5 @@
+import { getAuthHeaders } from './auth';
+
 const API_BASE_URL = '/api/v1';
 
 export const getMarcas = async (params = {}) => {
@@ -14,7 +16,9 @@ export const getMarcas = async (params = {}) => {
     if (reloj) queryParams.append('reloj', reloj);
     if (tipoMarca) queryParams.append('tipo_marca', tipoMarca);
     
-    const response = await fetch(`${API_BASE_URL}/marcas/?${queryParams.toString()}`);
+    const response = await fetch(`${API_BASE_URL}/marcas/?${queryParams.toString()}`, {
+        headers: getAuthHeaders(),
+    });
     if (!response.ok) {
         throw new Error('Error al obtener las marcas');
     }
