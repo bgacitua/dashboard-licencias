@@ -1,3 +1,4 @@
+import { mensajeError } from "../features/creditos/montos";
 import { getAuthHeaders } from "./auth";
 
 const API_URL = "/api/v1";
@@ -9,7 +10,7 @@ const request = async (path, options = {}) => {
   });
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.detail || "Error en la operación de créditos");
+    throw new Error(mensajeError(err.detail, "Error en la operación de créditos"));
   }
   return response.status === 204 ? null : response.json();
 };

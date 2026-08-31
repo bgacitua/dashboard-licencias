@@ -5,6 +5,7 @@ import {
   subirDocumento, iniciarFirma, verificarFirma, crearCreditoBuk,
   verificarCreditoBuk, abrirPagare,
 } from '../services/creditos';
+import { aNumero, soloDecimal } from '../features/creditos/montos';
 
 // Tipo que se imprime en el comprobante. A BUK se le manda siempre
 // 'credito_personal', que es lo que acepta su enum en /credits/create.
@@ -163,15 +164,18 @@ const Creditos = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.employee_id) return alert('Selecciona un trabajador de la lista.');
+    const amount = aNumero(form.amount);
+    if (amount === null || amount <= 0)
+      return alert('El valor de la cuota debe ser un número mayor que 0. Se puede escribir con coma o con punto.');
     setSaving(true);
     const payload = {
       ...form,
       employee_id: Number(form.employee_id),
-      amount: Number(form.amount),
+      amount,
       duracion: Number(form.duracion),
       cuota_actual: Number(form.cuota_actual),
-      monto_original: form.monto_original ? Number(form.monto_original) : null,
-      equivalente_pesos: form.equivalente_pesos ? Number(form.equivalente_pesos) : null,
+      monto_original: aNumero(form.monto_original),
+      equivalente_pesos: aNumero(form.equivalente_pesos),
       buk_file_id: form.buk_file_id ? Number(form.buk_file_id) : null,
       path: form.path || null,
       dia_uf: form.moneda === 'uf' ? form.dia_uf || 'uf_fin_de_mes' : null,
@@ -512,8 +516,9 @@ const Creditos = () => {
                         <label className={labelClass}>
                           Monto original <span className="font-normal text-app-outline">({form.moneda === 'uf' ? 'UF' : 'pesos'})</span>
                         </label>
-                        <input type="number" step="0.01" min="0" value={form.monto_original}
-                          onChange={e => set('monto_original', e.target.value)} className={inputClass} />
+                        <input type="text" inputMode="decimal" value={form.monto_original}
+                          onChange={e => set('monto_original', soloDecimal(e.target.value))}
+                          className={inputClass} />
                       </div>
 
                       <div>
@@ -524,9 +529,9 @@ const Creditos = () => {
 
                       <div>
                         <label className={labelClass}>Valor de la cuota <span className="text-red-600">*</span></label>
-                        <input type="number" required min={form.moneda === 'uf' ? '0.01' : '1'}
-                          step={form.moneda === 'uf' ? '0.01' : '1'} value={form.amount}
-                          onChange={e => set('amount', e.target.value)} className={inputClass} />
+                        <input type="text" inputMode="decimal" required value={form.amount}
+                          onChange={e => set('amount', soloDecimal(e.target.value))}
+                          className={inputClass} />
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
