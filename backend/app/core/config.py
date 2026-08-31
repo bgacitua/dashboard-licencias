@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     # === JWT ===
     JWT_SECRET_KEY: str = "change-this-secret-key-in-production"
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRE_MINUTES: int = 480
+    # 4h. Sin refresh token, esto es el equilibrio entre cuanto dura una sesion
+    # robada y cada cuanto la gente tiene que repetir el login con Duo.
+    JWT_EXPIRE_MINUTES: int = 240
 
     # === Duo Security (2FA — Universal Prompt) ===
     DUO_CLIENT_ID: str = ""

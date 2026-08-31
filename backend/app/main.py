@@ -34,10 +34,16 @@ async def lifespan(app: FastAPI):
     stop_scheduler()
 
 
+# Sin /docs, /redoc ni /openapi.json: la API es interna, nadie la explora desde
+# el navegador, y el esquema publicado es un mapa de la superficie para quien
+# busque endpoints. Para trastear en local, levantar con docs_url="/docs".
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0",
     lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 app.add_exception_handler(Exception, generic_exception_handler)
