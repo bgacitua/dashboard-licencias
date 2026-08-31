@@ -122,6 +122,13 @@ class Settings(BaseSettings):
     # VACIAR EN PRODUCCIÓN.
     EMAIL_TEST_REDIRECT: str = ""
 
+    # === Banco Central (valor de la UF) ===
+    # Token de la API SieteRestWS. Es una credencial: va en el entorno, nunca
+    # en el repo. Sin valor, el endpoint de UF responde null y la pantalla de
+    # finiquitos deja escribirla a mano.
+    BCENTRAL_API_TOKEN: str = ""
+    BCENTRAL_UF_SERIE: str = "F073.UFF.PRE.Z.D"
+
     # === CORS (lista separada por comas) ===
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost"
 

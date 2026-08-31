@@ -1,11 +1,14 @@
+from calendar import monthrange
+from datetime import date
 from threading import Lock
 
 import httpx
 from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
+from app.core.config import settings
 from app.core.logging_config import logger
 
 from app.db.deps import get_db
@@ -30,42 +33,96 @@ from app.schemas.desvinculacion import (
 
 router = APIRouter()
 
-# La UF cambia una vez al día: se guarda una hora y de ahí sale servida al
-# instante. El timeout es corto a propósito. Antes el navegador le pegaba
-# directo a mindicador.cl y, cuando ese servicio se caía, la pantalla de
-# finiquitos quedaba 2 minutos esperando antes de fallar con 502.
-_uf_cache: TTLCache = TTLCache(maxsize=1, ttl=3600)
+# La UF sale del Banco Central, que es la fuente oficial. Se cachea por fecha
+# consultada: una vez publicada, la UF de un día no cambia nunca, así que el
+# valor sirve mientras viva el proceso. El timeout es corto a propósito: antes
+# el navegador le pegaba directo a mindicador.cl y, cuando ese servicio se
+# caía, la pantalla de finiquitos quedaba 2 minutos esperando un 502.
+_uf_cache: TTLCache = TTLCache(maxsize=8, ttl=6 * 3600)
 _uf_lock = Lock()
-_UF_TIMEOUT = 5.0
+_UF_TIMEOUT = 8.0
+_BCENTRAL_URL = "https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx"
+
+
+def _ultimo_dia_del_mes(hoy: date) -> date:
+    """La política liquida siempre contra el último día del mes en curso."""
+    return date(hoy.year, hoy.month, monthrange(hoy.year, hoy.month)[1])
+
+
+def _pedir_uf(dia: date) -> Optional[float]:
+    """Valor de la UF para `dia` según el Banco Central. None si no lo publica.
+
+    El Banco Central fija la UF con ~40 días de anticipación, no más: consultada
+    a comienzos de mes, la del día 31 todavía puede no existir. Ahí devuelve una
+    lista de observaciones vacía, y por eso esto puede retornar None sin que sea
+    un error.
+    """
+    fecha = dia.isoformat()
+    resp = httpx.get(
+        _BCENTRAL_URL,
+        params={
+            "token": settings.BCENTRAL_API_TOKEN,
+            "function": "GetSeries",
+            "timeseries": settings.BCENTRAL_UF_SERIE,
+            "firstdate": fecha,
+            "lastdate": fecha,
+        },
+        timeout=_UF_TIMEOUT,
+    )
+    resp.raise_for_status()
+    datos = resp.json()
+
+    if datos.get("Codigo") != 0:
+        # Descripcion trae el motivo (token invalido, serie inexistente). No se
+        # loguea la URL: lleva el token.
+        raise RuntimeError(f"Banco Central respondio: {datos.get('Descripcion')}")
+
+    obs = (datos.get("Series") or {}).get("Obs") or []
+    for o in obs:
+        if o.get("statusCode") == "OK" and o.get("value"):
+            return float(o["value"])
+    return None
 
 
 @router.get("/indicadores/uf")
 def get_uf():
-    """Valor de la UF de hoy. `valor: null` si no se pudo obtener.
+    """Valor de la UF del último día del mes en curso, según el Banco Central.
 
-    Se sirve desde el backend y no desde el navegador para poder cachearlo,
-    acotar el timeout, y no exponer al usuario a un tercero.
+    `valor: null` si no se pudo obtener; el formulario deja escribirla a mano.
     """
-    with _uf_lock:
-        if "uf" in _uf_cache:
-            return _uf_cache["uf"]
+    objetivo = _ultimo_dia_del_mes(date.today())
+    clave = objetivo.isoformat()
 
-    try:
-        resp = httpx.get("https://mindicador.cl/api/uf", timeout=_UF_TIMEOUT)
-        resp.raise_for_status()
-        serie = resp.json().get("serie") or []
-        if not serie:
-            raise ValueError("respuesta sin serie")
-        valor = {"valor": serie[0]["valor"], "fecha": serie[0].get("fecha")}
-    except Exception as e:
-        # Sin valor, el frontend deja que se escriba a mano. No se cachea el
-        # fallo: el proximo intento tiene que poder recuperarse enseguida.
-        logger.warning(f"No se pudo obtener la UF: {e}")
+    with _uf_lock:
+        if clave in _uf_cache:
+            return _uf_cache[clave]
+
+    if not settings.BCENTRAL_API_TOKEN:
+        logger.warning("BCENTRAL_API_TOKEN sin configurar: no se puede obtener la UF")
         return {"valor": None, "fecha": None}
 
+    try:
+        valor = _pedir_uf(objetivo)
+        fecha = objetivo
+        if valor is None:
+            # Todavía no publicada. Se cae al valor de hoy, que sí existe, y se
+            # devuelve su fecha real para que la pantalla no mienta sobre a qué
+            # día corresponde el número.
+            hoy = date.today()
+            valor, fecha = _pedir_uf(hoy), hoy
+            logger.info(f"UF de {clave} aun no publicada; se usa la del {hoy.isoformat()}")
+    except Exception as e:
+        # No se cachea el fallo: el proximo intento tiene que poder recuperarse.
+        logger.warning(f"No se pudo obtener la UF del Banco Central: {e}")
+        return {"valor": None, "fecha": None}
+
+    if valor is None:
+        return {"valor": None, "fecha": None}
+
+    resultado = {"valor": valor, "fecha": fecha.isoformat()}
     with _uf_lock:
-        _uf_cache["uf"] = valor
-    return valor
+        _uf_cache[clave] = resultado
+    return resultado
 
 
 @router.get("/", response_model=List[FiniquitoResponse])
