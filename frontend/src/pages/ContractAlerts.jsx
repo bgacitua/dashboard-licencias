@@ -12,6 +12,7 @@ import {
   deleteCalendarioCierre,
   getTracking,
   syncToBuk,
+  abrirAutorizacionMicrosoft,
 } from '../services/contractAlerts';
 
 const buildPatchPreview = (row) => ({
@@ -1039,16 +1040,21 @@ const ContractAlerts = () => {
                       La ventana se cerrará automáticamente.
                     </p>
                   </div>
-                  <a
-                    href="/api/v1/contract-alerts/auth/login"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setAuthRequired(false)}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await abrirAutorizacionMicrosoft();
+                        setAuthRequired(false);
+                      } catch (e) {
+                        alert(e.message);
+                      }
+                    }}
                     className="flex items-center gap-1.5 px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-xs font-semibold transition-colors whitespace-nowrap"
                   >
                     <span className="material-symbols-outlined text-sm">open_in_new</span>
                     Autorizar correo
-                  </a>
+                  </button>
                 </div>
               )}
 

@@ -310,9 +310,9 @@ async def notificar(
         except AuthRequiredError:
             raise HTTPException(
                 status_code=503,
-                detail="No hay sesión de Microsoft activa. Autorízala en "
-                       "/api/v1/contract-alerts/auth/login, o deja ASISTENCIA_DRY_RUN=true "
-                       "para revisar los correos sin enviarlos.",
+                detail="No hay sesión de Microsoft activa. Autorízala con el botón "
+                       "\"Autorizar correo\" en Alertas de Contratos, o deja "
+                       "ASISTENCIA_DRY_RUN=true para revisar los correos sin enviarlos.",
             )
 
     base = base_publica(settings)

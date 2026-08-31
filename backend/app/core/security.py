@@ -168,6 +168,26 @@ def decode_response_token(token: str) -> Optional[dict]:
         return None
 
 
+def create_oauth_state_token(username: str) -> str:
+    """`state` firmado para el OAuth de Microsoft de las alertas de contratos.
+
+    Lo emite /auth/login, que exige sesión y rol. Vuelve en el callback y se
+    valida ahí: sin él, cualquiera podría completar el consentimiento con SU
+    cuenta y quedar como remitente de todos los correos de la plataforma.
+    Vida corta porque solo tiene que sobrevivir al prompt de Microsoft.
+    """
+    data = {"token_type": "ms_oauth_state", "sub": username, "jti": str(uuid.uuid4())}
+    return create_access_token(data, expires_delta=timedelta(minutes=15))
+
+
+def decode_oauth_state_token(token: str) -> Optional[dict]:
+    """Valida el `state` del callback. Retorna payload o None si no sirve."""
+    payload = decode_access_token(token)
+    if payload is None or payload.get("token_type") != "ms_oauth_state":
+        return None
+    return payload
+
+
 def create_overtime_token(boss_rut: str, boss_email: str, week_start: str, expires_in: timedelta) -> str:
     """JWT para el link de selección de horas extras. Expira exactamente en el deadline de cierre."""
     data = {

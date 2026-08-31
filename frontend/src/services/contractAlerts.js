@@ -120,3 +120,28 @@ export const syncToBuk = async (trackingId) => {
     throw error;
   }
 };
+
+/**
+ * Abre el consentimiento de Microsoft para autorizar el envío de correos.
+ *
+ * El endpoint exige sesión y rol, así que no se puede entrar con un <a href>:
+ * hay que pedir la URL con el header Authorization y recién ahí navegar. La
+ * ventana se abre ANTES del await porque si no el navegador la bloquea, al
+ * dejar de ser una acción directa del usuario.
+ */
+export const abrirAutorizacionMicrosoft = async () => {
+  const ventana = window.open("", "_blank", "noopener,noreferrer");
+  try {
+    const { data } = await axios.get(`${API_URL}/contract-alerts/auth/login`);
+    if (ventana) ventana.location = data.auth_url;
+    else window.location.assign(data.auth_url); // popups bloqueados: misma pestaña
+  } catch (error) {
+    if (ventana) ventana.close();
+    console.error("Error al iniciar la autorización de Microsoft:", error);
+    throw new Error(
+      error.response?.status === 403
+        ? "No tienes permisos para autorizar el envío de correos."
+        : "No se pudo iniciar la autorización de Microsoft.",
+    );
+  }
+};

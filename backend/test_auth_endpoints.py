@@ -17,6 +17,7 @@ for var in (
 
 from app.main import app  # noqa: E402
 from app.core.security import (  # noqa: E402
+    create_access_token, create_oauth_state_token, decode_oauth_state_token,
     get_current_user, get_current_active_user,
 )
 
@@ -27,7 +28,6 @@ PUBLICAS = {
     ("POST", "/api/v1/auth/login"),
     ("POST", "/api/v1/auth/set-password"),
     ("POST", "/api/v1/auth/duo/callback"),
-    ("GET",  "/api/v1/contract-alerts/auth/login"),
     ("GET",  "/api/v1/contract-alerts/auth/callback"),
     ("GET",  "/api/v1/contract-alerts/respond"),
     ("POST", "/api/v1/contract-alerts/respond/confirm"),
@@ -62,7 +62,33 @@ def _protegida(route) -> bool:
     return False
 
 
+def check_oauth_state() -> None:
+    """El `state` del OAuth de Microsoft solo vale si lo firmó /auth/login.
+
+    Es lo unico que impide que un tercero complete el consentimiento con su
+    cuenta y quede como remitente de los correos automaticos.
+    """
+    valido = create_oauth_state_token("benja")
+    assert decode_oauth_state_token(valido)["sub"] == "benja"
+
+    # Un JWT de sesion normal no sirve como state: distinto token_type.
+    assert decode_oauth_state_token(create_access_token({"sub": "benja"})) is None
+
+    # Firma alterada: cambiar un caracter del payload invalida el token.
+    cabecera, cuerpo, firma = valido.split(".")
+    alterado = f"{cabecera}.{cuerpo[:-2]}XY.{firma}"
+    assert decode_oauth_state_token(alterado) is None
+
+    # Basura y vacio no pasan.
+    assert decode_oauth_state_token("no-es-un-jwt") is None
+    assert decode_oauth_state_token("") is None
+
+    print("OK: el state del OAuth rechaza tokens ajenos, alterados y vacios.")
+
+
 def main() -> int:
+    check_oauth_state()
+
     huecos = []
     for route in app.routes:
         if not hasattr(route, "dependant") or not getattr(route, "methods", None):

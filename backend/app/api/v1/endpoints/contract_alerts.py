@@ -2,14 +2,18 @@ import urllib.parse
 from html import escape
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 
 import httpx
 
 from app.core.config import settings
-from app.core.security import require_role
+from app.core.security import (
+    create_oauth_state_token,
+    decode_oauth_state_token,
+    require_role,
+)
 from app.db.deps import get_db
 from app.models.auth import Usuario
 from app.services import web_pages as W
@@ -45,34 +49,57 @@ _SCOPES = (
 
 # === OAuth2 Microsoft ===
 
-@publico.get("/auth/login")
-# Público porque el frontend entra con un <a href>, que no manda el header
-# Authorization. Solo redirige al consentimiento de Microsoft, no expone datos.
-# ponytail: sin `state` firmado, un tercero puede iniciar el flujo y dejar
-# enlazada SU cuenta de Microsoft para el envío de correos. Cerrarlo pide
-# firmar un state en /auth/login y validarlo en /auth/callback.
-def microsoft_login():
-    """Redirige al login de Microsoft para autorizar el envío de correos."""
+# Cuelga de `router`, no de `publico`: exige sesión y rol. Quien complete este
+# flujo queda como remitente de TODOS los correos automáticos de la plataforma,
+# así que no puede iniciarlo un anónimo. Devuelve la URL en JSON en vez de
+# redirigir porque el frontend la abre con window.open tras llamar con el header
+# Authorization; un <a href> no puede mandarlo.
+@router.get("/auth/login")
+def microsoft_login(
+    current_user: Usuario = Depends(require_role(["admin", "rrhh"])),
+):
+    """URL de consentimiento de Microsoft para autorizar el envío de correos."""
     params = {
         "client_id": settings.AZURE_CLIENT_ID,
         "response_type": "code",
         "redirect_uri": settings.AZURE_REDIRECT_URI,
         "response_mode": "query",
         "scope": _SCOPES,
+        "state": create_oauth_state_token(current_user.username),
     }
     auth_url = (
         f"https://login.microsoftonline.com/{settings.AZURE_TENANT_ID}"
         f"/oauth2/v2.0/authorize?{urllib.parse.urlencode(params)}"
     )
-    return RedirectResponse(url=auth_url)
+    logger.info(f"OAuth de Microsoft iniciado por {current_user.username}")
+    return {"auth_url": auth_url}
 
 
 @publico.get("/auth/callback", response_class=HTMLResponse)
-def microsoft_callback(code: str = None, error: str = None):
-    """Recibe el código OAuth2 de Microsoft, obtiene los tokens y los guarda."""
+def microsoft_callback(code: str = None, error: str = None, state: str = None):
+    """Recibe el código OAuth2 de Microsoft, obtiene los tokens y los guarda.
+
+    Público por obligación: quien llega aquí es el navegador redirigido por
+    Microsoft, sin el header Authorization. Lo que autoriza el canje es el
+    `state` firmado que emitió /auth/login, no la sesión.
+    """
     if error:
         logger.error(f"Error en callback OAuth2: {error}")
         return HTMLResponse(content=_auth_html(False, error), status_code=400)
+
+    # Antes de tocar el código: sin un state válido, el flujo no lo inició
+    # nadie de la plataforma y el token que se guardaría no es el que queremos.
+    payload = decode_oauth_state_token(state) if state else None
+    if payload is None:
+        logger.warning("Callback OAuth2 rechazado: state ausente, invalido o expirado")
+        return HTMLResponse(
+            content=_auth_html(
+                False,
+                "Solicitud no valida o expirada. Inicia la autorizacion de nuevo "
+                "desde la plataforma.",
+            ),
+            status_code=400,
+        )
 
     if not code:
         return HTMLResponse(
@@ -96,7 +123,7 @@ def microsoft_callback(code: str = None, error: str = None):
         resp.raise_for_status()
         token_data = resp.json()
         save_tokens(token_data["access_token"], token_data["refresh_token"])
-        logger.info("Autorización de Microsoft completada exitosamente")
+        logger.info(f"Autorización de Microsoft completada por {payload.get('sub')}")
         return HTMLResponse(content=_auth_html(True))
     except Exception as e:
         logger.error(f"Error intercambiando código por token: {e}")
