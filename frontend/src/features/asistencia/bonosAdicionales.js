@@ -1,10 +1,10 @@
 /**
  * Dos bonos más sobre el dataset de Marcajes, cada uno con su propio periodo.
  *
- *  1. Colación y Movilización — periodo libre (quincena a quincena). Solo sábados
- *     y domingos, y se paga POR RECURRENCIA: cada día genera su asignación. Tres
- *     fines de semana trabajados son 3 movilizaciones + 3 colaciones, no una de
- *     cada una. Los turnos excluidos no generan ninguna.
+ *  1. Colación y Movilización — periodo libre (quincena a quincena). Solo sábados,
+ *     domingos y festivos, y se paga POR RECURRENCIA: cada día genera su asignación.
+ *     Tres días trabajados son 3 movilizaciones + 3 colaciones, no una de cada una.
+ *     Los turnos excluidos no generan ninguna.
  *
  *  2. Bono Contratista — mes calendario completo. Turnos de contratista, una
  *     asignación por SEMANA anclada al jueves, igual que el bono especial.
@@ -22,6 +22,36 @@ export const TURNOS_EXCLUIDOS = ['06:00-10:00', '22:00-06:00']
 
 // Colación adicional a partir de estas horas trabajadas.
 export const HORAS_COLACION = 6
+
+/**
+ * Festivos legales de Chile, por año. El festivo paga igual que un sábado o
+ * domingo, así que basta con sumarlo a la misma lista de días pagables.
+ *
+ * Tabla fija a mano: los movibles (Semana Santa, San Pedro y San Pablo, Día de
+ * los Pueblos Indígenas, 12 de octubre, Iglesias Evangélicas) no se derivan de
+ * una regla estable, y los feriados por elección se agregan cuando se publican.
+ * Al entrar un año nuevo hay que sumarlo acá o los festivos dejan de contarse.
+ */
+export const FESTIVOS = new Set([
+  // 2025
+  '2025-01-01', '2025-04-18', '2025-04-19', '2025-05-01', '2025-05-21',
+  '2025-06-20', '2025-06-29', '2025-07-16', '2025-08-15', '2025-09-18',
+  '2025-09-19', '2025-10-12', '2025-10-31', '2025-11-01', '2025-11-16',
+  '2025-12-08', '2025-12-14', '2025-12-25',
+  // 2026
+  '2026-01-01', '2026-04-03', '2026-04-04', '2026-05-01', '2026-05-21',
+  '2026-06-21', '2026-06-29', '2026-07-16', '2026-08-15', '2026-09-18',
+  '2026-09-19', '2026-10-12', '2026-10-31', '2026-11-01', '2026-12-08',
+  '2026-12-25',
+  // 2027
+  '2027-01-01', '2027-03-26', '2027-03-27', '2027-05-01', '2027-05-21',
+  '2027-06-21', '2027-06-28', '2027-07-16', '2027-08-15', '2027-09-18',
+  '2027-09-19', '2027-10-11', '2027-10-31', '2027-11-01', '2027-12-08',
+  '2027-12-25',
+])
+
+/** Años con festivos cargados, para avisar cuando el periodo pedido no tiene tabla. */
+export const ANIOS_FESTIVOS = new Set([...FESTIVOS].map((d) => d.slice(0, 4)))
 
 export const TURNOS_CONTRATISTA = ['08:50-18:00', '09:40-17:30']
 
@@ -60,7 +90,15 @@ const diaSemana = (iso) => {
 }
 
 export const esFinDeSemana = (iso) => [0, 6].includes(diaSemana(iso))
-const nombreDia = (iso) => (diaSemana(iso) === 6 ? 'Sábado' : 'Domingo')
+export const esFestivo = (iso) => FESTIVOS.has(iso)
+
+/** Sábado, domingo o festivo: los tres pagan igual. */
+export const esDiaPagable = (iso) => esFinDeSemana(iso) || esFestivo(iso)
+
+// El festivo manda sobre el día de la semana: un 18 de septiembre en sábado se
+// cuenta una sola vez, en la columna de festivos.
+export const nombreDia = (iso) =>
+  esFestivo(iso) ? 'Festivo' : diaSemana(iso) === 6 ? 'Sábado' : 'Domingo'
 
 const hhmm = (h) =>
   `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`
@@ -96,6 +134,13 @@ export function mesDePago(mes) {
  * El bono se calcula sobre lo que el tab consultó: si el rango de la tabla es más
  * corto que el periodo del bono, el archivo sale incompleto y nada lo delata.
  */
+/** Años del periodo sin festivos cargados; null si están todos. */
+export function faltanFestivos(periodo) {
+  const anios = [periodo.desde, periodo.hasta].filter(Boolean).map((d) => d.slice(0, 4))
+  const sin = [...new Set(anios)].filter((a) => !ANIOS_FESTIVOS.has(a))
+  return sin.length ? `no hay festivos cargados para ${sin.join(' ni ')}` : null
+}
+
 export function faltaCobertura(rows, periodo) {
   const dias = rows.map(diaMarcaje).filter(Boolean).sort()
   if (dias.length === 0) return 'el tab no tiene marcajes cargados'
@@ -113,7 +158,7 @@ export function colacionMovilizacion(rows, periodo = { desde: '', hasta: '' }) {
   const out = []
   for (const r of filtrar(rows, periodo)) {
     const fecha = diaMarcaje(r)
-    if (!esFinDeSemana(fecha)) continue
+    if (!esDiaPagable(fecha)) continue
     const rut = norm(r.rut_trabajador)
     if (!rut) continue
     const turno = norm(r.turno)
@@ -128,7 +173,7 @@ export function colacionMovilizacion(rows, periodo = { desde: '', hasta: '' }) {
       dia: nombreDia(fecha),
       turno,
       horas,
-      movilizacion: true, // trabajó sáb/dom en un turno no excluido
+      movilizacion: true, // trabajó sáb/dom/festivo en un turno no excluido
       colacion: horas !== null && horas >= HORAS_COLACION,
     })
   }
@@ -159,7 +204,7 @@ const hojaFinde = (filas) =>
 
 const COLS_RESUMEN_FINDE = [
   'Rut', 'Nombre Completo', 'Unidad', 'Cargo',
-  'Sábados', 'Domingos', 'Días trabajados',
+  'Sábados', 'Domingos', 'Festivos', 'Días trabajados',
   'Asignaciones movilización', 'Asignaciones colación', 'Total asignaciones',
 ]
 
@@ -171,13 +216,13 @@ export function resumenFinde(filas) {
     if (!w) {
       w = {
         Rut: f.rut, 'Nombre Completo': f.nombre, Unidad: f.unidad, Cargo: f.cargo,
-        'Sábados': 0, 'Domingos': 0, 'Días trabajados': 0,
+        'Sábados': 0, 'Domingos': 0, 'Festivos': 0, 'Días trabajados': 0,
         'Asignaciones movilización': 0, 'Asignaciones colación': 0, 'Total asignaciones': 0,
       }
       por.set(f.rut, w)
     }
     const inc = (k, n = 1) => { w[k] += n }
-    inc(f.dia === 'Sábado' ? 'Sábados' : 'Domingos')
+    inc(f.dia === 'Festivo' ? 'Festivos' : f.dia === 'Sábado' ? 'Sábados' : 'Domingos')
     inc('Días trabajados')
     if (f.movilizacion) { inc('Asignaciones movilización'); inc('Total asignaciones') }
     if (f.colacion) { inc('Asignaciones colación'); inc('Total asignaciones') }
@@ -208,13 +253,14 @@ export function prepararColMov(rows, periodo) {
   if (filas.length === 0) {
     return {
       ok: false,
-      mensaje: 'Sin sábados ni domingos trabajados en el periodo (fuera de los turnos excluidos).',
+      mensaje: 'Sin sábados, domingos ni festivos trabajados en el periodo (fuera de los turnos excluidos).',
     }
   }
   return {
     ok: true,
     filas: filas.length,
-    confirmar: faltaCobertura(rows, periodo),
+    confirmar: [faltaCobertura(rows, periodo), faltanFestivos(periodo)]
+      .filter(Boolean).join('; ') || null,
     descargar: () =>
       XLSX.writeFile(
         construirLibroColMov(rows, periodo),
@@ -365,12 +411,31 @@ if (globalThis.process?.argv?.[1]?.endsWith('bonosAdicionales.js')) {
 
   a(esFinDeSemana('2026-08-15') && esFinDeSemana('2026-08-16'), 'sábado y domingo')
   a(!esFinDeSemana('2026-08-17'), 'el lunes no')
+  a(esFestivo('2026-09-18') && esDiaPagable('2026-09-18'), '18 de septiembre es festivo')
+  a(!esDiaPagable('2026-08-17'), 'un lunes cualquiera no paga')
+  a(esDiaPagable('2026-09-19') && nombreDia('2026-09-19') === 'Festivo',
+    'el 19 cae sábado y se cuenta como festivo, no dos veces')
   a(horasTrabajadas(marca('1-9', '15/8/2026', 'T', '2026/08/15 08:00:00', '2026/08/15 18:00:00')) === 10,
     'diez horas')
   a(horasTrabajadas(marca('1-9', '15/8/2026', 'T', '2026/08/15 22:00:00', '2026/08/16 06:00:00')) === 8,
     'turno que cruza medianoche: ocho horas')
 
   // Recurrencia: tres días de fin de semana son seis asignaciones, no dos.
+  // Festivo en día de semana: paga igual que un fin de semana.
+  const qSep = { desde: '2026-09-14', hasta: '2026-09-20' }
+  const festivos = resumenFinde(colacionMovilizacion([
+    marca('9-9', '18/9/2026', '08:00-18:00', '2026/09/18 08:00:00', '2026/09/18 18:00:00'),
+    marca('9-9', '19/9/2026', '08:00-18:00', '2026/09/19 08:00:00', '2026/09/19 18:00:00'),
+    marca('9-9', '17/9/2026', '08:00-18:00', '2026/09/17 08:00:00', '2026/09/17 18:00:00'),
+  ], qSep))[0]
+  a(festivos['Festivos'] === 2, `festivos: ${festivos['Festivos']}`)
+  a(festivos['Sábados'] === 0, 'el 19 no se cuenta además como sábado')
+  a(festivos['Días trabajados'] === 2, 'el jueves 17 no entra')
+  a(festivos['Total asignaciones'] === 4, 'dos movilizaciones y dos colaciones')
+
+  a(faltanFestivos({ desde: '2026-01-01', hasta: '2026-01-31' }) === null, '2026 tiene tabla')
+  a(faltanFestivos({ desde: '2030-01-01', hasta: '2030-01-31' }) !== null, '2030 avisa')
+
   const q = { desde: '2026-08-01', hasta: '2026-08-15' }
   const recurrente = [
     marca('1-9', '1/8/2026', '08:00-18:00', '2026/08/01 08:00:00', '2026/08/01 18:00:00'),

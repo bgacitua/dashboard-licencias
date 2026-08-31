@@ -8,7 +8,7 @@ import { prepararColMov, prepararContratista } from './bonosAdicionales'
  *
  * Cada una tiene su propio periodo y por eso no reusan el rango del tab:
  *   Bono especial          — usa el rango consultado, para anclar semanas partidas.
- *   Colación y movilización — quincena a quincena, se elige acá.
+ *   Colación y movilización — quincena a quincena, se elige acá. Cuenta festivos.
  *   Bono contratista        — mes calendario completo.
  *
  * Los dos últimos avisan si el rango del tab no cubre el periodo pedido: el
@@ -63,7 +63,8 @@ const DescargasBonos = ({ rows, desde, hasta }) => {
 
       <Desplegable label="Colación y Movilización" disabled={sinDatos}>
         <p className="text-xs text-app-muted">
-          Fines de semana trabajados. Periodo libre, normalmente de quincena a quincena.
+          Sábados, domingos y festivos trabajados. Periodo libre, normalmente de
+          quincena a quincena.
         </p>
         <label className="block text-sm text-app-muted">
           Desde
