@@ -88,6 +88,10 @@ const menuItems = [
   },
 ];
 
+// Quien ve el estado de la sesion de Microsoft. Hardcodeado a proposito: hoy lo
+// atiende una sola persona y no amerita una tabla ni un flag de configuracion.
+const CORREO_ENCARGADO = 'bgacitua@cramer.cl';
+
 // ponytail: ventana fija de 8 tarjetas que avanza de a 2; sin animacion ni virtualizacion
 const PAGE = 8;
 const STEP = 2;
@@ -166,9 +170,10 @@ const MainMenu = () => {
           <p className="mt-1 text-[14px] text-app-muted">
             Selecciona un módulo para comenzar.
           </p>
-          {/* Solo a quien tiene acceso a Alertas de Contratos: es quien puede
-              reautorizar. Para el resto seria ruido que no puede accionar. */}
-          {hasModuleAccess('contract_alerts') && (
+          {/* Solo Benja: es quien reautoriza la sesion de Microsoft cuando se
+              cae. Para el resto seria un aviso que no pueden accionar. Si algun
+              dia lo atiende mas gente, esto pasa a ser un modulo o un rol. */}
+          {user?.email?.toLowerCase() === CORREO_ENCARGADO && (
             <div className="mt-2">
               <EstadoCorreo />
             </div>
