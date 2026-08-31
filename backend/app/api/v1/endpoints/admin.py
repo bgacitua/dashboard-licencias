@@ -38,7 +38,7 @@ def _es_rol_admin(db: Session, rol_id: int | None) -> bool:
 # === Gestión de Usuarios ===
 
 @router.get("/users", response_model=List[UsuarioResponse])
-async def list_users(
+def list_users(
     current_user: Usuario = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
@@ -49,7 +49,7 @@ async def list_users(
 
 
 @router.post("/users", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(
+def create_user(
     user_data: UsuarioCreate,
     current_user: Usuario = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
@@ -91,7 +91,7 @@ async def create_user(
 
 
 @router.post("/users/{user_id}/send-invite", status_code=status.HTTP_204_NO_CONTENT)
-async def send_user_invite(
+def send_user_invite(
     user_id: int,
     current_user: Usuario = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
@@ -107,7 +107,7 @@ async def send_user_invite(
 
 
 @router.get("/users/{user_id}", response_model=UsuarioResponse)
-async def get_user(
+def get_user(
     user_id: int,
     current_user: Usuario = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
@@ -126,7 +126,7 @@ async def get_user(
 
 
 @router.put("/users/{user_id}", response_model=UsuarioResponse)
-async def update_user(
+def update_user(
     user_id: int,
     user_data: UsuarioUpdate,
     current_user: Usuario = Depends(require_role(["admin"])),
@@ -163,7 +163,7 @@ async def update_user(
 
 
 @router.delete("/users/{user_id}", response_model=UsuarioResponse)
-async def deactivate_user(
+def deactivate_user(
     user_id: int,
     current_user: Usuario = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
@@ -190,7 +190,7 @@ async def deactivate_user(
 # === Gestión de Roles ===
 
 @router.get("/roles", response_model=List[RoleWithModules])
-async def list_roles(
+def list_roles(
     current_user: Usuario = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
@@ -201,7 +201,7 @@ async def list_roles(
 
 
 @router.post("/roles", response_model=RoleWithModules, status_code=status.HTTP_201_CREATED)
-async def create_role(
+def create_role(
     role_data: RoleCreate,
     current_user: Usuario = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
@@ -223,7 +223,7 @@ async def create_role(
 
 
 @router.put("/roles/{role_id}", response_model=RoleWithModules)
-async def update_role(
+def update_role(
     role_id: int,
     role_data: RoleUpdate,
     current_user: Usuario = Depends(require_role(["admin"])),
@@ -248,7 +248,7 @@ async def update_role(
 # === Gestión de Módulos ===
 
 @router.get("/modules", response_model=List[ModuloResponse])
-async def list_modules(
+def list_modules(
     current_user: Usuario = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
@@ -259,7 +259,7 @@ async def list_modules(
 
 
 @router.put("/modules/{module_id}/toggle")
-async def toggle_module(
+def toggle_module(
     module_id: int,
     active: bool,
     current_user: Usuario = Depends(require_role(["admin"])),

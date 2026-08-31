@@ -97,7 +97,7 @@ def decode_access_token(token: str) -> Optional[dict]:
         return None
 
 
-async def get_current_user(
+def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> Usuario:
@@ -134,7 +134,7 @@ async def get_current_user(
     return user
 
 
-async def get_current_active_user(
+def get_current_active_user(
     current_user: Usuario = Depends(get_current_user)
 ) -> Usuario:
     """Verifica que el usuario actual esté activo."""
@@ -269,7 +269,7 @@ def require_role(allowed_roles: list[str]):
         async def admin_route(user: Usuario = Depends(require_role(["admin"]))):
             ...
     """
-    async def role_checker(
+    def role_checker(
         current_user: Usuario = Depends(get_current_user)
     ) -> Usuario:
         if current_user.rol is None:
@@ -301,7 +301,7 @@ def require_module(module_code: str):
         async def finiquitos_route(user: Usuario = Depends(require_module("finiquitos"))):
             ...
     """
-    async def module_checker(
+    def module_checker(
         current_user: Usuario = Depends(get_current_user),
         db: Session = Depends(get_db)
     ) -> Usuario:

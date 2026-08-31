@@ -324,7 +324,7 @@ def _auto_sync_buk(tracking_id: int) -> None:
 
 
 @publico.post("/respond/confirm", response_class=HTMLResponse)
-async def respond_confirm(
+def respond_confirm(
     token: str,
     answer: str,
     request: Request,

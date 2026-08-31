@@ -1,10 +1,15 @@
-"""Chequeo: ningún endpoint de la API queda sin autenticación por olvido.
+"""Chequeos estáticos del backend. Ejecutar: python test_auth_endpoints.py
 
-Ejecutar:  python test_auth_endpoints.py
-Falla si aparece una ruta nueva sin dependencia de auth que no esté en PUBLICAS.
-No toca la BD ni la red: solo inspecciona el grafo de dependencias de FastAPI.
+  1. Ninguna ruta queda sin autenticación por olvido (fuera de PUBLICAS).
+  2. El `state` del OAuth de Microsoft rechaza lo que no firmamos, y no se reusa.
+  3. Ninguna función es `async def` sin usar `await`.
+
+Nada toca la BD ni la red: se inspecciona el grafo de dependencias de FastAPI y
+el AST del paquete.
 """
+import ast
 import os
+import pathlib
 
 # Valores de relleno: Settings exige estas variables, pero el chequeo nunca
 # abre una conexión. Así corre sin las credenciales reales delante.
@@ -96,8 +101,55 @@ def check_oauth_state() -> None:
     print("OK: el state del OAuth rechaza tokens ajenos, alterados, vacios y reusados.")
 
 
+# `async def` que sí deben seguir siendo corrutinas, cada una por su motivo.
+ASYNC_JUSTIFICADAS = {
+    ("app/main.py", "lifespan"),                              # @asynccontextmanager
+    ("app/core/exceptions.py", "generic_exception_handler"),  # handler de Starlette
+    ("app/modules/asistencia/service.py", "get_paged"),       # doble de un método awaited
+}
+
+
+def check_sin_async_de_mas() -> None:
+    """Una `async def` sin `await` bloquea el event loop en cada llamada.
+
+    FastAPI manda las funciones `def` a un threadpool y corre las `async def` en
+    el loop. Una consulta a la BD, que es síncrona, dentro de una `async def`
+    congela el proceso entero mientras dura: nadie más avanza. Quitar la palabra
+    `async` es todo el arreglo.
+    """
+    sobrantes = []
+    for archivo in sorted(pathlib.Path("app").rglob("*.py")):
+        try:
+            arbol = ast.parse(archivo.read_text(encoding="utf-8"))
+        except SyntaxError as e:
+            # No se puede revisar lo que no parsea. Se avisa en vez de callarlo:
+            # un archivo roto escondería cualquier async de mas que tenga dentro.
+            print(f"AVISO: {archivo.as_posix()} no es Python valido, sin revisar ({e.msg})")
+            continue
+        for nodo in ast.walk(arbol):
+            if not isinstance(nodo, ast.AsyncFunctionDef):
+                continue
+            clave = (archivo.as_posix(), nodo.name)
+            if clave in ASYNC_JUSTIFICADAS:
+                continue
+            usa_async = any(
+                isinstance(h, (ast.Await, ast.AsyncWith, ast.AsyncFor))
+                for h in ast.walk(nodo)
+                if h is not nodo
+            )
+            if not usa_async:
+                sobrantes.append(f"{archivo.as_posix()}:{nodo.lineno} {nodo.name}")
+
+    assert not sobrantes, (
+        "async def sin await (bloquean el event loop); quitarles la palabra async "
+        "o justificarlas en ASYNC_JUSTIFICADAS:" + chr(10) + "  " + (chr(10)+"  ").join(sobrantes)
+    )
+    print("OK: ninguna funcion es async def sin usar await.")
+
+
 def main() -> int:
     check_oauth_state()
+    check_sin_async_de_mas()
 
     huecos = []
     for route in app.routes:
