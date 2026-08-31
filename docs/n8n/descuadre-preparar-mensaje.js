@@ -49,7 +49,7 @@ const salida = (asunto, cuerpo) => [{ json: { asunto, cuerpo_html:
 
 const pie =
   '<p style="' + F + ';color:#6b7280;font-size:12px;line-height:18px;margin:24px 0 0">' +
-  'Enviado automaticamente por el Dashboard de Personas. No responder este correo.</p>';
+  'Enviado automaticamente por la Plataforma de Personas. No responder este correo.</p>';
 
 if (tipo === "liquidos_snapshot") {
   return salida(

@@ -12,6 +12,19 @@ from pytz import timezone
 from app.core.config import settings
 from app.core.logging_config import logger
 
+
+def _ahora() -> str:
+    """
+    Marca de tiempo para los avisos, en hora de Santiago.
+
+    El contenedor corre en UTC, así que un `datetime.now()` pelado mandaba los
+    correos con cuatro horas de más.
+    """
+    from datetime import datetime
+
+    return datetime.now(timezone(settings.ALERTS_SCHEDULER_TIMEZONE)).strftime("%d-%m-%Y %H:%M")
+
+
 _scheduler: BackgroundScheduler | None = None
 
 
@@ -61,9 +74,8 @@ def _run_alerts_job() -> None:
     """Evalúa si debe ejecutar y envía alertas a todos los jefes con alertas pendientes."""
     from app.db.session import SessionLocal
     from app.services.contract_alerts_service import ContractAlertsService
-    from datetime import datetime
 
-    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    timestamp = _ahora()
     db = SessionLocal()
     try:
         debe_ejecutar, motivo = _should_run(db)
@@ -125,9 +137,8 @@ def _run_followup_job() -> None:
     """Envía recordatorios a jefaturas sin respuesta."""
     from app.db.session import SessionLocal
     from app.services.contract_alerts_service import ContractAlertsService
-    from datetime import datetime
 
-    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    timestamp = _ahora()
     db = SessionLocal()
     try:
         service = ContractAlertsService(db)
@@ -296,12 +307,11 @@ def _run_liquidos_job() -> None:
     fuera de ella sale sin tocar BUK, así que puede correr cada 15 min todo el mes.
     """
     import asyncio
-    from datetime import datetime
 
     from app.db.session import SessionLocal
     from app.services.liquidaciones_service import LiquidacionesService
 
-    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    timestamp = _ahora()
     db = SessionLocal()
     try:
         service = LiquidacionesService(db)
@@ -366,13 +376,12 @@ def _run_retorno_job() -> None:
     from app.db.session import SessionLocal
     from app.db.session_marcas import MarcasSessionLocal
     from app.services.retorno_service import RetornoService
-    from datetime import datetime
 
     if not settings.RETORNO_ALERT_EMAIL:
         logger.warning("[RetornoScheduler] RETORNO_ALERT_EMAIL no configurado — omitiendo envío.")
         return
 
-    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    timestamp = _ahora()
     db = SessionLocal()
     marcas_db = MarcasSessionLocal()
     try:
@@ -418,9 +427,8 @@ def _run_overtime_request_job() -> None:
     """Envía a cada jefatura su link de selección de horas extras del fin de semana."""
     from app.db.session import SessionLocal
     from app.services.overtime_service import OvertimeService
-    from datetime import datetime
 
-    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    timestamp = _ahora()
     db = SessionLocal()
     try:
         result = OvertimeService(db).send_weekly_requests()
@@ -460,7 +468,7 @@ def _run_overtime_summary_job() -> None:
     from app.services.overtime_service import OvertimeService, week_window
     from datetime import datetime, timedelta
 
-    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    timestamp = _ahora()
     db = SessionLocal()
     try:
         # week_window() ya avanzó a la semana siguiente porque el deadline acaba de pasar;
