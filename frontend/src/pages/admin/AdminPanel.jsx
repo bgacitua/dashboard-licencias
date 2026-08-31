@@ -20,6 +20,10 @@ const formatDate = (dateStr) => {
     });
 };
 
+// Debe cubrir todos los codigos de app.modulos. Un codigo que falte cae en
+// 'extension', nunca en el campo `icono` de la BD: ahi hay valores que no son
+// ligatures validos de Material Symbols ('calculator'), y el navegador los
+// dibuja como texto crudo en vez de como icono.
 const MODULE_ICONS = {
     dashboard: 'sensor_door',
     finiquitos: 'description',
@@ -27,8 +31,14 @@ const MODULE_ICONS = {
     costos: 'wallet',
     contract_alerts: 'notifications_active',
     seleccion: 'person_search',
+    creditos: 'payments',
+    asistencia: 'schedule',
     admin: 'settings',
 };
+
+// El rol admin ya tiene todos los modulos: no se lista ni se ofrece para asignar.
+// El backend lo rechaza igual; esto solo evita mostrar lo que no se puede hacer.
+const ROL_OCULTO = 'admin';
 
 // ─── sub-components ─────────────────────────────────────────────────────────
 
@@ -363,11 +373,14 @@ const AdminPanel = () => {
 
     const activeModules = modules.filter(m => m.activo);
 
+    // El rol admin no se muestra ni se ofrece en los selectores.
+    const rolesVisibles = roles.filter(r => r.nombre !== ROL_OCULTO);
+
     // ── tabs config ────────────────────────────────────────────────────────
 
     const tabs = [
         { id: 'users',    label: 'Usuarios',  icon: 'group',     count: users.length },
-        { id: 'roles',    label: 'Roles',     icon: 'badge',     count: roles.length },
+        { id: 'roles',    label: 'Roles',     icon: 'badge',     count: rolesVisibles.length },
         { id: 'modules',  label: 'Módulos',   icon: 'extension', count: modules.length },
         { id: 'security', label: 'Seguridad', icon: 'shield',    count: null },
     ];
@@ -568,7 +581,7 @@ const AdminPanel = () => {
                     {/* ── Roles tab ──────────────────────────────────────── */}
                     {activeTab === 'roles' && (
                         <div className="p-6">
-                            {roles.length === 0 ? (
+                            {rolesVisibles.length === 0 ? (
                                 <div className="text-center py-16 text-app-outline">
                                     <div className="w-14 h-14 rounded-xl bg-app-surface flex items-center justify-center mx-auto mb-3">
                                         <span className="material-symbols-outlined text-3xl">badge</span>
@@ -578,7 +591,7 @@ const AdminPanel = () => {
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {roles.map(role => (
+                                    {rolesVisibles.map(role => (
                                         <div key={role.id} className="bg-white rounded-xl border border-app-line  p-5 flex flex-col gap-4 hover: transition-shadow">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="flex items-center gap-3">
@@ -644,7 +657,7 @@ const AdminPanel = () => {
                                                     <span className={`material-symbols-outlined text-[20px] ${
                                                         mod.activo ? 'text-app-brand' : 'text-app-outline'
                                                     }`}>
-                                                        {MODULE_ICONS[mod.codigo] || mod.icono || 'extension'}
+                                                        {MODULE_ICONS[mod.codigo] || 'extension'}
                                                     </span>
                                                 </div>
                                                 <div>
@@ -718,7 +731,7 @@ const AdminPanel = () => {
                             <FieldGroup label="Rol *">
                                 <SelectField required value={newUser.rol_id} onChange={e => setNewUser({...newUser, rol_id: e.target.value})}>
                                     <option value="">Seleccionar rol...</option>
-                                    {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+                                    {rolesVisibles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
                                 </SelectField>
                             </FieldGroup>
 
@@ -777,7 +790,9 @@ const AdminPanel = () => {
                             <FieldGroup label="Rol">
                                 <SelectField value={editingUser.rol_id} onChange={e => setEditingUser({...editingUser, rol_id: e.target.value})}>
                                     <option value="">Sin rol</option>
-                                    {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+                                    {roles
+                                        .filter(r => r.nombre !== ROL_OCULTO || r.id === editingUser.rol?.id)
+                                        .map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
                                 </SelectField>
                             </FieldGroup>
                             <ModalActions onCancel={() => setShowEditModal(false)} submitLabel="Guardar Cambios" />

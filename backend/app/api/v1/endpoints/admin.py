@@ -18,9 +18,21 @@ from app.schemas.auth import (
     ModuloResponse,
 )
 from app.core.security import require_role
-from app.models.auth import Usuario
+from app.models.auth import Role, Usuario
 
 router = APIRouter()
+
+# El rol admin ya tiene todos los módulos y se gestiona en base de datos. No se
+# reparte desde la UI: que la pantalla no lo ofrezca es comodidad, esto es lo
+# que de verdad lo impide.
+ROL_NO_ASIGNABLE = "admin"
+
+
+def _es_rol_admin(db: Session, rol_id: int | None) -> bool:
+    if rol_id is None:
+        return False
+    rol = db.query(Role).filter(Role.id == rol_id).first()
+    return rol is not None and rol.nombre == ROL_NO_ASIGNABLE
 
 
 # === Gestión de Usuarios ===
@@ -53,6 +65,12 @@ async def create_user(
             detail=f"El usuario '{user_data.username}' ya existe"
         )
     
+    if _es_rol_admin(db, user_data.rol_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El rol 'admin' no se asigna desde la interfaz. Se otorga en base de datos.",
+        )
+
     if not user_data.password and not user_data.send_invite:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -116,7 +134,15 @@ async def update_user(
 ):
     """Actualizar un usuario existente."""
     auth_service = AuthService(db)
-    
+
+    actual = auth_service.get_user_by_id(user_id)
+    ya_era_admin = actual is not None and actual.rol is not None and actual.rol.nombre == ROL_NO_ASIGNABLE
+    if _es_rol_admin(db, user_data.rol_id) and not ya_era_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El rol 'admin' no se asigna desde la interfaz. Se otorga en base de datos.",
+        )
+
     user = auth_service.update_user(
         user_id=user_id,
         email=user_data.email,
