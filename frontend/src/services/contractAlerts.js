@@ -145,3 +145,9 @@ export const abrirAutorizacionMicrosoft = async () => {
     );
   }
 };
+
+/** Estado de la sesión de Microsoft. `autorizado: null` = no se pudo verificar. */
+export const getEstadoSesionMicrosoft = async () => {
+  const { data } = await axios.get(`${API_URL}/contract-alerts/auth/status`);
+  return data;
+};

@@ -1,5 +1,6 @@
 import urllib.parse
 from html import escape
+from threading import Lock
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 
 import httpx
+from cachetools import TTLCache
 
 from app.core.config import settings
 from app.core.security import (
@@ -19,7 +21,11 @@ from app.models.auth import Usuario
 from app.services import web_pages as W
 from app.services.contract_alerts_service import ContractAlertsService
 from app.services.email_templates import C
-from app.services.email_token_service import save_tokens
+from app.services.email_token_service import (
+    AuthRequiredError,
+    get_access_token,
+    save_tokens,
+)
 from app.core.logging_config import logger
 from app.schemas.contract_alerts import (
     AlertStatsResponse,
@@ -73,6 +79,40 @@ def microsoft_login(
     )
     logger.info(f"OAuth de Microsoft iniciado por {current_user.username}")
     return {"auth_url": auth_url}
+
+
+# Cache corto: el menú principal consulta esto en cada carga, y averiguar el
+# estado real cuesta un viaje a Microsoft. 5 minutos es suficiente para enterarse
+# a tiempo sin pegarle a Graph en cada navegación.
+_estado_cache: TTLCache = TTLCache(maxsize=1, ttl=300)
+_estado_lock = Lock()
+
+
+@router.get("/auth/status")
+def microsoft_auth_status():
+    """Dice si hay sesión de Microsoft viva para el envío de correos.
+
+    Informativo: lo consume la tarjeta del menú, para que un token caído se note
+    al entrar y no horas después, cuando alguien echa de menos un correo.
+    """
+    with _estado_lock:
+        if "estado" in _estado_cache:
+            return _estado_cache["estado"]
+
+    try:
+        get_access_token()
+        estado = {"autorizado": True}
+    except AuthRequiredError:
+        estado = {"autorizado": False}
+    except Exception as e:
+        # Microsoft caído o sin red: no se puede afirmar que la sesión murió.
+        # Se responde "desconocido" para no mandar a nadie a reautorizar de más.
+        logger.warning(f"No se pudo verificar la sesión de Microsoft: {e}")
+        return {"autorizado": None}
+
+    with _estado_lock:
+        _estado_cache["estado"] = estado
+    return estado
 
 
 @publico.get("/auth/callback", response_class=HTMLResponse)

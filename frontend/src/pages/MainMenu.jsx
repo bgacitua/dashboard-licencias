@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
+import { getEstadoSesionMicrosoft } from '../services/contractAlerts';
 
 const menuItems = [
   {
@@ -96,6 +97,43 @@ const hour = now.getHours();
 const greeting =
   hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
 
+// Aviso del estado de la sesión de Microsoft. Sin ella no sale ningún correo
+// automático, y hasta ahora eso solo se notaba al intentar enviar uno: se podían
+// perder horas antes de que alguien se diera cuenta.
+const EstadoCorreo = () => {
+  // null = todavía consultando, o no se pudo verificar. En ambos casos no se
+  // muestra nada: un aviso a medias preocupa sin decir qué hacer.
+  const [autorizado, setAutorizado] = useState(null);
+
+  useEffect(() => {
+    getEstadoSesionMicrosoft()
+      .then(data => setAutorizado(data.autorizado))
+      .catch(() => setAutorizado(null));
+  }, []);
+
+  if (autorizado === null) return null;
+
+  if (autorizado) {
+    return (
+      <p className="flex items-center gap-1.5 text-[12px] text-app-muted">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+        Correo automático activo
+      </p>
+    );
+  }
+
+  return (
+    <Link
+      to="/contract-alerts"
+      className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-700 hover:underline"
+    >
+      <span className="material-symbols-outlined text-[16px]">warning</span>
+      Sesión de Microsoft caída: no se están enviando correos
+    </Link>
+  );
+};
+
+
 const MainMenu = () => {
   const { user, hasModuleAccess, hasRole } = useAuth();
   const [offset, setOffset] = useState(0);
@@ -128,6 +166,13 @@ const MainMenu = () => {
           <p className="mt-1 text-[14px] text-app-muted">
             Selecciona un módulo para comenzar.
           </p>
+          {/* Solo a quien tiene acceso a Alertas de Contratos: es quien puede
+              reautorizar. Para el resto seria ruido que no puede accionar. */}
+          {hasModuleAccess('contract_alerts') && (
+            <div className="mt-2">
+              <EstadoCorreo />
+            </div>
+          )}
           </div>
 
           {maxOffset > 0 && (
