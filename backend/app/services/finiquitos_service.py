@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
+from contextlib import nullcontext
 import httpx
 
 from app.repositories.finiquitos_repository import FiniquitosRepository
@@ -15,6 +16,29 @@ from app.schemas.finiquitos import (
 from app.core.exceptions import FiniquitoNotFoundError
 from app.core.logging_config import logger
 from app.core.config import settings
+
+
+_cliente_buk: Optional[httpx.AsyncClient] = None
+
+
+def buk_client():
+    """Cliente HTTP compartido hacia la API de BUK.
+
+    Antes cada consulta abria su propio AsyncClient, o sea un handshake TLS por
+    request. Reusarlo mantiene la conexion viva entre llamadas, que es lo que
+    pesa cuando una sola pantalla dispara varias.
+
+    Se devuelve envuelto en nullcontext para que los `async with` existentes lo
+    tomen sin cerrarlo al salir del bloque.
+
+    ponytail: un cliente por proceso, atado al event loop que lo creo. Alcanza
+    con un worker; si se pasa a multi-worker cada proceso arma el suyo y sigue
+    siendo correcto.
+    """
+    global _cliente_buk
+    if _cliente_buk is None or _cliente_buk.is_closed:
+        _cliente_buk = httpx.AsyncClient(timeout=30.0)
+    return nullcontext(_cliente_buk)
 
 
 class FiniquitosService:
@@ -75,7 +99,7 @@ class FiniquitosService:
         }
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with buk_client() as client:
                 response = await client.get(url, headers=headers, params=params)
                 response.raise_for_status()
                 
@@ -132,7 +156,7 @@ class FiniquitosService:
         }
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with buk_client() as client:
                 response = await client.get(url, headers=headers)
                 response.raise_for_status()
                 
@@ -196,7 +220,7 @@ class FiniquitosService:
         }
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with buk_client() as client:
                 response = await client.get(url, headers=headers)
                 response.raise_for_status()
                 
@@ -346,7 +370,7 @@ class FiniquitosService:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with buk_client() as client:
 
                 raw_records: Dict[str, Dict] = {}  # sort_date -> {amount, worked_days}
                 page = 1
@@ -355,7 +379,7 @@ class FiniquitosService:
                 while page <= 10:
                     paged_url = f"{url}&page={page}"
                     logger.info(f"Consultando página {page}: {paged_url}")
-                    response = await client.get(paged_url, headers=headers)
+                    response = await client.get(paged_url, headers=headers, timeout=60.0)
                     response.raise_for_status()
                     data = response.json()
 
