@@ -472,7 +472,8 @@ const CrearFiniquito = () => {
                 (item.concepto === "Bono Especial Mensual" ||
                   !excludedConceptos.includes(item.concepto))) ||
               (item.income_type === "remuneracion_fija" &&
-                (item.concepto === "Bono Supervisores Noche" ||
+                (item.concepto === "Bono Supervisores" ||
+                  item.concepto === "Bono Supervisores Noche" ||
                   item.concepto === "Bono Jefe Área Contingencia" ||
                   item.concepto === "Bono Auditores Internos" ||
                   item.concepto === "Bono Operario Master")),
