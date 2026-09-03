@@ -44,8 +44,7 @@ class OvertimeRepository:
                     'Facilitador de Excelencia Operativa',
                     'Líder de Servicios Generales',
                     'Ingeniero de Expansión e Infraestructura',
-                    'Jefe De Mantención',
-                    'Gestor de Proyectos de Infraestructura')  AND
+                    'Jefe De Mantención')  AND
                 e2.email IS NOT NULL AND e2.email <> ''
             ORDER BY e2.full_name, a.name, e.name_role
         """)
