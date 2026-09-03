@@ -486,11 +486,12 @@ def _summary_email_html(week_start: date, rows: List[Dict[str, Any]]) -> str:
           <td style="{T.TD}">{escape(r.get('employee_rut') or '')}</td>
           <td style="{T.TD}">{escape(r.get('cargo') or '')}</td>
           <td style="{T.TD}">{escape(r.get('area') or '')}</td>
+          <td style="{T.TD}">{escape(r.get('recinto_primario') or '')}</td>
           <td style="{T.TD}">{escape(r.get('boss_name') or '')}</td>
         </tr>"""
 
     if not filas:
-        filas = (f'<tr><td colspan="5" style="{T.TD};color:{T.C.MUTED}">'
+        filas = (f'<tr><td colspan="6" style="{T.TD};color:{T.C.MUTED}">'
                  'Ningún trabajador fue seleccionado.</td></tr>')
 
     pendientes = ""
@@ -512,6 +513,7 @@ def _summary_email_html(week_start: date, rows: List[Dict[str, Any]]) -> str:
           <th style="{T.TH}">RUT</th>
           <th style="{T.TH}">Cargo</th>
           <th style="{T.TH}">Área</th>
+          <th style="{T.TH}">Recinto</th>
           <th style="{T.TH}">Jefatura</th>
         </tr></thead>
         <tbody>{filas}</tbody>

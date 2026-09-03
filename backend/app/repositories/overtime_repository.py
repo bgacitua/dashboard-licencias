@@ -171,9 +171,18 @@ class OvertimeRepository:
             SELECT
                 r.boss_rut, r.boss_name, r.boss_email,
                 TO_CHAR(r.responded_at AT TIME ZONE 'America/Santiago', 'DD-MM-YYYY HH24:MI') AS responded_at,
-                s.employee_rut, s.employee_name, s.cargo, s.area, s.sabado
+                s.employee_rut, s.employee_name, s.cargo, s.area, s.sabado,
+                e.recinto_primario
             FROM app.overtime_requests r
             LEFT JOIN app.overtime_selections s ON s.request_id = r.id
+            -- El recinto no se guarda en la selección: se lee de rh.employees al armar
+            -- el consolidado. DISTINCT ON evita duplicar filas cuando un RUT tiene
+            -- más de un contrato histórico.
+            LEFT JOIN (
+                SELECT DISTINCT ON (rut) rut, recinto_primario
+                FROM rh.employees
+                ORDER BY rut, status = 'activo' DESC, id DESC
+            ) e ON e.rut = s.employee_rut
             WHERE r.week_start = :week_start
             ORDER BY r.boss_name, s.employee_name
         """)
