@@ -1,7 +1,7 @@
 import React from 'react';
 
 import TextareaBuffer from './TextareaBuffer';
-import { OPERADORES, parsear, preguntasAnteriores, serializar } from './logica';
+import { OPERADORES, operadorPorDefecto, operadoresPara, parsear, preguntasAnteriores, serializar } from './logica';
 import { TIPOS, TIPOS_CON_OPCIONES } from './tipos';
 
 const input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -24,9 +24,20 @@ export default function PanelPropiedades({ definicion, pregunta, onChange, onEli
     const meta = TIPOS[pregunta.type] || { label: pregunta.type, campos: [] };
     const regla = parsear(pregunta.visibleIf) || { pregunta: '', operador: '=', valor: '' };
     const origenes = preguntasAnteriores(definicion, pregunta.name);
+    const origen = origenes.find((p) => p.name === regla.pregunta);
+    const operadoresValidos = operadoresPara(origen?.type);
 
     const setRegla = (cambios) => {
         const nueva = { ...regla, ...cambios };
+        // Cambiar el origen puede dejar un operador que ese tipo no admite
+        // (p. ej. `=` sobre una selección múltiple, que nunca sería verdadero).
+        if (cambios.pregunta !== undefined) {
+            const tipoNuevo = origenes.find((p) => p.name === cambios.pregunta)?.type;
+            if (!operadoresPara(tipoNuevo).some((o) => o.key === nueva.operador)) {
+                nueva.operador = operadorPorDefecto(tipoNuevo);
+                nueva.valor = '';
+            }
+        }
         onChange({ ...pregunta, visibleIf: serializar(nueva) });
     };
 
@@ -101,7 +112,7 @@ export default function PanelPropiedades({ definicion, pregunta, onChange, onEli
                     <label className={label} htmlFor="regla-operador">Condición</label>
                     <select id="regla-operador" className={input} value={regla.operador}
                         onChange={(e) => setRegla({ operador: e.target.value })}>
-                        {OPERADORES.map((o) => (
+                        {operadoresValidos.map((o) => (
                             <option key={o.key} value={o.key}>{o.label}</option>
                         ))}
                     </select>
@@ -110,7 +121,6 @@ export default function PanelPropiedades({ definicion, pregunta, onChange, onEli
                         <>
                             <label className={label} htmlFor="regla-valor">Valor</label>
                             {(() => {
-                                const origen = origenes.find((p) => p.name === regla.pregunta);
                                 const opciones = TIPOS_CON_OPCIONES.includes(origen?.type)
                                     ? (origen.choices || []).map((c) => (typeof c === 'string' ? c : c.value ?? c.text))
                                     : null;
