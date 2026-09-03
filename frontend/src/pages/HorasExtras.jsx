@@ -5,6 +5,7 @@ import {
   getResumenHorasExtras,
   enviarConsolidado,
   enviarSolicitudes,
+  getJefaturas,
 } from "../services/overtime";
 
 const HorasExtras = () => {
@@ -14,6 +15,8 @@ const HorasExtras = () => {
   const [error, setError] = useState(null);
   const [mensaje, setMensaje] = useState(null);
   const [enviando, setEnviando] = useState(false);
+  const [jefaturas, setJefaturas] = useState([]);
+  const [bossRut, setBossRut] = useState("");
 
   const cargar = useCallback(async (semana) => {
     setLoading(true);
@@ -31,6 +34,10 @@ const HorasExtras = () => {
 
   useEffect(() => {
     cargar();
+    // Si falla, el selector queda vacío y solo se puede enviar a todas.
+    getJefaturas()
+      .then((d) => setJefaturas(d.jefes || []))
+      .catch(() => setJefaturas([]));
   }, [cargar]);
 
   const accion = async (fn, okMsg) => {
@@ -46,6 +53,22 @@ const HorasExtras = () => {
     } finally {
       setEnviando(false);
     }
+  };
+
+  // Reenviar invalida el link anterior de cada jefatura destinataria: se confirma siempre.
+  const enviarSolicitudesConAviso = () => {
+    const jefe = jefaturas.find((j) => j.boss_rut === bossRut);
+    const destino = bossRut
+      ? `a ${jefe?.boss_name || bossRut}`
+      : `a las ${jefaturas.length || "todas las"} jefaturas`;
+    if (!window.confirm(
+      `Se enviará un correo nuevo ${destino}. El link anterior dejará de funcionar ` +
+      `(las selecciones ya guardadas se mantienen). ¿Continuar?`
+    )) return;
+    accion(
+      () => enviarSolicitudes(bossRut || undefined),
+      bossRut ? "Solicitud reenviada" : "Solicitudes enviadas",
+    );
   };
 
   const seleccionados = rows.filter((r) => r.employee_rut);
@@ -85,12 +108,29 @@ const HorasExtras = () => {
                 className="bg-white border border-app-line rounded px-3 py-2 text-sm text-app-muted"
               />
             </div>
+            <div className="flex flex-col">
+              <label className="text-[10px] text-app-muted font-bold uppercase mb-1">
+                Jefatura
+              </label>
+              <select
+                value={bossRut}
+                onChange={(e) => setBossRut(e.target.value)}
+                className="bg-white border border-app-line rounded px-3 py-2 text-sm text-app-muted"
+              >
+                <option value="">Todas las jefaturas</option>
+                {jefaturas.map((j) => (
+                  <option key={j.boss_rut} value={j.boss_rut}>
+                    {j.boss_name || j.boss_rut} ({j.trabajadores})
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               disabled={enviando}
-              onClick={() => accion(() => enviarSolicitudes(), "Solicitudes enviadas")}
+              onClick={enviarSolicitudesConAviso}
               className="px-4 py-2 text-sm rounded border border-app-line text-app-muted hover:bg-app-surface disabled:opacity-50"
             >
-              Enviar solicitudes
+              {bossRut ? "Reenviar a la jefatura" : "Enviar solicitudes"}
             </button>
             <button
               disabled={enviando}

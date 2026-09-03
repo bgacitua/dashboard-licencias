@@ -24,8 +24,18 @@ export const enviarConsolidado = async (weekStart) => {
   return response.json();
 };
 
-export const enviarSolicitudes = async () => {
-  const response = await fetch(`${API_URL}/overtime/send-requests`, {
+export const getJefaturas = async () => {
+  const response = await fetch(`${API_URL}/overtime/bosses`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error("Error al obtener las jefaturas");
+  return response.json();
+};
+
+// bossRut vacío = enviar a todas las jefaturas (comportamiento del scheduler).
+export const enviarSolicitudes = async (bossRut) => {
+  const params = bossRut ? `?boss_rut=${encodeURIComponent(bossRut)}` : "";
+  const response = await fetch(`${API_URL}/overtime/send-requests${params}`, {
     method: "POST",
     headers: getAuthHeaders(),
   });
