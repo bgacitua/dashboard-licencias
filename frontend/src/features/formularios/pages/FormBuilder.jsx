@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Model } from 'survey-core';
+import { DefaultLight } from 'survey-core/themes';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
 
@@ -128,10 +129,15 @@ export default function FormBuilder() {
 
     // Modelo de preview: se reconstruye con cada cambio del JSON, así que es lo
     // mismo que verá el trabajador en la página pública.
-    const preview = useMemo(
-        () => (vista === 'preview' ? new Model(definicion) : null),
-        [vista, definicion]
-    );
+    const preview = useMemo(() => {
+        if (vista !== 'preview') return null;
+        const m = new Model(definicion);
+        m.locale = 'es';
+        // Mismo tema y locale que la página pública: si el preview se ve
+        // distinto a lo que recibe el trabajador, no sirve de preview.
+        m.applyTheme(DefaultLight);
+        return m;
+    }, [vista, definicion]);
 
     return (
         <div className="flex h-screen bg-gray-50">
