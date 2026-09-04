@@ -23,8 +23,17 @@ from app.db.deps import get_db
 
 from .config import FormulariosSettings, get_settings
 from . import repository as repo
+from . import service
 from .models import Formulario
-from .schemas import FormularioCreate, FormularioOut, FormularioUpdate, RespuestaOut
+from .schemas import (
+    EnvioRequest,
+    EnvioResponse,
+    FormularioCreate,
+    FormularioOut,
+    FormularioUpdate,
+    PersonaOut,
+    RespuestaOut,
+)
 
 router = APIRouter(dependencies=[Depends(require_module("formularios"))])
 
@@ -41,6 +50,20 @@ def _validar_webhook(cfg: FormulariosSettings, url: str | None) -> None:
             "El webhook debe ser https y apuntar a un host autorizado "
             "(FORMULARIOS_N8N_HOSTS).",
         )
+
+
+@router.get("/personas", response_model=list[PersonaOut])
+def personas(db: Db, q: str = "") -> list[dict]:
+    """Buscador para elegir destinatario. Va en el router de administración,
+    detrás de require_module: es la nómina y no se expone sin sesión.
+
+    Con menos de 3 caracteres devuelve vacío en vez de la tabla entera: sirve
+    para buscar a alguien, no para descargar el personal.
+    """
+    q = q.strip()
+    if len(q) < 3:
+        return []
+    return repo.buscar_personas(db, q, limit=20)
 
 
 @router.get("/", response_model=list[FormularioOut])
@@ -142,6 +165,27 @@ def duplicar(formulario_id: int, db: Db, usuario=Depends(get_current_active_user
         raise HTTPException(409, "No se pudo duplicar: el slug ya existe.")
     db.refresh(copia)
     return copia
+
+
+@router.post("/{formulario_id}/enviar", response_model=EnvioResponse)
+def enviar(
+    formulario_id: int, datos: EnvioRequest, db: Db, cfg: Cfg,
+    usuario=Depends(get_current_active_user),
+) -> EnvioResponse:
+    """Manda el enlace del formulario al correo del trabajador."""
+    from app.services.email_token_service import AuthRequiredError
+
+    formulario = db.get(Formulario, formulario_id)
+    if not formulario:
+        raise HTTPException(404, "Formulario no encontrado.")
+    if not formulario.activo:
+        raise HTTPException(400, "El formulario está inactivo: actívalo antes de enviarlo.")
+
+    try:
+        resultado = service.enviar_formulario(db, cfg, formulario, datos.rut, usuario.username)
+    except AuthRequiredError:
+        raise HTTPException(503, "La sesión de Microsoft está caída: no se pueden enviar correos.")
+    return EnvioResponse(**resultado)
 
 
 @router.get("/{formulario_id}/respuestas", response_model=list[RespuestaOut])

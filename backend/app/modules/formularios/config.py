@@ -18,8 +18,13 @@ class FormulariosSettings(BaseSettings):
     # Apagado por defecto: en main no se monta nada hasta que esto sea true.
     enabled: bool = False
 
-    # Minutos de vida del token que emite el gate.
+    # Minutos de vida del token que emite el gate público.
     token_ttl_min: int = 15
+
+    # Horas de vida del enlace que se manda por correo. No puede medirse en
+    # minutos como el del gate: ahí la persona abre el formulario al toque,
+    # acá lo lee cuando revisa el correo, que puede ser al día siguiente.
+    envio_ttl_horas: int = 72
 
     # Hosts permitidos para n8n_webhook_url. La URL la escribe un admin y el
     # backend la llama: sin allowlist es un SSRF desde el panel.

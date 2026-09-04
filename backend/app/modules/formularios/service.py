@@ -1,4 +1,6 @@
-"""Lógica del módulo: gate, consumo del token y envío a n8n."""
+"""Lógica del módulo: gate, consumo del token, envío del enlace y envío a n8n."""
+from html import escape
+
 from sqlalchemy.orm import Session
 
 from app.core.config import settings as app_settings
@@ -74,3 +76,63 @@ def registrar_respuesta(
     )
     repo.marcar_n8n(db, respuesta.id, ok)
     return respuesta.id
+
+
+def _correo_html(nombre: str, titulo: str, link: str, horas: int) -> str:
+    """Cuerpo del correo con el enlace. Usa las plantillas de la plataforma para
+    que se vea igual que el resto de los correos que manda el sistema."""
+    from app.services import email_templates as T
+
+    saludo = f"Hola <strong>{escape(nombre or '')}</strong>," if nombre else "Hola,"
+    return T.email_shell(
+        titulo,
+        f"""
+      <p style="{T.P}">{saludo}</p>
+      <p style="{T.P}">Necesitamos que completes el formulario
+         <strong>{escape(titulo)}</strong>.</p>
+      <div style="margin:22px 0">{T.button(link, "Responder formulario")}</div>
+      {T.callout(f'<strong>El enlace vence en {horas} horas.</strong> Es personal: '
+                 'no lo reenvíes, porque quien lo abra responderá a tu nombre.', 'warn')}""",
+    )
+
+
+def enviar_formulario(
+    db: Session, cfg: FormulariosSettings, formulario, rut: str, enviado_por: str
+) -> dict:
+    """Emite un token y manda el enlace al correo del trabajador.
+
+    El correo se toma de rh.employees y no de lo que llegue en la petición: el
+    RUT viene del navegador, y aceptar el correo junto con él permitiría
+    desviar el enlace de cualquier persona a una casilla ajena.
+    """
+    from app.services.email_service import send_email_graph
+
+    persona = repo.persona_activa(db, rut)
+    if not persona:
+        return {"ok": False, "mensaje": "El RUT no corresponde a un trabajador activo."}
+    if not persona.get("email"):
+        return {
+            "ok": False,
+            "mensaje": f"{persona['full_name']} no tiene correo registrado en la nómina.",
+        }
+    if not app_settings.PUBLIC_URL:
+        return {"ok": False, "mensaje": "PUBLIC_URL no está configurado: no se pueden generar enlaces."}
+
+    token = repo.crear_token_envio(
+        db, formulario.id, rut, persona["email"], cfg.envio_ttl_horas, enviado_por
+    )
+    link = f"{app_settings.PUBLIC_URL}/formularios/f/{formulario.slug}?token={token}"
+
+    ok = send_email_graph(
+        to=persona["email"],
+        cc="",
+        subject=f"Formulario: {formulario.titulo}",
+        html_body=_correo_html(persona["full_name"], formulario.titulo, link, cfg.envio_ttl_horas),
+    )
+    if not ok:
+        # El token queda emitido igual: si el correo falló por Graph y no por la
+        # dirección, reenviar no obliga a rehacer nada.
+        logger.warning(f"[Formularios] Envío fallido a {persona['email']} (formulario {formulario.slug})")
+        return {"ok": False, "mensaje": "No se pudo enviar el correo. Intenta nuevamente."}
+
+    return {"ok": True, "mensaje": f"Enviado a {persona['email']}.", "email": persona["email"]}

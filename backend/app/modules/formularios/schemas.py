@@ -72,3 +72,23 @@ class RespuestaOut(BaseModel):
     created_at: datetime
     fecha_envio: datetime | None = None
     fecha_respuesta: datetime | None = None
+
+
+class PersonaOut(BaseModel):
+    """Lo mínimo para elegir a quién enviarle. El correo se muestra para poder
+    confirmar el destino antes de mandar; el envío no lo recibe de vuelta."""
+
+    rut: str
+    nombre: str | None = None
+    email: str | None = None
+
+
+class EnvioRequest(BaseModel):
+    # Solo el RUT: el correo lo resuelve el backend contra la nómina.
+    rut: str = Field(..., max_length=20)
+
+
+class EnvioResponse(BaseModel):
+    ok: bool
+    mensaje: str
+    email: str | None = None

@@ -83,6 +83,12 @@ export default function GestorFormularios() {
                             onChange={(e) => setBusqueda(e.target.value)}
                         />
                         <button
+                            onClick={() => navigate('/formularios/enviar')}
+                            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                            Enviar formulario
+                        </button>
+                        <button
                             onClick={() => navigate('/formularios/respuestas')}
                             className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         >
@@ -147,6 +153,14 @@ export default function GestorFormularios() {
                                                 >
                                                     Editar
                                                 </button>
+                                                {f.activo && (
+                                                    <button
+                                                        onClick={() => navigate(`/formularios/enviar?id=${f.id}`)}
+                                                        className="text-gray-600 hover:underline"
+                                                    >
+                                                        Enviar
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => navigate(`/formularios/respuestas?id=${f.id}`)}
                                                     className="text-gray-600 hover:underline"

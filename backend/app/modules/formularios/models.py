@@ -28,6 +28,11 @@ class FormToken(Base):
     rut = Column(String(20), nullable=False)
     expira_at = Column(DateTime, nullable=False)
     used_at = Column(DateTime, nullable=True)
+    # A qué casilla se mandó el enlace y quién lo mandó. El correo se guarda
+    # acá y no se lee de rh.employees al mostrar: si la persona cambia de
+    # correo, el registro tiene que seguir diciendo dónde llegó.
+    email = Column(String(150), nullable=True)
+    enviado_por = Column(String(150), nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
 

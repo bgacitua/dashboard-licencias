@@ -57,5 +57,13 @@ export const eliminarFormulario = async (id) =>
 export const duplicarFormulario = async (id) =>
     json(await fetch(`${BASE}/${id}/duplicar`, { method: 'POST', headers: getAuthHeaders() }));
 
+export const buscarPersonas = async (q) =>
+    json(await fetch(`${BASE}/personas?q=${encodeURIComponent(q)}`, { headers: getAuthHeaders() }));
+
+export const enviarFormulario = async (id, rut) =>
+    json(await fetch(`${BASE}/${id}/enviar`, {
+        method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ rut }),
+    }));
+
 export const listarRespuestas = async (id) =>
     json(await fetch(`${BASE}/${id}/respuestas`, { headers: getAuthHeaders() }));

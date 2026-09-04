@@ -162,3 +162,86 @@ def conteo_respuestas(db: Session) -> dict[int, int]:
         """)
     ).all()
     return {fid: n for fid, n in rows}
+
+
+def buscar_personas(db: Session, q: str, limit: int = 20) -> list[dict]:
+    """Trabajadores activos que calzan con `q` por nombre o RUT.
+
+    Devuelve nombre, RUT y correo, nada más: es la base de datos de personal y
+    lo que no se necesita para elegir a quién enviarle no tiene por qué salir
+    de la tabla. DISTINCT ON deja una fila por persona aunque tenga varios
+    contratos.
+    """
+    limpio = limpiar_rut(q)
+    rows = db.execute(
+        text("""
+            SELECT DISTINCT ON (rut_limpio) rut_limpio, rut, full_name, email
+            FROM (
+                SELECT
+                    lower(regexp_replace(rut, '[^0-9kK]', '', 'g')) AS rut_limpio,
+                    rut, full_name, email, status, id
+                FROM rh.employees
+                WHERE status = 'activo'
+            ) e
+            -- translate() y no unaccent(): esa extensión no está instalada en
+            -- la base y buscar "jose" tiene que encontrar a "José".
+            WHERE (:q <> '' AND translate(lower(full_name), 'áéíóúñü', 'aeiounu')
+                                LIKE translate(lower(:patron), 'áéíóúñü', 'aeiounu'))
+               OR (:limpio <> '' AND rut_limpio LIKE :patron_rut)
+            ORDER BY rut_limpio, id DESC
+            LIMIT :limit
+        """),
+        {
+            "q": q.strip(),
+            "patron": f"%{q.strip()}%",
+            "limpio": limpio,
+            "patron_rut": f"{limpio}%",
+            "limit": limit,
+        },
+    ).mappings().all()
+    return [
+        {"rut": r["rut"], "nombre": r["full_name"], "email": r["email"]}
+        for r in rows
+    ]
+
+
+def persona_activa(db: Session, rut: str) -> dict | None:
+    """Datos de un trabajador activo por RUT, o None. Se consulta al enviar:
+    el RUT viene del navegador y no se confía en el correo que traiga."""
+    limpio = limpiar_rut(rut)
+    if not limpio:
+        return None
+    row = db.execute(
+        text("""
+            SELECT rut, full_name, email
+            FROM rh.employees
+            WHERE lower(regexp_replace(rut, '[^0-9kK]', '', 'g')) = :rut
+              AND status = 'activo'
+            ORDER BY id DESC
+            LIMIT 1
+        """),
+        {"rut": limpio},
+    ).mappings().first()
+    return dict(row) if row else None
+
+
+def crear_token_envio(
+    db: Session, formulario_id: int, rut: str, email: str, ttl_horas: int, enviado_por: str
+) -> str:
+    """Token para el enlace que se manda por correo. Mismo criterio de reloj
+    que crear_token: el vencimiento lo calcula Postgres."""
+    token = secrets.token_urlsafe(32)
+    db.execute(
+        text("""
+            INSERT INTO app.form_tokens
+                (token, formulario_id, rut, expira_at, email, enviado_por)
+            VALUES
+                (:t, :f, :r, NOW() + make_interval(hours => :ttl), :email, :por)
+        """),
+        {
+            "t": token, "f": formulario_id, "r": limpiar_rut(rut),
+            "ttl": ttl_horas, "email": email, "por": enviado_por,
+        },
+    )
+    db.commit()
+    return token
