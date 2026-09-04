@@ -60,10 +60,21 @@ def check_rate_limit(key: str, max_attempts: int, window_seconds: int) -> None:
 
 
 def client_ip(request: Request) -> str:
-    """IP del cliente respetando el X-Forwarded-For que pone el proxy."""
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """IP del cliente según el proxy.
+
+    Se usa X-Real-IP, que nginx fija con $remote_addr y por lo tanto sobrescribe
+    en cada request. NO se usa X-Forwarded-For: nginx lo arma con
+    $proxy_add_x_forwarded_for, que agrega la IP real al final de lo que mandó
+    el cliente, así que su primer elemento lo elige quien llama. Como esta
+    función produce la clave del rate limit, tomar ese valor deja que cualquiera
+    se asigne una clave distinta por request y no alcance nunca el límite.
+
+    Sin la cabecera (llamada directa al backend, sin pasar por nginx) queda la IP
+    del socket.
+    """
+    real = request.headers.get("x-real-ip", "").strip()
+    if real:
+        return real
     return request.client.host if request.client else "desconocido"
 
 
