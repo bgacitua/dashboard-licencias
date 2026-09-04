@@ -14,8 +14,13 @@ def limpiar_rut(value: object) -> str:
 
 
 def rut_en_nomina(db: Session, rut: str) -> bool:
-    """¿Existe el RUT en rh.employees? Se normaliza a ambos lados porque la
-    columna guarda el formato de Buk y el usuario escribe como quiere."""
+    """¿Existe el RUT en rh.employees y sigue activo?
+
+    Se normaliza a ambos lados porque la columna guarda el formato de Buk y el
+    usuario escribe como quiere. El filtro por `status` importa: sin él un
+    exempleado sigue pudiendo abrir formularios internos, y el gate confirma
+    desde afuera que esa persona alguna vez trabajó acá.
+    """
     limpio = limpiar_rut(rut)
     if not limpio:
         return False
@@ -24,6 +29,7 @@ def rut_en_nomina(db: Session, rut: str) -> bool:
             SELECT 1
             FROM rh.employees
             WHERE lower(regexp_replace(rut, '[^0-9kK]', '', 'g')) = :rut
+              AND status = 'activo'
             LIMIT 1
         """),
         {"rut": limpio},
