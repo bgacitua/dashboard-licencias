@@ -18,17 +18,14 @@ class FormulariosSettings(BaseSettings):
     # Apagado por defecto: en main no se monta nada hasta que esto sea true.
     enabled: bool = False
 
-    # Minutos de vida del token que emite el gate.
-    token_ttl_min: int = 15
+    # Horas de vida del enlace que se manda por correo. Se mide en horas porque
+    # la persona lo abre cuando revisa su bandeja, que puede ser al día
+    # siguiente, y hasta que vence puede volver a corregir lo que respondió.
+    envio_ttl_horas: int = 72
 
     # Hosts permitidos para n8n_webhook_url. La URL la escribe un admin y el
     # backend la llama: sin allowlist es un SSRF desde el panel.
     n8n_hosts: str = ""
-
-    # Gate: intentos por IP en la ventana. Es el único punto desde donde se
-    # puede enumerar RUTs de la nómina.
-    gate_max_intentos: int = 10
-    gate_ventana_seg: int = 300
 
     @property
     def n8n_hosts_list(self) -> list[str]:

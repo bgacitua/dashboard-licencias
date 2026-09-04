@@ -28,6 +28,11 @@ class FormToken(Base):
     rut = Column(String(20), nullable=False)
     expira_at = Column(DateTime, nullable=False)
     used_at = Column(DateTime, nullable=True)
+    # A qué casilla se mandó el enlace y quién lo mandó. El correo se guarda
+    # acá y no se lee de rh.employees al mostrar: si la persona cambia de
+    # correo, el registro tiene que seguir diciendo dónde llegó.
+    email = Column(String(150), nullable=True)
+    enviado_por = Column(String(150), nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
 
@@ -40,6 +45,9 @@ class FormRespuesta(Base):
     token = Column(String(64), nullable=True)
     rut = Column(String(20), nullable=True)
     datos = Column(JSONB, nullable=False)
+    # Cada edición del trabajador inserta una versión nueva; la vigente es la
+    # de número más alto y las anteriores quedan como registro.
+    version = Column(Integer, nullable=False, default=1)
     ip = Column(String(64), nullable=True)
     n8n_ok = Column(Boolean, nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())

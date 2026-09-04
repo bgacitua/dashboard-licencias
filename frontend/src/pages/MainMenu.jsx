@@ -78,6 +78,15 @@ const menuItems = [
     requiredRole: ['rrhh', 'admin'],
   },
   {
+    id: 'formularios',
+    title: 'Formularios',
+    description: 'Crea formularios internos, envíalos a los trabajadores y revisa sus respuestas.',
+    path: '/formularios/gestor',
+    icon: 'assignment',
+    moduleCode: 'formularios',
+    requiredRole: ['rrhh', 'admin'],
+  },
+  {
     id: 'admin',
     title: 'Administración',
     description: 'Configura usuarios, roles y parámetros del sistema.',

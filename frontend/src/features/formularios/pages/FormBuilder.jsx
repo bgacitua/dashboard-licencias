@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Model } from 'survey-core';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
@@ -35,8 +36,26 @@ export default function FormBuilder() {
     const [vista, setVista] = useState('editor');     // editor | preview
     const [mensaje, setMensaje] = useState('');
 
+    const [params] = useSearchParams();
+
     const recargar = () => listarFormularios().then(setFormularios).catch((e) => setMensaje(e.message));
-    useEffect(() => { recargar(); }, []);
+
+    // El gestor entra con ?id=, así que el formulario pedido se abre solo. Sin
+    // id se conserva el comportamiento de antes: entrar con la lista y nada
+    // seleccionado.
+    useEffect(() => {
+        listarFormularios()
+            .then((lista) => {
+                setFormularios(lista);
+                const id = params.get('id');
+                if (id) {
+                    const pedido = lista.find((f) => String(f.id) === id);
+                    if (pedido) abrir(pedido);
+                }
+            })
+            .catch((e) => setMensaje(e.message));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [params]);
 
     const definicion = actual?.definicion || definicionVacia();
     const pagina = definicion.pages?.[paginaIdx] || definicion.pages?.[0];
@@ -114,8 +133,6 @@ export default function FormBuilder() {
         [vista, definicion]
     );
 
-    const enlace = actual?.slug ? `/formularios/validar?f=${actual.slug}` : null;
-
     return (
         <div className="flex h-screen bg-gray-50">
             {/* Formularios existentes */}
@@ -172,7 +189,7 @@ export default function FormBuilder() {
                         <section className="mt-4 grid gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-2">
                             <div>
                                 <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="slug">
-                                    Slug (queda en la URL del QR, no se cambia después)
+                                    Código (queda en la URL del formulario, no se cambia después)
                                 </label>
                                 <input
                                     id="slug"
@@ -218,13 +235,8 @@ export default function FormBuilder() {
                                     checked={actual.activo}
                                     onChange={(e) => setActual({ ...actual, activo: e.target.checked })}
                                 />
-                                Activo (si no, el gate lo rechaza)
+                                Activo (si no, no se puede enviar ni responder)
                             </label>
-                            {enlace && actual.id && (
-                                <p className="self-center text-xs text-gray-500">
-                                    Enlace para el QR: <code className="text-gray-700">{enlace}</code>
-                                </p>
-                            )}
                         </section>
 
                         {vista === 'preview' ? (

@@ -39,9 +39,11 @@ const Seleccion = lazy(() => import('./pages/Seleccion'));
 const HorasExtras = lazy(() => import('./pages/HorasExtras'));
 const Creditos = lazy(() => import('./pages/Creditos'));
 const Asistencia = lazy(() => import('./pages/Asistencia'));
-const FormValidar = lazy(() => import('./features/formularios/pages/FormValidar'));
 const FormPublico = lazy(() => import('./features/formularios/pages/FormPublico'));
 const FormBuilder = lazy(() => import('./features/formularios/pages/FormBuilder'));
+const GestorFormularios = lazy(() => import('./features/formularios/pages/GestorFormularios'));
+const GestorRespuestas = lazy(() => import('./features/formularios/pages/GestorRespuestas'));
+const EnviarFormulario = lazy(() => import('./features/formularios/pages/EnviarFormulario'));
 
 
 function App() {
@@ -241,15 +243,39 @@ function App() {
               }
             />
 
-            {/* Módulo Formularios. Las dos primeras rutas son públicas: se
-                llega por QR, sin sesión, y las protege el token de un solo uso. */}
-            <Route path="/formularios/validar" element={<FormValidar />} />
+            {/* Módulo Formularios. La ruta del formulario es pública: se llega
+                por el enlace que RRHH manda al correo, sin sesión, y la protege
+                el token de ese enlace. */}
             <Route path="/formularios/f/:slug" element={<FormPublico />} />
             <Route
               path="/formularios/admin"
               element={
                 <ProtectedRoute requiredModule="formularios">
                   <FormBuilder />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/formularios/gestor"
+              element={
+                <ProtectedRoute requiredModule="formularios">
+                  <GestorFormularios />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/formularios/respuestas"
+              element={
+                <ProtectedRoute requiredModule="formularios">
+                  <GestorRespuestas />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/formularios/enviar"
+              element={
+                <ProtectedRoute requiredModule="formularios">
+                  <EnviarFormulario />
                 </ProtectedRoute>
               }
             />
