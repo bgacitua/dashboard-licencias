@@ -1,6 +1,7 @@
 """Lógica del módulo: gate, consumo del token, envío del enlace y envío a n8n."""
 from html import escape
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings as app_settings
@@ -49,18 +50,33 @@ def enviar_a_n8n(url: str, payload: dict) -> bool:
 def registrar_respuesta(
     db: Session, formulario, token: str, datos: dict, ip: str | None
 ) -> int | None:
-    """Consume el token, guarda la respuesta y la empuja a n8n.
+    """Valida el token, guarda la respuesta como versión nueva y la empuja a n8n.
 
-    Devuelve el id de la respuesta, o None si el token no era usable.
+    Devuelve el id de la respuesta, o None si el token no era usable. Responder
+    no cierra el enlace: hasta que el token venza, cada envío agrega una versión
+    y la anterior queda como registro.
     """
-    rut = repo.consumir_token(db, token, formulario.id)
+    rut = repo.usar_token(db, token, formulario.id)
     if rut is None:
         return None
 
-    respuesta = repo.guardar_respuesta(db, formulario.id, token, rut, datos, ip)
-    # Commit antes de llamar a n8n: si n8n está caído la respuesta ya está
-    # guardada y se reprocesa desde n8n_ok = false. Al revés se perdería.
-    db.commit()
+    # El número de versión se calcula con un MAX y se inserta después, así que
+    # dos envíos a la vez pueden pedir el mismo. El índice único (token,
+    # version) rechaza al segundo y acá se reintenta con el número siguiente,
+    # en vez de devolverle un 500 a alguien que solo apretó dos veces.
+    for intento in range(3):
+        try:
+            respuesta = repo.guardar_respuesta(db, formulario.id, token, rut, datos, ip)
+            # Commit antes de llamar a n8n: si n8n está caído la respuesta ya
+            # está guardada y se reprocesa desde n8n_ok = false. Al revés se
+            # perdería.
+            db.commit()
+            break
+        except IntegrityError:
+            db.rollback()
+            if intento == 2:
+                logger.error(f"[Formularios] No se pudo versionar la respuesta del token {token[:8]}…")
+                return None
     db.refresh(respuesta)
 
     ok = enviar_a_n8n(
@@ -71,6 +87,11 @@ def registrar_respuesta(
             "titulo": formulario.titulo,
             "rut": rut,
             "respuesta_id": respuesta.id,
+            # `version` > 1 es una corrección de algo que ya se envió: n8n tiene
+            # que actualizar el registro anterior, no agregar uno nuevo. Se
+            # manda el token para que sepa cuál es "el anterior".
+            "version": respuesta.version,
+            "token": token,
             "datos": datos,
         },
     )

@@ -8,7 +8,9 @@ import { enviarRespuesta, getFormularioPublico } from '../services/formularios';
 
 /**
  * Formulario público. El token viaja en el query param y se manda en el body
- * del submit; el backend lo consume una sola vez.
+ * del submit. El enlace sirve hasta que el token vence, así que quien ya
+ * respondió puede volver y corregir: en ese caso el backend devuelve la
+ * respuesta anterior y el formulario se abre con ella cargada.
  */
 export default function FormPublico() {
     const { slug } = useParams();
@@ -28,6 +30,8 @@ export default function FormPublico() {
         if (!formulario) return null;
         const m = new Model(formulario.definicion);
         m.locale = 'es';
+        // Respuesta previa: editar es corregir lo enviado, no rellenar de nuevo.
+        if (formulario.datos) m.data = formulario.datos;
         m.onComplete.add(async (sender, options) => {
             options.showSaveInProgress();
             try {
@@ -63,6 +67,12 @@ export default function FormPublico() {
         <main className="min-h-screen bg-gray-50 py-8 px-4">
             <div className="mx-auto max-w-2xl">
                 <h1 className="mb-4 text-xl font-semibold text-gray-900">{formulario.titulo}</h1>
+                {formulario.version > 0 && (
+                    <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                        Ya respondiste este formulario. Puedes corregir lo que enviaste y volver a
+                        guardarlo; queda registrada la última versión.
+                    </div>
+                )}
                 {/* El mensaje final lo pone survey-core con el completedHtml
                     que se define en el builder. */}
                 <Survey model={model} />

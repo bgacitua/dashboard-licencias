@@ -59,6 +59,24 @@ export default function GestorRespuestas() {
     const formulario = formularios.find((f) => String(f.id) === String(seleccionado)) || null;
     const mapaTitulos = useMemo(() => titulos(formulario?.definicion), [formulario]);
 
+    // El backend devuelve todas las versiones. Se agrupan por envío: la fila es
+    // la última y las anteriores quedan como historial dentro del detalle.
+    const filas = useMemo(() => {
+        const porToken = new Map();
+        respuestas.forEach((r) => {
+            const clave = r.envio || `sin-envio-${r.id}`;
+            const grupo = porToken.get(clave) || [];
+            grupo.push(r);
+            porToken.set(clave, grupo);
+        });
+        return [...porToken.values()]
+            .map((grupo) => {
+                const ordenado = [...grupo].sort((a, b) => b.version - a.version);
+                return { ...ordenado[0], anteriores: ordenado.slice(1) };
+            })
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }, [respuestas]);
+
     return (
         <div className="min-h-screen bg-gray-50 p-6">
             <div className="mx-auto max-w-6xl">
@@ -67,7 +85,7 @@ export default function GestorRespuestas() {
                         <h1 className="text-xl font-semibold text-gray-900">Respuestas</h1>
                         <p className="text-sm text-gray-500">
                             {formulario
-                                ? `${respuestas.length} respuesta(s) de "${formulario.titulo}".`
+                                ? `${filas.length} respuesta(s) de "${formulario.titulo}".`
                                 : 'Elige un formulario para ver sus respuestas.'}
                         </p>
                     </div>
@@ -114,10 +132,20 @@ export default function GestorRespuestas() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {respuestas.map((r) => (
+                                    {filas.map((r) => (
                                         <React.Fragment key={r.id}>
                                             <tr className="hover:bg-gray-50">
-                                                <td className="px-4 py-3 font-medium text-gray-900">{r.nombre || '—'}</td>
+                                                <td className="px-4 py-3 font-medium text-gray-900">
+                                                    {r.nombre || '—'}
+                                                    {r.version > 1 && (
+                                                        <span
+                                                            className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                                                            title={`Corregida ${r.version - 1} vez(ces)`}
+                                                        >
+                                                            v{r.version}
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-3 text-gray-700">{r.rut || '—'}</td>
                                                 <td className="px-4 py-3 text-gray-600">{fechaHora(r.fecha_envio)}</td>
                                                 <td className="px-4 py-3 text-gray-600">
@@ -161,6 +189,33 @@ export default function GestorRespuestas() {
                                                         </dl>
                                                         {!Object.keys(r.datos || {}).length && (
                                                             <p className="text-sm text-gray-500">Respuesta vacía.</p>
+                                                        )}
+
+                                                        {!!r.anteriores.length && (
+                                                            <details className="mt-4">
+                                                                <summary className="cursor-pointer text-sm text-gray-600">
+                                                                    Versiones anteriores ({r.anteriores.length})
+                                                                </summary>
+                                                                <div className="mt-3 space-y-3">
+                                                                    {r.anteriores.map((v) => (
+                                                                        <div key={v.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                                                                            <p className="mb-2 text-xs font-medium text-gray-500">
+                                                                                v{v.version} · {fechaHora(v.created_at)}
+                                                                            </p>
+                                                                            <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                                                                                {Object.entries(v.datos || {}).map(([k, val]) => (
+                                                                                    <div key={k}>
+                                                                                        <dt className="text-xs text-gray-500">
+                                                                                            {mapaTitulos[k] || k}
+                                                                                        </dt>
+                                                                                        <dd className="text-sm text-gray-800">{valor(val)}</dd>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </dl>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </details>
                                                         )}
                                                     </td>
                                                 </tr>

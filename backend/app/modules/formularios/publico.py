@@ -51,7 +51,15 @@ def obtener(slug: str, db: Db, token: str = Query(..., max_length=64)) -> Formul
         raise HTTPException(403, TOKEN_ERROR)
     if not repo.token_vigente(db, token, formulario.id):
         raise HTTPException(403, TOKEN_ERROR)
-    return FormularioPublicoOut(titulo=formulario.titulo, definicion=formulario.definicion)
+    # Si ya respondió, el formulario se abre con lo que envió: editar es
+    # corregir, no rellenar de nuevo desde cero.
+    previa = repo.respuesta_vigente(db, token)
+    return FormularioPublicoOut(
+        titulo=formulario.titulo,
+        definicion=formulario.definicion,
+        datos=previa["datos"] if previa else None,
+        version=previa["version"] if previa else 0,
+    )
 
 
 @publico.post("/f/{slug}", response_model=SubmitResponse)

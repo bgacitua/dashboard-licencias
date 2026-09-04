@@ -61,31 +61,39 @@ def crear_token(db: Session, formulario_id: int, rut: str, ttl_min: int) -> str:
 
 
 def token_vigente(db: Session, token: str, formulario_id: int) -> bool:
-    """Solo lectura, para abrir el formulario. No consume el token."""
+    """Solo lectura, para abrir el formulario.
+
+    Ya no exige `used_at IS NULL`: haber respondido no cierra el enlace, porque
+    el trabajador puede volver a corregir hasta que el token venza.
+    """
     row = db.execute(
         text("""
             SELECT 1 FROM app.form_tokens
             WHERE token = :t AND formulario_id = :f
-              AND used_at IS NULL AND expira_at > NOW()
+              AND expira_at > NOW()
         """),
         {"t": token, "f": formulario_id},
     ).first()
     return row is not None
 
 
-def consumir_token(db: Session, token: str, formulario_id: int) -> str | None:
-    """Marca el token como usado y devuelve el RUT, o None si no era usable.
+def usar_token(db: Session, token: str, formulario_id: int) -> str | None:
+    """Valida el token para responder y devuelve el RUT, o None si no sirve.
 
-    El UPDATE condicional ES el un-solo-uso: dos submits concurrentes compiten
-    por la misma fila y solo uno ve `used_at IS NULL`. Un SELECT seguido de un
-    UPDATE dejaría pasar los dos.
+    El token dejó de ser de un solo uso: vale hasta `expira_at` para que el
+    trabajador pueda corregir lo que envió. `used_at` ya no es el candado sino
+    la fecha de la PRIMERA respuesta, así que solo se escribe si está nulo —
+    de ahí el COALESCE, que deja intacta la fecha original en cada edición.
+
+    El un-solo-uso lo reemplaza el índice único (token, version): dos submits
+    concurrentes no pueden crear la misma versión.
     """
     row = db.execute(
         text("""
             UPDATE app.form_tokens
-               SET used_at = NOW()
+               SET used_at = COALESCE(used_at, NOW())
              WHERE token = :t AND formulario_id = :f
-               AND used_at IS NULL AND expira_at > NOW()
+               AND expira_at > NOW()
          RETURNING rut
         """),
         {"t": token, "f": formulario_id},
@@ -93,11 +101,34 @@ def consumir_token(db: Session, token: str, formulario_id: int) -> str | None:
     return row[0] if row else None
 
 
+def respuesta_vigente(db: Session, token: str) -> dict | None:
+    """Última versión respondida con ese token. Precarga el formulario para que
+    editar sea corregir lo enviado y no rellenarlo de nuevo."""
+    row = db.execute(
+        text("""
+            SELECT datos, version
+            FROM app.form_respuestas
+            WHERE token = :t
+            ORDER BY version DESC
+            LIMIT 1
+        """),
+        {"t": token},
+    ).mappings().first()
+    return dict(row) if row else None
+
+
 def guardar_respuesta(
     db: Session, formulario_id: int, token: str, rut: str | None, datos: dict, ip: str | None
 ) -> FormRespuesta:
+    """Inserta la respuesta como una versión nueva. Las anteriores no se tocan:
+    el historial es el registro de la edición."""
+    siguiente = db.execute(
+        text("SELECT COALESCE(MAX(version), 0) + 1 FROM app.form_respuestas WHERE token = :t"),
+        {"t": token},
+    ).scalar()
     r = FormRespuesta(
-        formulario_id=formulario_id, token=token, rut=rut, datos=datos, ip=ip
+        formulario_id=formulario_id, token=token, rut=rut, datos=datos, ip=ip,
+        version=siguiente,
     )
     db.add(r)
     return r
@@ -127,6 +158,12 @@ def respuestas_de(db: Session, formulario_id: int, limit: int) -> list[dict]:
                 r.rut,
                 r.datos,
                 r.n8n_ok,
+                r.version,
+                -- Identificador del envío para agrupar las versiones de una
+                -- misma persona. Va el md5 y no el token: el token es la
+                -- credencial con la que se responde, y quien lo viera desde el
+                -- panel podría abrir el formulario de otro y editarlo.
+                md5(r.token) AS envio,
                 r.created_at,
                 e.full_name AS nombre,
                 t.created_at AS fecha_envio,
@@ -144,7 +181,7 @@ def respuestas_de(db: Session, formulario_id: int, limit: int) -> list[dict]:
                 ORDER BY 1, status = 'activo' DESC, id DESC
             ) e ON e.rut_limpio = r.rut
             WHERE r.formulario_id = :fid
-            ORDER BY r.created_at DESC
+            ORDER BY r.token, r.version DESC
             LIMIT :limit
         """),
         {"fid": formulario_id, "limit": limit},

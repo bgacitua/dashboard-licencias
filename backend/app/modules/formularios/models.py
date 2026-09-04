@@ -45,6 +45,9 @@ class FormRespuesta(Base):
     token = Column(String(64), nullable=True)
     rut = Column(String(20), nullable=True)
     datos = Column(JSONB, nullable=False)
+    # Cada edición del trabajador inserta una versión nueva; la vigente es la
+    # de número más alto y las anteriores quedan como registro.
+    version = Column(Integer, nullable=False, default=1)
     ip = Column(String(64), nullable=True)
     n8n_ok = Column(Boolean, nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())

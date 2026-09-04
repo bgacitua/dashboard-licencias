@@ -63,9 +63,11 @@ contra cualquier host que alcance la VPS. Vacío = ningún webhook se acepta.
 ```
 psql -d rh_cramer -f backend/migrations/017_create_formularios_module.sql
 psql -d rh_cramer -f backend/migrations/018_formularios_envio_por_correo.sql
+psql -d rh_cramer -f backend/migrations/019_formularios_respuesta_editable.sql
 ```
 
 La 018 agrega a `form_tokens` a qué correo se mandó el enlace y quién lo mandó.
+La 019 agrega `version` a `form_respuestas` para el historial de correcciones.
 
 Crea `app.formularios`, `app.form_tokens`, `app.form_respuestas` y siembra el
 módulo `formularios` en `app.modulos` (falta asignarlo al rol correspondiente
@@ -76,9 +78,17 @@ desde el panel de administración).
 - **El gate no distingue errores.** "RUT no está en la nómina", "formulario
   inactivo" y "slug inexistente" devuelven el mismo mensaje. La diferencia sería
   un oráculo para enumerar la nómina desde afuera.
-- **Un solo uso = `UPDATE ... WHERE used_at IS NULL RETURNING`.** Dos submits
-  concurrentes compiten por la fila y solo uno gana. Un SELECT seguido de UPDATE
-  dejaría pasar los dos.
+- **El token vale hasta que vence, no hasta el primer uso.** El trabajador
+  puede corregir lo que envió. `used_at` pasó a ser la fecha de la primera
+  respuesta (`COALESCE`, así no se pisa al editar), y lo que impide que dos
+  submits simultáneos creen la misma versión es el índice único
+  `(token, version)`; el perdedor reintenta con el número siguiente.
+- **Cada edición es una fila nueva, no un UPDATE.** El historial ES el
+  registro: la respuesta vigente es la de `version` más alta y ninguna se
+  sobrescribe.
+- **El panel nunca ve el token.** Las respuestas se agrupan por `md5(token)`:
+  con el token a la vista, quien entre al panel podría abrir el formulario de
+  otra persona y responder por ella.
 - **Commit antes de n8n.** Si n8n está caído, la respuesta ya está guardada con
   `n8n_ok = false` y se reprocesa; al revés se perdería.
 - **El correo del destinatario lo pone el backend.** El envío recibe solo el

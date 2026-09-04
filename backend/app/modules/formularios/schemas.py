@@ -48,6 +48,9 @@ class GateResponse(BaseModel):
 class FormularioPublicoOut(BaseModel):
     titulo: str
     definicion: dict
+    # Respuesta previa, si ya respondió con este enlace. version 0 = sin responder.
+    datos: dict | None = None
+    version: int = 0
 
 
 class SubmitRequest(BaseModel):
@@ -69,6 +72,9 @@ class RespuestaOut(BaseModel):
     nombre: str | None = None
     datos: dict
     n8n_ok: bool | None = None
+    version: int = 1
+    # Agrupa las versiones de un mismo envío sin exponer el token.
+    envio: str | None = None
     created_at: datetime
     fecha_envio: datetime | None = None
     fecha_respuesta: datetime | None = None

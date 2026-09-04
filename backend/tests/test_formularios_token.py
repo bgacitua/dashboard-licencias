@@ -39,8 +39,13 @@ def test_limpiar_rut():
     print("ok  limpiar_rut")
 
 
-def test_token_un_solo_uso():
-    """Válido → consume; ya usado, expirado y de otro formulario → None."""
+def test_token_reutilizable():
+    """Vale hasta que vence, no hasta el primer uso.
+
+    El token dejó de quemarse con el primer submit: el trabajador puede corregir
+    su respuesta. Lo que sí sigue cerrado es el token de otro formulario, el
+    vencido y el inexistente.
+    """
     from sqlalchemy import text
 
     from app.db.session import SessionLocal
@@ -51,7 +56,7 @@ def test_token_un_solo_uso():
         db = SessionLocal()
         db.execute(text("SELECT 1 FROM app.form_tokens LIMIT 1"))
     except Exception as e:
-        print(f"skip token un-solo-uso (sin base o sin migración 017: {e})")
+        print(f"skip token reutilizable (sin base o sin migraciones 017-019: {e})")
         return
 
     a = Formulario(slug="_selfcheck_a", titulo="A", definicion={"pages": []}, activo=True)
@@ -64,12 +69,35 @@ def test_token_un_solo_uso():
         assert repo.token_vigente(db, t, a.id)
 
         # De otro formulario: no sirve aunque el token exista.
-        assert repo.consumir_token(db, t, b.id) is None
-        # Primer uso: entrega el RUT normalizado.
-        assert repo.consumir_token(db, t, a.id) == "123456789"
-        # Segundo uso: nada. Esto es el un-solo-uso.
-        assert repo.consumir_token(db, t, a.id) is None
-        assert not repo.token_vigente(db, t, a.id)
+        assert repo.usar_token(db, t, b.id) is None
+
+        # Primer uso: entrega el RUT normalizado y marca used_at.
+        assert repo.usar_token(db, t, a.id) == "123456789"
+        primera = db.execute(
+            text("SELECT used_at FROM app.form_tokens WHERE token = :t"), {"t": t}
+        ).scalar()
+        assert primera is not None
+
+        # Segundo uso: sigue sirviendo, porque ahora se puede editar.
+        assert repo.usar_token(db, t, a.id) == "123456789"
+        assert repo.token_vigente(db, t, a.id)
+
+        # used_at no se pisa: es la fecha de la PRIMERA respuesta.
+        assert db.execute(
+            text("SELECT used_at FROM app.form_tokens WHERE token = :t"), {"t": t}
+        ).scalar() == primera
+
+        # Cada respuesta guardada sube la versión y no borra la anterior.
+        repo.guardar_respuesta(db, a.id, t, "123456789", {"p": "uno"}, None)
+        db.commit()
+        repo.guardar_respuesta(db, a.id, t, "123456789", {"p": "dos"}, None)
+        db.commit()
+        vigente = repo.respuesta_vigente(db, t)
+        assert vigente["version"] == 2, vigente
+        assert vigente["datos"] == {"p": "dos"}, vigente
+        assert db.execute(
+            text("SELECT COUNT(*) FROM app.form_respuestas WHERE token = :t"), {"t": t}
+        ).scalar() == 2
 
         # Expirado.
         t2 = repo.crear_token(db, a.id, "12345678-9", ttl_min=15)
@@ -81,11 +109,11 @@ def test_token_un_solo_uso():
         )
         db.commit()
         assert not repo.token_vigente(db, t2, a.id)
-        assert repo.consumir_token(db, t2, a.id) is None
+        assert repo.usar_token(db, t2, a.id) is None
 
         # Inexistente.
-        assert repo.consumir_token(db, "no-existe", a.id) is None
-        print("ok  token un-solo-uso")
+        assert repo.usar_token(db, "no-existe", a.id) is None
+        print("ok  token reutilizable y respuestas versionadas")
     finally:
         db.execute(text("DELETE FROM app.formularios WHERE slug IN ('_selfcheck_a', '_selfcheck_b')"))
         db.commit()
@@ -95,5 +123,5 @@ def test_token_un_solo_uso():
 if __name__ == "__main__":
     test_webhook_allowlist()
     test_limpiar_rut()
-    test_token_un_solo_uso()
+    test_token_reutilizable()
     print("todo ok")
