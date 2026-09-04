@@ -109,3 +109,56 @@ def marcar_n8n(db: Session, respuesta_id: int, ok: bool) -> None:
         {"ok": ok, "id": respuesta_id},
     )
     db.commit()
+
+
+def respuestas_de(db: Session, formulario_id: int, limit: int) -> list[dict]:
+    """Respuestas de un formulario, con el nombre de quien respondió y las fechas.
+
+    El nombre sale de rh.employees y las fechas de form_tokens: `created_at` del
+    token es cuándo se generó el enlace y `used_at` cuándo se respondió. Ambos
+    LEFT JOIN: una respuesta sobrevive a que el trabajador salga de la nómina o
+    a que se limpien tokens viejos, y en ese caso se muestra sin adorno.
+    """
+    rows = db.execute(
+        text("""
+            SELECT
+                r.id,
+                r.formulario_id,
+                r.rut,
+                r.datos,
+                r.n8n_ok,
+                r.created_at,
+                e.full_name AS nombre,
+                t.created_at AS fecha_envio,
+                t.used_at    AS fecha_respuesta
+            FROM app.form_respuestas r
+            LEFT JOIN app.form_tokens t ON t.token = r.token
+            -- DISTINCT ON: rh.employees trae una fila por contrato, así que un
+            -- join directo duplicaría la respuesta tantas veces como contratos
+            -- tenga esa persona.
+            LEFT JOIN (
+                SELECT DISTINCT ON (lower(regexp_replace(rut, '[^0-9kK]', '', 'g')))
+                       lower(regexp_replace(rut, '[^0-9kK]', '', 'g')) AS rut_limpio,
+                       full_name
+                FROM rh.employees
+                ORDER BY 1, status = 'activo' DESC, id DESC
+            ) e ON e.rut_limpio = r.rut
+            WHERE r.formulario_id = :fid
+            ORDER BY r.created_at DESC
+            LIMIT :limit
+        """),
+        {"fid": formulario_id, "limit": limit},
+    ).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def conteo_respuestas(db: Session) -> dict[int, int]:
+    """{formulario_id: respuestas}. Una query para todo el listado, no una por fila."""
+    rows = db.execute(
+        text("""
+            SELECT formulario_id, COUNT(*) AS n
+            FROM app.form_respuestas
+            GROUP BY formulario_id
+        """)
+    ).all()
+    return {fid: n for fid, n in rows}

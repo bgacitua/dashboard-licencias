@@ -54,5 +54,8 @@ export const actualizarFormulario = async (id, datos) =>
 export const eliminarFormulario = async (id) =>
     json(await fetch(`${BASE}/${id}`, { method: 'DELETE', headers: getAuthHeaders() }));
 
+export const duplicarFormulario = async (id) =>
+    json(await fetch(`${BASE}/${id}/duplicar`, { method: 'POST', headers: getAuthHeaders() }));
+
 export const listarRespuestas = async (id) =>
     json(await fetch(`${BASE}/${id}/respuestas`, { headers: getAuthHeaders() }));

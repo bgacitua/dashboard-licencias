@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Model } from 'survey-core';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
@@ -35,8 +36,26 @@ export default function FormBuilder() {
     const [vista, setVista] = useState('editor');     // editor | preview
     const [mensaje, setMensaje] = useState('');
 
+    const [params] = useSearchParams();
+
     const recargar = () => listarFormularios().then(setFormularios).catch((e) => setMensaje(e.message));
-    useEffect(() => { recargar(); }, []);
+
+    // El gestor entra con ?id=, así que el formulario pedido se abre solo. Sin
+    // id se conserva el comportamiento de antes: entrar con la lista y nada
+    // seleccionado.
+    useEffect(() => {
+        listarFormularios()
+            .then((lista) => {
+                setFormularios(lista);
+                const id = params.get('id');
+                if (id) {
+                    const pedido = lista.find((f) => String(f.id) === id);
+                    if (pedido) abrir(pedido);
+                }
+            })
+            .catch((e) => setMensaje(e.message));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [params]);
 
     const definicion = actual?.definicion || definicionVacia();
     const pagina = definicion.pages?.[paginaIdx] || definicion.pages?.[0];

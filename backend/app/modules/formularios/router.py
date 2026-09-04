@@ -22,7 +22,8 @@ from app.core.security import get_current_active_user, require_module
 from app.db.deps import get_db
 
 from .config import FormulariosSettings, get_settings
-from .models import Formulario, FormRespuesta
+from . import repository as repo
+from .models import Formulario
 from .schemas import FormularioCreate, FormularioOut, FormularioUpdate, RespuestaOut
 
 router = APIRouter(dependencies=[Depends(require_module("formularios"))])
@@ -43,8 +44,14 @@ def _validar_webhook(cfg: FormulariosSettings, url: str | None) -> None:
 
 
 @router.get("/", response_model=list[FormularioOut])
-def listar(db: Db) -> list[Formulario]:
-    return db.query(Formulario).order_by(Formulario.updated_at.desc()).all()
+def listar(db: Db) -> list[FormularioOut]:
+    """Listado del gestor. Trae el conteo de respuestas para no pedirlo por fila."""
+    formularios = db.query(Formulario).order_by(Formulario.updated_at.desc()).all()
+    conteo = repo.conteo_respuestas(db)
+    return [
+        FormularioOut.model_validate(f).model_copy(update={"respuestas": conteo.get(f.id, 0)})
+        for f in formularios
+    ]
 
 
 @router.post("/", response_model=FormularioOut, status_code=201)
@@ -93,13 +100,51 @@ def eliminar(formulario_id: int, db: Db) -> None:
     db.commit()
 
 
-@router.get("/{formulario_id}/respuestas", response_model=list[RespuestaOut])
-def respuestas(formulario_id: int, db: Db, limit: int = 200) -> list[FormRespuesta]:
-    limit = max(1, min(1000, limit))
-    return (
-        db.query(FormRespuesta)
-        .filter(FormRespuesta.formulario_id == formulario_id)
-        .order_by(FormRespuesta.created_at.desc())
-        .limit(limit)
-        .all()
+@router.post("/{formulario_id}/duplicar", response_model=FormularioOut, status_code=201)
+def duplicar(formulario_id: int, db: Db, usuario=Depends(get_current_active_user)) -> Formulario:
+    """Copia el formulario con un slug nuevo.
+
+    Se hereda todo lo configurable, webhook incluido: duplicar existe para
+    editar una pregunta sin rearmar el resto, y volver a pegar la URL de n8n en
+    cada copia es parte de ese trabajo repetido.
+
+    Lo único que no se hereda es `activo`. La copia entra inactiva porque entre
+    duplicar y terminar de editar hay un rato en que el formulario está a
+    medias, y en ese rato nadie deberia poder responderlo.
+    """
+    original = db.get(Formulario, formulario_id)
+    if not original:
+        raise HTTPException(404, "Formulario no encontrado.")
+
+    # Sufijo incremental hasta encontrar un slug libre; el unique de la tabla
+    # sigue siendo la última palabra si dos admins duplican a la vez.
+    base = original.slug[:70]
+    for n in range(2, 100):
+        slug = f"{base}-copia{'' if n == 2 else f'-{n}'}"
+        if not repo.get_por_slug(db, slug):
+            break
+    else:
+        raise HTTPException(409, "Demasiadas copias de este formulario.")
+
+    copia = Formulario(
+        slug=slug,
+        titulo=f"{original.titulo} (copia)"[:200],
+        definicion=original.definicion,
+        n8n_webhook_url=original.n8n_webhook_url,
+        activo=False,
+        creado_por=usuario.username,
     )
+    db.add(copia)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "No se pudo duplicar: el slug ya existe.")
+    db.refresh(copia)
+    return copia
+
+
+@router.get("/{formulario_id}/respuestas", response_model=list[RespuestaOut])
+def respuestas(formulario_id: int, db: Db, limit: int = 200) -> list[dict]:
+    limit = max(1, min(1000, limit))
+    return repo.respuestas_de(db, formulario_id, limit)

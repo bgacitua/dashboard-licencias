@@ -29,6 +29,8 @@ class FormularioOut(FormularioBase):
     creado_por: str | None = None
     created_at: datetime
     updated_at: datetime
+    # Lo llena el listado; en las respuestas de un solo formulario va en 0.
+    respuestas: int = 0
 
 
 class GateRequest(BaseModel):
@@ -64,6 +66,9 @@ class RespuestaOut(BaseModel):
     id: int
     formulario_id: int
     rut: str | None = None
+    nombre: str | None = None
     datos: dict
     n8n_ok: bool | None = None
     created_at: datetime
+    fecha_envio: datetime | None = None
+    fecha_respuesta: datetime | None = None

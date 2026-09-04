@@ -42,6 +42,8 @@ const Asistencia = lazy(() => import('./pages/Asistencia'));
 const FormValidar = lazy(() => import('./features/formularios/pages/FormValidar'));
 const FormPublico = lazy(() => import('./features/formularios/pages/FormPublico'));
 const FormBuilder = lazy(() => import('./features/formularios/pages/FormBuilder'));
+const GestorFormularios = lazy(() => import('./features/formularios/pages/GestorFormularios'));
+const GestorRespuestas = lazy(() => import('./features/formularios/pages/GestorRespuestas'));
 
 
 function App() {
@@ -250,6 +252,22 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="formularios">
                   <FormBuilder />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/formularios/gestor"
+              element={
+                <ProtectedRoute requiredModule="formularios">
+                  <GestorFormularios />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/formularios/respuestas"
+              element={
+                <ProtectedRoute requiredModule="formularios">
+                  <GestorRespuestas />
                 </ProtectedRoute>
               }
             />
