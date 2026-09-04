@@ -1,4 +1,4 @@
-"""Lógica del módulo: gate, consumo del token, envío del enlace y envío a n8n."""
+"""Lógica del módulo: envío del enlace, registro de la respuesta y envío a n8n."""
 from html import escape
 
 from sqlalchemy.exc import IntegrityError
@@ -9,23 +9,6 @@ from app.core.logging_config import logger
 
 from . import repository as repo
 from .config import FormulariosSettings
-
-# Mensaje único del gate: no distingue "RUT no está en la nómina" de
-# "formulario inactivo" ni de "slug inexistente". Esa diferencia sería un
-# oráculo para enumerar la nómina desde afuera.
-GATE_ERROR = "No pudimos validar tus datos. Revisa el RUT e inténtalo de nuevo."
-
-
-def emitir_token(db: Session, cfg: FormulariosSettings, slug: str, rut: str) -> str | None:
-    """Devuelve la URL del formulario con token, o None si no valida."""
-    formulario = repo.get_por_slug(db, slug)
-    if not formulario or not formulario.activo:
-        return None
-    if not repo.rut_en_nomina(db, rut):
-        return None
-    token = repo.crear_token(db, formulario.id, rut, cfg.token_ttl_min)
-    return f"/formularios/f/{formulario.slug}?token={token}"
-
 
 def enviar_a_n8n(url: str, payload: dict) -> bool:
     """POST al webhook del formulario. Devuelve si n8n lo recibió.

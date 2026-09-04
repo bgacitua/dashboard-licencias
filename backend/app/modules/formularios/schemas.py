@@ -33,18 +33,6 @@ class FormularioOut(FormularioBase):
     respuestas: int = 0
 
 
-class GateRequest(BaseModel):
-    slug: str = Field(..., max_length=80)
-    rut: str = Field(..., max_length=20)
-
-
-class GateResponse(BaseModel):
-    ok: bool
-    # Solo viene con ok=true. Con ok=false el mensaje es genérico a propósito.
-    redirect: str | None = None
-    mensaje: str | None = None
-
-
 class FormularioPublicoOut(BaseModel):
     titulo: str
     definicion: dict

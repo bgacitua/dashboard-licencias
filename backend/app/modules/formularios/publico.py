@@ -1,47 +1,33 @@
 """Endpoints públicos del módulo — sin autenticación.
 
-Quien abre el formulario llega por un QR y no tiene cuenta en la plataforma.
-Las credenciales son: el RUT contra rh.employees en el gate, y después el
-token de un solo uso que ese gate emite.
+Quien responde no tiene cuenta en la plataforma. La credencial es el token del
+enlace que RRHH le manda a su correo desde el panel: llega por un canal que
+solo controla el destinatario y vale hasta que vence.
+
+Acá no se valida ninguna identidad. Eso ocurrió antes, al enviar: el panel
+resolvió el correo contra la nómina.
 """
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from app.core.rate_limit import check_rate_limit, client_ip
+from app.core.rate_limit import client_ip
 from app.db.deps import get_db
 
 from . import repository as repo
 from . import service
-from .config import FormulariosSettings, get_settings
-from .schemas import (
-    FormularioPublicoOut,
-    GateRequest,
-    GateResponse,
-    SubmitRequest,
-    SubmitResponse,
-)
+from .schemas import FormularioPublicoOut, SubmitRequest, SubmitResponse
 
 publico = APIRouter(prefix="/publico", tags=["formularios-publico"])
 
 Db = Annotated[Session, Depends(get_db)]
-Cfg = Annotated[FormulariosSettings, Depends(get_settings)]
 
-# Mensaje único también para el token: no distingue expirado de ya usado de
-# inexistente.
-TOKEN_ERROR = "Este enlace ya no es válido. Vuelve a validar tu RUT."
-
-
-@publico.post("/validar", response_model=GateResponse)
-def validar(datos: GateRequest, request: Request, db: Db, cfg: Cfg) -> GateResponse:
-    check_rate_limit(
-        f"form_gate:{client_ip(request)}", cfg.gate_max_intentos, cfg.gate_ventana_seg
-    )
-    redirect = service.emitir_token(db, cfg, datos.slug, datos.rut)
-    if not redirect:
-        return GateResponse(ok=False, mensaje=service.GATE_ERROR)
-    return GateResponse(ok=True, redirect=redirect)
+# Mensaje único: no distingue vencido de inexistente. La diferencia no le sirve
+# a quien tiene el enlace y sí a quien prueba tokens al azar.
+TOKEN_ERROR = (
+    "Este enlace ya no es válido. Pídele a Recursos Humanos que te envíe uno nuevo."
+)
 
 
 @publico.get("/f/{slug}", response_model=FormularioPublicoOut)

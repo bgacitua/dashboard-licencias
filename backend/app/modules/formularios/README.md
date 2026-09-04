@@ -1,25 +1,28 @@
 # Módulo: Formularios
 
 Constructor de formularios internos y recepción de respuestas. RRHH arma el
-formulario en un builder visual, se publica un QR, el trabajador valida su RUT
-contra la nómina y responde. Cada respuesta queda en Postgres y se empuja al
-webhook de n8n que ese formulario tenga configurado; de ahí en adelante
-(SharePoint, correo por Graph) es problema de n8n.
+formulario en un builder visual, busca al trabajador en la nómina y le manda el
+enlace a su correo. Cada respuesta queda en Postgres y se empuja al webhook de
+n8n que ese formulario tenga configurado; de ahí en adelante (SharePoint, correo
+por Graph) es problema de n8n.
 
 ## Flujo
 
 ```
-QR  ->  /formularios/validar?f=<slug>
-          POST /api/v1/formularios/publico/validar   (rate limit por IP)
-          RUT contra rh.employees -> token de un solo uso (app.form_tokens, 15 min)
-        ->  /formularios/f/<slug>?token=xxx
-          GET  /api/v1/formularios/publico/f/<slug>?token=  -> JSON de survey-core
-          POST /api/v1/formularios/publico/f/<slug>
-              consume el token (UPDATE condicional), guarda en app.form_respuestas,
-              commit, y recién ahí POST al webhook de n8n
+Panel  ->  /formularios/enviar
+             GET  /api/v1/formularios/personas?q=       (nómina, autenticado)
+             POST /api/v1/formularios/<id>/enviar       (RUT; el correo lo pone el backend)
+                  -> token en app.form_tokens (72 h) + correo por Graph
+
+Correo ->  /formularios/f/<slug>?token=xxx
+             GET  /api/v1/formularios/publico/f/<slug>?token=  -> definición + respuesta previa
+             POST /api/v1/formularios/publico/f/<slug>
+                  valida el token, guarda una versión nueva en app.form_respuestas,
+                  commit, y recién ahí POST al webhook de n8n
 ```
 
-El builder vive en `/formularios/admin` y exige el módulo `formularios`.
+El builder vive en `/formularios/admin`, el gestor en `/formularios/gestor` y las
+respuestas en `/formularios/respuestas`. Los tres exigen el módulo `formularios`.
 
 ## Regla de acoplamiento
 
@@ -48,10 +51,7 @@ importa, así que la rama es segura de mergear a `main` antes de estar terminada
 ```
 FORMULARIOS_ENABLED=true
 FORMULARIOS_N8N_HOSTS=n8n.cramer.cl
-FORMULARIOS_TOKEN_TTL_MIN=15
 FORMULARIOS_ENVIO_TTL_HORAS=72
-FORMULARIOS_GATE_MAX_INTENTOS=10
-FORMULARIOS_GATE_VENTANA_SEG=300
 ```
 
 `FORMULARIOS_N8N_HOSTS` no es opcional: la URL del webhook la escribe un admin
@@ -75,9 +75,11 @@ desde el panel de administración).
 
 ## Decisiones
 
-- **El gate no distingue errores.** "RUT no está en la nómina", "formulario
-  inactivo" y "slug inexistente" devuelven el mismo mensaje. La diferencia sería
-  un oráculo para enumerar la nómina desde afuera.
+- **No hay gate público.** El enlace se manda al correo del trabajador, así que
+  la credencial llega por un canal que solo él controla. El gate anterior pedía
+  el RUT contra la nómina: el RUT chileno es semipúblico y su dígito verificador
+  es calculable, así que servía para suplantar a un compañero, y su respuesta
+  confirmaba desde internet si alguien trabajaba acá.
 - **El token vale hasta que vence, no hasta el primer uso.** El trabajador
   puede corregir lo que envió. `used_at` pasó a ser la fecha de la primera
   respuesta (`COALESCE`, así no se pisa al editar), y lo que impide que dos

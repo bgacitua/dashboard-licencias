@@ -13,51 +13,8 @@ def limpiar_rut(value: object) -> str:
     return re.sub(r"[^0-9kK]", "", str(value or "")).lower()
 
 
-def rut_en_nomina(db: Session, rut: str) -> bool:
-    """¿Existe el RUT en rh.employees y sigue activo?
-
-    Se normaliza a ambos lados porque la columna guarda el formato de Buk y el
-    usuario escribe como quiere. El filtro por `status` importa: sin él un
-    exempleado sigue pudiendo abrir formularios internos, y el gate confirma
-    desde afuera que esa persona alguna vez trabajó acá.
-    """
-    limpio = limpiar_rut(rut)
-    if not limpio:
-        return False
-    row = db.execute(
-        text("""
-            SELECT 1
-            FROM rh.employees
-            WHERE lower(regexp_replace(rut, '[^0-9kK]', '', 'g')) = :rut
-              AND status = 'activo'
-            LIMIT 1
-        """),
-        {"rut": limpio},
-    ).first()
-    return row is not None
-
-
 def get_por_slug(db: Session, slug: str) -> Formulario | None:
     return db.query(Formulario).filter(Formulario.slug == slug).first()
-
-
-def crear_token(db: Session, formulario_id: int, rut: str, ttl_min: int) -> str:
-    """El vencimiento lo calcula Postgres, no Python.
-
-    La columna es TIMESTAMP sin zona y las validaciones comparan contra NOW():
-    con un datetime.now() del contenedor (UTC) contra un NOW() del servidor
-    (America/Santiago) el TTL real sería de 15 min más el desfase horario.
-    """
-    token = secrets.token_urlsafe(32)
-    db.execute(
-        text("""
-            INSERT INTO app.form_tokens (token, formulario_id, rut, expira_at)
-            VALUES (:t, :f, :r, NOW() + make_interval(mins => :ttl))
-        """),
-        {"t": token, "f": formulario_id, "r": limpiar_rut(rut), "ttl": ttl_min},
-    )
-    db.commit()
-    return token
 
 
 def token_vigente(db: Session, token: str, formulario_id: int) -> bool:
@@ -265,8 +222,13 @@ def persona_activa(db: Session, rut: str) -> dict | None:
 def crear_token_envio(
     db: Session, formulario_id: int, rut: str, email: str, ttl_horas: int, enviado_por: str
 ) -> str:
-    """Token para el enlace que se manda por correo. Mismo criterio de reloj
-    que crear_token: el vencimiento lo calcula Postgres."""
+    """Token para el enlace que se manda por correo.
+
+    El vencimiento lo calcula Postgres y no Python: la columna es TIMESTAMP sin
+    zona y las validaciones comparan contra NOW(), así que un datetime.now() del
+    contenedor (UTC) contra el NOW() del servidor (America/Santiago) daría un
+    TTL corrido por el desfase horario.
+    """
     token = secrets.token_urlsafe(32)
     db.execute(
         text("""

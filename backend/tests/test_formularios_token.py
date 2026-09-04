@@ -65,7 +65,9 @@ def test_token_reutilizable():
     db.commit()
 
     try:
-        t = repo.crear_token(db, a.id, "12.345.678-9", ttl_min=15)
+        t = repo.crear_token_envio(
+            db, a.id, "12.345.678-9", "quien@cramer.cl", ttl_horas=72, enviado_por="selfcheck"
+        )
         assert repo.token_vigente(db, t, a.id)
 
         # De otro formulario: no sirve aunque el token exista.
@@ -100,7 +102,9 @@ def test_token_reutilizable():
         ).scalar() == 2
 
         # Expirado.
-        t2 = repo.crear_token(db, a.id, "12345678-9", ttl_min=15)
+        t2 = repo.crear_token_envio(
+            db, a.id, "12345678-9", "quien@cramer.cl", ttl_horas=72, enviado_por="selfcheck"
+        )
         # El vencimiento se mueve con el reloj de Postgres, que es el mismo con
         # el que se compara: Python y la base no están en la misma zona.
         db.execute(
