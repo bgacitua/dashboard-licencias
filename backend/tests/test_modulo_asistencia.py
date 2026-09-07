@@ -58,9 +58,13 @@ def test_lo_unico_que_escribe_en_buk_es_marcas():
 
     Los POST de /reportes son cálculo (reciben el archivo de atrasos ya parseado)
     y /operaciones escribe solo en la base de la plataforma.
+
+    /hhee/refrescar dispara el barrido del contenedor hhee-scrapping. Contra
+    Buk ese barrido solo LEE (listarExcesosPaginados); lo que escribe es
+    app.hhee_alertas, en la base de la plataforma. Por eso cuenta como local.
     """
     from app.modules.asistencia.router import router
-    locales = ("/reportes/", "/operaciones", "/notificar-jefatura")
+    locales = ("/reportes/", "/operaciones", "/notificar-jefatura", "/hhee/")
     escrituras = {
         r.path for r in router.routes
         if r.methods - {"GET"} and not r.path.startswith(locales)

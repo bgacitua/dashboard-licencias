@@ -32,6 +32,9 @@ from . import historial, notificaciones
 from .marcas import registrar
 from .morpho import marcas_en_rango
 from .plataforma import buk_core_url
+from .hhee.repository import HheeRepo
+from .hhee.schemas import Frescura, SyncResponse
+from .hhee import service as hhee_service
 from .reportes.repository import ReportesRepo
 from .reportes.schemas import ReporteRequest
 from .reportes.service import ReportService
@@ -321,3 +324,89 @@ def respuestas_jefatura(db: Db, desde: str = Query(...), hasta: str = Query(...)
         "respuestas": notificaciones.respuestas_por_clave(db, desde, hasta),
         "notificadas": notificaciones.notificadas_por_clave(db, desde, hasta),
     }
+
+
+# === Horas extras (submodulo hhee) ===
+# Las filas las escribe el contenedor hhee-scrapping (repo
+# scrapping-hhee-reportes) en app.hhee_alertas, lunes a viernes 08:00 sobre la
+# semana ISO anterior. Aca solo se lee: si Buk o ese servicio se caen, la
+# pantalla sigue viva con el ultimo dato y `ultima_vez` delata la antiguedad.
+# Topes vigentes: 2 h diarias de lunes a viernes, y 12 h semanales (el fin de
+# semana solo esta acotado por el tope semanal).
+
+
+HHEE_COLUMNAS = [
+    "recinto", "rut", "nombre", "cargo", "centro_costo", "tipo", "clave_periodo",
+    "horas", "tope", "exceso", "veces_vista", "primera_vez", "ultima_vez",
+]
+
+
+@router.get("/hhee/alertas", response_model=DataResponse)
+def hhee_alertas(
+    db: Db,
+    recinto: str | None = Query(None, description="id_recinto; vacio = todos"),
+    tipo: str | None = Query(None, description="'diario' o 'semanal'"),
+    rut: str | None = None,
+    anio_iso: int | None = Query(None, description="anio ISO; default: semana anterior"),
+    semana_iso: int | None = Query(None, ge=1, le=53, description="semana ISO"),
+    desde: str | None = Query(None, description="clave_periodo minima; usar solo junto a `tipo`"),
+    hasta: str | None = Query(None, description="clave_periodo maxima; usar solo junto a `tipo`"),
+    limite: int = Query(2000, ge=1, le=10000),
+) -> DataResponse:
+    """Alertas de HHEE sobre el tope. Sin filtro de fecha, la semana ISO anterior."""
+    if tipo and tipo not in ("diario", "semanal"):
+        raise HTTPException(status_code=422, detail="tipo debe ser 'diario' o 'semanal'.")
+    # clave_periodo mezcla dos formatos ('2026-09-02' y '2026-W36'), asi que un
+    # rango sobre ella solo es interpretable dentro de un mismo tipo.
+    if (desde or hasta) and not tipo:
+        raise HTTPException(
+            status_code=422,
+            detail="`desde`/`hasta` exigen `tipo`: las claves diarias y semanales "
+                   "no son comparables entre si. Para una semana completa usar "
+                   "`anio_iso` + `semana_iso`.",
+        )
+    if not any((anio_iso, semana_iso, desde, hasta)):
+        anio_iso, semana_iso = hhee_service.semana_iso_por_defecto()
+    try:
+        rows = HheeRepo(db).alertas(recinto=recinto, tipo=tipo, rut=rut,
+                                    anio_iso=anio_iso, semana_iso=semana_iso,
+                                    desde=desde, hasta=hasta, limite=limite)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    return DataResponse(rows=rows, total=len(rows), columns=HHEE_COLUMNAS)
+
+
+@router.get("/hhee/semanas")
+def hhee_semanas(db: Db) -> list[dict]:
+    """Semanas ISO con alertas, para el selector. Sin adivinar rangos en el front."""
+    try:
+        return HheeRepo(db).semanas()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/hhee/frescura", response_model=list[Frescura])
+def hhee_frescura(db: Db) -> list[dict]:
+    """Ultima corrida del scraper por recinto. Alimenta el "actualizado hace X"."""
+    try:
+        return HheeRepo(db).frescura()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/hhee/refrescar", response_model=SyncResponse)
+def hhee_refrescar(
+    settings: Settings,
+    desde: date | None = Query(None, description="default: lunes de la semana pasada"),
+    hasta: date | None = Query(None, description="default: domingo de la semana pasada"),
+    recintos: str = Query("", description="ids separados por coma; vacio = los configurados"),
+) -> dict:
+    """Dispara el barrido del scraper ahora. Lo unico de este submodulo que sale a la red.
+
+    La API key se manda desde aca, nunca desde el navegador. Tarda ~12 s por
+    recinto. Responde 200 aunque algun recinto falle: el detalle va en `recintos`.
+    """
+    try:
+        return hhee_service.refrescar(settings, desde=desde, hasta=hasta, recintos=recintos)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))

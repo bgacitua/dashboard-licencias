@@ -77,6 +77,16 @@ class AsistenciaSettings(BaseSettings):
     # Obras del selector. Formato: "id:Nombre,id:Nombre,..."
     obras: str = ""
 
+    # === Horas extras (submodulo hhee) ===
+    # Las alertas las escribe el contenedor hhee-scrapping en app.hhee_alertas;
+    # la lectura no necesita nada de esto. Estas dos variables son solo para el
+    # boton de refresco manual: vacias => ese endpoint responde 503 y el resto
+    # del submodulo sigue funcionando contra la tabla.
+    hhee_api_url: str = "http://hhee-scrapping:8000"
+    hhee_api_key: SecretStr = SecretStr("")
+    # ~12 s por recinto y son tres: 180 s deja margen para un Buk lento.
+    hhee_timeout: float = 180.0
+
     @property
     def recinto_codes_map(self) -> dict[str, str]:
         """code (custom attribute) -> obra_id. Comparación case-insensitive."""

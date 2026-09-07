@@ -84,6 +84,19 @@ psql ... -f docs/sql/modulo_asistencia.sql
 
 Las migraciones son manuales, no viajan con el deploy.
 
+## Submódulos
+
+| Carpeta | Qué es |
+|---|---|
+| `reportes/` | Bono de asistencia por quincena |
+| `hhee/` | Alertas de horas extras sobre el tope (ver `hhee/README.md`) |
+
+`hhee/` no scrapea nada: lee `app.hhee_alertas`, que escribe el contenedor
+`hhee-scrapping` (repo `scrapping-hhee-reportes`) de lunes a viernes a las 08:00.
+Si ese servicio o Buk se caen, la pantalla sigue mostrando el último dato con su
+`ultima_vez`. Variables: `ASISTENCIA_HHEE_API_URL` / `_API_KEY` / `_TIMEOUT`, y
+solo hacen falta para el botón de refresco.
+
 ## Estado de la migración
 
 - [x] Esqueleto, flag, autorización, health
@@ -108,6 +121,9 @@ Las migraciones son manuales, no viajan con el deploy.
       `/asistencia` y entrada de sidebar
 - [x] Frontend de corrección: pestaña con tres caminos (Inasistencias, Marcas
       Fallidas, Ingreso Manual) y vista de Historial
+- [x] `hhee/` -> alertas de horas extras sobre el tope (2 h/día de lunes a
+      viernes, 12 h/semana), leídas de `app.hhee_alertas`. El scraping vive en
+      otro contenedor, aislado: un Buk caído no toca la plataforma
 - [x] Bonos que salen de Marcajes: especial (turno nocturno), contratista y
       colación/movilización. Se calculan en el navegador sobre las filas ya
       cargadas, con la misma metodología de ancla al jueves
