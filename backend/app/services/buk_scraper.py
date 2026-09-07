@@ -45,7 +45,14 @@ def _browser():
 
 
 def _login(page):
-    page.goto(f"{settings.BUK_WEB_BASE_URL}{LOGIN_URL}", wait_until="domcontentloaded")
+    # La pantalla de login de BUK a veces tarda bastante más que el resto del
+    # flujo: se le da un timeout propio en vez del default de 20s de la página.
+    page.goto(
+        f"{settings.BUK_WEB_BASE_URL}{LOGIN_URL}",
+        wait_until="domcontentloaded",
+        timeout=60000,
+    )
+    page.wait_for_selector("#user_email", timeout=60000)
     page.fill("#user_email", settings.BUK_WEB_USER)
     page.click("input[type=submit][value='Siguiente']")
     page.wait_for_selector("#user_password", timeout=15000)
@@ -120,7 +127,17 @@ def renovar_contrato(employee_id: int, response: str) -> dict:
     if not _lock.acquire(timeout=180):
         raise BukScraperError("Otra renovación sigue en curso, reintenta en unos minutos")
     try:
-        return _renovar(employee_id, tipo, PlaywrightTimeout)
+        # ponytail: un reintento con browser nuevo. Los fallos observados son
+        # timeouts en el login, que no se repiten al segundo intento. Si empiezan
+        # a fallar los dos, el problema no es transitorio y toca mirar la
+        # evidencia en BUK_WEB_DEBUG_DIR.
+        try:
+            return _renovar(employee_id, tipo, PlaywrightTimeout)
+        except BukScraperError:
+            raise  # el flujo respondió: reintentar no cambia nada
+        except Exception as e:
+            logger.warning(f"BUK scraper: intento 1 falló ({e}), reintentando")
+            return _renovar(employee_id, tipo, PlaywrightTimeout)
     finally:
         _lock.release()
 
