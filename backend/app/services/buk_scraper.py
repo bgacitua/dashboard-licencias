@@ -52,6 +52,11 @@ def _login(page):
         wait_until="domcontentloaded",
         timeout=60000,
     )
+    # Si BUK ya considera la sesión iniciada, redirige fuera del login y
+    # #user_email no aparece nunca. No es un fallo: ya estamos dentro.
+    if LOGIN_URL not in page.url:
+        logger.info("BUK scraper: sesión ya iniciada, se omite el login")
+        return
     page.wait_for_selector("#user_email", timeout=60000)
     page.fill("#user_email", settings.BUK_WEB_USER)
     page.click("input[type=submit][value='Siguiente']")
