@@ -33,7 +33,11 @@ def _browser():
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=settings.BUK_WEB_HEADLESS)
+        # /dev/shm en Docker son 64MB por defecto: al llenarse el renderer de
+        # Chromium se cuelga y toda accion (fill, screenshot) da timeout.
+        browser = p.chromium.launch(
+            headless=settings.BUK_WEB_HEADLESS, args=["--disable-dev-shm-usage"]
+        )
         try:
             yield browser.new_context(viewport={"width": 1440, "height": 900})
         finally:
