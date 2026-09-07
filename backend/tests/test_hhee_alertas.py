@@ -88,10 +88,11 @@ class _Cfg:
     """Settings mínimo para los checks de credencial del refresco."""
 
     def __init__(self, propia: str = "", externa: str = "",
-                 url: str = "http://hhee-scrapping:8000") -> None:
+                 url: str = "http://hhee-scrapping:8000", timeout: float = 180.0) -> None:
         self.hhee_api_url = url
         self.hhee_api_key = _Secreto(propia)
         self.external_api_key = _Secreto(externa)
+        self.hhee_timeout = timeout
 
 
 def test_no_cae_a_external_api_key():
@@ -126,6 +127,163 @@ def test_refrescar_exige_configuracion():
             assert exc.status_code == 503
         else:
             raise AssertionError(f"{motivo} debería cortar con 503")
+
+
+# --- Endpoints ---------------------------------------------------------------
+# Se llaman directo, sin TestClient: son funciones normales y así el test no
+# monta la app ni pelea con la autorización del módulo. Ojo que los defaults de
+# los parámetros son objetos Query(), no None, así que hay que pasarlos todos.
+
+
+class _Resultado:
+    def __init__(self, filas):
+        self._filas = filas
+
+    def mappings(self):
+        return list(self._filas)
+
+
+class _FakeDb:
+    """Session mínima: guarda los parámetros que le llegan al SQL."""
+
+    def __init__(self, filas=()):
+        self.filas = filas
+        self.params = None
+
+    def execute(self, sql, params=None):
+        self.params = params
+        return _Resultado(self.filas)
+
+
+_DEFAULTS = dict(recinto=None, tipo=None, rut=None, anio_iso=None,
+                 semana_iso=None, desde=None, hasta=None, limite=2000)
+
+
+def _alertas(db, **kw):
+    from app.modules.asistencia.router import hhee_alertas
+    return hhee_alertas(db=db, **{**_DEFAULTS, **kw})
+
+
+def test_endpoint_aplica_la_semana_anterior_por_defecto():
+    """Sin filtros de fecha, la consulta tiene que salir acotada a una semana.
+
+    Es la garantía de que la pantalla no abre pidiendo la tabla entera.
+    """
+    db = _FakeDb()
+    resp = _alertas(db)
+    assert db.params["anio_iso"] is not None and db.params["semana_iso"] is not None
+    assert (db.params["anio_iso"], db.params["semana_iso"]) == sv.semana_iso_por_defecto()
+    # y sin rango sobre clave_periodo, que es el filtro que no discrimina
+    assert db.params["desde"] is None and db.params["hasta"] is None
+    assert resp.total == 0 and resp.columns  # DataResponse armado igual sin filas
+
+
+def test_endpoint_respeta_la_semana_pedida():
+    db = _FakeDb()
+    _alertas(db, anio_iso=2026, semana_iso=35)
+    assert (db.params["anio_iso"], db.params["semana_iso"]) == (2026, 35)
+
+
+def test_endpoint_rechaza_rango_sin_tipo():
+    """desde/hasta sobre clave_periodo solo son interpretables dentro de un tipo.
+
+    Sin `tipo`, el rango mezclaría los dos formatos y devolvería de más: mejor
+    422 que un resultado silenciosamente incorrecto.
+    """
+    from fastapi import HTTPException
+
+    try:
+        _alertas(_FakeDb(), desde="2026-09-01")
+    except HTTPException as exc:
+        assert exc.status_code == 422 and "tipo" in exc.detail
+    else:
+        raise AssertionError("un rango sin tipo debería cortar con 422")
+
+    # con tipo, el mismo rango pasa y llega al SQL
+    db = _FakeDb()
+    _alertas(db, desde="2026-09-01", hasta="2026-09-06", tipo="diario")
+    assert db.params["desde"] == "2026-09-01" and db.params["tipo"] == "diario"
+    # y ya no se le impone la semana por defecto
+    assert db.params["anio_iso"] is None
+
+
+def test_endpoint_rechaza_tipo_invalido():
+    from fastapi import HTTPException
+
+    try:
+        _alertas(_FakeDb(), tipo="mensual")
+    except HTTPException as exc:
+        assert exc.status_code == 422
+    else:
+        raise AssertionError("un tipo inválido debería cortar con 422")
+
+
+def test_endpoint_devuelve_las_filas_como_dataresponse():
+    fila = {"recinto": "36787", "rut": "1-9", "tipo": "semanal",
+            "clave_periodo": "2026-W36", "horas": 15.23, "tope": 12.0}
+    resp = _alertas(_FakeDb([fila]))
+    assert resp.total == 1 and resp.rows[0]["clave_periodo"] == "2026-W36"
+
+
+# --- Refresco ----------------------------------------------------------------
+
+
+def test_refrescar_traduce_los_fallos_a_mensajes_utiles():
+    """Un fallo del scraper no puede salir como stacktrace ni como su cuerpo crudo.
+
+    El 401 es el caso interesante: el único error posible ahí es que las dos
+    keys no coincidan, y el mensaje tiene que decirlo.
+    """
+    import httpx
+
+    cfg = _Cfg(propia="k")
+    original = sv.httpx.post
+    casos = [
+        (httpx.TimeoutException("timeout"), "no respondio a tiempo"),
+        (httpx.HTTPStatusError("401", request=httpx.Request("POST", "http://x"),
+                               response=httpx.Response(401)), "HHEE_API_KEY"),
+        (httpx.ConnectError("sin ruta"), "No se pudo contactar"),
+    ]
+    try:
+        for excepcion, esperado in casos:
+            def explota(*a, **kw):
+                raise excepcion
+            sv.httpx.post = explota
+            try:
+                sv.refrescar(cfg)
+            except RuntimeError as exc:
+                assert esperado in str(exc), (excepcion, str(exc))
+            else:
+                raise AssertionError(f"{type(excepcion).__name__} debería dar RuntimeError")
+    finally:
+        sv.httpx.post = original
+
+
+def test_refrescar_manda_la_key_y_los_filtros():
+    """La API key viaja en el header desde el backend, nunca por el navegador."""
+    capturado = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"ok": 1, "fallidos": 0}
+
+    def fake_post(url, params=None, timeout=None, headers=None):
+        capturado.update(url=url, params=params, timeout=timeout, headers=headers)
+        return _Resp()
+
+    original = sv.httpx.post
+    sv.httpx.post = fake_post
+    try:
+        sv.refrescar(_Cfg(propia="secreta"), recintos="36787,42123")
+    finally:
+        sv.httpx.post = original
+
+    assert capturado["url"] == "http://hhee-scrapping:8000/hhee/sync"
+    assert capturado["headers"] == {"X-API-Key": "secreta"}
+    assert capturado["params"] == {"recintos": "36787,42123"}   # sin desde/hasta vacios
 
 
 if __name__ == "__main__":
