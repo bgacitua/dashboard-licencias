@@ -76,25 +76,56 @@ def test_sql_castea_los_filtros_opcionales():
     assert "app.hhee_alertas" in sql
 
 
-def test_refrescar_exige_configuracion():
-    """Sin URL/key del scraper, 503 y no un stacktrace: la lectura de la tabla
-    no depende de esto y tiene que seguir funcionando."""
+class _Secreto:
+    def __init__(self, valor: str) -> None:
+        self._valor = valor
+
+    def get_secret_value(self) -> str:
+        return self._valor
+
+
+class _Cfg:
+    """Settings mínimo para los checks de credencial del refresco."""
+
+    def __init__(self, propia: str = "", externa: str = "",
+                 url: str = "http://hhee-scrapping:8000") -> None:
+        self.hhee_api_url = url
+        self.hhee_api_key = _Secreto(propia)
+        self.external_api_key = _Secreto(externa)
+
+
+def test_no_cae_a_external_api_key():
+    """A diferencia de marcas_api_key, la key del scraper no tiene fallback.
+
+    external_api_key es el token de Buk Ctrl; esta es la X-API-Key de un
+    servicio propio. Reusarla mandaría la credencial de Buk a otro servicio y
+    ataría el refresco a su rotación, así que tener solo la de Buk debe cortar
+    con 503 en vez de intentar con ella.
+    """
     from fastapi import HTTPException
 
-    class SinConfig:
-        hhee_api_url = "http://hhee-scrapping:8000"
-
-        class hhee_api_key:  # noqa: N801
-            @staticmethod
-            def get_secret_value():
-                return ""
-
     try:
-        sv.exigir_configurado(SinConfig())
+        sv.exigir_configurado(_Cfg(externa="token-de-buk"))
     except HTTPException as exc:
         assert exc.status_code == 503
     else:
-        raise AssertionError("sin API key debería cortar con 503")
+        raise AssertionError("solo con external_api_key debería cortar con 503")
+
+
+def test_refrescar_exige_configuracion():
+    """Sin key propia, 503 y no un stacktrace: la lectura de la tabla no
+    depende de esto y tiene que seguir funcionando."""
+    from fastapi import HTTPException
+
+    sv.exigir_configurado(_Cfg(propia="x"))   # con la key propia, no corta
+
+    for cfg, motivo in ((_Cfg(), "sin API key"), (_Cfg(propia="x", url=""), "sin URL")):
+        try:
+            sv.exigir_configurado(cfg)
+        except HTTPException as exc:
+            assert exc.status_code == 503
+        else:
+            raise AssertionError(f"{motivo} debería cortar con 503")
 
 
 if __name__ == "__main__":

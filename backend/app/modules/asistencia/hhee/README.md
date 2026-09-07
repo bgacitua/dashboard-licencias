@@ -74,9 +74,18 @@ ASISTENCIA_HHEE_API_KEY=<la HHEE_API_KEY del scraper>
 ASISTENCIA_HHEE_TIMEOUT=180                            # default: ~12 s x 3 recintos + margen
 ```
 
-Sin `ASISTENCIA_HHEE_API_KEY`, `POST /refrescar` responde 503 y el resto del
-submódulo sigue funcionando. La key se manda **desde el backend**, nunca desde el
-navegador.
+`ASISTENCIA_HHEE_API_KEY` tiene que ser **igual** al `HHEE_API_KEY` del
+contenedor `hhee-scrapping`. Si no coinciden, el refresco vuelve con 401 y el
+mensaje de error lo dice.
+
+A diferencia de `marcas_api_key`, **no cae a `ASISTENCIA_EXTERNAL_API_KEY`**.
+Ahí el fallback tiene sentido porque los dos valores son tokens de Buk Ctrl
+contra el mismo host; acá `EXTERNAL_API_KEY` es el token de Buk y esta es la
+`X-API-Key` de un servicio propio. Reusarla mandaría la credencial de Buk a otro
+servicio y ataría el botón de refresco a su rotación.
+
+Vacía, `POST /refrescar` responde 503 y el resto del submódulo sigue
+funcionando. La key se manda **desde el backend**, nunca desde el navegador.
 
 Red: el contenedor `hhee-scrapping` está en `dashboard-licencias_internal`. Se lo
 llama por su `container_name` (`hhee-scrapping`), que es el nombre que resuelve

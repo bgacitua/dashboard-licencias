@@ -50,6 +50,9 @@ def exigir_configurado(settings: AsistenciaSettings) -> None:
     Solo aplica al refresco manual: la lectura de la tabla no necesita ninguna
     de las dos. Degradar en vez de fallar al arrancar.
     """
+    # Sin fallback a external_api_key a proposito: esa es el token de Buk Ctrl y
+    # esta es la X-API-Key de un servicio propio. Reusarla mandaria la
+    # credencial de Buk a otro servicio y ataria el refresco a su rotacion.
     if not (settings.hhee_api_url and settings.hhee_api_key.get_secret_value()):
         from fastapi import HTTPException
 
@@ -94,9 +97,14 @@ def refrescar(settings: AsistenciaSettings, desde=None, hasta=None,
     except httpx.HTTPStatusError as exc:
         # El status del scraper, no su cuerpo: puede traer detalle interno.
         logger.error("[asistencia/hhee] refresco -> HTTP %s", exc.response.status_code)
+        if exc.response.status_code == 401:
+            raise RuntimeError(
+                "El scraper rechazo la API key: ASISTENCIA_HHEE_API_KEY tiene "
+                "que ser igual a su HHEE_API_KEY."
+            )
         raise RuntimeError(
             f"El scraper respondio HTTP {exc.response.status_code}. "
-            "Revisar su API key y sus logs."
+            "Revisar sus logs."
         )
     except httpx.HTTPError as exc:
         logger.error("[asistencia/hhee] refresco fallo: %s", type(exc).__name__)

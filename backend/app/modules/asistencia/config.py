@@ -83,6 +83,9 @@ class AsistenciaSettings(BaseSettings):
     # boton de refresco manual: vacias => ese endpoint responde 503 y el resto
     # del submodulo sigue funcionando contra la tabla.
     hhee_api_url: str = "http://hhee-scrapping:8000"
+    # Sin fallback a external_api_key (a diferencia de marcas_api_key): esa es
+    # el token de Buk Ctrl y esta es la X-API-Key del contenedor propio
+    # hhee-scrapping. Vacia => POST /hhee/refrescar responde 503.
     hhee_api_key: SecretStr = SecretStr("")
     # ~12 s por recinto y son tres: 180 s deja margen para un Buk lento.
     hhee_timeout: float = 180.0
