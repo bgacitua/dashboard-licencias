@@ -133,6 +133,22 @@ async def _buk(method: str, path: str, **kwargs) -> Dict[str, Any]:
         raise BukError(f"Error de conexión con BUK: {e}")
 
 
+async def _buk_archivo(path: str) -> bytes:
+    """Descarga un PDF de BUK. GET /employees/{id}/docs/{doc_id} responde el binario."""
+    url = f"{settings.BUK_API_BASE_URL}{path}"
+    try:
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            response = await client.get(url, headers=_headers())
+            response.raise_for_status()
+            return response.content
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Error HTTP BUK GET {path}: {e.response.status_code} - {e.response.text[:500]}")
+        raise BukError(f"BUK respondio {e.response.status_code}: {e.response.text[:300]}")
+    except httpx.RequestError as e:
+        logger.error(f"Error de conexion BUK GET {path}: {e}")
+        raise BukError(f"Error de conexion con BUK: {e}")
+
+
 class CreditosService:
     def __init__(self, db: Session):
         self.db = db
@@ -308,6 +324,37 @@ class CreditosService:
 
     async def generar_pdf(self, credito: Credito) -> bytes:
         return generar_pagare(credito, await self.datos_empleado(credito))
+
+    async def documento_actual(self, credito: Credito) -> tuple[bytes, bool]:
+        """PDF que corresponde mostrar segun el punto del flujo.
+
+        Antes de subirlo a BUK solo existe la vista previa que se generaria. Una
+        vez subido manda el documento real de BUK, que es el que acumula las
+        firmas. Devuelve (pdf, es_documento_real).
+        """
+        if not credito.buk_file_id:
+            return await self.generar_pdf(credito), False
+
+        pdf = await self._buk_empleado_archivo(credito, f"/docs/{credito.buk_file_id}")
+        return pdf, True
+
+    async def _buk_empleado_archivo(self, credito: Credito, sufijo: str) -> bytes:
+        """Igual que _buk_empleado pero para descargas: reintenta con el RUT."""
+        identificadores = [credito.employee_id]
+        if credito.rut and credito.rut != str(credito.employee_id):
+            identificadores.append(credito.rut)
+
+        for i, identificador in enumerate(identificadores):
+            try:
+                return await _buk_archivo(f"/employees/{identificador}{sufijo}")
+            except BukError as e:
+                if i == len(identificadores) - 1 or "404" not in str(e):
+                    raise
+                logger.warning(
+                    f"BUK 404 descargando doc para employee_id={identificador}; "
+                    f"reintentando con RUT {credito.rut}"
+                )
+        return b""
 
     # ---------- Flujo BUK ----------
 

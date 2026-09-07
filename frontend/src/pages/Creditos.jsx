@@ -318,7 +318,9 @@ const Creditos = () => {
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => abrirPagare(c.id).catch(e => alert(e.message))}
-                                title="Ver pagaré"
+                                title={c.buk_file_id
+                                  ? 'Ver documento en BUK (con las firmas)'
+                                  : 'Vista previa del pagaré'}
                                 className="p-2 text-app-outline hover:text-app-muted rounded-lg hover:bg-app-surface"
                               >
                                 <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>

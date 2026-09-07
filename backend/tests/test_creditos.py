@@ -274,6 +274,7 @@ def demo():
         CS._buk = real_buk
 
     _tipos_prestamo_sincronizados()
+    _documento_actual_elige_bien()
     print("OK: máquina de estados, comprobante PDF y flujo de firmas")
 
 
@@ -297,6 +298,29 @@ def _tipos_prestamo_sincronizados():
     assert front == list(get_args(TipoPrestamo)), (
         f"TIPOS_PRESTAMO del front {front} != TipoPrestamo del backend {list(get_args(TipoPrestamo))}"
     )
+
+
+def _documento_actual_elige_bien():
+    """Sin buk_file_id se genera la vista previa; con file_id se baja el de BUK."""
+    service = CreditosService(_FakeDb())
+
+    llamadas = []
+    service.generar_pdf = lambda c: _async(b"%PDF-preview")
+    service._buk_empleado_archivo = lambda c, sufijo: (
+        llamadas.append(sufijo) or _async(b"%PDF-buk")
+    )
+
+    pdf, real = asyncio.run(service.documento_actual(_FakeCredito()))
+    assert (pdf, real) == (b"%PDF-preview", False), "sin file_id debe dar la vista previa"
+    assert not llamadas, "sin file_id no se debe llamar a BUK"
+
+    pdf, real = asyncio.run(service.documento_actual(_FakeCredito(buk_file_id=777)))
+    assert (pdf, real) == (b"%PDF-buk", True), "con file_id debe dar el documento de BUK"
+    assert llamadas == ["/docs/777"], f"ruta inesperada: {llamadas}"
+
+
+async def _async(valor):
+    return valor
 
 
 if __name__ == "__main__":
