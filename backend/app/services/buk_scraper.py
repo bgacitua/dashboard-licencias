@@ -155,10 +155,20 @@ def _evidencia(page, employee_id: int, motivo: str) -> str:
         prefijo = os.path.join(
             carpeta, f"{employee_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{motivo}"
         )
-        page.screenshot(path=f"{prefijo}.png", full_page=True)
-        with open(f"{prefijo}.html", "w", encoding="utf-8") as f:
-            f.write(page.content())
-        logger.error(f"BUK scraper: evidencia guardada en {prefijo}.png / .html (url={page.url})")
+        logger.error(f"BUK scraper: fallo en url={page.url} motivo={motivo}")
+        # Cada captura en su propio try: si la pagina esta colgada el screenshot
+        # revienta y no debe arrastrarse el HTML, que es la evidencia mas util.
+        for nombre, guardar in (
+            # ponytail: viewport y timeout corto. full_page espera layout completo
+            # y muere con el mismo timeout que el fallo original.
+            ("png", lambda: page.screenshot(path=f"{prefijo}.png", timeout=5000)),
+            ("html", lambda: open(f"{prefijo}.html", "w", encoding="utf-8").write(page.content())),
+        ):
+            try:
+                guardar()
+                logger.error(f"BUK scraper: evidencia {prefijo}.{nombre}")
+            except Exception as e:
+                logger.warning(f"BUK scraper: no se pudo guardar {nombre} ({e})")
         return prefijo
     except Exception as e:  # nunca tapar el error original por fallar al capturarlo
         logger.warning(f"BUK scraper: no se pudo guardar evidencia ({e})")
