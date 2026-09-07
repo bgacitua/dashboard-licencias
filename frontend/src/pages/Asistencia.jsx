@@ -5,7 +5,7 @@ import { descargarCsv } from '../features/asistencia/exportar'
 import CorreccionMarcas from '../features/asistencia/CorreccionMarcas'
 import DescargasBonos from '../features/asistencia/DescargasBonos'
 import Historial from '../features/asistencia/Historial'
-import Reportes from '../features/asistencia/Reportes'
+import ReportesPanel from '../features/asistencia/ReportesPanel'
 import { useObras, useVista } from '../features/asistencia/useVista'
 
 // Orden de uso: se mira lo que pasó (Marcajes), se corrige, y recién después
@@ -18,9 +18,10 @@ const VISTAS = [
   { id: 'marcajes', label: 'Marcajes', rango: true },
   { id: 'correccion', label: 'Corrección de Marcas', rango: true, propia: true },
   { id: 'recinto-trabajador', label: 'Recinto por Trabajador', rango: false },
-  // Reportes trae sus propios filtros (quincenas + archivo de atrasos), así que
-  // no usa el rango ni la obra de la barra común.
-  { id: 'reportes', label: 'Bono de Asistencia', propio: true },
+  // Reportes trae sus propios filtros (quincenas + archivo de atrasos; semana y
+  // recinto en Horas Extras), así que no usa el rango ni la obra de la barra
+  // común. Las sub-pestañas viven en ReportesPanel.
+  { id: 'reportes', label: 'Reportes', propio: true },
   { id: 'historial', label: 'Historial', rango: true, propia: true },
   { id: 'auditoria', label: 'Auditoría de Marcas', rango: true },
 ]
@@ -83,7 +84,7 @@ const Asistencia = () => {
           </div>
 
           {actual.propio ? (
-            <Reportes />
+            <ReportesPanel />
           ) : (
           <>
           <div className="flex flex-wrap items-end gap-3 mb-6">

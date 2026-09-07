@@ -55,6 +55,42 @@ const AsistenciaService = {
     return data
   },
 
+  // === Horas extras (submódulo hhee) ===
+  // Las alertas las escribe otro servicio en app.hhee_alertas; acá solo se leen.
+  // Sin filtros de fecha el backend devuelve la semana ISO anterior, que es la
+  // que el job acaba de procesar.
+  getHheeAlertas: async ({ recinto, tipo, anioIso, semanaIso } = {}) => {
+    const params = new URLSearchParams()
+    if (recinto) params.set('recinto', recinto)
+    if (tipo) params.set('tipo', tipo)
+    if (anioIso) params.set('anio_iso', anioIso)
+    if (semanaIso) params.set('semana_iso', semanaIso)
+    const s = params.toString()
+    const { data } = await axios.get(`${API_URL}/hhee/alertas${s ? `?${s}` : ''}`, {
+      headers: authHeaders(),
+    })
+    return data
+  },
+
+  getHheeSemanas: async () => {
+    const { data } = await axios.get(`${API_URL}/hhee/semanas`, { headers: authHeaders() })
+    return data
+  },
+
+  getHheeFrescura: async () => {
+    const { data } = await axios.get(`${API_URL}/hhee/frescura`, { headers: authHeaders() })
+    return data
+  },
+
+  // Dispara el barrido del scraper. Tarda ~12 s por recinto: el backend tiene
+  // timeout de 180 s, así que acá no se pone uno más corto.
+  refrescarHhee: async () => {
+    const { data } = await axios.post(`${API_URL}/hhee/refrescar`, null, {
+      headers: authHeaders(),
+    })
+    return data
+  },
+
   // Registro de marcas: única escritura del módulo. Con ASISTENCIA_DRY_RUN=true
   // el backend loguea el payload y no envía nada a Buk; la respuesta lo dice.
   registrarMarcas: async (obraId, marcas) => {

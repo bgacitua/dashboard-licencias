@@ -104,6 +104,9 @@ hallazgos. Hoy eso se ve en `docker compose logs hhee`.
       para nombre, cargo y centro de costo
 - [x] `GET /alertas`, `/semanas`, `/frescura`; `POST /refrescar`
 - [x] Tests del filtro por semana y del 503 sin configuración
-- [ ] Frontend: submódulo dentro de la vista `/asistencia`
+- [x] Frontend: sub-pestaña "Horas Extras" dentro de la pestaña Reportes de
+      `/asistencia` (`features/asistencia/HheeAlertas.jsx`, switcher en
+      `ReportesPanel.jsx`). Una tabla con columna `tipo`, filtros de semana,
+      tipo y recinto, aviso de frescura y botón de refresco
 - [ ] Estado de gestión de la alerta (reconocida / justificada): necesita columna
       nueva en la tabla y un `PATCH`
