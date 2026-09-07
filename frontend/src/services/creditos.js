@@ -41,7 +41,10 @@ export const verificarCreditoBuk = (id) => request(`/${id}/credito-buk`);
 // El PDF necesita el token en el header, así que se descarga como blob y se abre.
 export const abrirPagare = async (id) => {
   const response = await fetch(`${API_URL}/creditos/${id}/pagare`, { headers: getAuthHeaders() });
-  if (!response.ok) throw new Error("No se pudo generar el pagaré");
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(mensajeError(err.detail, "No se pudo abrir el documento"));
+  }
   const url = URL.createObjectURL(await response.blob());
   window.open(url, "_blank");
 };

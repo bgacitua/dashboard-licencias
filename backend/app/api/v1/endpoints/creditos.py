@@ -114,10 +114,17 @@ async def previsualizar_pagare(
 ):
     service = CreditosService(db)
     credito = _get_credito(service, credito_id)
+    pdf, real = await _ejecutar(service.documento_actual(credito))
     return Response(
-        content=await _ejecutar(service.generar_pdf(credito)),
+        content=pdf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{nombre_archivo(credito)}"'},
+        headers={
+            "Content-Disposition": f'inline; filename="{nombre_archivo(credito)}"',
+            # Lo lee el frontend para decir si muestra la vista previa o el
+            # documento que vive en BUK (el que junta las firmas).
+            "X-Documento-Origen": "buk" if real else "preview",
+            "Access-Control-Expose-Headers": "X-Documento-Origen",
+        },
     )
 
 
