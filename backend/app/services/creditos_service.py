@@ -134,34 +134,13 @@ async def _buk(method: str, path: str, **kwargs) -> Dict[str, Any]:
 
 
 async def _buk_archivo(path: str) -> bytes:
-    """Descarga un archivo de BUK. Devuelve los bytes del PDF.
-
-    BUK responde de dos formas segun el documento: el binario directo, o un JSON
-    con la URL firmada de descarga. Se soportan las dos porque cual toca no se
-    sabe hasta pedirlo.
-    """
+    """Descarga un PDF de BUK. GET /employees/{id}/docs/{doc_id} responde el binario."""
     url = f"{settings.BUK_API_BASE_URL}{path}"
     try:
         async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
             response = await client.get(url, headers=_headers())
             response.raise_for_status()
-            if "application/json" not in response.headers.get("content-type", ""):
-                return response.content
-
-            cuerpo = _archivo(response.json())
-            enlace = next(
-                (cuerpo[k] for k in ("url", "file_url", "download_url", "public_url")
-                 if isinstance(cuerpo.get(k), str) and cuerpo[k]),
-                None,
-            )
-            if not enlace:
-                raise BukError(
-                    f"BUK no devolvio el archivo ni una URL de descarga: {str(cuerpo)[:300]}"
-                )
-            # La URL firmada no lleva el auth_token: mandarlo la rechaza.
-            descarga = await client.get(enlace)
-            descarga.raise_for_status()
-            return descarga.content
+            return response.content
     except httpx.HTTPStatusError as e:
         logger.error(f"Error HTTP BUK GET {path}: {e.response.status_code} - {e.response.text[:500]}")
         raise BukError(f"BUK respondio {e.response.status_code}: {e.response.text[:300]}")
