@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Model } from 'survey-core';
+import { DefaultLight } from 'survey-core/themes';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
 
@@ -30,6 +31,10 @@ export default function FormPublico() {
         if (!formulario) return null;
         const m = new Model(formulario.definicion);
         m.locale = 'es';
+        // Sin applyTheme las variables --sjs2-* que usa survey-core.css quedan
+        // sin definir (los valores por defecto vienen en el JS del tema, no en
+        // el CSS) y el formulario se renderiza sin tamaños ni espaciado.
+        m.applyTheme(DefaultLight);
         // Respuesta previa: editar es corregir lo enviado, no rellenar de nuevo.
         if (formulario.datos) m.data = formulario.datos;
         m.onComplete.add(async (sender, options) => {
@@ -64,9 +69,11 @@ export default function FormPublico() {
     }
 
     return (
-        <main className="min-h-screen bg-gray-50 py-8 px-4">
-            <div className="mx-auto max-w-2xl">
-                <h1 className="mb-4 text-xl font-semibold text-gray-900">{formulario.titulo}</h1>
+        <main className="min-h-screen bg-gray-50 px-4 py-10">
+            <div className="mx-auto w-full max-w-3xl">
+                <h1 className="mb-6 text-2xl font-semibold tracking-tight text-gray-900">
+                    {formulario.titulo}
+                </h1>
                 {formulario.version > 0 && (
                     <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
                         Ya respondiste este formulario. Puedes corregir lo que enviaste y volver a
