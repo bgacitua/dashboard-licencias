@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import HheeAlertas from './HheeAlertas'
+import HheeAprobadas from './HheeAprobadas'
 import Reportes from './Reportes'
 
 /**
@@ -14,6 +15,7 @@ import Reportes from './Reportes'
 const SUB = [
   { id: 'bono', label: 'Bono de Asistencia', Componente: Reportes },
   { id: 'hhee', label: 'Horas Extras', Componente: HheeAlertas },
+  { id: 'hhee-aprobadas', label: 'HHEE Aprobadas', Componente: HheeAprobadas },
 ]
 
 const ReportesPanel = () => {

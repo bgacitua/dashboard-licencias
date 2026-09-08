@@ -72,6 +72,17 @@ const AsistenciaService = {
     return data
   },
 
+  // Aprobaciones de HHEE del periodo. A diferencia de las alertas, esto sale a
+  // Buk en vivo: tarda minutos en rangos largos, así que solo se pide con un
+  // clic explícito y sin timeout propio (manda el del backend).
+  getHheeHistorial: async ({ desde, hasta, recinto, rut } = {}) => {
+    const { data } = await axios.get(`${API_URL}/hhee/historial`, {
+      headers: authHeaders(),
+      params: { desde, hasta, ...(recinto ? { recinto } : {}), ...(rut ? { rut } : {}) },
+    })
+    return data
+  },
+
   getHheeSemanas: async () => {
     const { data } = await axios.get(`${API_URL}/hhee/semanas`, { headers: authHeaders() })
     return data
