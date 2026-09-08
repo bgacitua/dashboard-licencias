@@ -105,7 +105,9 @@ de la última corrida del job).
 
 La pantalla muestra un **resumen** (trabajador × estado × tipo de HHEE, con la
 cantidad de registros distintos); el detalle son varias filas por registro y en
-un mes son miles, así que sale solo por el CSV.
+un mes son miles, así que sale solo por el XLSX
+(`hhee_aprobadas_{recinto}_{desde}_{hasta}.xlsx`, mismo formato de nombre que
+el que dejaba el CLI del scraper).
 
 Timeouts, de adentro hacia afuera — cada capa tiene que ser más laxa que la de
 adentro, para que el que corte sea el backend y el usuario vea un motivo en vez
@@ -138,6 +140,7 @@ hallazgos. Hoy eso se ve en `docker compose logs hhee`.
       `ReportesPanel.jsx`). Una tabla con columna `tipo`, filtros de semana,
       tipo y recinto, aviso de frescura y botón de refresco
 - [x] Frontend: sub-pestaña "HHEE Aprobadas" (`HheeAprobadas.jsx`) con periodo
-      de fechas, filtros de recinto y RUT, total de horas y export a CSV
+      de fechas, filtros de recinto y RUT, resumen en pantalla, total de horas
+      y export del detalle a XLSX
 - [ ] Estado de gestión de la alerta (reconocida / justificada): necesita columna
       nueva en la tabla y un `PATCH`
