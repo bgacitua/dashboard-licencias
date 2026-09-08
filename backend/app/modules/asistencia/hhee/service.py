@@ -63,40 +63,29 @@ def exigir_configurado(settings: AsistenciaSettings) -> None:
         )
 
 
-def refrescar(settings: AsistenciaSettings, desde=None, hasta=None,
-              recintos: str = "") -> dict:
-    """POST /hhee/sync al contenedor del scraper. Devuelve su resumen.
+def _llamar(settings: AsistenciaSettings, metodo: str, ruta: str, params: dict,
+            aviso_timeout: str) -> dict:
+    """Request al contenedor del scraper, con los errores ya traducidos.
 
-    Tarda ~12 s por recinto, de ahi el timeout largo. El scraper responde 200
-    aunque un recinto falle: el detalle viene en el resumen, no en el status.
+    La API key se manda desde aca, nunca desde el navegador. Nunca se propaga el
+    cuerpo de la respuesta del scraper: puede traer detalle interno.
     """
     exigir_configurado(settings)
 
-    params = {}
-    if desde:
-        params["desde"] = str(desde)
-    if hasta:
-        params["hasta"] = str(hasta)
-    if recintos:
-        params["recintos"] = recintos
-
-    url = f"{settings.hhee_api_url.rstrip('/')}/hhee/sync"
+    url = f"{settings.hhee_api_url.rstrip('/')}{ruta}"
     try:
-        r = httpx.post(
-            url, params=params, timeout=settings.hhee_timeout,
+        r = httpx.request(
+            metodo, url, params=params, timeout=settings.hhee_timeout,
             headers={"X-API-Key": settings.hhee_api_key.get_secret_value()},
         )
         r.raise_for_status()
         return r.json()
     except httpx.TimeoutException:
-        logger.warning("[asistencia/hhee] refresco excedio %ss", settings.hhee_timeout)
-        raise RuntimeError(
-            "El scraper no respondio a tiempo. El barrido puede seguir corriendo: "
-            "volve a consultar las alertas en un rato."
-        )
+        logger.warning("[asistencia/hhee] %s excedio %ss", ruta, settings.hhee_timeout)
+        raise RuntimeError(aviso_timeout)
     except httpx.HTTPStatusError as exc:
         # El status del scraper, no su cuerpo: puede traer detalle interno.
-        logger.error("[asistencia/hhee] refresco -> HTTP %s", exc.response.status_code)
+        logger.error("[asistencia/hhee] %s -> HTTP %s", ruta, exc.response.status_code)
         if exc.response.status_code == 401:
             raise RuntimeError(
                 "El scraper rechazo la API key: ASISTENCIA_HHEE_API_KEY tiene "
@@ -107,5 +96,49 @@ def refrescar(settings: AsistenciaSettings, desde=None, hasta=None,
             "Revisar sus logs."
         )
     except httpx.HTTPError as exc:
-        logger.error("[asistencia/hhee] refresco fallo: %s", type(exc).__name__)
+        logger.error("[asistencia/hhee] %s fallo: %s", ruta, type(exc).__name__)
         raise RuntimeError("No se pudo contactar al servicio de horas extras.")
+
+
+def refrescar(settings: AsistenciaSettings, desde=None, hasta=None,
+              recintos: str = "") -> dict:
+    """POST /hhee/sync al contenedor del scraper. Devuelve su resumen.
+
+    Tarda ~12 s por recinto, de ahi el timeout largo. El scraper responde 200
+    aunque un recinto falle: el detalle viene en el resumen, no en el status.
+    """
+    params = {}
+    if desde:
+        params["desde"] = str(desde)
+    if hasta:
+        params["hasta"] = str(hasta)
+    if recintos:
+        params["recintos"] = recintos
+
+    return _llamar(
+        settings, "POST", "/hhee/sync", params,
+        "El scraper no respondio a tiempo. El barrido puede seguir corriendo: "
+        "volve a consultar las alertas en un rato.",
+    )
+
+
+def historial(settings: AsistenciaSettings, desde, hasta, recinto: str = "",
+              rut: str = "") -> dict:
+    """GET /hhee/historial: aprobaciones de HHEE del rango, una fila por cambio de estado.
+
+    A diferencia de las alertas, esto NO sale de `app.hhee_alertas`: el scraper
+    consulta Buk en vivo, con un request por registro del listado. Es lento
+    (minutos en rangos largos) y no se cachea, porque el dato que interesa acá
+    es el de ahora, no el de la ultima corrida del job.
+    """
+    params = {"desde": str(desde), "hasta": str(hasta)}
+    if recinto:
+        params["recinto"] = recinto
+    if rut:
+        params["rut"] = rut
+
+    return _llamar(
+        settings, "GET", "/hhee/historial", params,
+        "El scraper no respondio a tiempo. El rango puede ser muy largo: "
+        "probá con un periodo mas corto o filtrando por recinto.",
+    )

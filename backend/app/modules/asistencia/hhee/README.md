@@ -91,6 +91,18 @@ Red: el contenedor `hhee-scrapping` está en `dashboard-licencias_internal`. Se 
 llama por su `container_name` (`hhee-scrapping`), que es el nombre que resuelve
 entre proyectos de compose distintos.
 
+## Reporte de HHEE aprobadas
+
+`GET /hhee/historial` es la excepción al "acá solo se lee": proxea al scraper,
+que consulta Buk **en vivo** y devuelve una fila por cambio de estado del
+registro (quién aprobó y cuándo), más `hheeAprobadasNum` en horas decimales.
+
+Es el reporte que antes se generaba a mano con el CLI del scraper y viajaba por
+correo como XLSX. Cuesta un request por registro del listado, así que tarda
+minutos en rangos de un mes: por eso el frontend lo dispara con un clic y nunca
+al abrir la pestaña, y no se cachea (el dato que interesa es el de ahora, no el
+de la última corrida del job).
+
 ## Limitación conocida
 
 `GET /frescura` sale de la propia tabla de alertas, así que un recinto **sin
@@ -102,11 +114,13 @@ hallazgos. Hoy eso se ve en `docker compose logs hhee`.
 
 - [x] Repositorio de lectura sobre `app.hhee_alertas`, con join a `rh.employees`
       para nombre, cargo y centro de costo
-- [x] `GET /alertas`, `/semanas`, `/frescura`; `POST /refrescar`
+- [x] `GET /alertas`, `/semanas`, `/frescura`, `/historial`; `POST /refrescar`
 - [x] Tests del filtro por semana y del 503 sin configuración
 - [x] Frontend: sub-pestaña "Horas Extras" dentro de la pestaña Reportes de
       `/asistencia` (`features/asistencia/HheeAlertas.jsx`, switcher en
       `ReportesPanel.jsx`). Una tabla con columna `tipo`, filtros de semana,
       tipo y recinto, aviso de frescura y botón de refresco
+- [x] Frontend: sub-pestaña "HHEE Aprobadas" (`HheeAprobadas.jsx`) con periodo
+      de fechas, filtros de recinto y RUT, total de horas y export a CSV
 - [ ] Estado de gestión de la alerta (reconocida / justificada): necesita columna
       nueva en la tabla y un `PATCH`

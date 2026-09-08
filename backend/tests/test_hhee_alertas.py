@@ -237,7 +237,7 @@ def test_refrescar_traduce_los_fallos_a_mensajes_utiles():
     import httpx
 
     cfg = _Cfg(propia="k")
-    original = sv.httpx.post
+    original = sv.httpx.request
     casos = [
         (httpx.TimeoutException("timeout"), "no respondio a tiempo"),
         (httpx.HTTPStatusError("401", request=httpx.Request("POST", "http://x"),
@@ -248,7 +248,7 @@ def test_refrescar_traduce_los_fallos_a_mensajes_utiles():
         for excepcion, esperado in casos:
             def explota(*a, **kw):
                 raise excepcion
-            sv.httpx.post = explota
+            sv.httpx.request = explota
             try:
                 sv.refrescar(cfg)
             except RuntimeError as exc:
@@ -256,7 +256,7 @@ def test_refrescar_traduce_los_fallos_a_mensajes_utiles():
             else:
                 raise AssertionError(f"{type(excepcion).__name__} debería dar RuntimeError")
     finally:
-        sv.httpx.post = original
+        sv.httpx.request = original
 
 
 def test_refrescar_manda_la_key_y_los_filtros():
@@ -270,20 +270,57 @@ def test_refrescar_manda_la_key_y_los_filtros():
         def json(self):
             return {"ok": 1, "fallidos": 0}
 
-    def fake_post(url, params=None, timeout=None, headers=None):
-        capturado.update(url=url, params=params, timeout=timeout, headers=headers)
+    def fake_request(metodo, url, params=None, timeout=None, headers=None):
+        capturado.update(metodo=metodo, url=url, params=params, timeout=timeout,
+                         headers=headers)
         return _Resp()
 
-    original = sv.httpx.post
-    sv.httpx.post = fake_post
+    original = sv.httpx.request
+    sv.httpx.request = fake_request
     try:
         sv.refrescar(_Cfg(propia="secreta"), recintos="36787,42123")
     finally:
-        sv.httpx.post = original
+        sv.httpx.request = original
 
+    assert capturado["metodo"] == "POST"
     assert capturado["url"] == "http://hhee-scrapping:8000/hhee/sync"
     assert capturado["headers"] == {"X-API-Key": "secreta"}
     assert capturado["params"] == {"recintos": "36787,42123"}   # sin desde/hasta vacios
+
+
+def test_historial_arma_el_get_con_periodo_y_filtros():
+    """El reporte de aprobadas es un GET al scraper, con la key puesta acá.
+
+    Los filtros vacios no viajan: el scraper trata "" como "sin filtro", pero
+    mandarlos igual hace que dos consultas equivalentes se vean distintas.
+    """
+    capturado = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"rows": [{"rut": "1-9"}], "columns": ["rut"]}
+
+    def fake_request(metodo, url, params=None, timeout=None, headers=None):
+        capturado.update(metodo=metodo, url=url, params=params, headers=headers)
+        return _Resp()
+
+    original = sv.httpx.request
+    sv.httpx.request = fake_request
+    try:
+        r = sv.historial(_Cfg(propia="secreta"), desde="2026-06-15",
+                         hasta="2026-07-14", recinto="42123")
+    finally:
+        sv.httpx.request = original
+
+    assert capturado["metodo"] == "GET"
+    assert capturado["url"] == "http://hhee-scrapping:8000/hhee/historial"
+    assert capturado["headers"] == {"X-API-Key": "secreta"}
+    assert capturado["params"] == {"desde": "2026-06-15", "hasta": "2026-07-14",
+                                   "recinto": "42123"}          # sin `rut` vacio
+    assert r["rows"] == [{"rut": "1-9"}]
 
 
 if __name__ == "__main__":

@@ -394,6 +394,31 @@ def hhee_frescura(db: Db) -> list[dict]:
         raise HTTPException(status_code=502, detail=str(exc))
 
 
+@router.get("/hhee/historial", response_model=DataResponse)
+def hhee_historial(
+    settings: Settings,
+    desde: date = Query(..., description="inicio del periodo (YYYY-MM-DD)"),
+    hasta: date = Query(..., description="fin del periodo (YYYY-MM-DD)"),
+    recinto: str = Query("", description="id_recinto; vacio = el default del scraper"),
+    rut: str = Query("", description="filtra un trabajador"),
+) -> DataResponse:
+    """Horas extras aprobadas en el periodo, una fila por cambio de estado.
+
+    Va a Buk en vivo a traves del scraper: es lo mas lento del modulo (un
+    request por registro del listado) y por eso solo corre cuando alguien lo
+    pide explicitamente, nunca al abrir la pantalla.
+    """
+    if desde > hasta:
+        raise HTTPException(status_code=422, detail="'desde' es posterior a 'hasta'.")
+    try:
+        r = hhee_service.historial(settings, desde=desde, hasta=hasta,
+                                   recinto=recinto, rut=rut)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    rows = r.get("rows", [])
+    return DataResponse(rows=rows, total=len(rows), columns=r.get("columns", []))
+
+
 @router.post("/hhee/refrescar", response_model=SyncResponse)
 def hhee_refrescar(
     settings: Settings,
