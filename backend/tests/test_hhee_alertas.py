@@ -88,11 +88,13 @@ class _Cfg:
     """Settings mínimo para los checks de credencial del refresco."""
 
     def __init__(self, propia: str = "", externa: str = "",
-                 url: str = "http://hhee-scrapping:8000", timeout: float = 180.0) -> None:
+                 url: str = "http://hhee-scrapping:8000", timeout: float = 180.0,
+                 timeout_reporte: float = 600.0) -> None:
         self.hhee_api_url = url
         self.hhee_api_key = _Secreto(propia)
         self.external_api_key = _Secreto(externa)
         self.hhee_timeout = timeout
+        self.hhee_reporte_timeout = timeout_reporte
 
 
 def test_no_cae_a_external_api_key():
@@ -304,7 +306,8 @@ def test_historial_arma_el_get_con_periodo_y_filtros():
             return {"rows": [{"rut": "1-9"}], "columns": ["rut"]}
 
     def fake_request(metodo, url, params=None, timeout=None, headers=None):
-        capturado.update(metodo=metodo, url=url, params=params, headers=headers)
+        capturado.update(metodo=metodo, url=url, params=params, timeout=timeout,
+                         headers=headers)
         return _Resp()
 
     original = sv.httpx.request
@@ -320,6 +323,8 @@ def test_historial_arma_el_get_con_periodo_y_filtros():
     assert capturado["headers"] == {"X-API-Key": "secreta"}
     assert capturado["params"] == {"desde": "2026-06-15", "hasta": "2026-07-14",
                                    "recinto": "42123"}          # sin `rut` vacio
+    # El reporte usa su propio timeout, no el (mucho mas corto) del refresco.
+    assert capturado["timeout"] == 600.0
     assert r["rows"] == [{"rut": "1-9"}]
 
 

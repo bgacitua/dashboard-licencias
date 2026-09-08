@@ -64,7 +64,7 @@ def exigir_configurado(settings: AsistenciaSettings) -> None:
 
 
 def _llamar(settings: AsistenciaSettings, metodo: str, ruta: str, params: dict,
-            aviso_timeout: str) -> dict:
+            aviso_timeout: str, timeout: float | None = None) -> dict:
     """Request al contenedor del scraper, con los errores ya traducidos.
 
     La API key se manda desde aca, nunca desde el navegador. Nunca se propaga el
@@ -72,16 +72,17 @@ def _llamar(settings: AsistenciaSettings, metodo: str, ruta: str, params: dict,
     """
     exigir_configurado(settings)
 
+    timeout = timeout or settings.hhee_timeout
     url = f"{settings.hhee_api_url.rstrip('/')}{ruta}"
     try:
         r = httpx.request(
-            metodo, url, params=params, timeout=settings.hhee_timeout,
+            metodo, url, params=params, timeout=timeout,
             headers={"X-API-Key": settings.hhee_api_key.get_secret_value()},
         )
         r.raise_for_status()
         return r.json()
     except httpx.TimeoutException:
-        logger.warning("[asistencia/hhee] %s excedio %ss", ruta, settings.hhee_timeout)
+        logger.warning("[asistencia/hhee] %s excedio %ss", ruta, timeout)
         raise RuntimeError(aviso_timeout)
     except httpx.HTTPStatusError as exc:
         # El status del scraper, no su cuerpo: puede traer detalle interno.
@@ -139,6 +140,7 @@ def historial(settings: AsistenciaSettings, desde, hasta, recinto: str = "",
 
     return _llamar(
         settings, "GET", "/hhee/historial", params,
-        "El scraper no respondio a tiempo. El rango puede ser muy largo: "
-        "probá con un periodo mas corto o filtrando por recinto.",
+        "El scraper no respondio a tiempo. El reporte cuesta un request por "
+        "registro: acotá el periodo, o filtrá por recinto o RUT.",
+        timeout=settings.hhee_reporte_timeout,
     )
