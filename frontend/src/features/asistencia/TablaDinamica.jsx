@@ -111,13 +111,24 @@ const TablaDinamica = ({
                   className="bg-app-surface border-b border-app-line text-xs uppercase text-app-muted font-semibold"
                 >
                   {hg.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      onClick={header.column.getToggleSortingHandler()}
-                      className="px-4 py-3 cursor-pointer select-none whitespace-nowrap"
-                    >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                      {{ asc: ' ↑', desc: ' ↓' }[header.column.getIsSorted()] ?? ''}
+                    <th key={header.id} className="px-4 py-3 select-none whitespace-nowrap align-top">
+                      <div
+                        onClick={header.column.getToggleSortingHandler()}
+                        className="cursor-pointer"
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {{ asc: ' ↑', desc: ' ↓' }[header.column.getIsSorted()] ?? ''}
+                      </div>
+                      {/* Columnas display (checkbox, acciones) no tienen accessor: getCanFilter() las descarta. */}
+                      {header.column.getCanFilter() && (
+                        <input
+                          value={header.column.getFilterValue() ?? ''}
+                          onChange={(e) => header.column.setFilterValue(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          placeholder="Filtrar"
+                          className="mt-1.5 w-full min-w-[6rem] font-normal normal-case text-xs border border-app-line rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-app-ink"
+                        />
+                      )}
                     </th>
                   ))}
                 </tr>
