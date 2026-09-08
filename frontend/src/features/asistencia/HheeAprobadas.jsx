@@ -1,19 +1,25 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import AsistenciaService from '../../services/asistencia.service'
 import TablaDinamica from './TablaDinamica'
 import { descargarCsv } from './exportar'
+import { COLUMNAS_RESUMEN, resumir } from './hheeResumen'
 
 /**
  * Horas extras aprobadas en un periodo: una fila por cambio de estado, con los
  * datos del trabajador al lado. Es el reporte que antes se generaba a mano con
  * el CLI del scraper y viajaba por correo como XLSX.
  *
+ * La tabla muestra un resumen por trabajador × estado × tipo de HHEE: el
+ * detalle son varias filas por registro y en un mes son miles, ilegibles en
+ * pantalla. El detalle completo sale por el CSV, que es donde se lo trabaja.
+ *
  * No se carga solo al abrir la pestaña, y esa es la diferencia con las alertas:
  * las alertas se leen de `app.hhee_alertas` (instantáneo, dato del job), esto
  * consulta Buk en vivo con un request por registro y tarda minutos en rangos
  * largos. Se pide con un clic y punto.
  */
-const COLUMNAS = [
+// Columnas del detalle: solo se usan para el CSV, no para la tabla.
+const COLUMNAS_DETALLE = [
   'recinto', 'registroTiempoId', 'rut', 'nombreTrab', 'nombreEstado',
   'estadoRegistroTiempo', 'inicioPeriodo', 'finPeriodo', 'nombreHHEE',
   'hora', 'hheeAprobadas', 'hheeAprobadasNum', 'valor', 'tipoRegistroTiempo',
@@ -47,15 +53,17 @@ const HheeAprobadas = () => {
   }
 
   const rows = data?.rows || []
-  const columnas = data?.columns?.length ? data.columns : COLUMNAS
+  const columnasDetalle = data?.columns?.length ? data.columns : COLUMNAS_DETALLE
+  const resumen = useMemo(() => resumir(rows), [rows])
   const totalHoras = rows.reduce((a, r) => a + (Number(r.hheeAprobadasNum) || 0), 0)
 
   return (
     <div>
       <div className="bg-app-surface border border-app-line rounded-lg p-4 mb-6 text-sm text-app-muted">
         <p className="mb-1">
-          <strong className="text-app-ink">Horas extras aprobadas</strong> — una fila por cambio
-          de estado del registro, con el usuario y la fecha que lo aprobó.
+          <strong className="text-app-ink">Horas extras aprobadas</strong> — cantidad de
+          registros por trabajador, estado y tipo de HHEE. El detalle (una fila por cambio de
+          estado, con quién aprobó y cuándo) sale en el CSV.
         </p>
         <p>
           Consulta Buk en vivo, no la tabla de alertas: en periodos de un mes puede tardar
@@ -90,7 +98,8 @@ const HheeAprobadas = () => {
           {cargando ? 'Consultando Buk…' : 'Generar'}
         </button>
 
-        <button onClick={() => descargarCsv(rows, columnas, 'hhee_aprobadas')}
+        <button onClick={() => descargarCsv(rows, columnasDetalle, 'hhee_aprobadas')}
+                title="Exporta el detalle completo: una fila por cambio de estado."
                 disabled={cargando || !rows.length}
                 className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40">
           Exportar CSV
@@ -99,13 +108,15 @@ const HheeAprobadas = () => {
 
       {!!rows.length && (
         <div className="mb-4 text-sm text-app-muted">
-          {rows.length} filas · <strong className="text-app-ink">{totalHoras.toFixed(2)} h</strong> aprobadas en total.
+          {resumen.length} grupos · {rows.length} filas de detalle ·{' '}
+          <strong className="text-app-ink">{totalHoras.toFixed(2)} h</strong> aprobadas en total.
+          Exportá el CSV para el detalle.
         </div>
       )}
 
       <TablaDinamica
-        rows={rows}
-        columns={columnas}
+        rows={resumen}
+        columns={COLUMNAS_RESUMEN}
         loading={cargando}
         error={error}
         vacio={listo ? 'Generá el reporte para ver los resultados.' : 'Elegí el periodo de fechas.'}

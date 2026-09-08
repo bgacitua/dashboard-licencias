@@ -103,6 +103,23 @@ minutos en rangos de un mes: por eso el frontend lo dispara con un clic y nunca
 al abrir la pestaña, y no se cachea (el dato que interesa es el de ahora, no el
 de la última corrida del job).
 
+La pantalla muestra un **resumen** (trabajador × estado × tipo de HHEE, con la
+cantidad de registros distintos); el detalle son varias filas por registro y en
+un mes son miles, así que sale solo por el CSV.
+
+Timeouts, de adentro hacia afuera — cada capa tiene que ser más laxa que la de
+adentro, para que el que corte sea el backend y el usuario vea un motivo en vez
+de un 504 pelado:
+
+| Capa | Valor | Dónde |
+|---|---|---|
+| scraper, concurrencia | `HHEE_WORKERS=10` | entorno del contenedor |
+| backend | `hhee_reporte_timeout` 600 s | `asistencia/config.py` |
+| nginx | `proxy_read_timeout` 620 s | `frontend/nginx.conf`, location exacto |
+
+El resto de `/api/` sigue en 120 s a propósito: ahí un request largo es señal
+de que algo se colgó.
+
 ## Limitación conocida
 
 `GET /frescura` sale de la propia tabla de alertas, así que un recinto **sin
