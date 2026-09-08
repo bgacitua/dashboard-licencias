@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import AsistenciaService from '../../services/asistencia.service'
 
 /**
@@ -15,16 +15,25 @@ export function useVista(vista, rango) {
 
   const { desde, hasta, obraId } = rango
 
+  // Al cambiar el rango quedan consultas en vuelo: las anteriores suelen morir
+  // en el gateway (504) y su respuesta llega DESPUÉS de la buena. Sin este
+  // contador el error de la vieja pisa los datos de la nueva.
+  const ultima = useRef(0)
+
   const cargar = useCallback(async () => {
     if (!vista) {
       setLoading(false)
       return
     }
+    const id = ++ultima.current
     setLoading(true)
     setError(null)
     try {
-      setData(await AsistenciaService.getVista(vista, { desde, hasta, obraId }))
+      const res = await AsistenciaService.getVista(vista, { desde, hasta, obraId })
+      if (id !== ultima.current) return
+      setData(res)
     } catch (e) {
+      if (id !== ultima.current) return
       const status = e?.response?.status
       setError(
         status === 503
@@ -33,7 +42,7 @@ export function useVista(vista, rango) {
       )
       setData({ rows: [], columns: [], descartados: 0 })
     } finally {
-      setLoading(false)
+      if (id === ultima.current) setLoading(false)
     }
   }, [vista, desde, hasta, obraId])
 
