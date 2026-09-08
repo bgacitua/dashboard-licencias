@@ -77,6 +77,7 @@ class ExternalClient:
     async def _crawl(self, url: str, base_params: dict, headers: dict | None = None) -> list[dict]:
         """Recorre todas las páginas del externo y junta los registros."""
         page_size = self._settings.crawl_page_size
+        t0 = time.monotonic()
 
         def page_params(page: int) -> dict:
             return {**base_params, "page": page, "page_size": page_size}
@@ -87,6 +88,7 @@ class ExternalClient:
         total_pages = min(total_pages, self._settings.crawl_max_pages)
 
         if total_pages <= 1:
+            logger.info("[crawl] %s: 1 pagina, %d filas, %.1fs", url, len(rows), time.monotonic() - t0)
             return rows
 
         sem = asyncio.Semaphore(self._settings.crawl_concurrency)
@@ -99,6 +101,12 @@ class ExternalClient:
         pages = await asyncio.gather(*(fetch(p) for p in range(2, total_pages + 1)))
         for chunk in pages:
             rows.extend(chunk)
+        # Un rango ancho se cae con 504 (timeout por pagina) y sin esto no hay
+        # forma de saber si sobran paginas o si Buk se puso lento: log de las tres.
+        logger.info(
+            "[crawl] %s: %d paginas, %d filas, %.1fs", url, total_pages, len(rows),
+            time.monotonic() - t0,
+        )
         return rows
 
     async def _crawl_next(self, url: str, base_params: dict, headers: dict | None = None) -> list[dict]:
