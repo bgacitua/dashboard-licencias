@@ -154,6 +154,8 @@ class AuthService:
             .filter(
                 Usuario.invite_token == self._hash_invite_token(token),
                 Usuario.invite_token_expires_at > datetime.utcnow(),
+                # Una cuenta desactivada no se reactiva canjeando una invitación vieja.
+                Usuario.activo == True,
             )
             .first()
         )

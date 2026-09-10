@@ -17,6 +17,7 @@ from app.schemas.auth import (
     RoleUpdate,
     ModuloResponse,
 )
+from app.core.rate_limit import check_rate_limit
 from app.core.security import require_role
 from app.models.auth import Role, Usuario
 
@@ -97,6 +98,12 @@ def send_user_invite(
     db: Session = Depends(get_db)
 ):
     """Regenera y reenvía el email de invitación a un usuario existente."""
+    # Dos llaves, como en el login: la del destinatario protege su buzón de un
+    # reenvío en bucle, y la del admin frena el barrido cambiando el user_id.
+    # Cada reenvío invalida el enlace anterior, así que insistir tampoco ayuda.
+    check_rate_limit(f"send-invite:user:{user_id}", max_attempts=3, window_seconds=3600)
+    check_rate_limit(f"send-invite:admin:{current_user.id}", max_attempts=20, window_seconds=3600)
+
     auth_service = AuthService(db)
     try:
         ok = auth_service.resend_invite(user_id)

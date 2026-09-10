@@ -51,6 +51,19 @@ function FieldGroup({ label, children }) {
     );
 }
 
+// Espeja app/schemas/auth.py: 12+ caracteres con minúscula, mayúscula y número.
+// pattern + title = validación nativa del navegador, sin JS propio.
+const PASSWORD_PATTERN = '(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}';
+const PASSWORD_HINT = 'Al menos 12 caracteres, una minúscula, una mayúscula y un número.';
+
+// El 422 de FastAPI trae `detail` como lista de errores; el 400 como string.
+async function errorDetail(res, fallback) {
+    const data = await res.json().catch(() => ({}));
+    if (typeof data.detail === 'string') return data.detail;
+    if (Array.isArray(data.detail)) return data.detail.map(e => e.msg).join(' ');
+    return fallback;
+}
+
 function InputField(props) {
     return (
         <input
@@ -225,7 +238,7 @@ const AdminPanel = () => {
                     rol_id: parseInt(editingUser.rol_id),
                 }),
             });
-            if (!res.ok) throw new Error('Error al actualizar usuario');
+            if (!res.ok) throw new Error(await errorDetail(res, 'Error al actualizar usuario'));
             setShowEditModal(false);
             setEditingUser(null);
             fetchData();
@@ -241,7 +254,7 @@ const AdminPanel = () => {
                 headers: authHeaders(),
                 body: JSON.stringify({ password: passwordData.newPassword }),
             });
-            if (!res.ok) throw new Error('Error al cambiar contraseña');
+            if (!res.ok) throw new Error(await errorDetail(res, 'Error al cambiar contraseña'));
             setShowPasswordModal(false);
             setPasswordData({ userId: null, newPassword: '' });
         } catch (err) { setTabError(err.message); }
@@ -255,10 +268,7 @@ const AdminPanel = () => {
                 method: 'POST',
                 headers: authHeaders(),
             });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.detail || 'Error al reenviar la invitación');
-            }
+            if (!res.ok) throw new Error(await errorDetail(res, 'Error al reenviar la invitación'));
             fetchData();
         } catch (err) { setTabError(err.message); }
     };
@@ -272,7 +282,7 @@ const AdminPanel = () => {
                 headers: authHeaders(),
                 body: JSON.stringify({ activo: !currentActive }),
             });
-            if (!res.ok) throw new Error('Error al actualizar usuario');
+            if (!res.ok) throw new Error(await errorDetail(res, 'Error al actualizar usuario'));
             fetchData();
         } catch (err) { setTabError(err.message); }
     };
@@ -757,7 +767,8 @@ const AdminPanel = () => {
 
                             {!newUser.send_invite && (
                                 <FieldGroup label="Contraseña *">
-                                    <InputField type="password" required={!newUser.send_invite} value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="Mínimo 6 caracteres" minLength={6} />
+                                    <InputField type="password" required={!newUser.send_invite} value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="Mínimo 12 caracteres" minLength={12} pattern={PASSWORD_PATTERN} title={PASSWORD_HINT} />
+                                    <p className="mt-1 text-xs text-app-muted">{PASSWORD_HINT}</p>
                                 </FieldGroup>
                             )}
 
@@ -806,11 +817,13 @@ const AdminPanel = () => {
                         <form onSubmit={handleChangePassword} className="space-y-4">
                             <FieldGroup label="Nueva Contraseña *">
                                 <InputField
-                                    type="password" required minLength={6}
+                                    type="password" required minLength={12}
+                                    pattern={PASSWORD_PATTERN} title={PASSWORD_HINT}
                                     value={passwordData.newPassword}
                                     onChange={e => setPasswordData({...passwordData, newPassword: e.target.value})}
-                                    placeholder="Mínimo 6 caracteres"
+                                    placeholder="Mínimo 12 caracteres"
                                 />
+                                <p className="mt-1 text-xs text-app-muted">{PASSWORD_HINT}</p>
                             </FieldGroup>
                             <ModalActions onCancel={() => setShowPasswordModal(false)} submitLabel="Cambiar Contraseña" />
                         </form>

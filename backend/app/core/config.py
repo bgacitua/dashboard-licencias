@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     # n8n usa un certificado self-signed: ruta al .pem para validarlo.
     ALERTS_N8N_CA_BUNDLE: str = ""       # ej: /app/data/n8n-cert.pem
 
+    # === Chequeo diario de la sesión de Microsoft ===
+    # Refresca el token de Graph una vez al día y avisa a n8n si murió. Enciende
+    # por defecto: no envía correos y sin webhook el aviso simplemente no sale,
+    # así que el costo es un request diario a Microsoft. Corre antes que los jobs
+    # de las 08:00 para que el aviso llegue antes de que fallen por esto.
+    GRAPH_TOKEN_CHECK_ENABLED: bool = True
+    GRAPH_TOKEN_CHECK_HOUR: int = 7
+    GRAPH_TOKEN_CHECK_MINUTE: int = 0
+
     # === Scheduler de retorno post-licencia ===
     RETORNO_SCHEDULER_ENABLED: bool = False
     RETORNO_ALERT_EMAIL: str = ""        # destinatario del reporte diario de retorno

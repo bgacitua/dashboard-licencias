@@ -4,8 +4,10 @@ Schemas Pydantic para autenticación y gestión de usuarios.
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 from datetime import datetime
+import re
 
 CORPORATE_DOMAIN = "cramer.cl"
+PASSWORD_MIN_LENGTH = 12
 
 
 def validate_corporate_email(email: Optional[str]) -> Optional[str]:
@@ -14,6 +16,29 @@ def validate_corporate_email(email: Optional[str]) -> Optional[str]:
     if not email.lower().endswith(f"@{CORPORATE_DOMAIN}"):
         raise ValueError(f"El correo debe ser @{CORPORATE_DOMAIN}")
     return email.lower()
+
+
+def validate_password_strength(password: Optional[str]) -> Optional[str]:
+    """Política de contraseñas. Único lugar donde vive la regla: la usan la
+    invitación (el usuario elige la suya) y el panel de admin (crear/actualizar).
+
+    Largo + tres clases de caracteres. No se exige símbolo: sube el largo
+    mínimo en su lugar, que aporta más entropía y menos post-it en el monitor.
+    """
+    if password is None:
+        return password
+    faltas = []
+    if len(password) < PASSWORD_MIN_LENGTH:
+        faltas.append(f"al menos {PASSWORD_MIN_LENGTH} caracteres")
+    if not re.search(r"[a-z]", password):
+        faltas.append("una minúscula")
+    if not re.search(r"[A-Z]", password):
+        faltas.append("una mayúscula")
+    if not re.search(r"\d", password):
+        faltas.append("un número")
+    if faltas:
+        raise ValueError("La contraseña debe tener " + ", ".join(faltas) + ".")
+    return password
 
 
 # === Schemas de Autenticación ===
@@ -111,11 +136,21 @@ class UsuarioCreate(UsuarioBase):
     def email_must_be_corporate(cls, v):
         return validate_corporate_email(v)
 
+    @field_validator('password')
+    @classmethod
+    def password_must_be_strong(cls, v):
+        return validate_password_strength(v)
+
 
 class SetPasswordRequest(BaseModel):
     """Request para que el usuario establezca su contraseña via token de invitación"""
     token: str
     password: str
+
+    @field_validator('password')
+    @classmethod
+    def password_must_be_strong(cls, v):
+        return validate_password_strength(v)
 
 
 class UsuarioUpdate(BaseModel):
@@ -131,6 +166,11 @@ class UsuarioUpdate(BaseModel):
     @classmethod
     def email_must_be_corporate(cls, v):
         return validate_corporate_email(v)
+
+    @field_validator('password')
+    @classmethod
+    def password_must_be_strong(cls, v):
+        return validate_password_strength(v)
 
 
 class UsuarioResponse(UsuarioBase):
