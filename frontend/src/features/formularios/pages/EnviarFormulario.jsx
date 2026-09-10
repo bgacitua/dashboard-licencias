@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import SidebarLayout from '../../../components/SidebarLayout';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { buscarPersonas, enviarFormulario, listarFormularios } from '../services/formularios';
 
@@ -66,8 +67,17 @@ export default function EnviarFormulario() {
     const listo = persona && formulario && persona.email;
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="mx-auto max-w-3xl">
+        <SidebarLayout>
+            <div className="mx-auto max-w-3xl p-6">
+                <nav className="mb-8 flex items-center gap-2 text-sm text-app-muted">
+                    <Link to="/menu" className="flex items-center gap-1 hover:text-app-ink">
+                        <span className="material-symbols-outlined text-lg">home</span>
+                    </Link>
+                    <span>/</span>
+                    <Link to="/formularios/gestor" className="hover:text-app-ink">Formularios</Link>
+                    <span>/</span>
+                    <span className="font-medium text-app-ink">Enviar</span>
+                </nav>
                 <header className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-xl font-semibold text-gray-900">Enviar formulario</h1>
@@ -209,6 +219,6 @@ export default function EnviarFormulario() {
                     )}
                 </section>
             </div>
-        </div>
+        </SidebarLayout>
     );
 }
