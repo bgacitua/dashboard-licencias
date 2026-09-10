@@ -71,7 +71,15 @@ export default function FormPublico() {
     }
 
     return (
-        <main className="min-h-screen bg-gray-50 px-4 py-10">
+        // El fondo del formulario lo pinta `.sd-root-modern` con
+        // --sjs2-color-utility-body, y ese elemento mide solo su contenido: con
+        // un color propio en el <main> quedaba un recuadro del color del tema y
+        // el resto del viewport en gris. Las variables del tema se aplican acá
+        // para que el <main> resuelva la misma variable, sea cual sea el tema.
+        <main
+            className="min-h-screen px-4 py-10"
+            style={{ ...model.themeVariables, background: 'var(--sjs2-color-utility-body)' }}
+        >
             <div className="mx-auto w-full max-w-3xl">
                 <h1 className="mb-6 text-2xl font-semibold tracking-tight text-gray-900">
                     {formulario.titulo}
