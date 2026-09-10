@@ -6,14 +6,17 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import hashlib
 import secrets
-import httpx
 
 from app.repositories.auth_repository import AuthRepository
 from app.models.auth import Usuario, Modulo
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.core.logging_config import logger
-from app.services.email_token_service import get_access_token, AuthRequiredError
-from app.services.email_service import apply_test_redirect
+from app.core.config import settings
+from app.services.email_token_service import AuthRequiredError
+
+# Vigencia del enlace de invitación. Una sola fuente: el token y el texto del
+# correo tienen que decir lo mismo.
+INVITE_TTL_HORAS = 48
 
 
 class AuthService:
@@ -135,7 +138,7 @@ class AuthService:
         """Genera token de invitación, guarda su hash en DB y envía el token al usuario."""
         token = secrets.token_urlsafe(32)
         user.invite_token = self._hash_invite_token(token)
-        user.invite_token_expires_at = datetime.utcnow() + timedelta(hours=48)
+        user.invite_token_expires_at = datetime.utcnow() + timedelta(hours=INVITE_TTL_HORAS)
         self.repository.db.commit()
         self._send_invite_email(user.email, user.nombre_completo or user.username, token)
 
@@ -169,64 +172,32 @@ class AuthService:
         return True
 
     def _send_invite_email(self, to_email: str, display_name: str, token: str) -> None:
-        """Envía email de invitación con link para establecer contraseña."""
-        import os
-        frontend_url = os.getenv("PUBLIC_URL", "http://localhost:5173")
-        invite_url = f"{frontend_url}/set-password?token={token}"
+        """Envía el correo de invitación con el enlace para establecer contraseña.
+
+        La plantilla vive en email_templates.invite_email y el envío en
+        send_email_graph: acá solo se arma la URL y se traduce la falla al
+        RuntimeError que create_user y resend_invite esperan.
+        """
+        from app.schemas.auth import PASSWORD_MIN_LENGTH
+        from app.services.email_service import send_email_graph
+        from app.services.email_templates import invite_email
+
+        invite_url = f"{settings.PUBLIC_URL or 'http://localhost:5173'}/set-password?token={token}"
+        html_body = invite_email(display_name, invite_url, PASSWORD_MIN_LENGTH,
+                                 expira_horas=INVITE_TTL_HORAS)
 
         try:
-            access_token = get_access_token()
+            enviado = send_email_graph(
+                to=to_email, cc="", subject="Activa tu cuenta - Plataforma de Personas",
+                html_body=html_body,
+            )
         except AuthRequiredError as e:
             logger.error(f"Graph API no autorizada para enviar invitación: {e}")
             raise RuntimeError("El sistema de email no está configurado. Contacta al administrador.")
 
-        html_body = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
-            <div style="background: #0c1a3a; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
-                <h1 style="color: white; font-size: 20px; margin: 0;">HR Portal — Bienvenido/a</h1>
-            </div>
-            <p style="color: #374151; font-size: 15px;">Hola <strong>{display_name}</strong>,</p>
-            <p style="color: #374151; font-size: 15px;">
-                Se ha creado una cuenta para ti en el Portal de RRHH de Cramer &amp; Asociados.
-                Haz clic en el botón para establecer tu contraseña:
-            </p>
-            <div style="text-align: center; margin: 32px 0;">
-                <a href="{invite_url}"
-                   style="background: #0c1a3a; color: white; text-decoration: none;
-                          padding: 14px 28px; border-radius: 8px; font-size: 15px; font-weight: bold;">
-                    Establecer contraseña
-                </a>
-            </div>
-            <p style="color: #6b7280; font-size: 13px;">
-                Este enlace expira en <strong>48 horas</strong>.<br>
-                Si no esperabas este mensaje, ignóralo.
-            </p>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-            <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-                Portal RRHH — Cramer &amp; Asociados · Uso interno
-            </p>
-        </div>
-        """
-
-        to_email, subject = apply_test_redirect(
-            to_email, "[HR Portal] Activa tu cuenta — Establece tu contraseña"
-        )
-        resp = httpx.post(
-            "https://graph.microsoft.com/v1.0/me/sendMail",
-            headers={"Authorization": f"Bearer {access_token}"},
-            json={
-                "message": {
-                    "subject": subject,
-                    "body": {"contentType": "HTML", "content": html_body},
-                    "toRecipients": [{"emailAddress": {"address": to_email}}],
-                }
-            },
-            timeout=15,
-        )
-        if resp.status_code not in (200, 202):
-            logger.error(f"Error enviando email de invitación: {resp.status_code} {resp.text}")
+        if not enviado:
             raise RuntimeError("Error al enviar el correo de invitación.")
-    
+
     def update_user(
         self,
         user_id: int,
