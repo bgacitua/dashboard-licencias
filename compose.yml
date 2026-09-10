@@ -28,6 +28,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
       - "n8n.cramer.cl:192.9.200.12"
+      - "n8n-ssgg.cramer.cl:192.9.200.12"
     networks:
       - internal
     expose:
