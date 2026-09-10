@@ -175,6 +175,37 @@ def email_shell(title: str, body: str, footer: str = _FOOTER_DEFAULT,
 </body></html>"""
 
 
+# ------------------------------------------------------------------ invitación
+FOOTER_APP = "Plataforma de Personas - Uso Interno"
+
+
+def invite_email(display_name: str, invite_url: str, min_chars: int,
+                 expira_horas: int = 48) -> str:
+    """Correo de bienvenida con el enlace para establecer la contraseña.
+
+    Los requisitos de la contraseña van en el correo a propósito: quien recibe
+    esto elige una antes de abrir el enlace, y enterarse del mínimo recién al
+    enviar el formulario obliga a pensarla dos veces.
+    """
+    cuerpo = (
+        f'<p style="{P}">Hola <strong>{display_name}</strong>,</p>'
+        f'<p style="{P}">Se creó tu cuenta en la Plataforma de Personas. '
+        f"Establece tu contraseña para activarla:</p>"
+        f'<p style="{_F};margin:0 0 24px;text-align:center">'
+        f"{button(invite_url, 'Establecer contraseña')}</p>"
+        f'<p style="{MUTED}">La contraseña necesita al menos {min_chars} caracteres, '
+        f"una minúscula, una mayúscula y un número.</p>"
+        f'<p style="{MUTED}">El enlace expira en <strong>{expira_horas} horas</strong>. '
+        f"Si no esperabas este mensaje, ignóralo.</p>"
+    )
+    return email_shell(
+        "Bienvenido/a a la Plataforma de Personas",
+        cuerpo,
+        footer=FOOTER_APP,
+        preview="Establece tu contraseña para activar tu cuenta.",
+    )
+
+
 def check_outlook_safe(html: str) -> None:
     """Reglas que el motor de Word (Outlook escritorio) no perdona.
 
@@ -212,4 +243,10 @@ if __name__ == "__main__":
     assert C.DANGER_BG in callout("x", "warn") and C.INFO_BG in callout("x")
     assert 'bgcolor="#16a34a"' in html, "el botón lleva bgcolor además de background"
     check_outlook_safe(html)
+
+    invitacion = invite_email("Juan Pérez", "https://x/set-password?token=t", 12)
+    assert FOOTER_APP in invitacion, "footer de la aplicación"
+    assert "Plataforma de Personas" in invitacion and "HR Portal" not in invitacion
+    assert "12 caracteres" in invitacion, "requisitos de la contraseña"
+    check_outlook_safe(invitacion)
     print("ok")
