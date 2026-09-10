@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Model } from 'survey-core';
+import { BaseTheme, Model } from 'survey-core';
 import { DefaultLight } from 'survey-core/themes';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
@@ -31,10 +31,12 @@ export default function FormPublico() {
         if (!formulario) return null;
         const m = new Model(formulario.definicion);
         m.locale = 'es';
-        // Sin applyTheme las variables --sjs2-* que usa survey-core.css quedan
-        // sin definir (los valores por defecto vienen en el JS del tema, no en
-        // el CSS) y el formulario se renderiza sin tamaños ni espaciado.
-        m.applyTheme(DefaultLight);
+        // `DefaultLight.cssVariables` viene vacío en survey-core v3: es un delta
+        // sobre BaseTheme, que es quien trae los ~1600 tokens --sjs2-* (tamaños,
+        // espaciado, colores) que consume survey-core.css. Sin el segundo
+        // argumento applyTheme no define ninguno y el CSS cae a sus fallbacks
+        // hardcodeados: todo chico y el verde de marca de SurveyJS suelto.
+        m.applyTheme(DefaultLight, BaseTheme);
         // Respuesta previa: editar es corregir lo enviado, no rellenar de nuevo.
         if (formulario.datos) m.data = formulario.datos;
         m.onComplete.add(async (sender, options) => {

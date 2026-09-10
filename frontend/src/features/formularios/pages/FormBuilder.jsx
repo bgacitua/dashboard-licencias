@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Model } from 'survey-core';
+import { BaseTheme, Model } from 'survey-core';
 import { DefaultLight } from 'survey-core/themes';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
@@ -133,9 +133,10 @@ export default function FormBuilder() {
         if (vista !== 'preview') return null;
         const m = new Model(definicion);
         m.locale = 'es';
-        // Mismo tema y locale que la página pública: si el preview se ve
+        // BaseTheme es obligatorio, ver FormPublico. Mismo tema y locale que la
+        // página pública: si el preview se ve
         // distinto a lo que recibe el trabajador, no sirve de preview.
-        m.applyTheme(DefaultLight);
+        m.applyTheme(DefaultLight, BaseTheme);
         return m;
     }, [vista, definicion]);
 
