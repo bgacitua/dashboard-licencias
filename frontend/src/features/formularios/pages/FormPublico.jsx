@@ -37,6 +37,12 @@ export default function FormPublico() {
         // argumento applyTheme no define ninguno y el CSS cae a sus fallbacks
         // hardcodeados: todo chico y el verde de marca de SurveyJS suelto.
         m.applyTheme(DefaultLight, BaseTheme);
+        // `fitToContainer` es true por defecto en survey-core v3: pone
+        // `.sd-root-modern--full-container`, que fija height 100% y overflow auto.
+        // Dentro de un contenedor sin altura el formulario deja de medir su
+        // contenido y reserva una caja de scroll vacía. Acá la página scrollea,
+        // no el formulario.
+        m.fitToContainer = false;
         // Respuesta previa: editar es corregir lo enviado, no rellenar de nuevo.
         if (formulario.datos) m.data = formulario.datos;
         m.onComplete.add(async (sender, options) => {
