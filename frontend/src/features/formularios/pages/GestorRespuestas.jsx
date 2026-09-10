@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import SidebarLayout from '../../../components/SidebarLayout';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { listarFormularios, listarRespuestas } from '../services/formularios';
 
@@ -78,8 +79,17 @@ export default function GestorRespuestas() {
     }, [respuestas]);
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="mx-auto max-w-6xl">
+        <SidebarLayout>
+            <div className="mx-auto max-w-6xl p-6">
+                <nav className="mb-8 flex items-center gap-2 text-sm text-app-muted">
+                    <Link to="/menu" className="flex items-center gap-1 hover:text-app-ink">
+                        <span className="material-symbols-outlined text-lg">home</span>
+                    </Link>
+                    <span>/</span>
+                    <Link to="/formularios/gestor" className="hover:text-app-ink">Formularios</Link>
+                    <span>/</span>
+                    <span className="font-medium text-app-ink">Respuestas</span>
+                </nav>
                 <header className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-xl font-semibold text-gray-900">Respuestas</h1>
@@ -235,6 +245,6 @@ export default function GestorRespuestas() {
                     </div>
                 )}
             </div>
-        </div>
+        </SidebarLayout>
     );
 }

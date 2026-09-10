@@ -9,14 +9,15 @@ const allMenuItems = [
   { icon: 'wallet',               label: 'Costos por Área',        path: '/costos',              module: 'costos' },
   { icon: 'notifications_active', label: 'Alertas de Contratos',   path: '/contract-alerts',     module: 'contract_alerts' },
   { icon: 'more_time',            label: 'Horas Extras',           path: '/dashboard/horas-extras', module: 'dashboard' },
-  { icon: 'person_search',        label: 'Selección de Personal',  path: '/seleccion',           module: 'seleccion',      requiredRole: ['rrhh', 'admin', 'seleccion'] },
-  { icon: 'payments',             label: 'Créditos',               path: '/creditos',            module: 'creditos',       requiredRole: ['rrhh', 'admin'] },
+  { icon: 'person_search',        label: 'Selección de Personal',  path: '/seleccion',           module: 'seleccion' },
+  { icon: 'payments',             label: 'Créditos',               path: '/creditos',            module: 'creditos' },
   { icon: 'fingerprint',          label: 'Asistencia',             path: '/asistencia',          module: 'asistencia' },
-  { icon: 'settings',             label: 'Administración',         path: '/admin',               module: 'admin',          requiredRole: ['admin'] },
+  { icon: 'assignment',           label: 'Formularios',            path: '/formularios/gestor',  module: 'formularios' },
+  { icon: 'settings',             label: 'Administración',         path: '/admin',               module: 'admin' },
 ];
 
 const Sidebar = ({ collapsed = false, onToggle }) => {
-  const { user, logout, hasModuleAccess, hasRole } = useAuth();
+  const { user, logout, hasModuleAccess } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -27,10 +28,10 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
     navigate('/login');
   };
 
-  const menuItems = allMenuItems.filter(item => {
-    if (item.requiredRole && !hasRole(item.requiredRole)) return false;
-    return hasModuleAccess(item.module);
-  });
+  // Los módulos del perfil son la única fuente de verdad, igual que en las
+  // rutas (ninguna usa `requiredRoles`). Un `requiredRole` acá solo escondía
+  // items que el usuario sí podía abrir escribiendo la URL.
+  const menuItems = allMenuItems.filter(item => hasModuleAccess(item.module));
 
   const initials = (user?.nombre_completo || 'U')
     .split(' ')

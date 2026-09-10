@@ -12,7 +12,6 @@ const menuItems = [
     path: '/dashboard',
     icon: 'sensor_door',
     moduleCode: 'dashboard',
-    requiredRole: ['rrhh', 'admin'],
   },
   {
     id: 'finiquitos',
@@ -21,7 +20,6 @@ const menuItems = [
     path: '/finiquitos',
     icon: 'description',
     moduleCode: 'finiquitos',
-    requiredRole: ['rrhh', 'admin'],
   },
   {
     id: 'calculadora',
@@ -30,7 +28,6 @@ const menuItems = [
     path: '/calculadora',
     icon: 'calculate',
     moduleCode: 'calculadora',
-    requiredRole: ['rrhh', 'admin'],
   },
   {
     id: 'costos',
@@ -39,7 +36,6 @@ const menuItems = [
     path: '/costos',
     icon: 'wallet',
     moduleCode: 'costos',
-    requiredRole: ['rrhh', 'admin'],
   },
   {
     id: 'contract_alerts',
@@ -48,7 +44,6 @@ const menuItems = [
     path: '/contract-alerts',
     icon: 'notifications_active',
     moduleCode: 'contract_alerts',
-    requiredRole: ['rrhh', 'admin'],
   },
   {
     id: 'seleccion',
@@ -57,7 +52,6 @@ const menuItems = [
     path: '/seleccion',
     icon: 'person_search',
     moduleCode: 'seleccion',
-    requiredRole: ['rrhh', 'admin', 'seleccion'],
   },
   {
     id: 'creditos',
@@ -66,7 +60,6 @@ const menuItems = [
     path: '/creditos',
     icon: 'payments',
     moduleCode: 'creditos',
-    requiredRole: ['rrhh', 'admin'],
   },
   {
     id: 'asistencia',
@@ -75,7 +68,6 @@ const menuItems = [
     path: '/asistencia',
     icon: 'schedule',
     moduleCode: 'asistencia',
-    requiredRole: ['rrhh', 'admin'],
   },
   {
     id: 'formularios',
@@ -84,7 +76,6 @@ const menuItems = [
     path: '/formularios/gestor',
     icon: 'assignment',
     moduleCode: 'formularios',
-    requiredRole: ['rrhh', 'admin'],
   },
   {
     id: 'admin',
@@ -93,7 +84,6 @@ const menuItems = [
     path: '/admin',
     icon: 'settings',
     moduleCode: 'admin',
-    requiredRole: ['admin'],
   },
 ];
 
@@ -148,13 +138,13 @@ const EstadoCorreo = () => {
 
 
 const MainMenu = () => {
-  const { user, hasModuleAccess, hasRole } = useAuth();
+  const { user, hasModuleAccess } = useAuth();
   const [offset, setOffset] = useState(0);
 
-  const visibleItems = menuItems.filter(item => {
-    if (item.requiredRole && !hasRole(item.requiredRole)) return false;
-    return hasModuleAccess(item.moduleCode);
-  });
+  // Mismo criterio que el Sidebar y que las rutas: decide el módulo del
+  // perfil, no el nombre del rol. Con `requiredRole` un perfil nuevo no veía
+  // la tarjeta aunque la ruta lo dejara entrar.
+  const visibleItems = menuItems.filter(item => hasModuleAccess(item.moduleCode));
 
   const maxOffset = Math.max(0, visibleItems.length - PAGE);
   const start = Math.min(offset, maxOffset);

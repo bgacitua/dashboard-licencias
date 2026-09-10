@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { BaseTheme, Model } from 'survey-core';
 import { DefaultLight } from 'survey-core/themes';
 import { Survey } from 'survey-react-ui';
@@ -143,7 +143,19 @@ export default function FormBuilder() {
     return (
         <div className="flex h-screen bg-gray-50">
             {/* Formularios existentes */}
+            {/* ponytail: el builder no va dentro de SidebarLayout como el resto
+                del módulo — ya tiene su propia columna de navegación y usa
+                h-screen, así que anidarlo daría dos sidebars y desbordaría el
+                alto. En su lugar lleva su propia salida al gestor. Si algún día
+                se quiere el sidebar acá, hay que pasar el layout a min-h-screen. */}
             <nav className="w-64 shrink-0 overflow-y-auto border-r border-gray-200 bg-white p-4">
+                <Link
+                    to="/formularios/gestor"
+                    className="mb-3 flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+                >
+                    <span className="material-symbols-outlined text-lg">arrow_back</span>
+                    Volver al gestor
+                </Link>
                 <button onClick={nuevo} className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">
                     Nuevo formulario
                 </button>
