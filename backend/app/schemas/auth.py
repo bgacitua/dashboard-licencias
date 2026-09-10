@@ -139,7 +139,11 @@ class UsuarioCreate(UsuarioBase):
     @field_validator('password')
     @classmethod
     def password_must_be_strong(cls, v):
-        return validate_password_strength(v)
+        # El formulario manda password="" cuando el admin elige invitar por
+        # email. Vacío = "sin contraseña", no una contraseña que valga validar:
+        # create_user le pone un placeholder aleatorio y el usuario elige la
+        # suya al canjear la invitación.
+        return validate_password_strength(v or None)
 
 
 class SetPasswordRequest(BaseModel):
@@ -170,7 +174,8 @@ class UsuarioUpdate(BaseModel):
     @field_validator('password')
     @classmethod
     def password_must_be_strong(cls, v):
-        return validate_password_strength(v)
+        # Vacío = sin cambios, igual que None. Ver UsuarioCreate.
+        return validate_password_strength(v or None)
 
 
 class UsuarioResponse(UsuarioBase):

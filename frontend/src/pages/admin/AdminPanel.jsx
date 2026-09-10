@@ -211,10 +211,7 @@ const AdminPanel = () => {
                 headers: authHeaders(),
                 body: JSON.stringify({ ...newUser, rol_id: parseInt(newUser.rol_id) }),
             });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.detail || 'Error al crear usuario');
-            }
+            if (!res.ok) throw new Error(await errorDetail(res, 'Error al crear usuario'));
             const created = await res.json().catch(() => ({}));
             setShowCreateModal(false);
             setNewUser({ username: '', password: '', nombre_completo: '', email: '', rol_id: '', send_invite: false });
