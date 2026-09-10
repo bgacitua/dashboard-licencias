@@ -37,9 +37,8 @@ def set_password_from_invite(
     db: Session = Depends(get_db)
 ):
     """Endpoint público: establece contraseña usando token de invitación."""
+    # La política de la contraseña la valida SetPasswordRequest (422 con el detalle).
     check_rate_limit(f"set-password:ip:{client_ip(request)}", max_attempts=10, window_seconds=900)
-    if len(body.password) < 6:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La contraseña debe tener al menos 6 caracteres.")
     auth_service = AuthService(db)
     ok = auth_service.set_password_from_invite(body.token, body.password)
     if not ok:

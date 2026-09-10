@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import AuthShell from '../components/AuthShell';
 
+// Espeja app/schemas/auth.py: 12+ caracteres con minúscula, mayúscula y número.
+const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}$/;
+const PASSWORD_HINT = 'La contraseña debe tener al menos 12 caracteres, una minúscula, una mayúscula y un número.';
+
 const SetPassword = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -20,7 +24,7 @@ const SetPassword = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setErrorMsg('');
-        if (password.length < 6) return setErrorMsg('La contraseña debe tener al menos 6 caracteres.');
+        if (!PASSWORD_RE.test(password)) return setErrorMsg(PASSWORD_HINT);
         if (password !== confirm) return setErrorMsg('Las contraseñas no coinciden.');
 
         setStatus('loading');
@@ -32,7 +36,11 @@ const SetPassword = () => {
             });
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
-                throw new Error(data.detail || 'Error al establecer contraseña.');
+                // El 422 de FastAPI trae `detail` como lista de errores, no como string.
+                const detail = Array.isArray(data.detail)
+                    ? data.detail.map(e => e.msg).join(' ')
+                    : data.detail;
+                throw new Error(detail || 'Error al establecer contraseña.');
             }
             setStatus('success');
         } catch (err) {
@@ -76,10 +84,10 @@ const SetPassword = () => {
                                 id="new-password"
                                 type={showPassword ? 'text' : 'password'}
                                 required
-                                minLength={6}
+                                minLength={12}
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
-                                placeholder="Mínimo 6 caracteres"
+                                placeholder="Mínimo 12 caracteres"
                                 autoComplete="new-password"
                                 className={`${inputClass} pl-3 pr-11`}
                             />
@@ -95,6 +103,7 @@ const SetPassword = () => {
                                 </span>
                             </button>
                         </div>
+                        <p className="text-[12px] text-app-muted">{PASSWORD_HINT}</p>
                     </div>
 
                     <div className="flex flex-col gap-1.5">
