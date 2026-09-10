@@ -123,7 +123,62 @@ class AuthService:
                 logger.error(f"Usuario {username} creado pero falló el envío de invitación: {e}")
 
         logger.info(f"Usuario creado: {username}")
+        # None = no había invitación que enviar (el admin fijó la contraseña).
+        invite_ok = (not user.invite_email_failed) if send_invite else None
+        # El usuario ya está creado: ningún problema del aviso puede deshacer eso.
+        try:
+            self._notify_user_created(user, invite_ok)
+        except Exception as e:
+            logger.warning(f"Falló el aviso de creación de {username}: {e}")
         return user
+
+    def _notify_user_created(self, user: Usuario, invite_ok: bool | None) -> None:
+        """Avisa al encargado que se creó una cuenta.
+
+        Lo llama create_user dentro de un try: una falla acá no puede deshacer
+        una cuenta que ya está en la base de datos.
+
+        El aviso de que la invitación no salió no puede depender del mismo canal
+        que acaba de fallar: si el correo tampoco sale, cae al webhook de n8n,
+        que llega por Telegram y no pasa por Graph.
+        """
+        destino = settings.USER_NOTIFY_EMAIL
+        if not destino:
+            return
+
+        from app.services.email_service import send_email_graph
+        from app.services.email_templates import user_created_email
+
+        html = user_created_email(
+            username=user.username,
+            email=user.email or "",
+            nombre=user.nombre_completo or "",
+            rol=user.rol.nombre if user.rol else "",
+            invite_ok=invite_ok,
+        )
+
+        try:
+            if send_email_graph(to=destino, cc="",
+                                subject=f"Cuenta creada: {user.username}",
+                                html_body=html):
+                return
+            motivo = "Graph rechazó el envío"
+        except Exception as e:               # AuthRequiredError incluida
+            motivo = str(e)
+
+        logger.warning(f"No se pudo avisar la creación de {user.username}: {motivo}")
+
+        pendiente = ("" if invite_ok is not False
+                     else " Su invitación tampoco salió: el usuario no puede entrar.")
+        from app.services.scheduler_service import _notify_n8n
+        _notify_n8n({
+            "tipo": "error_auth",
+            "timestamp": datetime.now().strftime("%d-%m-%Y %H:%M"),
+            "mensaje": (
+                f"⚠️ Se creó la cuenta {user.username} y no se pudo enviar el aviso por correo."
+                f"{pendiente} Revisar la sesión de Microsoft."
+            ),
+        })
 
     @staticmethod
     def _hash_invite_token(token: str) -> str:

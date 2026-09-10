@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # n8n usa un certificado self-signed: ruta al .pem para validarlo.
     ALERTS_N8N_CA_BUNDLE: str = ""       # ej: /app/data/n8n-cert.pem
 
+    # Casilla que recibe el aviso de cada usuario creado. Vacío = no se avisa.
+    USER_NOTIFY_EMAIL: str = "bgacitua@cramer.cl"
+
     # === Chequeo diario de la sesión de Microsoft ===
     # Refresca el token de Graph una vez al día y avisa a n8n si murió. Enciende
     # por defecto: no envía correos y sin webhook el aviso simplemente no sale,
