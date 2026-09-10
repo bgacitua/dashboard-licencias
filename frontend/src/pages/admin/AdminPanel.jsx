@@ -268,10 +268,7 @@ const AdminPanel = () => {
                 method: 'POST',
                 headers: authHeaders(),
             });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.detail || 'Error al reenviar la invitación');
-            }
+            if (!res.ok) throw new Error(await errorDetail(res, 'Error al reenviar la invitación'));
             fetchData();
         } catch (err) { setTabError(err.message); }
     };
