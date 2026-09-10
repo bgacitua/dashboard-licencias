@@ -162,15 +162,49 @@ def _run_followup_job() -> None:
         db.close()
 
 
+def _run_graph_token_check() -> None:
+    """Refresca el token de Microsoft y avisa a n8n el día que muere.
+
+    Dos cosas por el mismo request. Refrescar a diario mantiene vivo el refresh
+    token, que Azure caduca a los 90 días sin uso. Y lo que no se puede prevenir
+    —cambio de contraseña de la cuenta dueña, consentimiento revocado, política
+    MFA nueva— se avisa el mismo día, en vez de descubrirlo cuando un job de
+    correo falla o cuando alguien intenta invitar a un usuario.
+
+    El endpoint /contract-alerts/auth/status hace este mismo refresco, pero solo
+    cuando el encargado abre el menú. Esto no depende de que nadie entre.
+    """
+    from app.services.email_token_service import AuthRequiredError, get_access_token
+
+    try:
+        get_access_token()
+        logger.info("[GraphCheck] Sesión de Microsoft vigente.")
+    except AuthRequiredError as e:
+        msg = (
+            "⚠️ Sesión de Microsoft caída: re-autorizar en /contract-alerts. "
+            "Sin esto no salen alertas de contratos, horas extras ni invitaciones de usuario."
+        )
+        logger.error(f"[GraphCheck] {msg} ({e})")
+        _notify_n8n({"tipo": "error_auth", "timestamp": _ahora(), "mensaje": msg})
+    except Exception as e:
+        # Microsoft caído o sin red: no se puede afirmar que la sesión murió, y
+        # un falso aviso manda a reautorizar de más. Queda en el log.
+        logger.warning(f"[GraphCheck] No se pudo verificar la sesión: {e}")
+
+
 def start_scheduler() -> None:
     global _scheduler
 
+    # RETORNO y GRAPH_TOKEN_CHECK van en la lista: sin ellos, tener solo uno de
+    # esos dos encendido no levantaba scheduler y el job nunca corría.
     if not (
         settings.ALERTS_SCHEDULER_ENABLED
         or settings.OVERTIME_SCHEDULER_ENABLED
         or settings.LIQUIDOS_SCHEDULER_ENABLED
+        or settings.RETORNO_SCHEDULER_ENABLED
+        or settings.GRAPH_TOKEN_CHECK_ENABLED
     ):
-        logger.info("[Scheduler] Deshabilitado (ALERTS_SCHEDULER_ENABLED=False)")
+        logger.info("[Scheduler] Deshabilitado — ningún job está activo.")
         return
 
     tz = timezone(settings.ALERTS_SCHEDULER_TIMEZONE)
@@ -273,6 +307,23 @@ def start_scheduler() -> None:
             f"{settings.LIQUIDOS_SCAN_HORA_INICIO:02d}:00 y "
             f"{settings.LIQUIDOS_SCAN_HORA_FIN:02d}:59 "
             f"(solo actúa en ventana post-cierre)"
+        )
+
+    if settings.GRAPH_TOKEN_CHECK_ENABLED:
+        _scheduler.add_job(
+            _run_graph_token_check,
+            trigger=CronTrigger(
+                hour=settings.GRAPH_TOKEN_CHECK_HOUR,
+                minute=settings.GRAPH_TOKEN_CHECK_MINUTE,
+                timezone=tz,
+            ),
+            id="graph_token_check_job",
+            name="Chequeo diario de la sesión de Microsoft",
+            replace_existing=True,
+        )
+        logger.info(
+            f"[Scheduler] Job chequeo de sesión Microsoft registrado — "
+            f"{settings.GRAPH_TOKEN_CHECK_HOUR:02d}:{settings.GRAPH_TOKEN_CHECK_MINUTE:02d}"
         )
 
     _scheduler.start()
