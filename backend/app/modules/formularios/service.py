@@ -8,7 +8,7 @@ from app.core.config import settings as app_settings
 from app.core.logging_config import logger
 
 from . import repository as repo
-from .config import FormulariosSettings
+from .config import FormulariosSettings, settings as form_settings
 
 def enviar_a_n8n(url: str, payload: dict) -> bool:
     """POST al webhook del formulario. Devuelve si n8n lo recibió.
@@ -16,14 +16,26 @@ def enviar_a_n8n(url: str, payload: dict) -> bool:
     Mismo manejo de certificado que app.services.scheduler_service._notify_n8n
     (n8n tiene cert self-signed y se valida contra su .pem), pero acá el
     resultado se guarda en form_respuestas.n8n_ok para poder reprocesar.
+
+    El Bearer va como Header Auth del nodo Webhook. Si FORMULARIOS_N8N_TOKEN no
+    está configurado se manda sin header y se avisa: el webhook queda abierto a
+    internet, que es aceptable solo mientras se testea.
     """
     if not url:
         return False
     try:
         import httpx
 
+        token = form_settings.n8n_token
+        if not token:
+            logger.warning(
+                "[Formularios] FORMULARIOS_N8N_TOKEN sin configurar: "
+                "el webhook se llama sin autenticación"
+            )
+        headers = {"Authorization": f"Bearer {token}"} if token else None
+
         verify = app_settings.ALERTS_N8N_CA_BUNDLE or True
-        resp = httpx.post(url, json=payload, timeout=10, verify=verify)
+        resp = httpx.post(url, json=payload, timeout=10, verify=verify, headers=headers)
         return resp.status_code < 400
     except Exception as e:
         logger.warning(f"[Formularios] No se pudo notificar a n8n: {e}")

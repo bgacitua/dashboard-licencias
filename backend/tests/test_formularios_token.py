@@ -39,6 +39,46 @@ def test_limpiar_rut():
     print("ok  limpiar_rut")
 
 
+def test_webhook_bearer():
+    """El header va cuando hay token y no va cuando no lo hay.
+
+    Es la única barrera del webhook, y el modo sin token es silencioso desde
+    afuera (el POST sale igual), así que se afirman los dos casos.
+    """
+    import httpx
+
+    from app.modules.formularios import service
+
+    llamadas = []
+
+    class RespFalsa:
+        status_code = 200
+
+    def post_falso(url, **kwargs):
+        llamadas.append(kwargs)
+        return RespFalsa()
+
+    original_post, original_token = httpx.post, service.form_settings.n8n_token
+    try:
+        httpx.post = post_falso
+
+        service.form_settings.n8n_token = "s3creto"
+        assert service.enviar_a_n8n("https://n8n.cramer.cl/w", {"a": 1})
+        assert llamadas[-1]["headers"] == {"Authorization": "Bearer s3creto"}, llamadas[-1]
+
+        service.form_settings.n8n_token = ""
+        assert service.enviar_a_n8n("https://n8n.cramer.cl/w", {"a": 1})
+        assert llamadas[-1]["headers"] is None, llamadas[-1]
+
+        # Sin URL no se llama a nadie.
+        assert not service.enviar_a_n8n("", {"a": 1})
+        assert len(llamadas) == 2
+    finally:
+        httpx.post = original_post
+        service.form_settings.n8n_token = original_token
+    print("ok  webhook bearer")
+
+
 def test_token_reutilizable():
     """Vale hasta que vence, no hasta el primer uso.
 
@@ -127,5 +167,6 @@ def test_token_reutilizable():
 if __name__ == "__main__":
     test_webhook_allowlist()
     test_limpiar_rut()
+    test_webhook_bearer()
     test_token_reutilizable()
     print("todo ok")

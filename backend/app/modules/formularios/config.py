@@ -23,6 +23,10 @@ class FormulariosSettings(BaseSettings):
     # siguiente, y hasta que vence puede volver a corregir lo que respondió.
     envio_ttl_horas: int = 72
 
+    # Bearer token que se manda al webhook de n8n. Sin esto el webhook tiene
+    # que quedar abierto a internet, porque la URL es lo único que lo protege.
+    n8n_token: str = ""
+
     # Hosts permitidos para n8n_webhook_url. La URL la escribe un admin y el
     # backend la llama: sin allowlist es un SSRF desde el panel.
     n8n_hosts: str = ""

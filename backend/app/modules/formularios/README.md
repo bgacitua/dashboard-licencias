@@ -52,7 +52,13 @@ importa, así que la rama es segura de mergear a `main` antes de estar terminada
 FORMULARIOS_ENABLED=true
 FORMULARIOS_N8N_HOSTS=n8n.cramer.cl
 FORMULARIOS_ENVIO_TTL_HORAS=72
+FORMULARIOS_N8N_TOKEN=<secreto compartido con el nodo Webhook>
 ```
+
+`FORMULARIOS_N8N_TOKEN` viaja como `Authorization: Bearer <token>` y se
+configura del otro lado como Header Auth del nodo Webhook. Si queda vacío el
+POST sale sin header y se loguea un warning: el webhook tiene que quedar
+abierto a internet, aceptable solo mientras se testea.
 
 `FORMULARIOS_N8N_HOSTS` no es opcional: la URL del webhook la escribe un admin
 en el panel y el backend la llama después. Sin allowlist, el panel es un SSRF
