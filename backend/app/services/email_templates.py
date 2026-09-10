@@ -206,6 +206,37 @@ def invite_email(display_name: str, invite_url: str, min_chars: int,
     )
 
 
+def user_created_email(username: str, email: str, nombre: str, rol: str,
+                       invite_ok: bool | None) -> str:
+    """Aviso al encargado de que se creó una cuenta.
+
+    `invite_ok`: True invitación enviada, False falló el correo, None el admin
+    fijó la contraseña y no había invitación que enviar.
+    """
+    filas = [("Usuario", username), ("Nombre", nombre or "-"),
+             ("Correo", email or "-"), ("Rol", rol or "-")]
+    datos = "".join(
+        f'<p style="{_F};margin:0 0 8px;font-size:14px;line-height:22px;'
+        f'color:{C.TEXT}"><strong>{etiqueta}:</strong> {valor}</p>'
+        for etiqueta, valor in filas
+    )
+
+    if invite_ok is False:
+        estado = callout(
+            "La cuenta quedó creada, pero <strong>el correo de invitación no salió</strong>. "
+            "El usuario no puede entrar hasta que se reenvíe desde el panel de administración.",
+            "warn",
+        )
+    elif invite_ok is True:
+        estado = callout("Invitación enviada. El enlace vence en 48 horas.")
+    else:
+        estado = callout("La contraseña la fijó el administrador: no se envió invitación.")
+
+    cuerpo = f'{panel(datos)}{estado}'
+    return email_shell("Cuenta creada", cuerpo, footer=FOOTER_APP,
+                       preview=f"Se creó la cuenta {username}.")
+
+
 def check_outlook_safe(html: str) -> None:
     """Reglas que el motor de Word (Outlook escritorio) no perdona.
 
@@ -249,4 +280,10 @@ if __name__ == "__main__":
     assert "Plataforma de Personas" in invitacion and "HR Portal" not in invitacion
     assert "12 caracteres" in invitacion, "requisitos de la contraseña"
     check_outlook_safe(invitacion)
+
+    for estado in (True, False, None):
+        aviso = user_created_email("jperez", "jperez@cramer.cl", "Juan Pérez", "rrhh", estado)
+        assert "jperez" in aviso and FOOTER_APP in aviso
+        check_outlook_safe(aviso)
+    assert "no salió" in user_created_email("u", "e", "n", "r", False)
     print("ok")
