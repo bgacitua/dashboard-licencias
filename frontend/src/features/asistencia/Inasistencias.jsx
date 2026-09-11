@@ -10,6 +10,7 @@ import {
   claveAsignacion,
   claveMarcaje,
   claveMorpho,
+  clavesSincronizadas,
   construirMarcas,
   estadoIngreso,
   indexar,
@@ -85,6 +86,7 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
 
   const [seleccion, setSeleccion] = useState({})
   const [sincronizadas, setSincronizadas] = useState(new Set())
+  const [refrescando, setRefrescando] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [jefatura, setJefatura] = useState({ respuestas: {}, notificadas: new Set() })
 
@@ -129,6 +131,18 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
   useEffect(() => {
     cargarJefatura()
   }, [cargarJefatura])
+
+  // El estado de sincronización vive en el historial del backend: al recargar
+  // la página las filas ya corregidas siguen marcadas.
+  const cargarSincronizadas = useCallback(() => {
+    AsistenciaService.getSincronizadas()
+      .then((filas) => setSincronizadas(clavesSincronizadas(filas)))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    cargarSincronizadas()
+  }, [cargarSincronizadas])
 
   const turnos = useVista(rows.length ? 'asignacion-turnos' : null, { ...rango, obraId })
   const marcajes = useVista(rows.length ? 'marcajes' : null, { ...rango, obraId })
@@ -367,10 +381,24 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
       if (!r.dry_run) {
         setSincronizadas((s) => new Set([...s, ...seleccionadas.map(claveMorpho)]))
         setSeleccion({})
+        cargarSincronizadas()
       }
       return r
     } finally {
       setEnviando(false)
+    }
+  }
+
+  // Descarta el caché del backend: las inasistencias ya justificadas o
+  // resueltas desaparecen del listado sin esperar a que expire el TTL.
+  const refrescar = async () => {
+    setRefrescando(true)
+    try {
+      await api.recargar(true)
+      cargarSincronizadas()
+      cargarJefatura()
+    } finally {
+      setRefrescando(false)
     }
   }
 
@@ -390,6 +418,10 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
         <button onClick={alternarImportador} className={`${boton} ${importador ? 'bg-app-surface font-medium' : ''}`}
           title="Trabajar con archivos en vez de consultar la API">
           {importador ? '✓ Modo importador' : 'Modo importador'}
+        </button>
+        <button onClick={refrescar} disabled={refrescando || importador} className={boton}
+          title="Vuelve a pedirle las inasistencias a Buk ignorando el caché del servidor">
+          {refrescando ? 'Actualizando…' : '↻ Actualizar datos'}
         </button>
         <button onClick={exportar} disabled={!rows.length} className={boton}>
           Exportar CSV

@@ -228,3 +228,29 @@ if (globalThis.process?.argv?.[1]?.endsWith('marcas.js')) {
   console.log('ok')
 }
 
+
+/**
+ * Claves `rut|yyyy-mm-dd` de las marcas ya registradas en Buk.
+ *
+ * El historial guarda la fecha como se mandó a Buk (d/M/yyyy). Para una salida
+ * de turno nocturno esa fecha es el día siguiente al de la inasistencia, así
+ * que se agrega también el día anterior.
+ * ponytail: la clave extra puede marcar de más si el mismo RUT tiene una
+ * inasistencia justo el día previo; guardar la clave original en la tabla si
+ * llega a molestar.
+ */
+export function clavesSincronizadas(filas) {
+  const s = new Set()
+  for (const { rut, fecha, sentido } of filas) {
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(fecha ?? '').trim())
+    if (!m) continue
+    const [, d, mes, a] = m
+    const k = limpiarRut(rut)
+    s.add(`${k}|${a}-${pad(mes, 2)}-${pad(d, 2)}`)
+    if (sentido === 'salida') {
+      const previo = new Date(Number(a), Number(mes) - 1, Number(d) - 1)
+      s.add(`${k}|${previo.getFullYear()}-${pad(previo.getMonth() + 1, 2)}-${pad(previo.getDate(), 2)}`)
+    }
+  }
+  return s
+}

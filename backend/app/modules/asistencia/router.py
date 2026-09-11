@@ -111,10 +111,16 @@ def _endpoint_por_obra(nombre: str, url_attr: str):
         desde: str | None = Query(None),
         hasta: str | None = Query(None),
         obra_id: str | None = Query(None),
+        refrescar: bool = Query(False, description="Descarta el caché y vuelve a pedirle a Buk"),
     ) -> DataResponse:
         exigir_configurado(settings)
+        url = getattr(settings, url_attr)
+        if refrescar:
+            # Las inasistencias ya resueltas o justificadas desaparecen en Buk,
+            # pero el caché de 15 min las sigue mostrando hasta que expira.
+            get_client().invalidate(url)
         params = _rango_params(desde, hasta)
-        rows = await get_por_obra(getattr(settings, url_attr), params, obra_id, settings)
+        rows = await get_por_obra(url, params, obra_id, settings)
         # Las columnas se calculan antes de filtrar: si no queda ninguna fila,
         # la tabla del frontend igual sabe qué encabezados dibujar.
         cols = columnas_crudas(rows)
@@ -262,6 +268,16 @@ def ver_historial(
     hasta: str | None = Query(None, description="yyyy-mm-dd"),
 ) -> list[dict]:
     return historial.consultar(db, desde, hasta)
+
+
+@router.get("/marcas-sincronizadas")
+def marcas_sincronizadas(db: Db) -> list[dict]:
+    """Marcas que sí entraron a Buk, para pintar la columna Sincronización.
+
+    El estado vive en la tabla y no en el navegador: al recargar la página las
+    filas ya corregidas tienen que seguir marcadas.
+    """
+    return historial.sincronizadas(db)
 
 
 @router.get("/operaciones")
