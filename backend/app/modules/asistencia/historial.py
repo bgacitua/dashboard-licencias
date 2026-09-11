@@ -166,3 +166,17 @@ def actualizar_registros(db: Session, op_id: int, updates: list[dict]) -> None:
         ],
     )
     db.commit()
+
+
+def sincronizadas(db: Session) -> list[dict]:
+    """Marcas enviadas con éxito: `rut` (con DV) y `fecha` d/M/yyyy, sin repetir.
+
+    ponytail: sin filtro de fecha. Son unos pocos miles de filas y el frontend
+    solo necesita pertenencia; si la tabla crece, acotar por `fecha`.
+    """
+    sql = text("""
+        SELECT DISTINCT rut, fecha, sentido
+        FROM app.asistencia_historial
+        WHERE ok = true
+    """)
+    return [dict(r) for r in db.execute(sql).mappings()]
