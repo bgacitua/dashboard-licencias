@@ -375,7 +375,7 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
     try {
       const r = await AsistenciaService.registrarMarcas(
         obraId,
-        marcas.map(({ rut, i, fecha, hora, mov }) => ({ rut, i, fecha, hora, mov }))
+        marcas.map(({ rut, i, fecha, hora, mov, key }) => ({ rut, i, fecha, hora, mov, clave: key }))
       )
       // En dry-run nada se registró: no marcamos las filas como sincronizadas.
       if (!r.dry_run) {

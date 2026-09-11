@@ -27,8 +27,8 @@ def _ahora() -> str:
 
 _INSERT_MARCA = text("""
     INSERT INTO app.asistencia_historial
-        (ts, obra_id, rut, sentido, fecha, hora, mov, ok, detail)
-    VALUES (:ts, :obra_id, :rut, :sentido, :fecha, :hora, :mov, :ok, :detail)
+        (ts, obra_id, rut, sentido, fecha, hora, mov, ok, detail, clave)
+    VALUES (:ts, :obra_id, :rut, :sentido, :fecha, :hora, :mov, :ok, :detail, :clave)
 """)
 
 
@@ -42,6 +42,7 @@ def registrar(db: Session, obra_id: str, marcas: list[dict]) -> None:
             "ts": ts, "obra_id": obra_id, "rut": m["rut"], "sentido": m["sentido"],
             "fecha": m["fecha"], "hora": m["hora"], "mov": m.get("mov", ""),
             "ok": bool(m["ok"]), "detail": m.get("detail", ""),
+            "clave": m.get("clave", ""),
         }
         for m in marcas
     ])
@@ -169,13 +170,16 @@ def actualizar_registros(db: Session, op_id: int, updates: list[dict]) -> None:
 
 
 def sincronizadas(db: Session) -> list[dict]:
-    """Marcas enviadas con éxito: `rut` (con DV) y `fecha` d/M/yyyy, sin repetir.
+    """Claves `rut|yyyy-mm-dd` de las inasistencias ya corregidas en Buk.
+
+    `clave` está vacía en las filas anteriores a que se guardara; para esas el
+    frontend la deduce de `rut` y `fecha`, que solo es exacto en las entradas.
 
     ponytail: sin filtro de fecha. Son unos pocos miles de filas y el frontend
     solo necesita pertenencia; si la tabla crece, acotar por `fecha`.
     """
     sql = text("""
-        SELECT DISTINCT rut, fecha, sentido
+        SELECT DISTINCT clave, rut, fecha, sentido
         FROM app.asistencia_historial
         WHERE ok = true
     """)
