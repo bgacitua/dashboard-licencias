@@ -39,6 +39,7 @@ const Seleccion = lazy(() => import('./pages/Seleccion'));
 const HorasExtras = lazy(() => import('./pages/HorasExtras'));
 const Creditos = lazy(() => import('./pages/Creditos'));
 const Asistencia = lazy(() => import('./pages/Asistencia'));
+const AsistenciaReportes = lazy(() => import('./pages/AsistenciaReportes'));
 const FormPublico = lazy(() => import('./features/formularios/pages/FormPublico'));
 const FormBuilder = lazy(() => import('./features/formularios/pages/FormBuilder'));
 const GestorFormularios = lazy(() => import('./features/formularios/pages/GestorFormularios'));
@@ -239,6 +240,14 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="asistencia">
                   <Asistencia />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/asistencia/reportes"
+              element={
+                <ProtectedRoute requiredModule="asistencia">
+                  <AsistenciaReportes />
                 </ProtectedRoute>
               }
             />

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import BonosMarcaje from './BonosMarcaje'
 import HheeAlertas from './HheeAlertas'
 import HheeAprobadas from './HheeAprobadas'
 import Reportes from './Reportes'
@@ -14,6 +15,7 @@ import Reportes from './Reportes'
  */
 const SUB = [
   { id: 'bono', label: 'Bono de Asistencia', Componente: Reportes },
+  { id: 'bonos-marcaje', label: 'Bonos de Marcaje', Componente: BonosMarcaje },
   { id: 'hhee', label: 'Horas Extras', Componente: HheeAlertas },
   { id: 'hhee-aprobadas', label: 'HHEE Aprobadas', Componente: HheeAprobadas },
 ]

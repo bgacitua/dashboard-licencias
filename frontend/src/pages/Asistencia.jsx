@@ -3,14 +3,12 @@ import SidebarLayout from '../components/SidebarLayout'
 import TablaDinamica from '../features/asistencia/TablaDinamica'
 import { descargarCsv } from '../features/asistencia/exportar'
 import CorreccionMarcas from '../features/asistencia/CorreccionMarcas'
-import DescargasBonos from '../features/asistencia/DescargasBonos'
 import Historial from '../features/asistencia/Historial'
-import ReportesPanel from '../features/asistencia/ReportesPanel'
 import { useObras, useVista } from '../features/asistencia/useVista'
 
 // Orden de uso: se mira lo que pasó (Marcajes), se corrige, y recién después
-// vienen las vistas de consulta y los reportes. Auditoría queda al final porque
-// se abre cuando algo no cuadra, no todos los días.
+// vienen las vistas de consulta. Auditoría queda al final porque se abre cuando
+// algo no cuadra, no todos los días. Los reportes viven en /asistencia/reportes.
 //
 // Las vistas comunes comparten la forma de respuesta del backend; lo único que
 // cambia es el endpoint y si usan el rango de fechas.
@@ -18,10 +16,6 @@ const VISTAS = [
   { id: 'marcajes', label: 'Marcajes', rango: true },
   { id: 'correccion', label: 'Corrección de Marcas', rango: true, propia: true },
   { id: 'recinto-trabajador', label: 'Recinto por Trabajador', rango: false },
-  // Reportes trae sus propios filtros (quincenas + archivo de atrasos; semana y
-  // recinto en Horas Extras), así que no usa el rango ni la obra de la barra
-  // común. Las sub-pestañas viven en ReportesPanel.
-  { id: 'reportes', label: 'Reportes', propio: true },
   { id: 'historial', label: 'Historial', rango: true, propia: true },
   { id: 'auditoria', label: 'Auditoría de Marcas', rango: true },
 ]
@@ -44,9 +38,9 @@ const Asistencia = () => {
   // Las vistas sin rango ignoran las fechas: no las mandamos para no romper su
   // clave de caché en el backend.
   const { rows, columns, descartados, loading, error, recargar } = useVista(
-    // Reportes no consulta las vistas comunes; el hook igual corre (no puede ser
-    // condicional) pero sin vista no pide nada.
-    actual.propio || actual.propia ? null : vista,
+    // Las vistas propias no consultan las vistas comunes; el hook igual corre
+    // (no puede ser condicional) pero sin vista no pide nada.
+    actual.propia ? null : vista,
     actual.rango ? { desde, hasta, obraId } : { obraId }
   )
 
@@ -83,10 +77,6 @@ const Asistencia = () => {
             ))}
           </div>
 
-          {actual.propio ? (
-            <ReportesPanel />
-          ) : (
-          <>
           <div className="flex flex-wrap items-end gap-3 mb-6">
             {actual.rango && (
               <>
@@ -148,14 +138,6 @@ const Asistencia = () => {
             )}
           </div>
 
-          {/* Los bonos se calculan sobre las filas de Marcajes que ya están en
-              memoria; por eso viven acá y no en su propia pestaña. */}
-          {vista === 'marcajes' && (
-            <div className="mb-6">
-              <DescargasBonos rows={rows} desde={desde} hasta={hasta} />
-            </div>
-          )}
-
           {vista === 'correccion' ? (
             <CorreccionMarcas desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
           ) : vista === 'historial' ? (
@@ -168,8 +150,6 @@ const Asistencia = () => {
             loading={loading}
             error={error}
           />
-          )}
-          </>
           )}
         </div>
       </main>
