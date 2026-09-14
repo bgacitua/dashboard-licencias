@@ -93,9 +93,9 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
 
         {menuItems.map((item) => {
           const active = isActive(item.path);
-          // Los hijos se muestran solo cuando ya estás dentro del módulo: el
-          // menú colapsado no tiene ancho para ellos.
-          const abierto = !collapsed && item.children
+          // Los hijos se despliegan al entrar al módulo; el menú colapsado no
+          // tiene ancho para ellos. Vale para cualquier item con `children`.
+          const abierto = !collapsed && !!item.children
             && location.pathname.startsWith(item.path);
           return (
             <React.Fragment key={item.label}>
@@ -103,7 +103,7 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
               to={item.path}
               title={collapsed ? item.label : undefined}
               className={`
-                group flex items-center gap-3 rounded-lg text-[14px] transition-colors
+                group flex items-center gap-3 rounded-lg text-[14px] transition-colors duration-150
                 ${collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5'}
                 ${active
                   ? 'bg-app-brand font-semibold text-white'
@@ -114,22 +114,53 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
                 {item.icon}
               </span>
               {!collapsed && <span className="truncate">{item.label}</span>}
+              {!collapsed && item.children && (
+                <span
+                  className={`
+                    material-symbols-outlined ml-auto flex-shrink-0 text-[18px]
+                    transition-transform duration-200 ease-out
+                    ${abierto ? 'rotate-90' : ''}
+                    ${active ? 'text-white' : 'text-app-outline'}
+                  `}
+                >
+                  chevron_right
+                </span>
+              )}
             </Link>
 
-            {abierto && item.children.map((sub) => (
-              <Link
-                key={sub.path}
-                to={sub.path}
+            {/* Despliegue animado sin medir alturas: la fila del grid va de 0fr
+                a 1fr y el hijo con overflow-hidden se recorta solo. `invisible`
+                saca los enlaces del tab order mientras está cerrado. */}
+            {item.children && (
+              <div
                 className={`
-                  ml-6 flex items-center rounded-lg px-3 py-2 text-[13px] transition-colors
-                  ${isActive(sub.path)
-                    ? 'bg-app-surface font-semibold text-app-ink'
-                    : 'text-app-muted hover:bg-app-surface hover:text-app-ink'}
+                  grid transition-[grid-template-rows,opacity] duration-200 ease-out
+                  ${abierto ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 invisible'}
                 `}
+                aria-hidden={!abierto}
               >
-                <span className="truncate">{sub.label}</span>
-              </Link>
-            ))}
+                <div className="overflow-hidden">
+                  <div className="space-y-1 py-1">
+                    {item.children.map((sub) => (
+                      <Link
+                        key={sub.path}
+                        to={sub.path}
+                        tabIndex={abierto ? undefined : -1}
+                        className={`
+                          ml-6 flex items-center rounded-lg px-3 py-2 text-[13px]
+                          transition-colors duration-150
+                          ${isActive(sub.path)
+                            ? 'bg-app-surface font-semibold text-app-ink'
+                            : 'text-app-muted hover:bg-app-surface hover:text-app-ink'}
+                        `}
+                      >
+                        <span className="truncate">{sub.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
             </React.Fragment>
           );
         })}
