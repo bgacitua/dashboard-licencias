@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,6 +24,18 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
   const { user, logout, hasModuleAccess } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Qué submenús abrió o cerró el usuario a mano, por label. Lo que no tocó no
+  // queda acá: cae al default de estar dentro de la ruta del módulo, así que
+  // entrar a Asistencia lo sigue desplegando solo.
+  const [toggles, setToggles] = useState({});
+
+  const alternar = (label) => setToggles((prev) => ({
+    ...prev,
+    [label]: !(prev[label] ?? location.pathname.startsWith(
+      allMenuItems.find((i) => i.label === label).path
+    )),
+  }));
 
   const isActive = (path) => location.pathname === path;
 
@@ -93,46 +105,69 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
 
         {menuItems.map((item) => {
           const active = isActive(item.path);
-          // Los hijos se despliegan al entrar al módulo; el menú colapsado no
-          // tiene ancho para ellos. Vale para cualquier item con `children`.
+          // Por defecto se despliega al entrar al módulo, pero el chevron manda:
+          // si el usuario lo tocó, gana su decisión. El menú colapsado no tiene
+          // ancho para los hijos. Vale para cualquier item con `children`.
           const abierto = !collapsed && !!item.children
-            && location.pathname.startsWith(item.path);
+            && (toggles[item.label] ?? location.pathname.startsWith(item.path));
+          const idSub = `submenu-${item.module}`;
           return (
             <React.Fragment key={item.label}>
-            <Link
-              to={item.path}
-              title={collapsed ? item.label : undefined}
-              className={`
-                group flex items-center gap-3 rounded-lg text-[14px] transition-colors duration-150
-                ${collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5'}
-                ${active
-                  ? 'bg-app-brand font-semibold text-white'
-                  : 'text-app-muted hover:bg-app-surface hover:text-app-ink'}
-              `}
-            >
-              <span className={`material-symbols-outlined flex-shrink-0 text-[20px] ${active ? 'text-white' : 'text-app-outline group-hover:text-app-ink'}`}>
-                {item.icon}
-              </span>
-              {!collapsed && <span className="truncate">{item.label}</span>}
+            {/* El chevron es hermano del enlace, no va adentro: un <button>
+                dentro de un <a> es HTML inválido y rompe el foco. */}
+            <div className="relative">
+              <Link
+                to={item.path}
+                title={collapsed ? item.label : undefined}
+                className={`
+                  group flex items-center gap-3 rounded-lg text-[14px] transition-colors duration-150
+                  ${collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5'}
+                  ${!collapsed && item.children ? 'pr-10' : ''}
+                  ${active
+                    ? 'bg-app-brand font-semibold text-white'
+                    : 'text-app-muted hover:bg-app-surface hover:text-app-ink'}
+                `}
+              >
+                <span className={`material-symbols-outlined flex-shrink-0 text-[20px] ${active ? 'text-white' : 'text-app-outline group-hover:text-app-ink'}`}>
+                  {item.icon}
+                </span>
+                {!collapsed && <span className="truncate">{item.label}</span>}
+              </Link>
+
               {!collapsed && item.children && (
-                <span
+                <button
+                  type="button"
+                  onClick={() => alternar(item.label)}
+                  aria-expanded={abierto}
+                  aria-controls={idSub}
+                  aria-label={`${abierto ? 'Ocultar' : 'Mostrar'} submódulos de ${item.label}`}
                   className={`
-                    material-symbols-outlined ml-auto flex-shrink-0 text-[18px]
-                    transition-transform duration-200 ease-out
-                    ${abierto ? 'rotate-90' : ''}
-                    ${active ? 'text-white' : 'text-app-outline'}
+                    absolute right-1 top-1/2 -translate-y-1/2 flex h-7 w-7
+                    items-center justify-center rounded-md transition-colors duration-150
+                    ${active
+                      ? 'text-white hover:bg-white/20'
+                      : 'text-app-outline hover:bg-app-line hover:text-app-ink'}
                   `}
                 >
-                  chevron_right
-                </span>
+                  <span
+                    className={`
+                      material-symbols-outlined text-[18px]
+                      transition-transform duration-200 ease-out
+                      ${abierto ? 'rotate-90' : ''}
+                    `}
+                  >
+                    chevron_right
+                  </span>
+                </button>
               )}
-            </Link>
+            </div>
 
             {/* Despliegue animado sin medir alturas: la fila del grid va de 0fr
                 a 1fr y el hijo con overflow-hidden se recorta solo. `invisible`
                 saca los enlaces del tab order mientras está cerrado. */}
             {item.children && (
               <div
+                id={idSub}
                 className={`
                   grid transition-[grid-template-rows,opacity] duration-200 ease-out
                   ${abierto ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 invisible'}
