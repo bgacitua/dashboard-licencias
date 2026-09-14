@@ -54,9 +54,9 @@ const BonosMarcaje = () => {
           </select>
         </label>
         <button
-          onClick={recargar}
+          onClick={() => recargar(true)}
           className="p-2 text-app-outline hover:text-app-brand hover:bg-app-surface rounded-full transition-colors"
-          title="Actualizar datos"
+          title="Actualizar datos (vuelve a pedirlos a Buk)"
         >
           <span className="material-symbols-outlined">refresh</span>
         </button>

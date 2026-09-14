@@ -92,7 +92,7 @@ async def registrar(
         # registro de qué se escribió. Se guarda incluso lo que falló.
         historial.registrar(db, obra_id, [
             {"rut": r.rut, "sentido": r.i, "fecha": r.fecha, "hora": m.hora,
-             "mov": m.mov, "ok": r.ok, "detail": r.detail}
+             "mov": m.mov, "ok": r.ok, "detail": r.detail, "clave": m.clave}
             for m, r in zip(marcas, resultados)
         ])
         if op_id is not None:

@@ -20,7 +20,8 @@ export function useVista(vista, rango) {
   // contador el error de la vieja pisa los datos de la nueva.
   const ultima = useRef(0)
 
-  const cargar = useCallback(async () => {
+  // `refrescar` va al backend como flag para que descarte su caché de 15 min.
+  const cargar = useCallback(async (refrescar = false) => {
     if (!vista) {
       setLoading(false)
       return
@@ -29,7 +30,7 @@ export function useVista(vista, rango) {
     setLoading(true)
     setError(null)
     try {
-      const res = await AsistenciaService.getVista(vista, { desde, hasta, obraId })
+      const res = await AsistenciaService.getVista(vista, { desde, hasta, obraId, refrescar })
       if (id !== ultima.current) return
       setData(res)
     } catch (e) {

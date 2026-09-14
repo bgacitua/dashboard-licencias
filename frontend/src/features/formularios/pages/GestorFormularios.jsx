@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import SidebarLayout from '../../../components/SidebarLayout';
+import { Link, useNavigate } from 'react-router-dom';
 
 import {
     duplicarFormulario,
@@ -65,8 +66,16 @@ export default function GestorFormularios() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="mx-auto max-w-6xl">
+        <SidebarLayout>
+            <div className="mx-auto max-w-6xl p-6">
+                <nav className="mb-8 flex items-center gap-2 text-sm text-app-muted">
+                    <Link to="/menu" className="flex items-center gap-1 hover:text-app-ink">
+                        <span className="material-symbols-outlined text-lg">home</span>
+                    </Link>
+                    <span>/</span>
+                    <Link to="/formularios/gestor" className="hover:text-app-ink">Formularios</Link>
+                    
+                </nav>
                 <header className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-xl font-semibold text-gray-900">Formularios</h1>
@@ -191,6 +200,6 @@ export default function GestorFormularios() {
                     {cargando && <p className="px-4 py-10 text-center text-sm text-gray-500">Cargando…</p>}
                 </div>
             </div>
-        </div>
+        </SidebarLayout>
     );
 }

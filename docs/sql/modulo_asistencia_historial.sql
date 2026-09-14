@@ -15,8 +15,16 @@ CREATE TABLE IF NOT EXISTS app.asistencia_historial (
     hora    TEXT NOT NULL,          -- H:m:s, ídem
     mov     TEXT NOT NULL DEFAULT '',
     ok      BOOLEAN NOT NULL,
-    detail  TEXT NOT NULL DEFAULT ''
+    detail  TEXT NOT NULL DEFAULT '',
+    -- Clave `rut|yyyy-mm-dd` de la inasistencia que originó la marca. No se
+    -- puede deducir de `fecha`: la salida de un turno nocturno se manda con el
+    -- día siguiente. Vacía en las filas previas a esta columna.
+    clave   TEXT NOT NULL DEFAULT ''
 );
+
+-- Para bases que ya tenían la tabla.
+ALTER TABLE app.asistencia_historial
+    ADD COLUMN IF NOT EXISTS clave TEXT NOT NULL DEFAULT '';
 
 -- La vista de historial siempre filtra por fecha de envío.
 CREATE INDEX IF NOT EXISTS asistencia_historial_ts_idx

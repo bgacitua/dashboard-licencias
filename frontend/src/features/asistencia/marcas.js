@@ -228,3 +228,26 @@ if (globalThis.process?.argv?.[1]?.endsWith('marcas.js')) {
   console.log('ok')
 }
 
+
+/**
+ * Claves `rut|yyyy-mm-dd` de las inasistencias ya corregidas en Buk.
+ *
+ * La clave viaja en el historial porque no se puede reconstruir desde la fecha
+ * enviada: la salida de un turno nocturno se manda con el día siguiente. Las
+ * filas viejas no la tienen, así que ahí se deduce de rut + fecha, y solo para
+ * las entradas: deducirla de una salida marcaría el día equivocado.
+ */
+export function clavesSincronizadas(filas) {
+  const s = new Set()
+  for (const { clave, rut, fecha, sentido } of filas) {
+    if (clave) {
+      s.add(clave)
+      continue
+    }
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(fecha ?? '').trim())
+    if (!m || sentido === 'salida') continue
+    const [, d, mes, a] = m
+    s.add(`${limpiarRut(rut)}|${a}-${pad(mes, 2)}-${pad(d, 2)}`)
+  }
+  return s
+}

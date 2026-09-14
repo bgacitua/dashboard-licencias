@@ -8,11 +8,12 @@ const authHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-const qs = ({ desde, hasta, obraId }) => {
+const qs = ({ desde, hasta, obraId, refrescar }) => {
   const params = new URLSearchParams()
   if (desde) params.set('desde', desde)
   if (hasta) params.set('hasta', hasta)
   if (obraId) params.set('obra_id', obraId)
+  if (refrescar) params.set('refrescar', 'true')
   const s = params.toString()
   return s ? `?${s}` : ''
 }
@@ -179,6 +180,13 @@ const AsistenciaService = {
 
   actualizarRegistros: (id, updates) =>
     axios.patch(`${API_URL}/operaciones/${id}/registros`, updates, { headers: authHeaders() }),
+
+  // Claves rut|fecha ya registradas en Buk: la columna Sincronización se pinta
+  // con esto y no con el estado en memoria, que se pierde al recargar.
+  getSincronizadas: async () => {
+    const { data } = await axios.get(`${API_URL}/marcas-sincronizadas`, { headers: authHeaders() })
+    return data
+  },
 
   getMorphoMarcas: async ({ desde, hasta }) => {
     const { data } = await axios.get(`${API_URL}/morpho-marcas`, {

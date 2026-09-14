@@ -26,6 +26,10 @@ class MarcaIn(BaseModel):
     mov: str
     # Registro de la operación al que pertenece, para marcarlo sincronizado.
     record_id: str | None = None
+    # Clave `rut|yyyy-mm-dd` de la inasistencia que origina la marca. Se guarda
+    # tal cual porque no se puede reconstruir desde `fecha`: la salida de un
+    # turno nocturno se manda con el día siguiente.
+    clave: str = ""
 
 
 class RegistrarRequest(BaseModel):
