@@ -3,7 +3,6 @@ import SidebarLayout from '../components/SidebarLayout'
 import TablaDinamica from '../features/asistencia/TablaDinamica'
 import { descargarCsv } from '../features/asistencia/exportar'
 import CorreccionMarcas from '../features/asistencia/CorreccionMarcas'
-import DescargasBonos from '../features/asistencia/DescargasBonos'
 import Historial from '../features/asistencia/Historial'
 import { useObras, useVista } from '../features/asistencia/useVista'
 
@@ -138,14 +137,6 @@ const Asistencia = () => {
             </button>
             )}
           </div>
-
-          {/* Los bonos se calculan sobre las filas de Marcajes que ya están en
-              memoria; por eso viven acá y no en su propia pestaña. */}
-          {vista === 'marcajes' && (
-            <div className="mb-6">
-              <DescargasBonos rows={rows} desde={desde} hasta={hasta} />
-            </div>
-          )}
 
           {vista === 'correccion' ? (
             <CorreccionMarcas desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
