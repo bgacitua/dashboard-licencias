@@ -11,7 +11,11 @@ const allMenuItems = [
   { icon: 'more_time',            label: 'Horas Extras',           path: '/dashboard/horas-extras', module: 'dashboard' },
   { icon: 'person_search',        label: 'Selección de Personal',  path: '/seleccion',           module: 'seleccion',      requiredRole: ['rrhh', 'admin', 'seleccion'] },
   { icon: 'payments',             label: 'Créditos',               path: '/creditos',            module: 'creditos',       requiredRole: ['rrhh', 'admin'] },
-  { icon: 'fingerprint',          label: 'Asistencia',             path: '/asistencia',          module: 'asistencia' },
+  { icon: 'fingerprint',          label: 'Asistencia',             path: '/asistencia',          module: 'asistencia',
+    children: [
+      { label: 'Gestión de asistencia', path: '/asistencia' },
+      { label: 'Reportes',              path: '/asistencia/reportes' },
+    ] },
   { icon: 'settings',             label: 'Administración',         path: '/admin',               module: 'admin',          requiredRole: ['admin'] },
 ];
 
@@ -88,9 +92,13 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
 
         {menuItems.map((item) => {
           const active = isActive(item.path);
+          // Los hijos se muestran solo cuando ya estás dentro del módulo: el
+          // menú colapsado no tiene ancho para ellos.
+          const abierto = !collapsed && item.children
+            && location.pathname.startsWith(item.path);
           return (
+            <React.Fragment key={item.label}>
             <Link
-              key={item.label}
               to={item.path}
               title={collapsed ? item.label : undefined}
               className={`
@@ -106,6 +114,22 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
               </span>
               {!collapsed && <span className="truncate">{item.label}</span>}
             </Link>
+
+            {abierto && item.children.map((sub) => (
+              <Link
+                key={sub.path}
+                to={sub.path}
+                className={`
+                  ml-6 flex items-center rounded-lg px-3 py-2 text-[13px] transition-colors
+                  ${isActive(sub.path)
+                    ? 'bg-app-surface font-semibold text-app-ink'
+                    : 'text-app-muted hover:bg-app-surface hover:text-app-ink'}
+                `}
+              >
+                <span className="truncate">{sub.label}</span>
+              </Link>
+            ))}
+            </React.Fragment>
           );
         })}
       </nav>
