@@ -56,6 +56,19 @@ const AsistenciaService = {
     return data
   },
 
+  // Cierre anticipado: piso y techo del bono con los días que faltan por correr.
+  // Endpoint aparte del reporte oficial: otra forma de respuesta ({rows, columns,
+  // supuestos}) y otras columnas, para que una proyección no se confunda con el
+  // cierre real.
+  getSimulacionBono: async (params, atrasos) => {
+    const { data } = await axios.post(
+      `${API_URL}/reportes/bono/simulacion`,
+      { ...params, atrasos },
+      { headers: authHeaders() }
+    )
+    return data
+  },
+
   // === Horas extras (submódulo hhee) ===
   // Las alertas las escribe otro servicio en app.hhee_alertas; acá solo se leen.
   // Sin filtros de fecha el backend devuelve la semana ISO anterior, que es la

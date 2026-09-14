@@ -270,6 +270,147 @@ def cruce_atrasos_permiso_horas(
     return out
 
 
+# === Simulador de cierre anticipado ===
+# Dos señales que el reporte oficial no mira, porque solo tienen sentido cuando
+# el periodo aún no termina.
+
+# Marcajes (Buk) y asignación de turnos nombran distinto al trabajador y al día.
+MAR_COL_RUT, MAR_COL_DIA, MAR_COL_SALIDA = "rut_trabajador", "dia_entrada", "salida_format"
+TUR_COL_RUT, TUR_COL_DIA, TUR_COL_HORARIO = "dni", "diaTurno", "horarioTurno"
+
+
+def _falta(valor: object) -> bool:
+    """Una marca falta si viene vacía o con guion. Réplica de `falta` en marcas.js:53."""
+    if not isinstance(valor, str):
+        return valor is None
+    return valor.strip() in ("", "-")
+
+
+def _es_nocturno(horario: object) -> bool | None:
+    """True/False si el turno cruza medianoche; None si el horario no es parseable.
+
+    Réplica de parseTurno + esNocturno (marcas.js:34-51): 'HH:MM-HH:MM', nocturno
+    cuando la hora de fin no supera a la de inicio.
+    """
+    if not isinstance(horario, str):
+        return None
+    partes = horario.strip().split("-")
+    if len(partes) != 2:
+        return None
+    minutos = []
+    for p in partes:
+        try:
+            h, m = p.strip().split(":")[:2]
+            minutos.append(int(h) * 60 + int(m))
+        except (ValueError, IndexError):
+            return None
+    return minutos[1] <= minutos[0]
+
+
+def _dia_marcaje(r: dict) -> date | None:
+    """Día de una fila de marcajes. `dia_entrada` manda; si no está, cae a la entrada."""
+    return _to_date(r.get(MAR_COL_DIA)) or _to_date(r.get("entrada_format"))
+
+
+def salidas_con_marca(marcajes_rows: list[dict]) -> set[tuple[str, date]]:
+    """Claves (rut, día) que tienen salida marcada en ALGUNA fila.
+
+    Semántica "alguna fila tiene salida", no "la primera gana": Buk emite filas
+    fantasma por recinto (ver filtrar_recinto_actual) y quedarse con la primera
+    puede tomar justo la que viene sin salida.
+    """
+    out: set[tuple[str, date]] = set()
+    for r in marcajes_rows:
+        d = _dia_marcaje(r)
+        rut = norm_rut(r.get(MAR_COL_RUT))
+        if d is None or not rut or _falta(r.get(MAR_COL_SALIDA)):
+            continue
+        out.add((rut, d))
+    return out
+
+
+def ultimo_dia_atrasos(atrasos_rows: list[dict]) -> date | None:
+    """Último día presente en el reporte de atrasos, o None si no hay ninguno.
+
+    Es el mejor proxy de hasta cuándo cubre el archivo, y es una cota INFERIOR:
+    un día sin atrasos de nadie no genera filas. Si queda por detrás del corte
+    simulado, los atrasos de esos días no son observables y hay que decirlo.
+    """
+    dias = [d for r in atrasos_rows if (d := _to_date(r.get(XLS_COL_DIA))) is not None]
+    return max(dias) if dias else None
+
+
+def contar_turnos(
+    turnos_rows: list[dict], q1_inicio: date, q2_inicio: date, q2_fin: date,
+    *, corte: date, lag_dias: int = 1,
+) -> tuple[dict[str, dict[str, int]], dict[str, dict[str, int]], int]:
+    """(pendientes, transcurridos, turnos_sin_horario) por rut/periodo.
+
+    Un turno se considera transcurrido solo cuando su SALIDA ya ocurrió y tuvo
+    tiempo de llegar al dataset: `dia + (1 si nocturno) < corte - lag_dias`.
+    Todo lo demás —hoy, el nocturno de ayer, el futuro— es pendiente: su salida
+    vacía no es un olvido observado, es un evento que todavía no pasa.
+
+    `turnos_sin_horario` cuenta los turnos cuyo horario no se pudo parsear; se
+    asumen diurnos y el llamador debería mostrar el número.
+    """
+    limite = corte - timedelta(days=lag_dias)
+    pendientes: dict[str, dict[str, int]] = {}
+    transcurridos: dict[str, dict[str, int]] = {}
+    sin_horario = 0
+    for r in turnos_rows:
+        d = _to_date(r.get(TUR_COL_DIA))
+        per = _periodo(d, q1_inicio, q2_inicio, q2_fin)
+        rut = norm_rut(r.get(TUR_COL_RUT))
+        if per == 0 or not rut or d is None:
+            continue
+        nocturno = _es_nocturno(r.get(TUR_COL_HORARIO))
+        if nocturno is None:
+            sin_horario += 1
+            nocturno = False
+        fin = d + timedelta(days=1) if nocturno else d
+        destino = transcurridos if fin < limite else pendientes
+        destino.setdefault(rut, {"p1": 0, "p2": 0})[f"p{per}"] += 1
+    return pendientes, transcurridos, sin_horario
+
+
+def contar_marcas_sin_corregir(
+    turnos_rows: list[dict], marcajes_rows: list[dict], aud_rows: list[dict],
+    q1_inicio: date, q2_inicio: date, q2_fin: date,
+    *, corte: date, lag_dias: int = 1,
+) -> dict[str, dict[str, int]]:
+    """Días YA transcurridos con turno y sin salida marcada, por rut/periodo.
+
+    NO son olvidos en el sentido oficial: el olvido solo existe cuando alguien
+    aplica la corrección en Buk y aparece en Auditoría. Esto es el paso previo —
+    lo que todavía nadie corrigió. Se cuenta aparte para no inflar la columna
+    oficial de Olvido Marca.
+
+    Un día que YA tiene fila de auditoría se omite: ya lo contó contar_olvidos, y
+    además su salida en marcajes ya vendría rellena.
+    """
+    con_salida = salidas_con_marca(marcajes_rows)
+    ya_contados = {
+        (norm_rut(r.get(AUD_COL_RUT)), _aud_fecha(r))
+        for r in aud_rows if _es_olvido(r)
+    }
+    limite = corte - timedelta(days=lag_dias)
+    out: dict[str, dict[str, int]] = {}
+    for r in turnos_rows:
+        d = _to_date(r.get(TUR_COL_DIA))
+        per = _periodo(d, q1_inicio, q2_inicio, q2_fin)
+        rut = norm_rut(r.get(TUR_COL_RUT))
+        if per == 0 or not rut or d is None:
+            continue
+        nocturno = _es_nocturno(r.get(TUR_COL_HORARIO)) or False
+        if (d + timedelta(days=1) if nocturno else d) >= limite:
+            continue                      # aún no terminó: no se puede observar
+        if (rut, d) in ya_contados or (rut, d) in con_salida:
+            continue
+        out.setdefault(rut, {"p1": 0, "p2": 0})[f"p{per}"] += 1
+    return out
+
+
 if __name__ == "__main__":
     q1, q2, qf = date(2026, 6, 14), date(2026, 6, 29), date(2026, 7, 14)
 
@@ -340,4 +481,55 @@ if __name__ == "__main__":
     assert cruce[0]["RUT"] == "9.999.999-9" and cruce[0]["Día"] == "2026-06-20"
     assert cruce[0]["Nombre"] == "Ana" and cruce[0]["Periodo"] == 1
     assert list(cruce[0].keys()) == CRUCE_COLS
+
+    # --- Simulador: turnos pendientes vs transcurridos ---
+    assert _falta("") and _falta(" - ") and _falta(None)
+    assert not _falta("17:02")
+    assert _es_nocturno("20:00-06:00") is True
+    assert _es_nocturno("08:00-17:00") is False
+    assert _es_nocturno("08:00-08:00") is True      # vuelta completa = cruza medianoche
+    assert _es_nocturno("-") is None and _es_nocturno("") is None
+
+    turno = lambda dia, horario="08:00-17:00", rut="12.345.678-9": {  # noqa: E731
+        "dni": rut, "diaTurno": dia, "horarioTurno": horario}
+    corte = date(2026, 6, 25)   # lag 1 -> transcurrido si la salida cayó antes del 24
+
+    pend, trans, sin_hor = contar_turnos([
+        turno("2026-06-20"),                      # transcurrido
+        turno("2026-06-24"),                      # salida el 24, NO < 24 -> pendiente
+        turno("2026-06-23", "20:00-06:00"),       # nocturno: sale el 24 -> pendiente
+        turno("2026-06-22", "20:00-06:00"),       # nocturno: sale el 23 -> transcurrido
+        turno("2026-06-26"),                      # futuro
+        turno("2026-07-01"),                      # futuro, periodo 2
+        turno("2026-06-21", "-"),                 # horario inválido -> diurno
+    ], q1, q2, qf, corte=corte, lag_dias=1)
+    assert sin_hor == 1, sin_hor
+    assert pend["12345678"] == {"p1": 3, "p2": 1}, pend
+    assert trans["12345678"] == {"p1": 3, "p2": 0}, trans
+
+    # Turnos fuera del rango de quincenas no cuentan para ningún lado.
+    vacio, _, _ = contar_turnos([turno("2026-08-01")], q1, q2, qf, corte=corte)
+    assert vacio == {}, vacio
+
+    # --- Simulador: marcas sin corregir ---
+    marcaje = lambda dia, salida, rut="12.345.678-9": {  # noqa: E731
+        "rut_trabajador": rut, "dia_entrada": dia, "salida_format": salida}
+
+    # "alguna fila tiene salida": la fila fantasma sin salida no debe ganar.
+    assert salidas_con_marca([
+        marcaje("2026-06-20", "-"), marcaje("2026-06-20", "17:02"),
+    ]) == {("12345678", date(2026, 6, 20))}
+
+    sin_corregir = contar_marcas_sin_corregir(
+        [turno("2026-06-18"), turno("2026-06-19"), turno("2026-06-20"), turno("2026-06-24")],
+        [marcaje("2026-06-18", "17:02"),          # marcó salida -> no cuenta
+         marcaje("2026-06-19", "-"),              # sin salida    -> cuenta
+         marcaje("2026-06-20", "-")],             # sin salida, pero ya corregida en Buk
+        [{"DNI": "12.345.678-9", "ano": 2026, "mes": 6, "dia": 20,
+          "dispositivo": "API-Olvido de marca"}],
+        q1, q2, qf, corte=corte, lag_dias=1,
+    )
+    # El 24 es pendiente, no transcurrido: su salida vacía no se observa.
+    assert sin_corregir == {"12345678": {"p1": 1, "p2": 0}}, sin_corregir
+
     print("incidencias demo OK")
