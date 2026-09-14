@@ -36,7 +36,7 @@ from .hhee.repository import HheeRepo
 from .hhee.schemas import Frescura, SyncResponse
 from .hhee import service as hhee_service
 from .reportes.repository import ReportesRepo
-from .reportes.schemas import ReporteRequest
+from .reportes.schemas import ReporteRequest, SimulacionRequest
 from .reportes.service import ReportService
 from .recintos import fetch_employees, filas_recinto_trabajador, filtrar_por_obra
 from .schemas import (
@@ -236,6 +236,24 @@ async def reporte_bono_hojas(
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     return [{"nombre": n, "rows": rows, "columns": cols} for n, rows, cols in hojas]
+
+
+@router.post("/reportes/bono/simulacion")
+async def reporte_bono_simulacion(
+    req: SimulacionRequest,
+    servicio: Annotated[ReportService, Depends(_servicio_reportes)],
+) -> dict:
+    """Cierre anticipado: piso y techo del bono con los días que faltan por correr.
+
+    Endpoint aparte del reporte oficial a propósito: devuelve otra forma y otras
+    columnas (ninguna se llama "Monto"), para que una proyección no se pueda
+    confundir con el cierre real ni por la respuesta ni por el .xlsx.
+    """
+    _exigir_atrasos(req)
+    try:
+        return await servicio.generar_simulacion(req, atrasos_rows=req.atrasos)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 # === Registro de marcas ===

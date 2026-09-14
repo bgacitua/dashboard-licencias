@@ -31,6 +31,18 @@ COLUMNAS = [
     "Bono Asistencia P1", "Bono Asistencia P2", "Bono Total", "Monto",
 ]
 
+# Columnas del cierre simulado. Deliberadamente NINGUNA se llama "Bono Total" ni
+# "Monto": si ninguna celda tiene el nombre de la oficial, una proyección no
+# termina pegada en una planilla de sueldos.
+COLUMNAS_SIM = [
+    "Nombre", "Rut", "Cargo", "Centro de Costo", "Nombre Empresa",
+    "Días Pendientes P1", "Marcas sin corregir P1",
+    "Bono P1 (piso)", "Bono P1 (techo)", "Estado P1",
+    "Días Pendientes P2", "Marcas sin corregir P2",
+    "Bono P2 (piso)", "Bono P2 (techo)", "Estado P2",
+    "Proyección (piso)", "Proyección (techo)",
+]
+
 
 def _parse_date(v: object) -> date | None:
     """A date. Inparseable -> None (no descalifica, = pd.to_datetime coerce -> NaT)."""
@@ -75,6 +87,60 @@ def bono_periodo(
     if fecha_ingreso is not None and fecha_ingreso > corte_elegibilidad:
         return 0.0
     return 0.5
+
+
+# Topes físicos de un día. Regla de negocio: el código no los impone en ninguna
+# parte (contar_olvidos suma filas de auditoría sin deduplicar por rut/fecha).
+MAX_OLVIDOS_DIA = 2   # entrada + salida
+MAX_ATRASOS_DIA = 1   # solo se llega tarde a la entrada
+
+# Etiquetas de la clasificación del simulador. Viven acá para que la UI no las
+# reescriba por su cuenta.
+YA_PERDIDO, EN_RIESGO, ASEGURADO = "YA PERDIDO", "EN RIESGO", "ASEGURADO"
+
+
+def bono_periodo_cotas(
+    ausencias: float, atrasos: float, olvidos: float,
+    fecha_ingreso: date | None, corte_elegibilidad: date,
+    *, pendientes: int, olvidos_por_dia: int = 1, atrasos_por_dia: int = 0,
+) -> tuple[float, float]:
+    """(piso, techo) del bono de un periodo que todavía no termina.
+
+    `pendientes` = días con turno asignado que aún no ocurren. El techo los
+    asume limpios; el piso, incumplidos.
+
+    Los pendientes NO se suman a `ausencias`: con el umbral en >= 1, un solo día
+    dejaría a toda la planta en 0 y el piso no informaría nada. Se suman a
+    olvidos y atrasos, cuyos umbrales de 3 sí dejan señal.
+
+    Si el periodo YA está anulado por datos reales, el piso y el techo son 0 sin
+    simular: evita castigar dos veces una licencia futura que ya está cargada
+    (cuenta como ausencia y volvería a contar como día pendiente).
+    """
+    if not 0 <= olvidos_por_dia <= MAX_OLVIDOS_DIA:
+        raise ValueError(f"olvidos_por_dia fuera de rango 0..{MAX_OLVIDOS_DIA}")
+    if not 0 <= atrasos_por_dia <= MAX_ATRASOS_DIA:
+        raise ValueError(f"atrasos_por_dia fuera de rango 0..{MAX_ATRASOS_DIA}")
+
+    techo = bono_periodo(ausencias, atrasos, olvidos, fecha_ingreso, corte_elegibilidad)
+    if techo == 0.0:
+        return 0.0, 0.0
+    piso = bono_periodo(
+        ausencias,
+        atrasos + pendientes * atrasos_por_dia,
+        olvidos + pendientes * olvidos_por_dia,
+        fecha_ingreso, corte_elegibilidad,
+    )
+    return piso, techo
+
+
+def clasificar(piso: float, techo: float) -> str:
+    """Estado legible de un periodo simulado. Ver bono_periodo_cotas."""
+    if techo == 0.0:
+        return YA_PERDIDO
+    if piso > 0.0:
+        return ASEGURADO
+    return EN_RIESGO
 
 
 class ReportService:
@@ -128,6 +194,126 @@ class ReportService:
         return {"p": p, "base": base, "principal": principal, "detalle": detalle,
                 "atrasos_rows": atrasos_rows, "aud_rows": aud_rows, "q1": q1, "q2": q2, "qf": qf,
                 "permisos_horas": permisos_horas}
+
+    # === Simulador de cierre anticipado ===
+
+    async def generar_simulacion(self, p, atrasos_rows: list[dict] | None = None) -> dict:
+        """Filas del cierre simulado + los supuestos con que se calcularon.
+
+        Devuelve {"rows", "columns", "supuestos"}: los supuestos viajan al
+        frontend porque un piso/techo sin el corte, el lag y los olvidos
+        asumidos al lado no se puede interpretar.
+        """
+        corte = _parse_date(p.simular_hasta)
+        q1, q2, qf = _parse_date(p.q1_inicio), _parse_date(p.q2_inicio), _parse_date(p.q2_fin)
+        if corte is None:
+            raise RuntimeError("Fecha de corte inválida.")
+        if not (q1 <= corte <= qf):
+            raise RuntimeError(
+                f"El corte {corte} cae fuera del periodo {q1}..{qf}."
+            )
+
+        ctx = await self._compute(p, atrasos_rows or [], con_detalle=False)
+        turnos = await self._fetch_turnos(q1, qf)
+        # Marcajes solo hasta el corte: después no hay nada que observar.
+        marcajes = await self._fetch_marcajes(q1, corte)
+
+        pendientes, _transcurridos, sin_horario = incidencias.contar_turnos(
+            turnos, q1, q2, qf, corte=corte, lag_dias=p.lag_dias)
+        sin_corregir = incidencias.contar_marcas_sin_corregir(
+            turnos, marcajes, ctx["aud_rows"], q1, q2, qf,
+            corte=corte, lag_dias=p.lag_dias)
+
+        rows = self._armar_sim(ctx, pendientes, sin_corregir, p, q1, q2)
+
+        # Cobertura del join: sin turnos cargados alguien sale ASEGURADO por
+        # falta de datos, no por mérito. Es el número que dice si confiar.
+        ruts_turnos = set(pendientes) | set(_transcurridos)
+        sin_turnos = sum(
+            1 for r in ctx["base"] if incidencias.norm_rut(r.get("rut")) not in ruts_turnos
+        )
+        if sin_turnos:
+            _log.warning(
+                "[reportes] simulación: %d de %d trabajadores sin turnos cargados",
+                sin_turnos, len(ctx["base"]),
+            )
+        return {
+            "rows": rows,
+            "columns": COLUMNAS_SIM,
+            "supuestos": {
+                "corte": corte.isoformat(),
+                "lag_dias": p.lag_dias,
+                "olvidos_por_dia": p.olvidos_por_dia,
+                "atrasos_por_dia": p.atrasos_por_dia,
+                "atrasos_hasta": _iso(incidencias.ultimo_dia_atrasos(atrasos_rows or [])),
+                "turnos_sin_horario": sin_horario,
+                "trabajadores_sin_turnos": sin_turnos,
+                "trabajadores": len(ctx["base"]),
+            },
+        }
+
+    async def _fetch_turnos(self, desde: date, hasta: date) -> list[dict]:
+        """Asignación de turnos del periodo. Este endpoint pide el token por query."""
+        if self._buk is None:
+            return []
+        params: dict[str, object] = {
+            "token": self._settings.external_api_key.get_secret_value()
+        }
+        if (d := to_buk_date(desde.isoformat())):
+            params["desde"] = d
+        if (h := to_buk_date(hasta.isoformat())):
+            params["hasta"] = h
+        return await self._buk.get_array(self._settings.asignacion_turnos_api_url, params)
+
+    async def _fetch_marcajes(self, desde: date, hasta: date) -> list[dict]:
+        """Marcajes del periodo. Mismo dataset cacheado que usa el tab de Marcajes."""
+        if self._buk is None:
+            return []
+        return await self._buk.get_dataset(desde.isoformat(), hasta.isoformat())
+
+    def _armar_sim(
+        self, ctx: dict, pendientes: dict, sin_corregir: dict,
+        p, q1: date, q2: date,
+    ) -> list[dict]:
+        out: list[dict] = []
+        for r in ctx["principal"]:
+            key = incidencias.norm_rut(r["Rut"])
+            pen = pendientes.get(key, {}); sc = sin_corregir.get(key, {})
+            ingreso = _parse_date(r.get("Fecha ingreso"))
+            fila = {
+                "Nombre": r["Nombre"], "Rut": r["Rut"], "Cargo": r["Cargo"],
+                "Centro de Costo": r["Centro de Costo"], "Nombre Empresa": r["Nombre Empresa"],
+            }
+            cotas = {}
+            for per, corte_eleg in (("1", q1), ("2", q2)):
+                pend = pen.get(f"p{per}", 0)
+                # Las marcas sin corregir todavía no son olvidos oficiales, pero
+                # son lo más probable que se convierta en uno: pesan en el piso.
+                extra = sc.get(f"p{per}", 0)
+                piso, techo = bono_periodo_cotas(
+                    float(r[f"Inasistencias Periodo {per}"])
+                    + float(r[f"Licencias Periodo {per}"])
+                    + float(r[f"Permisos Periodo {per}"]),
+                    float(r[f"Atrasos Periodo {per}"]),
+                    float(r[f"Olvido Marca Periodo {per}"]) + extra,
+                    ingreso, corte_eleg,
+                    pendientes=pend,
+                    olvidos_por_dia=p.olvidos_por_dia,
+                    atrasos_por_dia=p.atrasos_por_dia,
+                )
+                cotas[per] = (piso, techo)
+                fila[f"Días Pendientes P{per}"] = pend
+                fila[f"Marcas sin corregir P{per}"] = extra
+                fila[f"Bono P{per} (piso)"] = piso
+                fila[f"Bono P{per} (techo)"] = techo
+                fila[f"Estado P{per}"] = clasificar(piso, techo)
+
+            piso_total = cotas["1"][0] + cotas["2"][0]
+            techo_total = cotas["1"][1] + cotas["2"][1]
+            fila["Proyección (piso)"] = piso_total * p.valor_bono
+            fila["Proyección (techo)"] = techo_total * p.valor_bono
+            out.append(fila)
+        return out
 
     async def _fetch_auditoria(self, q1: date, qf: date) -> list[dict]:
         """Filas crudas de Auditoría de Marca, unidas de todas las obras configuradas.
@@ -282,6 +468,47 @@ if __name__ == "__main__":
     assert bono_periodo(0, 0, 0, d, d) == 0.5                      # ingreso == corte
     assert bono_periodo(0, 0, 0, None, d) == 0.5                   # ingreso None
 
+    # --- Simulador de cierre anticipado ---
+    viejo = date(2020, 1, 1)
+    cotas = lambda **kw: bono_periodo_cotas(0, 0, 0, viejo, d, **kw)  # noqa: E731
+
+    # Sin días pendientes la simulación es el reporte real.
+    for aus, atr, olv in ((0, 0, 0), (1, 0, 0), (0, 3, 0), (0, 0, 3), (0, 2, 2)):
+        real = bono_periodo(aus, atr, olv, viejo, d)
+        assert bono_periodo_cotas(aus, atr, olv, viejo, d, pendientes=0) == (real, real)
+
+    # El piso nunca supera al techo, con cualquier cantidad de pendientes.
+    for n in range(0, 8):
+        piso, techo = cotas(pendientes=n)
+        assert piso <= techo
+
+    # Default (olvidó la salida, 1 por día): 3 días pendientes anulan.
+    assert cotas(pendientes=2) == (0.5, 0.5)   # ASEGURADO
+    assert cotas(pendientes=3) == (0.0, 0.5)   # EN RIESGO
+    # Peor caso absoluto (entrada + salida, 2 por día): bastan 2 días.
+    assert cotas(pendientes=1, olvidos_por_dia=2) == (0.5, 0.5)
+    assert cotas(pendientes=2, olvidos_por_dia=2) == (0.0, 0.5)
+    # Atraso: tope 1 por día, umbral 3 -> 3 días pendientes.
+    assert cotas(pendientes=2, olvidos_por_dia=0, atrasos_por_dia=1) == (0.5, 0.5)
+    assert cotas(pendientes=3, olvidos_por_dia=0, atrasos_por_dia=1) == (0.0, 0.5)
+
+    # Periodo ya anulado por datos reales: no se simula, ni con 0 pendientes.
+    assert bono_periodo_cotas(1, 0, 0, viejo, d, pendientes=5) == (0.0, 0.0)
+    assert bono_periodo_cotas(0, 0, 0, date(2026, 6, 10), d, pendientes=0) == (0.0, 0.0)
+
+    # Escenarios imposibles: 3 atrasos o 3 olvidos en un mismo día.
+    for kw in ({"olvidos_por_dia": 3}, {"atrasos_por_dia": 2}, {"olvidos_por_dia": -1}):
+        try:
+            cotas(pendientes=1, **kw)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"debió rechazar {kw}")
+
+    assert clasificar(*cotas(pendientes=0)) == ASEGURADO
+    assert clasificar(*cotas(pendientes=3)) == EN_RIESGO
+    assert clasificar(*bono_periodo_cotas(1, 0, 0, viejo, d, pendientes=0)) == YA_PERDIDO
+
     class _FakeRepo:
         def query(self, q1_inicio, q2_inicio, q2_fin):
             return [{
@@ -338,4 +565,39 @@ if __name__ == "__main__":
     aus = dict(zip(("name", "rows", "cols"), sheets[1]))
     assert aus["rows"][0]["Tipo Permiso"] == "Licencia médica"
     assert aus["rows"][0]["Fecha Inicio"] == "2026-06-15" and aus["rows"][0]["Días en Periodo"] == 3
+
+    # --- Simulador de cierre anticipado ---
+    jc.CARGOS, jc.EMPRESAS = [], []          # deshacer el recorte JC de más arriba
+    from .schemas import SimulacionRequest
+
+    sim_req = SimulacionRequest(
+        q1_inicio="2026-06-14", q2_inicio="2026-06-29", q2_fin="2026-07-14",
+        valor_bono=50000, simular_hasta="2026-07-14", atrasos=atrasos_demo,
+    )
+    sim = asyncio.run(svc.generar_simulacion(sim_req, atrasos_rows=atrasos_demo))
+    assert sim["columns"] == COLUMNAS_SIM
+    assert list(sim["rows"][0].keys()) == COLUMNAS_SIM, "orden de columnas exacto"
+
+    # LA invariante: sin días pendientes (sin turnos futuros cargados), el cierre
+    # simulado tiene que dar lo mismo que el reporte real del mismo periodo.
+    real = asyncio.run(svc.generar(p, atrasos_demo))[0]
+    s0 = sim["rows"][0]
+    assert s0["Días Pendientes P1"] == 0 and s0["Días Pendientes P2"] == 0
+    assert s0["Bono P1 (piso)"] == s0["Bono P1 (techo)"] == real["Bono Asistencia P1"]
+    assert s0["Bono P2 (piso)"] == s0["Bono P2 (techo)"] == real["Bono Asistencia P2"]
+    assert s0["Proyección (piso)"] == s0["Proyección (techo)"] == real["Monto"]
+
+    # Ninguna columna del simulador puede llamarse como las oficiales de dinero.
+    assert not ({"Monto", "Bono Total"} & set(COLUMNAS_SIM))
+
+    # El corte tiene que caer dentro del periodo.
+    for fuera in ("2026-06-01", "2026-08-01", "no-es-fecha"):
+        try:
+            asyncio.run(svc.generar_simulacion(
+                sim_req.model_copy(update={"simular_hasta": fuera}), atrasos_rows=atrasos_demo))
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError(f"debió rechazar corte {fuera}")
+
     print("reportes service demo OK")
