@@ -16,6 +16,22 @@ from datetime import date, datetime, timedelta
 XLS_COL_RUT = "RUT"
 XLS_COL_DIA = "Día"
 XLS_COL_ATRASO = "Atraso con Holgura"
+# Solo para revisión humana en la hoja "Atrasos": no entran en ningún cálculo.
+XLS_COL_TURNO = "Hora de Turno"
+XLS_COL_INGRESO = "Hora de Ingreso"
+
+
+def _col(r: dict, nombre: str) -> object:
+    """Valor de una columna tolerando casing/tildes/espacios de la cabecera Buk.
+
+    ponytail: match por normalización de la cabecera; si Buk renombra la columna
+    de raíz, ajustar la constante de arriba.
+    """
+    if nombre in r:
+        return r[nombre]
+    limpiar = lambda s: "".join(c for c in str(s).casefold() if c.isalnum())  # noqa: E731
+    objetivo = limpiar(nombre)
+    return next((v for k, v in r.items() if limpiar(k) == objetivo), "")
 
 # --- Olvido Marca: campos de cada fila CRUDA de Auditoría de Marca (Buk) ---
 # La API devuelve fecha partida en dia/mes/ano y dispositivo en minúscula
@@ -183,6 +199,8 @@ def detalle_atrasos(
             "RUT": fmt_rut(r.get(XLS_COL_RUT)),
             "Día": f.isoformat() if f else str(r.get(XLS_COL_DIA, "")),
             "Atraso con Holgura": r.get(XLS_COL_ATRASO, ""),
+            "Hora de Turno": _col(r, XLS_COL_TURNO),
+            "Hora de Ingreso": _col(r, XLS_COL_INGRESO),
             "Periodo": per,
         })
     return out
@@ -464,6 +482,15 @@ if __name__ == "__main__":
         {"RUT": "9.999.999-9", "Día": "2026-07-02", "Atraso con Holgura": "0:00:00"},  # no cuenta
     ], q1, q2, qf)
     assert atr["9999999"] == {"p1": 1, "p2": 1}, atr
+
+    # Hora de marca y turno viajan a la hoja de auditoría; cabecera tolerante.
+    det = detalle_atrasos([
+        {"RUT": "9.999.999-9", "Día": "2026-06-20", "Atraso con Holgura": "0:10:00",
+         "hora de turno": "08:00", "HORA DE INGRESO": "08:07"},
+        {"RUT": "9.999.999-9", "Día": "2026-06-21", "Atraso con Holgura": "0:10:00"},
+    ], q1, q2, qf)
+    assert det[0]["Hora de Turno"] == "08:00" and det[0]["Hora de Ingreso"] == "08:07", det[0]
+    assert det[1]["Hora de Turno"] == "" and det[1]["Hora de Ingreso"] == "", det[1]
 
     # Cruce atraso × permiso_por_horas: match solo si mismo rut Y día dentro del permiso.
     cruce = cruce_atrasos_permiso_horas(
