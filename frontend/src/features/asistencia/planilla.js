@@ -8,7 +8,7 @@
 import * as XLSX from 'xlsx'
 
 // Columnas que debe traer el archivo de atrasos para que el cruce funcione.
-export const COLUMNAS_ATRASOS = ['RUT', 'Especialidad', 'Día', 'Atraso con Holgura']
+export const COLUMNAS_ATRASOS = ['RUT', 'Especialidad', 'Día', 'Atraso con Holgura', 'Hora de Marca', 'Turno']
 
 /** Archivo subido -> filas. raw:false deja fechas y horas como texto. */
 export async function leerAtrasos(file) {
@@ -20,8 +20,8 @@ export async function leerAtrasos(file) {
 /** Template con las cabeceras exactas, para no adivinar los nombres de columna. */
 export function descargarTemplateAtrasos() {
   const ejemplo = [
-    { RUT: '12.345.678-9', Especialidad: 'Carpintero', 'Día': '2026-06-20', 'Atraso con Holgura': '0:05:00' },
-    { RUT: '9.999.999-9', Especialidad: 'Jornal', 'Día': '2026-07-01', 'Atraso con Holgura': '0:00:00' },
+    { RUT: '12.345.678-9', Especialidad: 'Carpintero', 'Día': '2026-06-20', 'Atraso con Holgura': '0:05:00', 'Hora de Marca': '08:07', 'Turno': '08:00-17:00' },
+    { RUT: '9.999.999-9', Especialidad: 'Jornal', 'Día': '2026-07-01', 'Atraso con Holgura': '0:00:00', 'Hora de Marca': '08:00', 'Turno': '08:00-17:00' },
   ]
   const ws = XLSX.utils.json_to_sheet(ejemplo, { header: COLUMNAS_ATRASOS })
   // La columna "Día" (C) se fuerza a texto: si no, Excel la reinterpreta como
