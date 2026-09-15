@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import AsistenciaService from '../../services/asistencia.service'
+import CargarAtrasos from './CargarAtrasos'
 import TablaDinamica from './TablaDinamica'
-import { COLUMNAS_ATRASOS, descargarHojas, descargarTemplateAtrasos, leerAtrasos } from './planilla'
+import { RECINTOS, descargarHojas, resumenBono } from './planilla'
 
 /**
  * Reporte de bono de asistencia por quincena.
@@ -22,33 +23,24 @@ const input =
 
 const Reportes = () => {
   const [params, setParams] = useState(INICIAL)
-  const [atrasos, setAtrasos] = useState([])
-  const [archivo, setArchivo] = useState('')
+  // {recinto: {filas} | {cargando} | {error}}. El modal escribe, acá se unifica.
+  const [estados, setEstados] = useState({})
+  const [modal, setModal] = useState(false)
   const [data, setData] = useState(null)
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState(null)
   const [supuestos, setSupuestos] = useState(null)
 
   const set = (patch) => setParams((p) => ({ ...p, ...patch }))
-  const listo = params.q1_inicio && params.q2_inicio && params.q2_fin && atrasos.length > 0
 
-  const cargarArchivo = async (file) => {
-    setError(null)
-    if (!file) {
-      setAtrasos([])
-      setArchivo('')
-      return
-    }
-    try {
-      const filas = await leerAtrasos(file)
-      setAtrasos(filas)
-      setArchivo(`${file.name} — ${filas.length} filas`)
-    } catch (e) {
-      setError(`No se pudo leer el archivo: ${e.message}`)
-      setAtrasos([])
-      setArchivo('')
-    }
-  }
+  // Unificar = concatenar: limpiarAtrasos ya dejó a todos con las mismas claves,
+  // así que no hay encabezados que deduplicar.
+  const atrasos = useMemo(
+    () => RECINTOS.flatMap((r) => estados[r]?.filas || []), [estados],
+  )
+  const recintosListos = RECINTOS.filter((r) => estados[r]?.filas).length
+  const listo =
+    params.q1_inicio && params.q2_inicio && params.q2_fin && recintosListos === RECINTOS.length
 
   const correr = async (fn) => {
     setOcupado(true)
@@ -63,6 +55,8 @@ const Reportes = () => {
   }
 
   const simulando = Boolean(params.simular_hasta)
+  // Solo para el reporte oficial: la simulación no trae las columnas del resumen.
+  const resumen = useMemo(() => resumenBono(data?.rows), [data])
 
   const generar = () => correr(async () => {
     if (simulando) {
@@ -103,7 +97,8 @@ const Reportes = () => {
           atrasos quedan en cero y los bonos salen inflados.
         </p>
         <p>
-          Columnas esperadas: <code>{COLUMNAS_ATRASOS.join(' · ')}</code>. Acepta xls, xlsx y csv.
+          Se carga un archivo por recinto ({RECINTOS.join(', ')}), tal como sale de Buk: las
+          columnas que no se usan se descartan solas. Acepta xls, xlsx y csv.
         </p>
       </div>
 
@@ -147,18 +142,18 @@ const Reportes = () => {
         )}
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 mb-6">
-        <label className="text-sm text-app-muted">
-          Archivo de atrasos
-          <input type="file" accept=".xls,.xlsx,.csv" className={`${input} py-1`}
-                 onChange={(e) => cargarArchivo(e.target.files?.[0])} />
-        </label>
-        <button onClick={descargarTemplateAtrasos}
-                className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface">
-          Descargar template
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <button onClick={() => setModal(true)}
+                className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface transition-colors">
+          Cargar atrasos
         </button>
-        {archivo && <span className="text-sm text-app-muted pb-2">{archivo}</span>}
+        <span className="text-sm text-app-muted">
+          {recintosListos} de {RECINTOS.length} recintos · {atrasos.length} filas
+        </span>
       </div>
+
+      <CargarAtrasos abierto={modal} onCerrar={() => setModal(false)}
+                     estados={estados} setEstados={setEstados} />
 
       <div className="flex flex-wrap gap-3 mb-6">
         <button onClick={generar} disabled={!listo || ocupado}
@@ -211,12 +206,22 @@ const Reportes = () => {
         </div>
       )}
 
+      {resumen && (
+        <div className="flex flex-wrap gap-x-6 gap-y-2 bg-app-surface border border-app-line rounded-lg px-4 py-3 mb-4 text-sm">
+          {Object.entries(resumen).map(([k, v]) => (
+            <span key={k} className="text-app-muted">
+              {k} <strong className="text-app-ink">{v}</strong>
+            </span>
+          ))}
+        </div>
+      )}
+
       <TablaDinamica
         rows={data?.rows || []}
         columns={data?.columns || []}
         loading={ocupado && !data}
         error={error}
-        vacio={listo ? 'Genera el reporte para ver los resultados.' : 'Completa las quincenas y sube el reporte de atrasos.'}
+        vacio={listo ? 'Genera el reporte para ver los resultados.' : 'Completa las quincenas y carga los atrasos de los tres recintos.'}
       />
     </div>
   )
