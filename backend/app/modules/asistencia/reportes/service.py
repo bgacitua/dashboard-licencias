@@ -431,7 +431,7 @@ class ReportService:
             ("Bono Asistencia", ctx["principal"], COLUMNAS),
             ("Ausencias", ausencias, aus_cols),
             ("Atrasos", incidencias.detalle_atrasos(ctx["atrasos_rows"], q1, q2, qf),
-             ["RUT", "Día", "Atraso con Holgura", "Hora de Marca", "Turno", "Periodo"]),
+             ["RUT", "Día", "Atraso con Holgura", "Hora de Turno", "Hora de Ingreso", "Periodo"]),
             ("Olvidos Marca", incidencias.detalle_olvidos(ctx["aud_rows"], q1, q2, qf),
              ["RUT", "Fecha", "Obra", "Periodo"]),
             ("Ingreso Reciente", ingreso, ing_cols),

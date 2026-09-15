@@ -17,8 +17,8 @@ XLS_COL_RUT = "RUT"
 XLS_COL_DIA = "Día"
 XLS_COL_ATRASO = "Atraso con Holgura"
 # Solo para revisión humana en la hoja "Atrasos": no entran en ningún cálculo.
-XLS_COL_MARCA = "Hora de Marca"
-XLS_COL_TURNO = "Turno"
+XLS_COL_TURNO = "Hora de Turno"
+XLS_COL_INGRESO = "Hora de Ingreso"
 
 
 def _col(r: dict, nombre: str) -> object:
@@ -199,8 +199,8 @@ def detalle_atrasos(
             "RUT": fmt_rut(r.get(XLS_COL_RUT)),
             "Día": f.isoformat() if f else str(r.get(XLS_COL_DIA, "")),
             "Atraso con Holgura": r.get(XLS_COL_ATRASO, ""),
-            "Hora de Marca": _col(r, XLS_COL_MARCA),
-            "Turno": _col(r, XLS_COL_TURNO),
+            "Hora de Turno": _col(r, XLS_COL_TURNO),
+            "Hora de Ingreso": _col(r, XLS_COL_INGRESO),
             "Periodo": per,
         })
     return out
@@ -486,11 +486,11 @@ if __name__ == "__main__":
     # Hora de marca y turno viajan a la hoja de auditoría; cabecera tolerante.
     det = detalle_atrasos([
         {"RUT": "9.999.999-9", "Día": "2026-06-20", "Atraso con Holgura": "0:10:00",
-         "hora de marca": "08:07", "TURNO": "08:00-17:00"},
+         "hora de turno": "08:00", "HORA DE INGRESO": "08:07"},
         {"RUT": "9.999.999-9", "Día": "2026-06-21", "Atraso con Holgura": "0:10:00"},
     ], q1, q2, qf)
-    assert det[0]["Hora de Marca"] == "08:07" and det[0]["Turno"] == "08:00-17:00", det[0]
-    assert det[1]["Hora de Marca"] == "" and det[1]["Turno"] == "", det[1]
+    assert det[0]["Hora de Turno"] == "08:00" and det[0]["Hora de Ingreso"] == "08:07", det[0]
+    assert det[1]["Hora de Turno"] == "" and det[1]["Hora de Ingreso"] == "", det[1]
 
     # Cruce atraso × permiso_por_horas: match solo si mismo rut Y día dentro del permiso.
     cruce = cruce_atrasos_permiso_horas(
