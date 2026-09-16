@@ -151,27 +151,3 @@ export const getEstadoSesionMicrosoft = async () => {
   const { data } = await axios.get(`${API_URL}/contract-alerts/auth/status`);
   return data;
 };
-
-// === Vigilancia de descuadres de líquidos ===
-// Vive acá y no en un service propio porque el interruptor se opera desde la
-// misma pantalla de Alertas de Contratos.
-
-export const getVigilanciaLiquidos = async () => {
-  const { data } = await axios.get(`${API_URL}/liquidaciones/vigilancia`);
-  return data;
-};
-
-/** Activar lee el mes completo desde BUK para congelar el target: es lento. */
-export const activarVigilanciaLiquidos = async () => {
-  const { data } = await axios.post(
-    `${API_URL}/liquidaciones/vigilancia/activar`,
-    {},
-    { timeout: 240000 },
-  );
-  return data;
-};
-
-export const desactivarVigilanciaLiquidos = async () => {
-  const { data } = await axios.post(`${API_URL}/liquidaciones/vigilancia/desactivar`, {});
-  return data;
-};

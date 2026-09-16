@@ -173,6 +173,10 @@ const AdminPanel = () => {
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [passwordData, setPasswordData] = useState({ userId: null, newPassword: '' });
 
+    // Vigilancia de descuadres de liquidos
+    const [vigilancia, setVigilancia] = useState(null);
+    const [vigilanciaBusy, setVigilanciaBusy] = useState(false);
+
     // Role modals
     const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
     const [newRole, setNewRole] = useState({ nombre: '', descripcion: '', modulo_ids: [] });
@@ -193,11 +197,42 @@ const AdminPanel = () => {
             setUsers(await usersRes.json());
             setRoles(await rolesRes.json());
             setModules(modulesRes.ok ? await modulesRes.json() : []);
+            fetchVigilancia();
         } catch (err) {
             setError(err.message);
         } finally {
             setLoading(false);
         }
+    };
+
+    // ── vigilancia de descuadres ───────────────────────────────────────────
+
+    const fetchVigilancia = async () => {
+        try {
+            const res = await fetch(`${API_URL}/liquidaciones/vigilancia`, { headers: authHeaders() });
+            setVigilancia(res.ok ? await res.json() : null);
+        } catch { setVigilancia(null); }
+    };
+
+    // Activar congela el target leyendo el mes completo desde BUK: tarda, por eso
+    // el boton queda deshabilitado mientras responde.
+    const toggleVigilancia = async () => {
+        const prender = !vigilancia?.activa;
+        if (prender && !window.confirm(
+            'Activar vuelve a congelar el target con los montos actuales de BUK y borra ' +
+            'los descuadres ya registrados de este periodo. ¿Continuar?'
+        )) return;
+        setTabError('');
+        setVigilanciaBusy(true);
+        try {
+            const res = await fetch(
+                `${API_URL}/liquidaciones/vigilancia/${prender ? 'activar' : 'desactivar'}`,
+                { method: 'POST', headers: authHeaders() },
+            );
+            if (!res.ok) throw new Error(await errorDetail(res, 'Error al cambiar la vigilancia'));
+            await fetchVigilancia();
+        } catch (err) { setTabError(err.message); }
+        finally { setVigilanciaBusy(false); }
     };
 
     // ── users ──────────────────────────────────────────────────────────────
@@ -390,6 +425,7 @@ const AdminPanel = () => {
         { id: 'roles',    label: 'Roles',     icon: 'badge',     count: rolesVisibles.length },
         { id: 'modules',  label: 'Módulos',   icon: 'extension', count: modules.length },
         { id: 'security', label: 'Seguridad', icon: 'shield',    count: null },
+        { id: 'descuadres', label: 'Descuadres', icon: 'balance', count: null },
     ];
 
     // ── render ─────────────────────────────────────────────────────────────
@@ -708,6 +744,58 @@ const AdminPanel = () => {
                                 se enrolan y se resetean desde el panel de administración de Duo, no desde
                                 esta aplicación.
                             </div>
+                        </div>
+                    )}
+
+                    {/* ── Descuadres tab ─────────────────────────────────── */}
+                    {activeTab === 'descuadres' && (
+                        <div className="p-6 space-y-6">
+                            <div>
+                                <h3 className="text-sm font-bold text-app-muted uppercase tracking-widest mb-1">Vigilancia de liquidos</h3>
+                                <p className="text-xs text-app-outline">
+                                    Con la vigilancia activa, el barrido compara cada pocos minutos los montos
+                                    de BUK contra el target congelado y avisa cualquier diferencia.
+                                </p>
+                            </div>
+
+                            {vigilancia === null ? (
+                                <div className="bg-white rounded-xl border border-app-line p-5 text-sm text-app-muted">
+                                    No se pudo leer el estado de la vigilancia.
+                                </div>
+                            ) : (
+                                <div className="bg-white rounded-xl border border-app-line p-5 flex items-center gap-4 flex-wrap">
+                                    <span className={`material-symbols-outlined text-2xl ${vigilancia.activa ? 'text-green-600' : 'text-app-outline'}`}>
+                                        {vigilancia.activa ? 'visibility' : 'visibility_off'}
+                                    </span>
+                                    <div className="flex-1 min-w-[240px]">
+                                        <p className="text-sm font-bold text-app-ink">
+                                            {vigilancia.activa ? 'Activa' : 'Desactivada'}
+                                        </p>
+                                        <p className="text-xs text-app-muted">
+                                            {vigilancia.activa
+                                                ? `Vigilando el periodo ${vigilancia.periodo} contra el target congelado.`
+                                                : 'El barrido no revisa descuadres hasta que se active.'}
+                                        </p>
+                                        {vigilancia.actualizado_por && (
+                                            <p className="text-xs text-app-outline mt-0.5">
+                                                Ultimo cambio: {vigilancia.actualizado_por} · {formatDate(vigilancia.actualizado_en)}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={toggleVigilancia}
+                                        disabled={vigilanciaBusy}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                            vigilancia.activa ? 'bg-app-muted hover:bg-app-ink' : 'bg-green-600 hover:bg-green-700'
+                                        }`}
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">
+                                            {vigilanciaBusy ? 'hourglass_top' : vigilancia.activa ? 'stop_circle' : 'play_circle'}
+                                        </span>
+                                        {vigilanciaBusy ? 'Procesando...' : vigilancia.activa ? 'Desactivar' : 'Activar'}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
