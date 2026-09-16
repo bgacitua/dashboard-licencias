@@ -176,6 +176,7 @@ const AdminPanel = () => {
     // Vigilancia de descuadres de liquidos
     const [vigilancia, setVigilancia] = useState(null);
     const [vigilanciaBusy, setVigilanciaBusy] = useState(false);
+    const [vigilanciaError, setVigilanciaError] = useState('');
 
     // Role modals
     const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
@@ -210,8 +211,15 @@ const AdminPanel = () => {
     const fetchVigilancia = async () => {
         try {
             const res = await fetch(`${API_URL}/liquidaciones/vigilancia`, { headers: authHeaders() });
-            setVigilancia(res.ok ? await res.json() : null);
-        } catch { setVigilancia(null); }
+            if (!res.ok) throw new Error(await errorDetail(res, `Error ${res.status} al leer la vigilancia`));
+            setVigilancia(await res.json());
+            setVigilanciaError('');
+        } catch (err) {
+            // El motivo se muestra en el tab: sin el, un 500 por migracion sin
+            // aplicar se ve igual que un 403 por permisos.
+            setVigilancia(null);
+            setVigilanciaError(err.message);
+        }
     };
 
     // Activar congela el target leyendo el mes completo desde BUK: tarda, por eso
@@ -760,7 +768,10 @@ const AdminPanel = () => {
 
                             {vigilancia === null ? (
                                 <div className="bg-white rounded-xl border border-app-line p-5 text-sm text-app-muted">
-                                    No se pudo leer el estado de la vigilancia.
+                                    <p>No se pudo leer el estado de la vigilancia.</p>
+                                    {vigilanciaError && (
+                                        <p className="text-xs text-red-600 mt-1 font-mono break-all">{vigilanciaError}</p>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="bg-white rounded-xl border border-app-line p-5 flex items-center gap-4 flex-wrap">
