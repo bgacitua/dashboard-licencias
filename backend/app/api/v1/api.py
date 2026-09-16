@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.api.v1.endpoints import licencias, marcas, auth, admin, finiquitos, employees, calculadora, vacaciones, contract_alerts, costos, retorno, seleccion, overtime, creditos
+from app.api.v1.endpoints import licencias, marcas, auth, admin, finiquitos, employees, calculadora, vacaciones, contract_alerts, costos, retorno, seleccion, overtime, creditos, liquidaciones
 from app.core.security import get_current_user
 
 
@@ -55,6 +55,10 @@ api_router.include_router(seleccion.router, prefix="/seleccion", tags=["seleccio
 api_router.include_router(overtime.router, prefix="/overtime", tags=["overtime"])
 
 api_router.include_router(creditos.router, prefix="/creditos", tags=["creditos"])
+
+api_router.include_router(
+    liquidaciones.router, prefix="/liquidaciones", tags=["liquidaciones"], dependencies=_auth
+)
 
 # === Módulo de asistencia (integración de buk-asistencia) ===
 # Import perezoso y detrás del flag: con ASISTENCIA_ENABLED=false el paquete ni

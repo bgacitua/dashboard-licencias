@@ -1,9 +1,15 @@
 """
 Alerta de descuadre de liquidaciones en período de cierre.
 
-El día del cierre se congela un snapshot de los montos del mes (el target).
-Desde ahí y hasta fin de mes esos montos no deben moverse, así que cada barrido
-posterior compara contra el target y cualquier diferencia se reporta.
+Al activar la vigilancia se congela un snapshot de los montos del mes (el
+target). Desde ahí y hasta que se apague, esos montos no deben moverse, así que
+cada barrido posterior compara contra el target y cualquier diferencia se
+reporta.
+
+La vigilancia se prende y se apaga a mano desde la plataforma (tabla
+app.liquidaciones_vigilancia). Cada activación vuelve a congelar el target con
+los montos actuales, para poder reactivar después de corregir sin arrastrar
+descuadres ya resueltos.
 
 No hay umbral: el delta esperado es exactamente 0.
 
@@ -11,17 +17,14 @@ Se vigilan cuatro campos por liquidación: el líquido, el bruto y las dos bases
 de cotización. Un bruto que se mueve dejando el líquido igual también es un
 descuadre, y una base de cotización mal cuadrada se paga en la previred.
 
-Las fechas de cierre salen de app.calendariocierres, la misma tabla que usa
-ContractAlertsService, para que ambos mecanismos no se desincronicen.
 """
 
 from __future__ import annotations
 
 import asyncio
-import calendar
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional
 
 import httpx
 from sqlalchemy import text
@@ -144,35 +147,77 @@ class LiquidacionesService:
         self.db = db
 
     # ---------------------------------------------------------------
-    # Calendario de cierres (compartido con las alertas de contratos)
+    # Interruptor manual de la vigilancia
     # ---------------------------------------------------------------
 
-    def get_fecha_cierre(self, anio: int, mes: int) -> Optional[date]:
+    def vigilancia_estado(self) -> Dict[str, Any]:
         row = self.db.execute(
-            text("SELECT fecha_cierre FROM app.calendariocierres WHERE anio = :a AND mes = :m"),
-            {"a": anio, "m": mes},
+            text("""
+                SELECT activa, periodo, actualizado_por, actualizado_en
+                FROM app.liquidaciones_vigilancia WHERE id = 1
+            """)
         ).fetchone()
         if not row:
-            return None
-        fecha = row[0]
-        if isinstance(fecha, str):
-            fecha = datetime.strptime(fecha, "%Y-%m-%d").date()
-        return fecha
+            return {"activa": False, "periodo": None,
+                    "actualizado_por": None, "actualizado_en": None}
+        return {
+            "activa": bool(row[0]),
+            "periodo": row[1],
+            "actualizado_por": row[2],
+            "actualizado_en": row[3].isoformat() if row[3] else None,
+        }
 
-    def ventana_post_cierre(self, hoy: Optional[date] = None) -> Tuple[bool, str]:
+    def _set_vigilancia(self, activa: bool, periodo: Optional[str], usuario: str) -> None:
+        self.db.execute(
+            text("""
+                INSERT INTO app.liquidaciones_vigilancia
+                    (id, activa, periodo, actualizado_por, actualizado_en)
+                VALUES (1, :activa, :periodo, :usuario, now())
+                ON CONFLICT (id) DO UPDATE SET
+                    activa          = EXCLUDED.activa,
+                    periodo         = EXCLUDED.periodo,
+                    actualizado_por = EXCLUDED.actualizado_por,
+                    actualizado_en  = EXCLUDED.actualizado_en
+            """),
+            {"activa": activa, "periodo": periodo, "usuario": usuario},
+        )
+        self.db.commit()
+
+    async def activar(self, usuario: str, hoy: Optional[date] = None) -> Dict[str, Any]:
         """
-        ¿Estamos en la ventana de vigilancia? Va desde el día del cierre hasta
-        fin de mes. Es la imagen espejo del "modo cierre" de ContractAlertsService
-        (que mira los 7 días PREVIOS), sobre el mismo calendario.
+        Prende la vigilancia y congela el target con los montos de BUK de este
+        momento. Re-congela siempre: activar después de corregir la nómina toma
+        los valores corregidos como el nuevo cero.
         """
-        hoy = hoy or date.today()
-        fecha_cierre = self.get_fecha_cierre(hoy.year, hoy.month)
-        if not fecha_cierre:
-            return False, f"sin cierre configurado para {hoy.month}/{hoy.year}"
-        if hoy < fecha_cierre:
-            return False, f"faltan {(fecha_cierre - hoy).days} días para el cierre ({fecha_cierre})"
-        ultimo_dia = calendar.monthrange(hoy.year, hoy.month)[1]
-        return True, f"post-cierre ({fecha_cierre} -> {hoy.year}-{hoy.month:02d}-{ultimo_dia})"
+        periodo = _periodo_actual(hoy or date.today())
+        liquidaciones = await self.fetch_liquidaciones(periodo)
+        if not liquidaciones:
+            raise LiquidacionesError(f"BUK no devolvió liquidaciones para {periodo}")
+
+        # Se borra el snapshot anterior en vez de solo upsertear: si un empleado
+        # ya no viene en la lectura, dejarlo en la tabla lo reportaría como baja.
+        self.db.execute(
+            text("DELETE FROM app.liquidaciones_snapshot WHERE periodo = :p"),
+            {"p": periodo},
+        )
+        total = self.guardar_snapshot(periodo, liquidaciones)
+
+        # Los descuadres del período anterior a esta activación ya no aplican:
+        # el target cambió, y sin limpiarlos el dedup taparía un descuadre nuevo
+        # que coincida con uno viejo.
+        self.db.execute(
+            text("DELETE FROM app.liquidaciones_descuadre WHERE periodo = :p"),
+            {"p": periodo},
+        )
+        self._set_vigilancia(True, periodo, usuario)
+        logger.info(f"[Liquidos] Vigilancia ACTIVADA por {usuario} — {periodo}, {total} empleados")
+        return {"activa": True, "periodo": periodo, "empleados": total}
+
+    def desactivar(self, usuario: str) -> Dict[str, Any]:
+        estado = self.vigilancia_estado()
+        self._set_vigilancia(False, estado.get("periodo"), usuario)
+        logger.info(f"[Liquidos] Vigilancia DESACTIVADA por {usuario}")
+        return {"activa": False, "periodo": estado.get("periodo")}
 
     # ---------------------------------------------------------------
     # BUK
@@ -319,11 +364,6 @@ class LiquidacionesService:
         logger.info(f"[Liquidos] Snapshot {periodo} congelado: {len(liquidaciones)} empleados")
         return len(liquidaciones)
 
-    def rebaseline(self, periodo: str, emp_id: int, fila: Dict[str, Any]) -> None:
-        """Acepta los valores actuales como nuevo target (corrección legítima)."""
-        self._upsert_snapshot(periodo, emp_id, fila)
-        self.db.commit()
-
     # ---------------------------------------------------------------
     # Barrido
     # ---------------------------------------------------------------
@@ -361,29 +401,24 @@ class LiquidacionesService:
 
     async def barrido(self, hoy: Optional[date] = None) -> Dict[str, Any]:
         """
-        Un ciclo completo: valida ventana, congela el target si es el primer
-        barrido del período, y compara.
+        Un ciclo completo: solo corre con la vigilancia activada a mano, y compara
+        contra el target que se congeló en esa activación.
         """
         hoy = hoy or date.today()
-        en_ventana, motivo = self.ventana_post_cierre(hoy)
-        if not en_ventana:
-            return {"ejecutado": False, "motivo": motivo}
+        estado = self.vigilancia_estado()
+        if not estado["activa"]:
+            return {"ejecutado": False, "motivo": "vigilancia desactivada"}
 
-        periodo = _periodo_actual(hoy)
+        # Se vigila el período que se congeló al activar, no el del calendario:
+        # si el mes cambia con la vigilancia prendida, comparar contra otro
+        # período reportaría a toda la nómina como descuadrada.
+        periodo = estado["periodo"] or _periodo_actual(hoy)
+        if not self.tiene_snapshot(periodo):
+            return {"ejecutado": False, "motivo": f"sin snapshot para {periodo}"}
+
         liquidaciones = await self.fetch_liquidaciones(periodo)
         if not liquidaciones:
             return {"ejecutado": False, "motivo": f"BUK no devolvió liquidaciones para {periodo}"}
-
-        # Primer barrido del período: el día del cierre se congela el target.
-        if not self.tiene_snapshot(periodo):
-            total = self.guardar_snapshot(periodo, liquidaciones)
-            return {
-                "ejecutado": True,
-                "periodo": periodo,
-                "accion": "snapshot_inicial",
-                "empleados": total,
-                "trabajadores_descuadrados": [],
-            }
 
         target = self.leer_snapshot(periodo)
         difs = diff_liquidaciones(target, liquidaciones)

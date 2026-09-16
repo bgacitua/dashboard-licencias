@@ -306,7 +306,7 @@ def start_scheduler() -> None:
             f"{settings.LIQUIDOS_SCAN_MINUTOS} min entre "
             f"{settings.LIQUIDOS_SCAN_HORA_INICIO:02d}:00 y "
             f"{settings.LIQUIDOS_SCAN_HORA_FIN:02d}:59 "
-            f"(solo actúa en ventana post-cierre)"
+            f"(solo actúa con la vigilancia activada a mano)"
         )
 
     if settings.GRAPH_TOKEN_CHECK_ENABLED:
@@ -354,8 +354,9 @@ def _texto_descuadres(trabajadores: list) -> str:
 
 def _run_liquidos_job() -> None:
     """
-    Barrido de descuadre de líquidos. Solo actúa dentro de la ventana post-cierre;
-    fuera de ella sale sin tocar BUK, así que puede correr cada 15 min todo el mes.
+    Barrido de descuadre de líquidos. Solo actúa con la vigilancia activada a mano
+    desde la plataforma; apagada sale sin tocar BUK, así que puede correr cada
+    15 min todo el mes.
     """
     import asyncio
 
@@ -370,22 +371,6 @@ def _run_liquidos_job() -> None:
 
         if not result.get("ejecutado"):
             logger.debug(f"[Liquidos] Omitido — {result.get('motivo')}")
-            return
-
-        if result.get("accion") == "snapshot_inicial":
-            logger.info(
-                f"[Liquidos] Target congelado para {result['periodo']} "
-                f"({result['empleados']} empleados)"
-            )
-            _notify_n8n({
-                "tipo": "liquidos_snapshot",
-                "timestamp": timestamp,
-                "periodo": result["periodo"],
-                "mensaje": (
-                    f"📸 Cierre {result['periodo']}: target de líquidos congelado "
-                    f"({result['empleados']} empleados). Vigilancia activa."
-                ),
-            }, url=settings.LIQUIDOS_N8N_WEBHOOK_URL)
             return
 
         trabajadores = result.get("trabajadores_descuadrados", [])
