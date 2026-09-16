@@ -127,6 +127,49 @@ def test_agrupar_por_rut():
     assert [c["etiqueta"] for c in g42["campos"]] == ["Líquido", "Bruto"]
 
 
+def test_barrido_apagado_no_toca_buk():
+    """Con la vigilancia apagada el barrido sale sin leer BUK."""
+    import asyncio
+
+    from app.services.liquidaciones_service import LiquidacionesService
+
+    svc = LiquidacionesService(db=None)
+    svc.vigilancia_estado = lambda: {"activa": False, "periodo": None}
+
+    async def _explota(periodo):
+        raise AssertionError("no debe llamar a BUK con la vigilancia apagada")
+
+    svc.fetch_liquidaciones = _explota
+    res = asyncio.run(svc.barrido())
+    assert res == {"ejecutado": False, "motivo": "vigilancia desactivada"}
+
+
+def test_barrido_usa_el_periodo_congelado():
+    """Aunque cambie el mes, se compara contra el período que se congeló."""
+    import asyncio
+    from datetime import date
+
+    from app.services.liquidaciones_service import LiquidacionesService
+
+    svc = LiquidacionesService(db=None)
+    svc.vigilancia_estado = lambda: {"activa": True, "periodo": "2026-08"}
+    svc.tiene_snapshot = lambda p: p == "2026-08"
+    pedidos = []
+
+    async def _fetch(periodo):
+        pedidos.append(periodo)
+        return {42: _fila("11.400.111-3", "850000.00")}
+
+    svc.fetch_liquidaciones = _fetch
+    svc.leer_snapshot = lambda p: {42: _fila("11.400.111-3", "850000.00")}
+    svc.registrar_descuadres = lambda p, difs: []
+
+    res = asyncio.run(svc.barrido(hoy=date(2026, 9, 3)))
+    assert pedidos == ["2026-08"]
+    assert res["periodo"] == "2026-08"
+    assert res["trabajadores_descuadrados"] == []
+
+
 if __name__ == "__main__":
     for nombre, fn in sorted(globals().items()):
         if nombre.startswith("test_"):

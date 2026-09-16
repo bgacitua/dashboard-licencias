@@ -100,9 +100,12 @@ class Settings(BaseSettings):
     # dirección (con asunto [PRUEBA]) en vez de ir a las jefaturas reales. Vaciar en producción.
     OVERTIME_TEST_EMAIL: str = ""
 
-    # === Alerta de descuadre de líquidos (período post-cierre) ===
+    # === Alerta de descuadre de líquidos ===
+    # El flag registra el job; que el barrido haga algo depende además del
+    # interruptor manual (app.liquidaciones_vigilancia), que se prende desde la
+    # plataforma en Alertas de Contratos.
     LIQUIDOS_SCHEDULER_ENABLED: bool = False
-    LIQUIDOS_SCAN_MINUTOS: int = 15      # cada cuántos minutos barre, dentro de la ventana
+    LIQUIDOS_SCAN_MINUTOS: int = 15      # cada cuántos minutos barre, con la vigilancia prendida
     LIQUIDOS_SCAN_HORA_INICIO: int = 8   # acotado a horario hábil: fuera de él nadie edita nómina
     LIQUIDOS_SCAN_HORA_FIN: int = 20
     # Webhook n8n propio de este servicio. El de alertas de contratos no sirve:

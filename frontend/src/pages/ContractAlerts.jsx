@@ -13,6 +13,9 @@ import {
   getTracking,
   syncToBuk,
   abrirAutorizacionMicrosoft,
+  getVigilanciaLiquidos,
+  activarVigilanciaLiquidos,
+  desactivarVigilanciaLiquidos,
 } from '../services/contractAlerts';
 
 const buildPatchPreview = (row) => ({
@@ -58,6 +61,11 @@ const ContractAlerts = () => {
   // Tab activo
   const [activeTab, setActiveTab] = useState('alertas');
 
+  // Vigilancia de descuadres de líquidos (interruptor manual)
+  const [vigilancia, setVigilancia] = useState(null);
+  const [vigilanciaBusy, setVigilanciaBusy] = useState(false);
+  const [vigilanciaError, setVigilanciaError] = useState(null);
+
   // Seguimiento
   const [tracking, setTracking] = useState([]);
   const [trackingLoading, setTrackingLoading] = useState(false);
@@ -75,6 +83,7 @@ const ContractAlerts = () => {
         getContractAlertStats(daysOverride),
         getScheduleInfo().catch(() => null),
       ]);
+      getVigilanciaLiquidos().then(setVigilancia).catch(() => setVigilancia(null));
       setAlerts(alertsData);
       setGrouped(groupedData);
       setStats(statsData);
@@ -281,6 +290,29 @@ const ContractAlerts = () => {
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
   ];
+
+  // Vigilancia de líquidos: activar congela el target leyendo el mes completo
+  // desde BUK, así que el botón queda deshabilitado mientras responde.
+  const toggleVigilancia = async () => {
+    const prender = !vigilancia?.activa;
+    if (prender && !window.confirm(
+      'Activar vuelve a congelar el target con los montos actuales de BUK y borra ' +
+      'los descuadres ya registrados de este período. ¿Continuar?'
+    )) return;
+    setVigilanciaBusy(true);
+    setVigilanciaError(null);
+    try {
+      await (prender ? activarVigilanciaLiquidos() : desactivarVigilanciaLiquidos());
+      setVigilancia(await getVigilanciaLiquidos());
+    } catch (err) {
+      console.error(err);
+      setVigilanciaError(
+        err.response?.data?.detail || 'No se pudo cambiar el estado de la vigilancia.'
+      );
+    } finally {
+      setVigilanciaBusy(false);
+    }
+  };
 
   // Calendario handlers
   const fetchCalendario = async (year) => {
@@ -539,6 +571,49 @@ const ContractAlerts = () => {
                     </span>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Vigilancia de descuadres de líquidos */}
+            {activeTab === 'alertas' && vigilancia && (
+              <div className={`mb-6 p-4 rounded-xl border flex items-center gap-4 flex-wrap ${
+                vigilancia.activa
+                  ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'
+                  : 'bg-app-surface dark:bg-gray-900/40 border-app-line dark:border-gray-700'
+              }`}>
+                <span className={`material-symbols-outlined text-2xl ${
+                  vigilancia.activa ? 'text-green-600' : 'text-app-muted'
+                }`}>
+                  {vigilancia.activa ? 'visibility' : 'visibility_off'}
+                </span>
+                <div className="flex-1 min-w-[220px]">
+                  <p className="text-sm font-semibold text-app-ink dark:text-white">
+                    Vigilancia de líquidos: {vigilancia.activa ? 'activa' : 'desactivada'}
+                  </p>
+                  <p className="text-xs text-app-muted dark:text-gray-400">
+                    {vigilancia.activa
+                      ? `Comparando el período ${vigilancia.periodo} contra el target congelado.`
+                      : 'El barrido no revisa descuadres hasta que se active.'}
+                    {vigilancia.actualizado_por && ` · Último cambio: ${vigilancia.actualizado_por}`}
+                  </p>
+                  {vigilanciaError && (
+                    <p className="text-xs text-red-600 mt-1">{vigilanciaError}</p>
+                  )}
+                </div>
+                <button
+                  onClick={toggleVigilancia}
+                  disabled={vigilanciaBusy}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    vigilancia.activa ? 'bg-app-muted hover:bg-app-ink' : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {vigilanciaBusy ? 'hourglass_top' : vigilancia.activa ? 'stop_circle' : 'play_circle'}
+                  </span>
+                  {vigilanciaBusy
+                    ? 'Procesando...'
+                    : vigilancia.activa ? 'Desactivar' : 'Activar'}
+                </button>
               </div>
             )}
 
