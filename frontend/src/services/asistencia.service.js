@@ -96,10 +96,9 @@ const AsistenciaService = {
     return data
   },
 
-  // Barre el rango en Buk y lo persiste. Esto sí tarda: el scraper pide el
-  // detalle de los registros que cambiaron, así que la primera vez de un rango
-  // son minutos y las siguientes, segundos. Sin timeout propio: manda el del
-  // backend.
+  // Arranca el barrido del rango en el scraper y vuelve enseguida: el barrido
+  // corre en segundo plano y son minutos en un rango nuevo. El avance se sigue
+  // con getHheeHistorialEstado.
   refrescarHheeHistorial: async ({ desde, hasta, recinto, rut, forzar } = {}) => {
     const { data } = await axios.post(`${API_URL}/hhee/historial/refrescar`, null, {
       headers: authHeaders(),
@@ -109,6 +108,16 @@ const AsistenciaService = {
         ...(rut ? { rut } : {}),
         ...(forzar ? { forzar: true } : {}),
       },
+    })
+    return data
+  },
+
+  // Estado del barrido: 'corriendo' | 'listo' | 'error'. Devuelve null si el
+  // scraper no conoce el rango (nunca se pidió, o se reinició el contenedor).
+  getHheeHistorialEstado: async ({ desde, hasta, recinto } = {}) => {
+    const { data } = await axios.get(`${API_URL}/hhee/historial/estado`, {
+      headers: authHeaders(),
+      params: { desde, hasta, ...(recinto ? { recinto } : {}) },
     })
     return data
   },

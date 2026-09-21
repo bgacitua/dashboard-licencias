@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AsistenciaService from '../../services/asistencia.service'
 import TablaDinamica from './TablaDinamica'
 import { descargarHojas } from './planilla'
@@ -18,6 +18,11 @@ import { COLUMNAS_RESUMEN, resumir } from './hheeResumen'
  * rango. El scraper solo le pide a Buk el detalle de los registros que
  * cambiaron, así que un periodo ya barrido vuelve en segundos; la primera vez
  * de un rango nuevo son minutos.
+ *
+ * El barrido corre en segundo plano en el scraper: el POST vuelve enseguida y
+ * acá se consulta el estado cada pocos segundos. Antes la petición se sostenía
+ * durante todo el barrido, el proxy la cortaba a los 60 s y la pantalla decía
+ * que había fallado aunque por detrás siguiera avanzando.
  */
 // Columnas del detalle: solo se usan para el XLSX, no para la tabla.
 const COLUMNAS_DETALLE = [
@@ -38,13 +43,16 @@ const HheeAprobadas = () => {
   const [data, setData] = useState(null)
   const [cargando, setCargando] = useState(false)
   const [refrescando, setRefrescando] = useState(false)
-  const [resumenSync, setResumenSync] = useState(null)
+  const [barrido, setBarrido] = useState(null)
   const [error, setError] = useState(null)
+  // El intervalo del sondeo, para poder cortarlo al desmontar o al terminar.
+  const sondeo = useRef(null)
 
   const listo = desde && hasta && desde <= hasta
-  const ocupado = cargando || refrescando
+  const corriendo = barrido?.estado === 'corriendo'
+  const ocupado = cargando || refrescando || corriendo
 
-  const consultar = async () => {
+  const consultar = useCallback(async () => {
     setCargando(true)
     setError(null)
     try {
@@ -57,25 +65,65 @@ const HheeAprobadas = () => {
     } finally {
       setCargando(false)
     }
-  }
+  }, [desde, hasta, recinto, rut])
 
-  // Barrer y releer: el POST no devuelve las filas, solo el resumen de lo que
-  // le costó (cuántos registros se le pidieron a Buk y cuántos se reusaron).
+  // Corta el sondeo. Se llama al terminar el barrido y al desmontar: sin esto
+  // el intervalo sigue pegándole al backend después de salir de la pestaña.
+  const pararSondeo = useCallback(() => {
+    if (sondeo.current) {
+      clearInterval(sondeo.current)
+      sondeo.current = null
+    }
+  }, [])
+
+  useEffect(() => pararSondeo, [pararSondeo])
+
+  // Arranca el barrido y sigue su avance. El POST vuelve enseguida: lo que
+  // tarda es el barrido, que corre en el scraper. Al terminar se relee la tabla.
   const refrescar = async () => {
     setRefrescando(true)
     setError(null)
-    setResumenSync(null)
+    let inicial
     try {
-      setResumenSync(
-        await AsistenciaService.refrescarHheeHistorial({ desde, hasta, recinto, rut })
-      )
+      inicial = await AsistenciaService.refrescarHheeHistorial({ desde, hasta, recinto, rut })
     } catch (e) {
-      setError(e?.response?.data?.detail || 'No se pudo actualizar desde Buk.')
+      setError(e?.response?.data?.detail || 'No se pudo arrancar la actualización.')
       return
     } finally {
       setRefrescando(false)
     }
-    await consultar()
+    setBarrido(inicial)
+    if (inicial?.estado !== 'corriendo') {
+      await consultar()
+      return
+    }
+
+    pararSondeo()
+    sondeo.current = setInterval(async () => {
+      let e
+      try {
+        e = await AsistenciaService.getHheeHistorialEstado({ desde, hasta, recinto })
+      } catch {
+        // Un sondeo que falla no dice nada del barrido, que sigue en el
+        // scraper: se reintenta en el próximo tick.
+        return
+      }
+      // null = el scraper no conoce el rango, típicamente porque se reinició.
+      // El barrido se perdió, pero lo ya bajado quedó en la tabla.
+      if (!e) {
+        pararSondeo()
+        setBarrido(null)
+        setError('Se perdió el seguimiento del barrido. Actualiza de nuevo para continuarlo.')
+        await consultar()
+        return
+      }
+      setBarrido(e)
+      if (e.estado === 'corriendo') return
+
+      pararSondeo()
+      if (e.estado === 'error') setError(e.error || 'El barrido falló.')
+      await consultar()
+    }, 5000)
   }
 
   const rows = data?.rows || []
@@ -139,7 +187,7 @@ const HheeAprobadas = () => {
         <button onClick={refrescar} disabled={!listo || ocupado}
                 title="Trae de Buk lo que cambió en el periodo y lo guarda."
                 className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40">
-          {refrescando ? 'Actualizando desde Buk…' : 'Actualizar desde Buk'}
+          {refrescando || corriendo ? 'Actualizando desde Buk…' : 'Actualizar desde Buk'}
         </button>
 
         <button onClick={exportar}
@@ -150,14 +198,28 @@ const HheeAprobadas = () => {
         </button>
       </div>
 
-      {resumenSync && (
+      {barrido && (
         <div className="mb-4 text-sm text-app-muted">
-          Actualizado: {resumenSync.registros_listado} registros en el periodo ·{' '}
-          {resumenSync.registros_consultados} consultados a Buk ·{' '}
-          {resumenSync.registros_reusados} reusados de lo ya guardado.
-          {!resumenSync.persistido && (
-            <strong className="text-app-ink"> No se pudo guardar: la próxima vez se vuelve
-            a bajar todo.</strong>
+          {barrido.estado === 'corriendo' && (
+            <>
+              Actualizando desde Buk: {barrido.bajados} de {barrido.total} registros.
+              Puedes seguir usando la plataforma; el barrido sigue solo.
+            </>
+          )}
+          {barrido.estado === 'listo' && (
+            <>
+              Actualizado: {barrido.registros_listado} registros en el periodo ·{' '}
+              {barrido.registros_consultados} consultados a Buk ·{' '}
+              {barrido.registros_reusados} reusados de lo ya guardado.
+              {!barrido.persistido && (
+                <strong className="text-app-ink"> No se pudo guardar: la próxima vez se
+                vuelve a bajar todo.</strong>
+              )}
+            </>
+          )}
+          {barrido.estado === 'error' && (
+            <>El barrido falló. Lo que alcanzó a bajar quedó guardado: al reintentar
+            sigue desde ahí.</>
           )}
         </div>
       )}

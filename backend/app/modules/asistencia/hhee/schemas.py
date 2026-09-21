@@ -57,13 +57,24 @@ class FrescuraHistorial(BaseModel):
     filas: int = 0
 
 
-class HistorialSyncResponse(BaseModel):
-    """Resumen del barrido del historial. `reusados` es lo que no se le pidio a Buk."""
+class EstadoBarrido(BaseModel):
+    """Estado de un barrido del historial en el scraper.
 
+    `corriendo` -> `listo` o `error`. Mientras corre, `bajados`/`total` avanzan;
+    los contadores del resultado recien tienen sentido al terminar.
+    """
+
+    recinto: str
     desde: str
     hasta: str
+    estado: str
+    iniciado_en: str | None = None
+    terminado_en: str | None = None
+    total: int = 0
+    bajados: int = 0
     registros_listado: int = 0
     registros_consultados: int = 0
     registros_reusados: int = 0
     filas: int = 0
     persistido: bool = False
+    error: str | None = None

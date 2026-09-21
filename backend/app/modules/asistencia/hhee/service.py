@@ -125,22 +125,21 @@ def refrescar(settings: AsistenciaSettings, desde=None, hasta=None,
 
 def historial(settings: AsistenciaSettings, desde, hasta, recinto: str = "",
               rut: str = "", forzar: bool = False) -> dict:
-    """GET /hhee/historial: dispara el barrido del rango en el scraper.
+    """POST /hhee/historial/sync: arranca el barrido del rango en el scraper.
 
-    El scraper persiste lo que baja en `app.hhee_historial` y solo pide a Buk el
-    detalle de los registros cuya huella del listado cambio, asi que un rango ya
-    barrido cuesta una consulta paginada y nada mas. La primera corrida de un
-    rango nuevo si tarda minutos.
+    Vuelve de inmediato: el barrido corre en un hilo del scraper y puede tardar
+    minutos. El avance se consulta con `estado_historial`.
+
+    El scraper persiste lo que baja en `app.hhee_historial` por lotes y solo le
+    pide a Buk el detalle de los registros cuya huella del listado cambio, asi
+    que un rango ya barrido termina enseguida.
 
     La pantalla NO llama a esto para mostrar datos: lee la tabla por
     `HheeRepo.historial`. Esto es el boton de refresco.
 
     `forzar=True` ignora lo persistido y rebaja el rango completo.
     """
-    # incluir_pendientes=true: sin esto el scraper descarta las filas
-    # REGISTRO_PENDIENTE, y los registros que todavia estan "en espera" quedan
-    # fuera del reporte por completo. La pantalla los necesita.
-    params = {"desde": str(desde), "hasta": str(hasta), "incluir_pendientes": "true"}
+    params = {"desde": str(desde), "hasta": str(hasta)}
     if recinto:
         params["recinto"] = recinto
     if rut:
@@ -149,8 +148,28 @@ def historial(settings: AsistenciaSettings, desde, hasta, recinto: str = "",
         params["forzar"] = "true"
 
     return _llamar(
-        settings, "GET", "/hhee/historial", params,
-        "El scraper no respondio a tiempo. El reporte cuesta un request por "
-        "registro: acota el periodo, o filtra por recinto o RUT.",
-        timeout=settings.hhee_reporte_timeout,
+        settings, "POST", "/hhee/historial/sync", params,
+        "El scraper no respondio al pedido de barrido. Revisar que este arriba.",
     )
+
+
+def estado_historial(settings: AsistenciaSettings, desde, hasta,
+                     recinto: str = "") -> dict:
+    """GET /hhee/historial/estado: por donde va el barrido de ese rango.
+
+    Devuelve {} si el scraper no conoce ese rango (404): nunca se pidio, o se
+    reinicio el contenedor. No es un error: la tabla puede tener datos igual.
+    """
+    params = {"desde": str(desde), "hasta": str(hasta)}
+    if recinto:
+        params["recinto"] = recinto
+    try:
+        return _llamar(
+            settings, "GET", "/hhee/historial/estado", params,
+            "El scraper no respondio el estado del barrido.",
+            timeout=settings.hhee_estado_timeout,
+        )
+    except RuntimeError as exc:
+        if "HTTP 404" in str(exc):
+            return {}
+        raise

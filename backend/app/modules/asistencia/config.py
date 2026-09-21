@@ -89,11 +89,9 @@ class AsistenciaSettings(BaseSettings):
     hhee_api_key: SecretStr = SecretStr("")
     # ~12 s por recinto y son tres: 180 s deja margen para un Buk lento.
     hhee_timeout: float = 180.0
-    # El reporte de aprobadas es otra cosa: un request a Buk por registro del
-    # listado, asi que un recinto grande pasa los 180 s con comodidad. Timeout
-    # aparte para no aflojar el del refresco, donde 180 s ya es sintoma de que
-    # el scraper se colgo.
-    hhee_reporte_timeout: float = 600.0
+    # El estado del barrido es una lectura de un dict en memoria del scraper: si
+    # tarda, es que el scraper esta mal, no que el rango sea grande.
+    hhee_estado_timeout: float = 15.0
 
     @property
     def recinto_codes_map(self) -> dict[str, str]:

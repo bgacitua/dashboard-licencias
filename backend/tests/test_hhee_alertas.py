@@ -118,12 +118,12 @@ class _Cfg:
 
     def __init__(self, propia: str = "", externa: str = "",
                  url: str = "http://hhee-scrapping:8000", timeout: float = 180.0,
-                 timeout_reporte: float = 600.0) -> None:
+                 timeout_estado: float = 15.0) -> None:
         self.hhee_api_url = url
         self.hhee_api_key = _Secreto(propia)
         self.external_api_key = _Secreto(externa)
         self.hhee_timeout = timeout
-        self.hhee_reporte_timeout = timeout_reporte
+        self.hhee_estado_timeout = timeout_estado
 
 
 def test_no_cae_a_external_api_key():
@@ -319,11 +319,13 @@ def test_refrescar_manda_la_key_y_los_filtros():
     assert capturado["params"] == {"recintos": "36787,42123"}   # sin desde/hasta vacios
 
 
-def test_historial_arma_el_get_con_periodo_y_filtros():
-    """El reporte de aprobadas es un GET al scraper, con la key puesta acá.
+def test_historial_arranca_el_barrido_sin_esperarlo():
+    """Refrescar es un POST que vuelve enseguida: el barrido corre en el scraper.
 
-    Los filtros vacios no viajan: el scraper trata "" como "sin filtro", pero
-    mandarlos igual hace que dos consultas equivalentes se vean distintas.
+    Antes esto era un GET que sostenia la conexion los minutos que durara el
+    barrido, y el proxy la cortaba antes. Los filtros vacios no viajan: el
+    scraper trata "" como "sin filtro", pero mandarlos igual hace que dos
+    consultas equivalentes se vean distintas.
     """
     capturado = {}
 
@@ -332,7 +334,8 @@ def test_historial_arma_el_get_con_periodo_y_filtros():
             pass
 
         def json(self):
-            return {"rows": [{"rut": "1-9"}], "columns": ["rut"]}
+            return {"recinto": "42123", "desde": "2026-06-15", "hasta": "2026-07-14",
+                    "estado": "corriendo"}
 
     def fake_request(metodo, url, params=None, timeout=None, headers=None):
         capturado.update(metodo=metodo, url=url, params=params, timeout=timeout,
@@ -347,12 +350,12 @@ def test_historial_arma_el_get_con_periodo_y_filtros():
     finally:
         sv.httpx.request = original
 
-    assert capturado["metodo"] == "GET"
-    assert capturado["url"] == "http://hhee-scrapping:8000/hhee/historial"
+    assert capturado["metodo"] == "POST"
+    assert capturado["url"] == "http://hhee-scrapping:8000/hhee/historial/sync"
     assert capturado["headers"] == {"X-API-Key": "secreta"}
     assert capturado["params"] == {"desde": "2026-06-15", "hasta": "2026-07-14",
-                                   "recinto": "42123",          # sin `rut` vacio
-                                   "incluir_pendientes": "true"}  # los "en espera" tambien
+                                   "recinto": "42123"}          # sin `rut` vacio
+    assert r["estado"] == "corriendo"
 
     # `forzar` solo viaja cuando se pide: es lo que ignora lo ya persistido.
     sv.httpx.request = fake_request
@@ -362,9 +365,29 @@ def test_historial_arma_el_get_con_periodo_y_filtros():
     finally:
         sv.httpx.request = original
     assert capturado["params"]["forzar"] == "true"
-    # El reporte usa su propio timeout, no el (mucho mas corto) del refresco.
-    assert capturado["timeout"] == 600.0
-    assert r["rows"] == [{"rut": "1-9"}]
+
+
+def test_estado_del_barrido_desconocido_no_es_error():
+    """404 del scraper => {} y no excepcion.
+
+    Que no conozca el rango es lo normal tras reiniciar el contenedor, y la
+    tabla puede tener datos igual: romper la pantalla por eso seria absurdo.
+    """
+    import httpx
+
+    class _Resp404:
+        status_code = 404
+
+        def raise_for_status(self):
+            raise httpx.HTTPStatusError("404", request=None, response=self)
+
+    original = sv.httpx.request
+    sv.httpx.request = lambda *a, **k: _Resp404()
+    try:
+        assert sv.estado_historial(_Cfg(propia="secreta"), desde="2026-06-15",
+                                   hasta="2026-07-14") == {}
+    finally:
+        sv.httpx.request = original
 
 
 if __name__ == "__main__":
