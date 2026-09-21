@@ -33,7 +33,7 @@ from .marcas import registrar
 from .morpho import marcas_en_rango
 from .plataforma import buk_core_url
 from .hhee.repository import COLUMNAS_HISTORIAL, HheeRepo
-from .hhee.schemas import Frescura, FrescuraHistorial, HistorialSyncResponse, SyncResponse
+from .hhee.schemas import EstadoBarrido, Frescura, FrescuraHistorial, SyncResponse
 from .hhee import service as hhee_service
 from .reportes.repository import ReportesRepo
 from .reportes.schemas import ReporteRequest, SimulacionRequest
@@ -463,7 +463,7 @@ def hhee_historial_frescura(db: Db) -> list[dict]:
         raise HTTPException(status_code=502, detail=str(exc))
 
 
-@router.post("/hhee/historial/refrescar", response_model=HistorialSyncResponse)
+@router.post("/hhee/historial/refrescar", response_model=EstadoBarrido, status_code=202)
 def hhee_historial_refrescar(
     settings: Settings,
     desde: date = Query(..., description="inicio del periodo (YYYY-MM-DD)"),
@@ -471,30 +471,43 @@ def hhee_historial_refrescar(
     recinto: str = Query("", description="id_recinto; vacio = el default del scraper"),
     rut: str = Query("", description="acota el barrido a un trabajador"),
     forzar: bool = Query(False, description="rebaja el rango completo, ignorando lo guardado"),
-) -> HistorialSyncResponse:
-    """Barre el rango en Buk y lo deja en `app.hhee_historial`.
+) -> EstadoBarrido:
+    """Arranca el barrido del periodo en el scraper y vuelve de inmediato.
 
-    Es lo mas lento del modulo, y por eso solo corre cuando alguien lo pide. El
-    scraper solo consulta el detalle de los registros que cambiaron desde la
-    ultima corrida, asi que un periodo ya barrido vuelve rapido: el costo real
-    es la primera vez que se pide un rango.
+    El barrido son minutos en un rango nuevo, mas de lo que aguanta una conexion
+    HTTP con el proxy en el medio, asi que corre en segundo plano: esto devuelve
+    el estado inicial y el avance se consulta en GET /hhee/historial/estado.
+
+    Pedir dos veces el mismo periodo mientras corre no duplica el trabajo: el
+    scraper devuelve el estado del barrido que ya esta.
     """
     if desde > hasta:
         raise HTTPException(status_code=422, detail="'desde' es posterior a 'hasta'.")
     try:
-        r = hhee_service.historial(settings, desde=desde, hasta=hasta,
-                                   recinto=recinto, rut=rut, forzar=forzar)
+        return EstadoBarrido(**hhee_service.historial(settings, desde=desde, hasta=hasta,
+                                                      recinto=recinto, rut=rut, forzar=forzar))
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
-    # Las filas no se devuelven: la pantalla las relee de la tabla.
-    return HistorialSyncResponse(
-        desde=str(desde), hasta=str(hasta),
-        registros_listado=r.get("registros_listado", 0),
-        registros_consultados=r.get("registros_consultados", 0),
-        registros_reusados=r.get("registros_reusados", 0),
-        filas=r.get("total", 0),
-        persistido=bool(r.get("persistido")),
-    )
+
+
+@router.get("/hhee/historial/estado", response_model=EstadoBarrido | None)
+def hhee_historial_estado(
+    settings: Settings,
+    desde: date = Query(..., description="inicio del periodo (YYYY-MM-DD)"),
+    hasta: date = Query(..., description="fin del periodo (YYYY-MM-DD)"),
+    recinto: str = Query("", description="id_recinto; vacio = el default del scraper"),
+) -> EstadoBarrido | None:
+    """Por donde va el barrido de ese periodo. `null` si el scraper no lo conoce.
+
+    No conocerlo no es un error: puede que nunca se haya pedido, o que el
+    contenedor se haya reiniciado. Las filas ya barridas siguen en la tabla.
+    """
+    try:
+        e = hhee_service.estado_historial(settings, desde=desde, hasta=hasta,
+                                          recinto=recinto)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    return EstadoBarrido(**e) if e else None
 
 
 @router.post("/hhee/refrescar", response_model=SyncResponse)
