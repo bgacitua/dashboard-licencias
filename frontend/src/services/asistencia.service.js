@@ -86,13 +86,29 @@ const AsistenciaService = {
     return data
   },
 
-  // Aprobaciones de HHEE del periodo. A diferencia de las alertas, esto sale a
-  // Buk en vivo: tarda minutos en rangos largos, así que solo se pide con un
-  // clic explícito y sin timeout propio (manda el del backend).
+  // Historial de aprobaciones del periodo. Sale de app.hhee_historial, que
+  // llena el scraper: es instantáneo. Un rango nunca barrido vuelve vacío.
   getHheeHistorial: async ({ desde, hasta, recinto, rut } = {}) => {
     const { data } = await axios.get(`${API_URL}/hhee/historial`, {
       headers: authHeaders(),
       params: { desde, hasta, ...(recinto ? { recinto } : {}), ...(rut ? { rut } : {}) },
+    })
+    return data
+  },
+
+  // Barre el rango en Buk y lo persiste. Esto sí tarda: el scraper pide el
+  // detalle de los registros que cambiaron, así que la primera vez de un rango
+  // son minutos y las siguientes, segundos. Sin timeout propio: manda el del
+  // backend.
+  refrescarHheeHistorial: async ({ desde, hasta, recinto, rut, forzar } = {}) => {
+    const { data } = await axios.post(`${API_URL}/hhee/historial/refrescar`, null, {
+      headers: authHeaders(),
+      params: {
+        desde, hasta,
+        ...(recinto ? { recinto } : {}),
+        ...(rut ? { rut } : {}),
+        ...(forzar ? { forzar: true } : {}),
+      },
     })
     return data
   },

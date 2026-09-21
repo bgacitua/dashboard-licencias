@@ -32,8 +32,8 @@ from . import historial, notificaciones
 from .marcas import registrar
 from .morpho import marcas_en_rango
 from .plataforma import buk_core_url
-from .hhee.repository import HheeRepo
-from .hhee.schemas import Frescura, SyncResponse
+from .hhee.repository import COLUMNAS_HISTORIAL, HheeRepo
+from .hhee.schemas import Frescura, FrescuraHistorial, HistorialSyncResponse, SyncResponse
 from .hhee import service as hhee_service
 from .reportes.repository import ReportesRepo
 from .reportes.schemas import ReporteRequest, SimulacionRequest
@@ -430,27 +430,71 @@ def hhee_frescura(db: Db) -> list[dict]:
 
 @router.get("/hhee/historial", response_model=DataResponse)
 def hhee_historial(
+    db: Db,
+    desde: date = Query(..., description="inicio del periodo (YYYY-MM-DD)"),
+    hasta: date = Query(..., description="fin del periodo (YYYY-MM-DD)"),
+    recinto: str = Query("", description="id_recinto; vacio = todos"),
+    rut: str = Query("", description="filtra un trabajador"),
+    limite: int = Query(20000, ge=1, le=100000),
+) -> DataResponse:
+    """Horas extras del periodo, una fila por cambio de estado.
+
+    Lee `app.hhee_historial`, que llena el scraper: es instantaneo y no depende
+    de que Buk ni el scraper esten arriba. Un rango que nunca se barrio devuelve
+    vacio; para traerlo hay que pasar por POST /hhee/historial/refrescar.
+    """
+    if desde > hasta:
+        raise HTTPException(status_code=422, detail="'desde' es posterior a 'hasta'.")
+    try:
+        rows = HheeRepo(db).historial(desde=desde, hasta=hasta,
+                                      recinto=recinto or None, rut=rut or None,
+                                      limite=limite)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    return DataResponse(rows=rows, total=len(rows), columns=COLUMNAS_HISTORIAL)
+
+
+@router.get("/hhee/historial/frescura", response_model=list[FrescuraHistorial])
+def hhee_historial_frescura(db: Db) -> list[dict]:
+    """Hasta que dia esta barrido el historial de cada recinto."""
+    try:
+        return HheeRepo(db).historial_frescura()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/hhee/historial/refrescar", response_model=HistorialSyncResponse)
+def hhee_historial_refrescar(
     settings: Settings,
     desde: date = Query(..., description="inicio del periodo (YYYY-MM-DD)"),
     hasta: date = Query(..., description="fin del periodo (YYYY-MM-DD)"),
     recinto: str = Query("", description="id_recinto; vacio = el default del scraper"),
-    rut: str = Query("", description="filtra un trabajador"),
-) -> DataResponse:
-    """Horas extras aprobadas en el periodo, una fila por cambio de estado.
+    rut: str = Query("", description="acota el barrido a un trabajador"),
+    forzar: bool = Query(False, description="rebaja el rango completo, ignorando lo guardado"),
+) -> HistorialSyncResponse:
+    """Barre el rango en Buk y lo deja en `app.hhee_historial`.
 
-    Va a Buk en vivo a traves del scraper: es lo mas lento del modulo (un
-    request por registro del listado) y por eso solo corre cuando alguien lo
-    pide explicitamente, nunca al abrir la pantalla.
+    Es lo mas lento del modulo, y por eso solo corre cuando alguien lo pide. El
+    scraper solo consulta el detalle de los registros que cambiaron desde la
+    ultima corrida, asi que un periodo ya barrido vuelve rapido: el costo real
+    es la primera vez que se pide un rango.
     """
     if desde > hasta:
         raise HTTPException(status_code=422, detail="'desde' es posterior a 'hasta'.")
     try:
         r = hhee_service.historial(settings, desde=desde, hasta=hasta,
-                                   recinto=recinto, rut=rut)
+                                   recinto=recinto, rut=rut, forzar=forzar)
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
-    rows = r.get("rows", [])
-    return DataResponse(rows=rows, total=len(rows), columns=r.get("columns", []))
+    # Las filas no se devuelven: la pantalla las relee de la tabla.
+    return HistorialSyncResponse(
+        desde=str(desde), hasta=str(hasta),
+        registros_listado=r.get("registros_listado", 0),
+        registros_consultados=r.get("registros_consultados", 0),
+        registros_reusados=r.get("registros_reusados", 0),
+        filas=r.get("total", 0),
+        persistido=bool(r.get("persistido")),
+    )
 
 
 @router.post("/hhee/refrescar", response_model=SyncResponse)

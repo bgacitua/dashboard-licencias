@@ -4,7 +4,7 @@ La tabla de alertas sale como DataResponse del modulo, igual que Marcajes y
 Reportes, para que el componente de tabla del frontend la consuma sin cambios.
 Lo unico propio es la metadata de frescura y el resumen del refresco.
 """
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -46,3 +46,24 @@ class SyncResponse(BaseModel):
     fallidos: int = 0
     alertas: int = 0
     recintos: list[RecintoSync] = Field(default_factory=list)
+
+
+class FrescuraHistorial(BaseModel):
+    """Hasta donde esta barrido el historial de un recinto."""
+
+    recinto: str
+    ultima_vez: datetime | None = None
+    ultimo_dia: date | None = None
+    filas: int = 0
+
+
+class HistorialSyncResponse(BaseModel):
+    """Resumen del barrido del historial. `reusados` es lo que no se le pidio a Buk."""
+
+    desde: str
+    hasta: str
+    registros_listado: int = 0
+    registros_consultados: int = 0
+    registros_reusados: int = 0
+    filas: int = 0
+    persistido: bool = False

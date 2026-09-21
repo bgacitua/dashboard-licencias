@@ -13,10 +13,11 @@ import { COLUMNAS_RESUMEN, resumir } from './hheeResumen'
  * detalle son varias filas por registro y en un mes son miles, ilegibles en
  * pantalla. El detalle completo sale por el XLSX, que es donde se lo trabaja.
  *
- * No se carga solo al abrir la pestaña, y esa es la diferencia con las alertas:
- * las alertas se leen de `app.hhee_alertas` (instantáneo, dato del job), esto
- * consulta Buk en vivo con un request por registro y tarda minutos en rangos
- * largos. Se pide con un clic y punto.
+ * Dos botones a propósito: "Consultar" lee `app.hhee_historial` (instantáneo,
+ * lo que ya se barrió) y "Actualizar desde Buk" manda al scraper a barrer el
+ * rango. El scraper solo le pide a Buk el detalle de los registros que
+ * cambiaron, así que un periodo ya barrido vuelve en segundos; la primera vez
+ * de un rango nuevo son minutos.
  */
 // Columnas del detalle: solo se usan para el XLSX, no para la tabla.
 const COLUMNAS_DETALLE = [
@@ -36,20 +37,45 @@ const HheeAprobadas = () => {
   const [rut, setRut] = useState('')
   const [data, setData] = useState(null)
   const [cargando, setCargando] = useState(false)
+  const [refrescando, setRefrescando] = useState(false)
+  const [resumenSync, setResumenSync] = useState(null)
   const [error, setError] = useState(null)
 
   const listo = desde && hasta && desde <= hasta
+  const ocupado = cargando || refrescando
 
-  const generar = async () => {
+  const consultar = async () => {
     setCargando(true)
     setError(null)
     try {
-      setData(await AsistenciaService.getHheeHistorial({ desde, hasta, recinto, rut }))
+      const r = await AsistenciaService.getHheeHistorial({ desde, hasta, recinto, rut })
+      setData(r)
+      return r
     } catch (e) {
-      setError(e?.response?.data?.detail || 'No se pudo generar el reporte.')
+      setError(e?.response?.data?.detail || 'No se pudo leer el reporte.')
+      return null
     } finally {
       setCargando(false)
     }
+  }
+
+  // Barrer y releer: el POST no devuelve las filas, solo el resumen de lo que
+  // le costó (cuántos registros se le pidieron a Buk y cuántos se reusaron).
+  const refrescar = async () => {
+    setRefrescando(true)
+    setError(null)
+    setResumenSync(null)
+    try {
+      setResumenSync(
+        await AsistenciaService.refrescarHheeHistorial({ desde, hasta, recinto, rut })
+      )
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'No se pudo actualizar desde Buk.')
+      return
+    } finally {
+      setRefrescando(false)
+    }
+    await consultar()
   }
 
   const rows = data?.rows || []
@@ -76,8 +102,10 @@ const HheeAprobadas = () => {
           estado, con quién aprobó y cuándo) sale en el XLSX.
         </p>
         <p>
-          Consulta Buk en vivo, no la tabla de alertas: en periodos de un mes puede tardar
-          varios minutos. Acotar por recinto o RUT lo hace bastante más rápido.
+          <strong className="text-app-ink">Consultar</strong> lee lo ya guardado y es
+          instantáneo. <strong className="text-app-ink">Actualizar desde Buk</strong> barre el
+          periodo: solo pide el detalle de los registros que cambiaron, así que un rango ya
+          consultado vuelve en segundos y uno nuevo puede tardar varios minutos.
         </p>
       </div>
 
@@ -103,18 +131,36 @@ const HheeAprobadas = () => {
                  onChange={(e) => setRut(e.target.value.trim())} />
         </label>
 
-        <button onClick={generar} disabled={!listo || cargando}
+        <button onClick={consultar} disabled={!listo || ocupado}
                 className="px-4 py-1.5 text-sm rounded bg-app-brand text-white disabled:opacity-40">
-          {cargando ? 'Consultando Buk…' : 'Generar'}
+          {cargando ? 'Consultando…' : 'Consultar'}
+        </button>
+
+        <button onClick={refrescar} disabled={!listo || ocupado}
+                title="Trae de Buk lo que cambió en el periodo y lo guarda."
+                className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40">
+          {refrescando ? 'Actualizando desde Buk…' : 'Actualizar desde Buk'}
         </button>
 
         <button onClick={exportar}
                 title="Exporta el detalle completo: una fila por cambio de estado."
-                disabled={cargando || !rows.length}
+                disabled={ocupado || !rows.length}
                 className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40">
           Exportar XLSX
         </button>
       </div>
+
+      {resumenSync && (
+        <div className="mb-4 text-sm text-app-muted">
+          Actualizado: {resumenSync.registros_listado} registros en el periodo ·{' '}
+          {resumenSync.registros_consultados} consultados a Buk ·{' '}
+          {resumenSync.registros_reusados} reusados de lo ya guardado.
+          {!resumenSync.persistido && (
+            <strong className="text-app-ink"> No se pudo guardar: la próxima vez se vuelve
+            a bajar todo.</strong>
+          )}
+        </div>
+      )}
 
       {!!rows.length && (
         <div className="mb-4 text-sm text-app-muted">
@@ -127,9 +173,11 @@ const HheeAprobadas = () => {
       <TablaDinamica
         rows={resumen}
         columns={COLUMNAS_RESUMEN}
-        loading={cargando}
+        loading={ocupado}
         error={error}
-        vacio={listo ? 'Generá el reporte para ver los resultados.' : 'Elegí el periodo de fechas.'}
+        vacio={listo
+          ? 'Sin datos guardados para el periodo. Consultá, y si sigue vacío, actualizá desde Buk.'
+          : 'Elegí el periodo de fechas.'}
       />
     </div>
   )

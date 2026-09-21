@@ -80,6 +80,64 @@ ORDER BY recinto
 """)
 
 
+# Historial de aprobacion, que escribe el mismo scraper en app.hhee_historial:
+# una fila por cambio de estado. Antes esto salia a Buk en vivo (1 request por
+# registro, minutos en rangos largos); ahora la pantalla lee la tabla y el
+# scraping queda en el boton de refresco.
+#
+# Se filtra por `dia` (el inicioPeriodo ya parseado a date), no por el texto
+# `inicio_periodo`, que viene en dd/mm/yyyy y no ordena.
+#
+# Las columnas salen con alias camelCase: es el formato del scraping, y el XLSX
+# y la pantalla ya se arman con esos nombres.
+_SQL_HISTORIAL = text("""
+SELECT
+    h.recinto,
+    h.registro_tiempo_id     AS "registroTiempoId",
+    h.rut,
+    h.nombre_trab            AS "nombreTrab",
+    h.nombre_estado          AS "nombreEstado",
+    h.estado_registro_tiempo AS "estadoRegistroTiempo",
+    h.inicio_periodo         AS "inicioPeriodo",
+    h.fin_periodo            AS "finPeriodo",
+    h.nombre_hhee            AS "nombreHHEE",
+    h.hora,
+    h.hhee_aprobadas         AS "hheeAprobadas",
+    h.hhee_aprobadas_num::float AS "hheeAprobadasNum",
+    h.valor,
+    h.tipo_registro_tiempo   AS "tipoRegistroTiempo",
+    h.fecha,
+    h.usuario,
+    h.origen,
+    h.version
+FROM app.hhee_historial h
+WHERE h.dia BETWEEN CAST(:desde AS date) AND CAST(:hasta AS date)
+  -- Mismo patron que las alertas: parametro nulo => no filtra. El CAST
+  -- explicito evita el AmbiguousParameter de Postgres.
+  AND (CAST(:recinto AS text) IS NULL OR h.recinto = CAST(:recinto AS text))
+  AND (CAST(:rut     AS text) IS NULL OR h.rut     = CAST(:rut     AS text))
+ORDER BY h.dia, h.registro_tiempo_id, h.fecha
+LIMIT CAST(:limite AS int)
+""")
+
+# Orden de las columnas del reporte, para el XLSX y la tabla.
+COLUMNAS_HISTORIAL = [
+    "recinto", "registroTiempoId", "rut", "nombreTrab", "nombreEstado",
+    "estadoRegistroTiempo", "inicioPeriodo", "finPeriodo", "nombreHHEE",
+    "hora", "hheeAprobadas", "hheeAprobadasNum", "valor", "tipoRegistroTiempo",
+    "fecha", "usuario", "origen", "version",
+]
+
+# Hasta cuando esta barrido cada recinto: alimenta el "actualizado hace X" del
+# reporte y delata un rango que todavia no se scrapeo.
+_SQL_HISTORIAL_FRESCURA = text("""
+SELECT recinto, max(visto_en) AS ultima_vez, max(dia) AS ultimo_dia, count(*) AS filas
+FROM app.hhee_historial
+GROUP BY recinto
+ORDER BY recinto
+""")
+
+
 class HheeRepo:
     """Lecturas de app.hhee_alertas sobre la sesion de la plataforma."""
 
@@ -105,3 +163,11 @@ class HheeRepo:
 
     def frescura(self) -> list[dict]:
         return self._run(_SQL_FRESCURA)
+
+    def historial(self, desde, hasta, recinto=None, rut=None,
+                  limite: int = 20000) -> list[dict]:
+        return self._run(_SQL_HISTORIAL, desde=desde, hasta=hasta,
+                         recinto=recinto, rut=rut, limite=limite)
+
+    def historial_frescura(self) -> list[dict]:
+        return self._run(_SQL_HISTORIAL_FRESCURA)
