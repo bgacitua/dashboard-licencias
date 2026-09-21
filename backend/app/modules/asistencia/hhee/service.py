@@ -124,13 +124,18 @@ def refrescar(settings: AsistenciaSettings, desde=None, hasta=None,
 
 
 def historial(settings: AsistenciaSettings, desde, hasta, recinto: str = "",
-              rut: str = "") -> dict:
-    """GET /hhee/historial: aprobaciones de HHEE del rango, una fila por cambio de estado.
+              rut: str = "", forzar: bool = False) -> dict:
+    """GET /hhee/historial: dispara el barrido del rango en el scraper.
 
-    A diferencia de las alertas, esto NO sale de `app.hhee_alertas`: el scraper
-    consulta Buk en vivo, con un request por registro del listado. Es lento
-    (minutos en rangos largos) y no se cachea, porque el dato que interesa acá
-    es el de ahora, no el de la ultima corrida del job.
+    El scraper persiste lo que baja en `app.hhee_historial` y solo pide a Buk el
+    detalle de los registros cuya huella del listado cambio, asi que un rango ya
+    barrido cuesta una consulta paginada y nada mas. La primera corrida de un
+    rango nuevo si tarda minutos.
+
+    La pantalla NO llama a esto para mostrar datos: lee la tabla por
+    `HheeRepo.historial`. Esto es el boton de refresco.
+
+    `forzar=True` ignora lo persistido y rebaja el rango completo.
     """
     # incluir_pendientes=true: sin esto el scraper descarta las filas
     # REGISTRO_PENDIENTE, y los registros que todavia estan "en espera" quedan
@@ -140,6 +145,8 @@ def historial(settings: AsistenciaSettings, desde, hasta, recinto: str = "",
         params["recinto"] = recinto
     if rut:
         params["rut"] = rut
+    if forzar:
+        params["forzar"] = "true"
 
     return _llamar(
         settings, "GET", "/hhee/historial", params,

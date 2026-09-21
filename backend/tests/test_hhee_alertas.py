@@ -76,6 +76,35 @@ def test_sql_castea_los_filtros_opcionales():
     assert "app.hhee_alertas" in sql
 
 
+def test_sql_historial_devuelve_exactamente_las_columnas_del_reporte():
+    """Los alias del SELECT y COLUMNAS_HISTORIAL tienen que ser el mismo set.
+
+    El XLSX y la tabla se arman con COLUMNAS_HISTORIAL; si el SELECT deja de
+    traer una, la planilla saca una columna vacia sin que nada falle.
+    """
+    import re
+    from app.modules.asistencia.hhee.repository import (  # noqa: PLC0415
+        COLUMNAS_HISTORIAL, _SQL_HISTORIAL,
+    )
+
+    sql = re.sub(r"\s+", " ", str(_SQL_HISTORIAL))
+    select = sql[sql.index("SELECT"):sql.index("FROM")]
+    # 'h.rut,' -> 'rut'; 'h.nombre_trab AS "nombreTrab"' -> 'nombreTrab'
+    devueltas = set()
+    for trozo in select.replace("SELECT", "").split(","):
+        trozo = trozo.strip()
+        if not trozo:
+            continue
+        alias = re.search(r'AS "([^"]+)"', trozo)
+        devueltas.add(alias.group(1) if alias else trozo.split(".")[-1])
+    assert devueltas == set(COLUMNAS_HISTORIAL)
+    # Rango sobre `dia` (date), no sobre el texto dd/mm/yyyy de inicio_periodo.
+    assert "h.dia BETWEEN CAST(:desde AS date) AND CAST(:hasta AS date)" in sql
+    for filtro in ("recinto", "rut"):
+        assert f"CAST(:{filtro} AS text)" in sql, filtro
+    assert "app.hhee_historial" in sql
+
+
 class _Secreto:
     def __init__(self, valor: str) -> None:
         self._valor = valor
@@ -324,6 +353,15 @@ def test_historial_arma_el_get_con_periodo_y_filtros():
     assert capturado["params"] == {"desde": "2026-06-15", "hasta": "2026-07-14",
                                    "recinto": "42123",          # sin `rut` vacio
                                    "incluir_pendientes": "true"}  # los "en espera" tambien
+
+    # `forzar` solo viaja cuando se pide: es lo que ignora lo ya persistido.
+    sv.httpx.request = fake_request
+    try:
+        sv.historial(_Cfg(propia="secreta"), desde="2026-06-15", hasta="2026-07-14",
+                     forzar=True)
+    finally:
+        sv.httpx.request = original
+    assert capturado["params"]["forzar"] == "true"
     # El reporte usa su propio timeout, no el (mucho mas corto) del refresco.
     assert capturado["timeout"] == 600.0
     assert r["rows"] == [{"rut": "1-9"}]
