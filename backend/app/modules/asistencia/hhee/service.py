@@ -151,6 +151,6 @@ def historial(settings: AsistenciaSettings, desde, hasta, recinto: str = "",
     return _llamar(
         settings, "GET", "/hhee/historial", params,
         "El scraper no respondio a tiempo. El reporte cuesta un request por "
-        "registro: acotá el periodo, o filtrá por recinto o RUT.",
+        "registro: acota el periodo, o filtra por recinto o RUT.",
         timeout=settings.hhee_reporte_timeout,
     )
