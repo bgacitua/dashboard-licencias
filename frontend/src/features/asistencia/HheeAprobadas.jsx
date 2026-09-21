@@ -166,7 +166,7 @@ const HheeAprobadas = () => {
         <div className="mb-4 text-sm text-app-muted">
           {resumen.length} grupos · {rows.length} filas de detalle ·{' '}
           <strong className="text-app-ink">{totalHoras.toFixed(2)} h</strong> aprobadas en total.
-          Exportá el XLSX para el detalle.
+          Exporta el XLSX para el detalle.
         </div>
       )}
 
@@ -176,8 +176,8 @@ const HheeAprobadas = () => {
         loading={ocupado}
         error={error}
         vacio={listo
-          ? 'Sin datos guardados para el periodo. Consultá, y si sigue vacío, actualizá desde Buk.'
-          : 'Elegí el periodo de fechas.'}
+          ? 'Sin datos guardados para el periodo. Consulta, y si sigue vacío, actualiza desde Buk.'
+          : 'Elige el periodo de fechas.'}
       />
     </div>
   )
