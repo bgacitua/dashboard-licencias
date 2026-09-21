@@ -132,7 +132,10 @@ def historial(settings: AsistenciaSettings, desde, hasta, recinto: str = "",
     (minutos en rangos largos) y no se cachea, porque el dato que interesa acá
     es el de ahora, no el de la ultima corrida del job.
     """
-    params = {"desde": str(desde), "hasta": str(hasta)}
+    # incluir_pendientes=true: sin esto el scraper descarta las filas
+    # REGISTRO_PENDIENTE, y los registros que todavia estan "en espera" quedan
+    # fuera del reporte por completo. La pantalla los necesita.
+    params = {"desde": str(desde), "hasta": str(hasta), "incluir_pendientes": "true"}
     if recinto:
         params["recinto"] = recinto
     if rut:

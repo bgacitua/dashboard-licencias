@@ -322,7 +322,8 @@ def test_historial_arma_el_get_con_periodo_y_filtros():
     assert capturado["url"] == "http://hhee-scrapping:8000/hhee/historial"
     assert capturado["headers"] == {"X-API-Key": "secreta"}
     assert capturado["params"] == {"desde": "2026-06-15", "hasta": "2026-07-14",
-                                   "recinto": "42123"}          # sin `rut` vacio
+                                   "recinto": "42123",          # sin `rut` vacio
+                                   "incluir_pendientes": "true"}  # los "en espera" tambien
     # El reporte usa su propio timeout, no el (mucho mas corto) del refresco.
     assert capturado["timeout"] == 600.0
     assert r["rows"] == [{"rut": "1-9"}]
