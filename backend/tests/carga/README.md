@@ -34,15 +34,15 @@ conexiones a Postgres para todos los módulos. Durante la prueba, el tipo
 
 ```
 # en la VPS
-docker exec -it <contenedor-backend> python -m tests.carga.preparar crear --usuarios 200 --confirmo
-docker exec -it <contenedor-backend> python -m tests.carga.concurrencia --confirmo
-docker cp <contenedor-backend>:/app/tests/carga/tokens.json ./tokens.json   # llevarlo a tu equipo
+docker exec -it dashboard-licencias-backend python -m tests.carga.preparar crear --usuarios 200 --confirmo
+docker exec -it dashboard-licencias-backend python -m tests.carga.concurrencia --confirmo
+docker cp dashboard-licencias-backend:/app/tests/carga/tokens.json ./tokens.json   # llevarlo a tu equipo
 
 # en tu equipo: subir de a poco (p. ej. 10 usuarios/10 s hasta 200) y mirar p95 y fallas
 TK_TOKENS=tokens.json locust -f backend/tests/carga/locustfile.py --host https://personas.cramer.cl
 
 # al terminar, siempre
-docker exec -it <contenedor-backend> python -m tests.carga.preparar limpiar --confirmo
+docker exec -it dashboard-licencias-backend python -m tests.carga.preparar limpiar --confirmo
 rm tokens.json
 ```
 
@@ -57,3 +57,23 @@ rm tokens.json
   (hay que ajustar el script, no el sistema). Un 500 o un timeout sí es del sistema.
 - **Mientras corre, abrir otro módulo de la plataforma**: si se pone lento, la
   carga de tickets está afectando al resto.
+
+## Resultados
+
+### Local, 2026-09-23 (PC de 8 núcleos, Docker Desktop)
+
+| Corrida | Fallas | req/s | p95 | CPU backend |
+|---|---|---|---|---|
+| Realista, 200 usuarios (pausa 2–8 s) | 0 de 16.816 | 53 | 34 ms | 26% prom., 62% máx. de un núcleo |
+| Estrés, 200 usuarios (pausa 0–0,5 s), **antes** del arreglo | 13% (500) | 8 | 59 s | ~0% (congelado) |
+| Estrés, 200 usuarios, **después** del arreglo | 0 de 14.556 | 162 | 1,6 s | — |
+
+Concurrencia: las cuatro pruebas pasan. bcrypt: ~250 ms por login.
+
+**Hallazgo:** con más de 40 requests simultáneos el backend se congelaba 30 s
+(`QueuePool ... timed out`, CPU en 0). Cada request síncrono salta varias veces
+por el threadpool de 40 hilos (dependencias, endpoint y serialización de la
+respuesta), y la sesión retiene la conexión entre salto y salto. El portal de
+tickets ahora limita sus requests con base al tamaño del pool (`db_portal` en
+`app/modules/tickets/auth.py`). **El resto de la plataforma sigue usando
+`get_db` y tiene el mismo riesgo.**

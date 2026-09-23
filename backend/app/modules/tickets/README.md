@@ -23,7 +23,8 @@ Panel (/tickets/admin)    require_module("tickets")
 ## Regla de acoplamiento
 
 Imports hacia fuera de la carpeta: `require_module`, `get_current_active_user`,
-`settings.JWT_SECRET_KEY`, `app.core.rate_limit`, `get_db` y `Base`. En el
+`settings.JWT_SECRET_KEY` y los tamaños del pool, `app.core.rate_limit`,
+`get_db` (panel), `SessionLocal` (portal) y `Base`. En el
 frontend: `SidebarLayout`, `getAuthHeaders` y el builder compartido.
 
 Para separar el módulo: mover esta carpeta y `frontend/src/features/tickets/`,
@@ -58,6 +59,11 @@ Borrar las carpetas, el bloque final de `app/api/v1/api.py` y las rutas de
 - **Imágenes en Postgres.** `tickets.archivos`, con tope de `TICKETS_ARCHIVO_MAX_MB`,
   tipo detectado por firma (PNG, JPG, GIF, WebP; SVG no) y servidas sin sesión
   por un id aleatorio de 128 bits, porque las pide un `<img>`.
+- **Cupos de base en el portal.** El portal no usa `get_db` sino `db_portal`
+  (`auth.py`), que limita con un semáforo los requests simultáneos que usan la
+  base al tamaño del pool. Sin eso, la prueba de carga congeló el backend 30 s:
+  cada request salta varias veces por el threadpool con la conexión tomada, y
+  con más de 40 simultáneos todos los hilos quedaban esperando conexión.
 - **Sin `file` en el builder de tickets.** survey-core lo guardaría en base64
   dentro de cada versión.
 

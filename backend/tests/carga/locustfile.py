@@ -24,6 +24,9 @@ from locust import HttpUser, between, task
 BASE = "/api/v1/tickets/portal"
 _credenciales = cycle(json.load(open(os.environ.get("TK_TOKENS", "tokens.json"))))
 TIPO_PRUEBA = "[PRUEBA] Carga — no usar"
+# Pausa entre acciones, en segundos. "2,8" es el ritmo de una persona; para
+# buscar el punto de quiebre, TK_ESPERA=0,0.5 (unas 10 veces más rápido).
+ESPERA = [float(x) for x in os.environ.get("TK_ESPERA", "2,8").split(",")]
 
 
 def _datos() -> dict:
@@ -35,7 +38,7 @@ def _datos() -> dict:
 
 
 class Trabajador(HttpUser):
-    wait_time = between(2, 8)
+    wait_time = between(*ESPERA)
 
     def on_start(self):
         self.client.headers["Authorization"] = f"Bearer {next(_credenciales)['token']}"

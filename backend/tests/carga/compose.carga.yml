@@ -19,7 +19,10 @@ services:
       POSTGRES_USER: carga
       POSTGRES_PASSWORD: carga
     volumes:
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      # El esquema de tickets sale de la migración real (índices y CHECK
+      # incluidos), no de create_all: sin los índices, los números no valen.
+      - ../../migrations/023_tickets_a_esquema_propio.sql:/docker-entrypoint-initdb.d/02_tickets.sql:ro
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "carga", "-d", "rh_cramer"]
       interval: 2s
