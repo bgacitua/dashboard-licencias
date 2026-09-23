@@ -105,7 +105,11 @@ export default function PortalSolicitud() {
     const vencido = plazo && plazo <= new Date();
 
     return (
-        <PortalLayout ancho={ticket ? 'max-w-6xl' : 'max-w-3xl'}>
+        // Mismo truco que FormPublico: survey-core pinta el fondo con
+        // --sjs2-color-utility-body solo dentro de su caja; con las variables
+        // en la página entera, el resto del viewport resuelve el mismo color.
+        <PortalLayout ancho={ticket ? 'max-w-6xl' : 'max-w-3xl'}
+            estilo={model ? { ...model.themeVariables, background: 'var(--sjs2-color-utility-body)' } : undefined}>
             <Link to="/tickets" className="mb-4 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
                 <span className="material-symbols-outlined text-lg">arrow_back</span>
                 Mis solicitudes
@@ -174,10 +178,7 @@ export default function PortalSolicitud() {
             )}
 
             {model && (
-                // Mismo truco que FormPublico: el fondo lo pinta survey-core con
-                // --sjs2-color-utility-body y el contenedor resuelve la misma variable.
-                <div className="overflow-hidden rounded-2xl border border-slate-200"
-                    style={{ ...model.themeVariables, background: 'var(--sjs2-color-utility-body)' }}>
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
                     <Survey model={model} />
                 </div>
             )}
