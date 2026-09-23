@@ -105,11 +105,28 @@ export default function PortalSolicitud() {
     const vencido = plazo && plazo <= new Date();
 
     return (
-        <PortalLayout ancho="max-w-3xl">
+        <PortalLayout ancho={ticket ? 'max-w-6xl' : 'max-w-3xl'}>
             <Link to="/tickets" className="mb-4 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
                 <span className="material-symbols-outlined text-lg">arrow_back</span>
                 Mis solicitudes
             </Link>
+
+            {/* Con ticket: seguimiento en una columna fija a la izquierda. En
+                pantallas chicas no cabe al lado y baja después del formulario. */}
+            <div className={ticket ? 'flex flex-col gap-6 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start' : ''}>
+            {ticket && (
+                <aside className="order-last lg:sticky lg:top-20 lg:order-none lg:h-[calc(100vh-9rem)]">
+                    <Conversacion
+                        columna
+                        eventos={ticket.eventos}
+                        onEnviar={async (texto) => {
+                            await comentarTicket(ticket.id, texto).catch((e) => { throw new Error(manejar(e)); });
+                            setRecarga((n) => n + 1);
+                        }}
+                    />
+                </aside>
+            )}
+            <div className="min-w-0">
 
             {ticket && (
                 <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4">
@@ -164,16 +181,8 @@ export default function PortalSolicitud() {
                     <Survey model={model} />
                 </div>
             )}
-
-            {ticket && (
-                <Conversacion
-                    eventos={ticket.eventos}
-                    onEnviar={async (texto) => {
-                        await comentarTicket(ticket.id, texto).catch((e) => { throw new Error(manejar(e)); });
-                        setRecarga((n) => n + 1);
-                    }}
-                />
-            )}
+            </div>
+            </div>
         </PortalLayout>
     );
 }
