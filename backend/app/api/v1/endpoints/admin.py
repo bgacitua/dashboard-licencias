@@ -84,7 +84,6 @@ def create_user(
         rol_id=user_data.rol_id,
         email=user_data.email,
         nombre_completo=user_data.nombre_completo,
-        modulo_ids=user_data.modulo_ids,
         send_invite=user_data.send_invite,
     )
 
@@ -157,7 +156,6 @@ def update_user(
         rol_id=user_data.rol_id,
         activo=user_data.activo,
         password=user_data.password,
-        modulo_ids=user_data.modulo_ids
     )
     
     if not user:

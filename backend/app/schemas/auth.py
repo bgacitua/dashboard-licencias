@@ -129,7 +129,6 @@ class UsuarioCreate(UsuarioBase):
     send_invite: bool = False        # True → generar token e invitar por email
     rol_id: int
     email: str  # Obligatorio y debe ser @cramer.cl
-    modulo_ids: Optional[List[int]] = None
 
     @field_validator('email')
     @classmethod
@@ -164,7 +163,6 @@ class UsuarioUpdate(BaseModel):
     rol_id: Optional[int] = None
     activo: Optional[bool] = None
     password: Optional[str] = None
-    modulo_ids: Optional[List[int]] = None
 
     @field_validator('email')
     @classmethod
@@ -185,17 +183,11 @@ class UsuarioResponse(UsuarioBase):
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     rol: Optional[RoleResponse] = None
-    modulos: List[ModuloResponse] = []  # Módulos directos del usuario
     invite_pending: bool = False       # invitación vigente sin canjear
     invite_email_failed: bool = False  # el usuario se creó pero el correo no salió
 
     class Config:
         from_attributes = True
-
-
-class UsuarioWithModules(UsuarioResponse):
-    """Usuario con sus módulos permitidos"""
-    modulos: List[ModuloResponse] = []
 
 
 # === Schemas de Respuesta de Auth ===

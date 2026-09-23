@@ -17,14 +17,6 @@ rol_modulos = Table(
     schema='app'
 )
 
-usuario_modulos = Table(
-    'usuario_modulos',
-    Base.metadata,
-    Column('usuario_id', Integer, ForeignKey('app.usuarios.id'), primary_key=True),
-    Column('modulo_id', Integer, ForeignKey('app.modulos.id'), primary_key=True),
-    schema='app'
-)
-
 
 class Role(Base):
     __tablename__ = 'roles'
@@ -55,8 +47,10 @@ class Usuario(Base):
     invite_token = Column(String(64), nullable=True, unique=True, index=True)
     invite_token_expires_at = Column(DateTime, nullable=True)
 
+    # Los permisos van solo por perfil (rol_modulos): no hay módulos asignados
+    # directo al usuario. require_module revisa únicamente el perfil, y una
+    # excepción por usuario hacía que el menú mostrara lo que el backend negaba.
     rol = relationship("Role", back_populates="usuarios")
-    modulos = relationship("Modulo", secondary=usuario_modulos, back_populates="usuarios")
 
     @property
     def invite_pending(self) -> bool:
@@ -82,4 +76,3 @@ class Modulo(Base):
     activo = Column(Boolean, default=True)
 
     roles = relationship("Role", secondary=rol_modulos, back_populates="modulos")
-    usuarios = relationship("Usuario", secondary=usuario_modulos, back_populates="modulos")

@@ -20,10 +20,7 @@ class AuthRepository:
         """Obtiene un usuario por su username, incluyendo rol y módulos."""
         return (
             self.db.query(Usuario)
-            .options(
-                joinedload(Usuario.rol).joinedload(Role.modulos),
-                joinedload(Usuario.modulos),
-            )
+            .options(joinedload(Usuario.rol).joinedload(Role.modulos))
             .filter(Usuario.username == username)
             .first()
         )
@@ -32,10 +29,7 @@ class AuthRepository:
         """Obtiene un usuario por su ID."""
         return (
             self.db.query(Usuario)
-            .options(
-                joinedload(Usuario.rol).joinedload(Role.modulos),
-                joinedload(Usuario.modulos),
-            )
+            .options(joinedload(Usuario.rol).joinedload(Role.modulos))
             .filter(Usuario.id == user_id)
             .first()
         )
@@ -84,13 +78,6 @@ class AuthRepository:
         self.db.commit()
         self.db.refresh(user)
         return user
-    
-    def set_user_modules(self, user: Usuario, modulo_ids: List[int]) -> None:
-        """Asigna módulos específicos a un usuario."""
-        modules = self.db.query(Modulo).filter(Modulo.id.in_(modulo_ids)).all()
-        user.modulos = modules
-        self.db.commit()
-        self.db.refresh(user)
     
     # === Operaciones de Rol ===
     

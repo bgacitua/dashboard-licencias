@@ -33,11 +33,14 @@ const MODULE_ICONS = {
     seleccion: 'person_search',
     creditos: 'payments',
     asistencia: 'schedule',
+    formularios: 'assignment',
+    tickets: 'confirmation_number',
     admin: 'settings',
 };
 
-// El rol admin ya tiene todos los modulos: no se lista ni se ofrece para asignar.
-// El backend lo rechaza igual; esto solo evita mostrar lo que no se puede hacer.
+// El rol admin no se lista ni se ofrece para asignar: se gestiona en base de
+// datos. Ojo: no recibe los modulos nuevos por su cuenta; cada modulo que se agrega hay
+// que asignarselo a mano en app.rol_modulos.
 const ROL_OCULTO = 'admin';
 
 // ─── sub-components ─────────────────────────────────────────────────────────

@@ -105,7 +105,6 @@ def test_el_aviso_roto_no_deshace_la_creacion(monkeypatch):
     servicio = AuthService.__new__(AuthService)
     servicio.repository = type("R", (), {
         "create_user": lambda self, **kw: creado,
-        "set_user_modules": lambda self, u, ids: None,
     })()
     monkeypatch.setattr(AuthService, "_notify_user_created",
                         lambda self, u, ok: (_ for _ in ()).throw(ValueError("boom")))
