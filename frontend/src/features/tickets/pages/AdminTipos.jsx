@@ -6,7 +6,7 @@ import { CampoImagen } from '../../../components/form-builder/PanelPropiedades';
 import { TEMA_DEFECTO, crearModelo } from '../../../components/form-builder/tema';
 import { aCompletedHtml, deCompletedHtml, definicionVacia } from '../../../components/form-builder/tipos';
 import TextareaBuffer from '../../../components/form-builder/TextareaBuffer';
-import useEditorDefinicion from '../../../components/form-builder/useEditorDefinicion';
+import Lienzo from '../builder/Lienzo';
 import AdminMarco from '../components/AdminMarco';
 import {
     actualizarTipo, crearTipo, eliminarTipo, listarTipos, subirImagen,
@@ -20,93 +20,30 @@ const nuevoTipo = () => ({
     tema: { ...TEMA_DEFECTO }, dias_anticipacion: 1, hora_limite: '12:00', activo: false,
 });
 
-// ponytail: `file` fuera del builder de tickets. survey-core guarda el archivo
-// en base64 dentro de la respuesta y cada edición es una versión nueva: un par
-// de fotos por versión llenaría la tabla. Si se pide adjuntar, se sube aparte.
-const EXCLUIDOS = ['file'];
-
-function Apariencia({ tema, onChange }) {
-    const t = { ...TEMA_DEFECTO, ...tema };
-    const set = (k, v) => onChange({ ...t, [k]: v });
-    return (
-        <div className="grid gap-5 sm:grid-cols-2">
-            <div>
-                <span className={label}>Color principal</span>
-                <div className="flex items-center gap-2">
-                    <input type="color" value={t.color} onChange={(e) => set('color', e.target.value)}
-                        className="h-10 w-14 cursor-pointer rounded border border-gray-300" aria-label="Color principal" />
-                    <input className={input} value={t.color} onChange={(e) => set('color', e.target.value)} aria-label="Color principal (hex)" />
-                </div>
-            </div>
-            <div>
-                <span className={label}>Color de fondo</span>
-                <div className="flex items-center gap-2">
-                    <input type="color" value={t.fondo} onChange={(e) => set('fondo', e.target.value)}
-                        className="h-10 w-14 cursor-pointer rounded border border-gray-300" aria-label="Color de fondo" />
-                    <input className={input} value={t.fondo} onChange={(e) => set('fondo', e.target.value)} aria-label="Color de fondo (hex)" />
-                </div>
-            </div>
-            <div>
-                <label className={label} htmlFor="tk-esquinas">Esquinas: {t.esquinas}px</label>
-                <input id="tk-esquinas" type="range" min="0" max="20" value={t.esquinas}
-                    onChange={(e) => set('esquinas', Number(e.target.value))} className="w-full" />
-            </div>
-            <label className="flex items-center gap-2 self-end text-sm text-gray-700">
-                <input type="checkbox" checked={!!t.sinPaneles} onChange={(e) => set('sinPaneles', e.target.checked)} />
-                Preguntas sin tarjeta (estilo más limpio)
-            </label>
-
-            <div className="sm:col-span-2">
-                <span className={label}>Encabezado</span>
-                <div className="flex flex-wrap gap-2">
-                    {[['simple', 'Solo título'], ['color', 'Banda de color'], ['imagen', 'Imagen']].map(([k, l]) => (
-                        <button key={k} type="button" onClick={() => set('encabezado', k)}
-                            className={`rounded-lg border px-3 py-1.5 text-sm ${
-                                t.encabezado === k ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700'
-                            }`}>
-                            {l}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            {t.encabezado === 'imagen' && (
-                <div className="sm:col-span-2">
-                    <span className={label}>Imagen del encabezado (ancha, ideal 1600×400)</span>
-                    <CampoImagen valor={t.encabezadoImagen} onChange={(v) => set('encabezadoImagen', v)} subirImagen={subirImagen} />
-                </div>
-            )}
-            <div>
-                <span className={label}>Logo (opcional)</span>
-                <CampoImagen valor={t.logo} onChange={(v) => set('logo', v)} subirImagen={subirImagen} />
-            </div>
-            <div>
-                <span className={label}>Imagen de fondo (opcional)</span>
-                <CampoImagen valor={t.fondoImagen} onChange={(v) => set('fondoImagen', v)} subirImagen={subirImagen} />
-            </div>
-        </div>
-    );
-}
-
 export default function AdminTipos() {
     const [tipos, setTipos] = useState([]);
     const [actual, setActual] = useState(null);
-    const [seccion, setSeccion] = useState('formulario'); // datos | formulario | apariencia | preview
+    const [seccion, setSeccion] = useState('formulario'); // formulario | datos | preview
     const [mensaje, setMensaje] = useState('');
+    // Sin autoguardado a propósito: un tipo activo se ve en el portal, y
+    // guardar cada tecla publicaría el formulario a medio editar.
+    const [sucio, setSucio] = useState(false);
 
     const recargar = () => listarTipos().then(setTipos).catch((e) => setMensaje(e.message));
     useEffect(() => { recargar(); }, []);
 
-    const set = (cambios) => setActual({ ...actual, ...cambios });
+    const set = (cambios) => {
+        setActual((a) => ({ ...a, ...cambios }));
+        setSucio(true);
+    };
     const definicion = actual?.definicion || definicionVacia();
-    const editor = useEditorDefinicion({
-        definicion, onChange: (d) => set({ definicion: d }), subirImagen, tiposExcluidos: EXCLUIDOS,
-    });
 
     const abrir = (t) => {
+        if (sucio && !window.confirm('Hay cambios sin guardar en este tipo. ¿Descartarlos?')) return;
         setActual(t ? { ...t, hora_limite: String(t.hora_limite).slice(0, 5) } : nuevoTipo());
-        setSeccion(t ? 'formulario' : 'datos');
+        setSeccion('formulario');
         setMensaje('');
-        editor.reset();
+        setSucio(false);
     };
 
     const guardar = async () => {
@@ -116,6 +53,7 @@ export default function AdminTipos() {
             const guardado = id ? await actualizarTipo(id, datos) : await crearTipo(datos);
             setActual({ ...guardado, hora_limite: String(guardado.hora_limite).slice(0, 5) });
             setMensaje('Guardado.');
+            setSucio(false);
             recargar();
         } catch (e) {
             setMensaje(e.message);
@@ -127,6 +65,7 @@ export default function AdminTipos() {
         try {
             await eliminarTipo(actual.id);
             setActual(null);
+            setSucio(false);
             recargar();
         } catch (e) {
             setMensaje(e.message);
@@ -168,8 +107,10 @@ export default function AdminTipos() {
                     <div className="flex min-w-0 flex-1 gap-0">
                         <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-3">
-                                <input className={`${input} max-w-xs text-base font-semibold`} placeholder="Nombre (p. ej. Almuerzos)"
-                                    value={actual.nombre} onChange={(e) => set({ nombre: e.target.value })} aria-label="Nombre" />
+                                <h2 className="max-w-xs truncate text-base font-semibold text-gray-900">
+                                    {actual.nombre || 'Tipo sin nombre'}
+                                </h2>
+                                {sucio && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Sin guardar</span>}
                                 <button onClick={guardar} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
                                     Guardar
                                 </button>
@@ -178,7 +119,7 @@ export default function AdminTipos() {
                             </div>
 
                             <div className="mt-4 flex gap-1 rounded-lg bg-gray-100 p-1 text-sm">
-                                {[['datos', 'Datos y plazo'], ['formulario', 'Formulario'], ['apariencia', 'Apariencia'], ['preview', 'Vista previa']].map(([k, l]) => (
+                                {[['formulario', 'Formulario'], ['datos', 'Plazo y publicación'], ['preview', 'Vista previa']].map(([k, l]) => (
                                     <button key={k} onClick={() => setSeccion(k)}
                                         className={`flex-1 rounded-md px-3 py-1.5 ${seccion === k ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}`}>
                                         {l}
@@ -188,11 +129,6 @@ export default function AdminTipos() {
 
                             {seccion === 'datos' && (
                                 <section className="mt-4 grid gap-4 rounded-xl border border-gray-200 bg-white p-5 sm:grid-cols-2">
-                                    <div className="sm:col-span-2">
-                                        <label className={label} htmlFor="tk-desc">Descripción (se ve en la tarjeta y bajo el título)</label>
-                                        <textarea id="tk-desc" rows={2} className={input} value={actual.descripcion || ''}
-                                            onChange={(e) => set({ descripcion: e.target.value })} />
-                                    </div>
                                     <div className="sm:col-span-2 rounded-lg bg-blue-50 p-4">
                                         <p className="text-sm font-medium text-blue-900">Plazo para pedir y modificar</p>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-blue-900">
@@ -232,12 +168,18 @@ export default function AdminTipos() {
                                 </section>
                             )}
 
-                            {seccion === 'formulario' && editor.lista}
-
-                            {seccion === 'apariencia' && (
-                                <section className="mt-4 rounded-xl border border-gray-200 bg-white p-5">
-                                    <Apariencia tema={actual.tema} onChange={(tema) => set({ tema })} />
-                                </section>
+                            {seccion === 'formulario' && (
+                                <div className="mt-4">
+                                    <Lienzo
+                                        key={actual.id ?? 'nuevo'}
+                                        definicion={definicion}
+                                        onChange={(d) => set({ definicion: d })}
+                                        tema={actual.tema}
+                                        onTema={(tema) => set({ tema })}
+                                        cabecera={{ nombre: actual.nombre, descripcion: actual.descripcion }}
+                                        onCabecera={set}
+                                    />
+                                </div>
                             )}
 
                             {seccion === 'preview' && preview && (
@@ -247,7 +189,6 @@ export default function AdminTipos() {
                                 </div>
                             )}
                         </div>
-                        {seccion === 'formulario' && <div className="ml-6 overflow-hidden rounded-xl border border-gray-200">{editor.panel}</div>}
                     </div>
                 )}
             </div>
