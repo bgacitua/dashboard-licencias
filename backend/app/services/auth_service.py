@@ -66,24 +66,10 @@ class AuthService:
         return create_access_token(token_data)
     
     def get_user_modules(self, user: Usuario) -> List[Modulo]:
-        """
-        Retorna módulos activos del rol del usuario + módulos directos asignados al usuario.
-        Los módulos directos (usuario_modulos) permiten excepciones fuera del rol.
-        """
-        seen_ids: set[int] = set()
-        result: List[Modulo] = []
-
-        for m in (user.rol.modulos if user.rol else []):
-            if m.activo and m.id not in seen_ids:
-                seen_ids.add(m.id)
-                result.append(m)
-
-        for m in user.modulos:
-            if m.activo and m.id not in seen_ids:
-                seen_ids.add(m.id)
-                result.append(m)
-
-        return result
+        """Módulos activos del perfil del usuario. Es la misma regla que aplica
+        require_module, así que el menú muestra exactamente lo que el backend deja
+        usar."""
+        return [m for m in (user.rol.modulos if user.rol else []) if m.activo]
     
     # === Gestión de usuarios (para admin) ===
     
@@ -94,7 +80,6 @@ class AuthService:
         rol_id: int,
         email: Optional[str] = None,
         nombre_completo: Optional[str] = None,
-        modulo_ids: Optional[List[int]] = None,
         send_invite: bool = False,
     ) -> Usuario:
         """Crea un nuevo usuario. Si send_invite=True genera token de invitación y envía email."""
@@ -108,9 +93,6 @@ class AuthService:
             email=email,
             nombre_completo=nombre_completo
         )
-
-        if modulo_ids:
-            self.repository.set_user_modules(user, modulo_ids)
 
         # El usuario ya está commiteado: si el correo falla no lo borramos,
         # marcamos la falla para que el admin pueda reenviar la invitación.
@@ -261,7 +243,6 @@ class AuthService:
         rol_id: Optional[int] = None,
         activo: Optional[bool] = None,
         password: Optional[str] = None,
-        modulo_ids: Optional[List[int]] = None
     ) -> Optional[Usuario]:
         """Actualiza un usuario existente."""
         user = self.repository.get_user_by_id(user_id)
@@ -281,10 +262,6 @@ class AuthService:
             update_data["password_hash"] = get_password_hash(password)
         
         updated_user = self.repository.update_user(user, **update_data)
-        
-        # Actualizar módulos específicos si se proporcionan
-        if modulo_ids is not None:
-            self.repository.set_user_modules(updated_user, modulo_ids)
         
         logger.info(f"Usuario actualizado: {user.username}")
         
