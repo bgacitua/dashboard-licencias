@@ -10,10 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.rate_limit import check_rate_limit, client_ip, reset_rate_limit
-from app.db.deps import get_db
 
 from . import service
-from .auth import UsuarioPortal, crear_token
+from .auth import UsuarioPortal, crear_token, db_portal
 from .models import TkArchivo, TkTipo
 from .schemas import (
     CambioClaveIn, ComentarioIn, LoginIn, MeOut, RegistroIn, SesionOut, TicketDetalle,
@@ -23,7 +22,8 @@ from .schemas import (
 portal = APIRouter(prefix="/portal", tags=["tickets-portal"])
 archivos = APIRouter(tags=["tickets-portal"])
 
-Db = Annotated[Session, Depends(get_db)]
+# db_portal y no get_db: ver el semáforo en auth.py.
+Db = Annotated[Session, Depends(db_portal)]
 
 
 @portal.post("/registro")

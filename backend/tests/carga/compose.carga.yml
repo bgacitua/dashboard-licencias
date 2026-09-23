@@ -1,0 +1,58 @@
+# Copia local y descartable para la prueba de carga de tickets.
+#
+#   docker compose -f backend/tests/carga/compose.carga.yml up --build -d
+#
+# Postgres vacío + el backend con la imagen de este repo. NO usa el .env de
+# prod (el .dockerignore lo deja fuera de la imagen) y apaga todo lo que sale
+# hacia afuera: schedulers, chequeo del token de Graph, Buk. Todas las
+# credenciales de acá son de mentira y valen solo dentro de esta red.
+#
+# API en http://localhost:8765. Para tirarlo: `down -v` (borra la base).
+
+name: tickets-carga
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: rh_cramer
+      POSTGRES_USER: carga
+      POSTGRES_PASSWORD: carga
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      # El esquema de tickets sale de la migración real (índices y CHECK
+      # incluidos), no de create_all: sin los índices, los números no valen.
+      - ../../migrations/023_tickets_a_esquema_propio.sql:/docker-entrypoint-initdb.d/02_tickets.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "carga", "-d", "rh_cramer"]
+      interval: 2s
+      retries: 30
+
+  backend:
+    build: ../..
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8765:8000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: rh_cramer
+      DB_USER: carga
+      DB_PASSWORD: carga
+      JWT_SECRET_KEY: carga-local-no-usar
+      TICKETS_ENABLED: "true"
+      # Nada que salga de esta máquina.
+      GRAPH_TOKEN_CHECK_ENABLED: "false"
+      ALERTS_SCHEDULER_ENABLED: "false"
+      OVERTIME_SCHEDULER_ENABLED: "false"
+      LIQUIDOS_SCHEDULER_ENABLED: "false"
+      RETORNO_SCHEDULER_ENABLED: "false"
+      # Obligatorias en Settings; nadie las usa en esta prueba.
+      MARCAS_DB_SERVER: "no-existe"
+      MARCAS_DB_USER: "x"
+      MARCAS_DB_PASSWORD: "x"
+      MARCAS_DB_NAME: "x"
+      BUK_API_BASE_URL: "http://no-existe.invalid"
+      BUK_API_KEY: "x"

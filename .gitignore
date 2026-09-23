@@ -37,3 +37,7 @@ backend/scripts/test_calculadora_endpoint.py
 
 # --- Entorno de desarrollo local (no subir al servidor) ---
 compose.dev.yml
+
+# Credenciales temporales de la prueba de carga (tests/carga)
+backend/tests/carga/tokens.json
+tokens.json
