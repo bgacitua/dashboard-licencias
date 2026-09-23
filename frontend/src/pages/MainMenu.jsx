@@ -78,6 +78,14 @@ const menuItems = [
     moduleCode: 'formularios',
   },
   {
+    id: 'tickets',
+    title: 'Tickets',
+    description: 'Solicitudes de desayunos y almuerzos: atiende pedidos, define plazos y gestiona usuarios.',
+    path: '/tickets/admin',
+    icon: 'confirmation_number',
+    moduleCode: 'tickets',
+  },
+  {
     id: 'admin',
     title: 'Administración',
     description: 'Configura usuarios, roles y parámetros del sistema.',

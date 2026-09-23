@@ -19,19 +19,28 @@ export const OPERADORES = [
 const TIPOS_MULTIPLES = ['checkbox', 'tagbox'];
 
 /**
+ * Acepta el tipo o la pregunta entera: `imagepicker` es múltiple solo con
+ * `multiSelect`, y eso no se ve en el tipo.
+ */
+const esMultiple = (origen) =>
+    typeof origen === 'string'
+        ? TIPOS_MULTIPLES.includes(origen)
+        : TIPOS_MULTIPLES.includes(origen?.type) || (origen?.type === 'imagepicker' && !!origen.multiSelect);
+
+/**
  * Operadores válidos según el tipo de la pregunta origen.
  *
  * Una pregunta de selección múltiple guarda `["Opción 1"]`, así que `=` compara
  * un array contra un string y nunca es verdadero: el campo dependiente no
  * aparece nunca. Para esos tipos la pertenencia se pregunta con `contains`.
  */
-export const operadoresPara = (tipo) =>
-    TIPOS_MULTIPLES.includes(tipo)
+export const operadoresPara = (origen) =>
+    esMultiple(origen)
         ? OPERADORES.filter((o) => o.key !== '=' && o.key !== '<>')
         : OPERADORES.filter((o) => o.key !== 'notcontains');
 
 /** El operador por defecto de un origen: el primero que ese tipo admite. */
-export const operadorPorDefecto = (tipo) => operadoresPara(tipo)[0].key;
+export const operadorPorDefecto = (origen) => operadoresPara(origen)[0].key;
 
 // survey-core corta el literal en la primera comilla simple: sin escapar, un
 // valor con apóstrofo produce una expresión inválida, y una expresión inválida
@@ -60,13 +69,16 @@ export const parsear = (visibleIf) => {
     return null;
 };
 
+/** Tipos que se muestran pero no guardan respuesta: no sirven de origen. */
+const SIN_RESPUESTA = ['image', 'html'];
+
 /** Preguntas que pueden ser origen de la condición: las anteriores a esta. */
 export const preguntasAnteriores = (definicion, nombreActual) => {
     const salida = [];
     for (const pagina of definicion.pages || []) {
         for (const el of pagina.elements || []) {
             if (el.name === nombreActual) return salida;
-            salida.push(el);
+            if (!SIN_RESPUESTA.includes(el.type)) salida.push(el);
         }
     }
     return salida;

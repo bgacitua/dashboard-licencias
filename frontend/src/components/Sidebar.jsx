@@ -17,6 +17,7 @@ const allMenuItems = [
       { label: 'Reportes',              path: '/asistencia/reportes' },
     ] },
   { icon: 'assignment',           label: 'Formularios',            path: '/formularios/gestor',  module: 'formularios' },
+  { icon: 'confirmation_number',  label: 'Tickets',                path: '/tickets/admin',       module: 'tickets' },
   { icon: 'settings',             label: 'Administración',         path: '/admin',               module: 'admin' },
 ];
 
