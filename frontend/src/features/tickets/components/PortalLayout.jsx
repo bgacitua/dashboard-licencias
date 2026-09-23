@@ -22,7 +22,9 @@ export function useSesionPortal() {
     };
 }
 
-export default function PortalLayout({ children, ancho = 'max-w-5xl' }) {
+// `estilo` pinta la página con el tema del formulario (ver PortalSolicitud);
+// sin él queda el degradado neutro del portal.
+export default function PortalLayout({ children, ancho = 'max-w-5xl', estilo }) {
     const [usuario, setUsuario] = useState(null);
     const manejar = useSesionPortal();
     const navigate = useNavigate();
@@ -41,7 +43,7 @@ export default function PortalLayout({ children, ancho = 'max-w-5xl' }) {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+        <div className={`min-h-screen ${estilo ? '' : 'bg-gradient-to-b from-slate-50 to-slate-100'}`} style={estilo}>
             <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
                 <div className={`mx-auto flex h-14 items-center justify-between px-4 ${ancho}`}>
                     <Link to="/tickets" className="flex items-center gap-2 font-semibold text-slate-900">

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
 
@@ -41,7 +42,7 @@ export const diferencias = (actual, anterior) => {
     return salida;
 };
 
-function Detalle({ id, tipos, onCambio }) {
+function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
     const [t, setT] = useState(null);
     const [verVersion, setVerVersion] = useState(null);
     const [comentario, setComentario] = useState('');
@@ -157,11 +158,17 @@ function Detalle({ id, tipos, onCambio }) {
                 )}
             </div>
 
-            <Conversacion
-                lado="admin"
-                eventos={t.eventos}
-                onEnviar={async (texto) => { await comentarAdmin(id, texto); setRecarga((n) => n + 1); }}
-            />
+            {/* El seguimiento vive en la columna izquierda, bajo el listado:
+                el portal lo monta allá sin sacar el estado de Detalle. */}
+            {slotSeguimiento && createPortal(
+                <Conversacion
+                    columna
+                    lado="admin"
+                    eventos={t.eventos}
+                    onEnviar={async (texto) => { await comentarAdmin(id, texto); setRecarga((n) => n + 1); }}
+                />,
+                slotSeguimiento,
+            )}
         </div>
     );
 }
@@ -169,8 +176,9 @@ function Detalle({ id, tipos, onCambio }) {
 export default function AdminTickets() {
     const [tickets, setTickets] = useState([]);
     const [tipos, setTipos] = useState([]);
-    const [filtros, setFiltros] = useState({ estado: 'pendiente', tipo_id: '', q: '' });
+    const [filtros, setFiltros] = useState({ estado: '', tipo_id: '', q: '' });
     const [abierto, setAbierto] = useState(null);
+    const [slot, setSlot] = useState(null);
     const [error, setError] = useState('');
 
     const recargar = () => listarTickets(filtros).then(setTickets).catch((e) => setError(e.message));
@@ -207,8 +215,15 @@ export default function AdminTickets() {
             </div>
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
-            <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-                <ul className="h-fit divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white">
+            {/* Izquierda: listado + seguimiento en una columna fija del alto de la
+                pantalla; cada uno scrollea por dentro, así la página no crece
+                con cientos de solicitudes. Derecha: el detalle, que sí scrollea. */}
+            <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:items-start">
+                <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)]">
+                <p className="-mb-2 text-xs text-gray-500">{tickets.length} solicitud{tickets.length === 1 ? '' : 'es'}</p>
+                <ul className={`max-h-[50vh] min-h-0 divide-y divide-gray-100 overflow-y-auto rounded-xl border border-gray-200 bg-white lg:max-h-none ${
+                    abierto ? 'lg:flex-[2]' : 'lg:flex-1'
+                }`}>
                     {tickets.map((t) => (
                         <li key={t.id}>
                             <button onClick={() => setAbierto(t.id)}
@@ -231,10 +246,12 @@ export default function AdminTickets() {
                     ))}
                     {tickets.length === 0 && <li className="px-4 py-8 text-center text-sm text-gray-500">Sin solicitudes con esos filtros.</li>}
                 </ul>
+                <div ref={setSlot} className={abierto ? 'min-h-0 lg:flex-[3]' : 'hidden'} />
+                </div>
 
                 <div>
                     {abierto ? (
-                        <Detalle key={abierto} id={abierto} tipos={tipos} onCambio={recargar} />
+                        <Detalle key={abierto} id={abierto} tipos={tipos} onCambio={recargar} slotSeguimiento={slot} />
                     ) : (
                         <p className="rounded-xl border border-dashed border-gray-300 p-10 text-center text-sm text-gray-500">
                             Selecciona una solicitud para ver su detalle, versiones y seguimiento.
