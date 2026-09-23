@@ -91,3 +91,16 @@ if formularios_settings.enabled:
     from app.modules.formularios.publico import publico as formularios_publico
 
     api_router.include_router(formularios_publico, prefix="/formularios")
+
+# === Módulo de tickets (portal de solicitudes + panel admin) ===
+# Mismo patrón: import perezoso detrás del flag. El portal tiene su propia
+# sesión (no la de la plataforma), así que va montado sin dependencias acá.
+from app.modules.tickets.config import settings as tickets_settings
+
+if tickets_settings.enabled:
+    from app.modules.tickets.portal import archivos as tickets_archivos, portal as tickets_portal
+    from app.modules.tickets.router import router as tickets_router
+
+    api_router.include_router(tickets_router, prefix="/tickets", tags=["tickets"])
+    api_router.include_router(tickets_portal, prefix="/tickets")
+    api_router.include_router(tickets_archivos, prefix="/tickets")
