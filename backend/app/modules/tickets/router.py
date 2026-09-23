@@ -63,18 +63,19 @@ def comentar(ticket_id: int, datos: ComentarioIn, db: Db, admin: Admin) -> None:
 
 @router.get("/tipos", response_model=list[TipoOut])
 def tipos(db: Db) -> list[TkTipo]:
-    return db.query(TkTipo).order_by(TkTipo.orden, TkTipo.nombre).all()
+    # Orden de creación: el primero que se creó es la primera tarjeta del portal.
+    return db.query(TkTipo).order_by(TkTipo.id).all()
 
 
 @router.post("/tipos", response_model=TipoOut, status_code=201)
 def crear_tipo(datos: TipoCreate, db: Db) -> TkTipo:
-    tipo = TkTipo(**datos.model_dump())
+    tipo = TkTipo(**datos.model_dump(), slug=service.slug_libre(db, datos.nombre))
     db.add(tipo)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError:  # dos admins creando el mismo nombre en el mismo instante
         db.rollback()
-        raise HTTPException(409, f"Ya existe un tipo con el código '{datos.slug}'.")
+        raise HTTPException(409, "No se pudo crear el tipo. Vuelve a intentarlo.")
     db.refresh(tipo)
     return tipo
 

@@ -1,6 +1,8 @@
 """Lógica y acceso a datos del módulo. Lo único que se lee fuera del esquema tickets
 es rh.employees, para validar el registro contra la nómina."""
+import re
 import secrets
+import unicodedata
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException
@@ -99,6 +101,20 @@ def resetear_clave(db: Session, usuario: TkUsuario) -> None:
     usuario.password_hash = None
     usuario.reset_hasta = ahora() + timedelta(hours=settings.reset_horas)
     db.commit()
+
+
+# === Tipos ===
+
+def slug_libre(db: Session, nombre: str) -> str:
+    """Código interno del tipo, derivado del nombre. No se muestra ni se edita:
+    la columna es única y NOT NULL, y queda legible por si algún día se usa en
+    una URL. Con nombres repetidos agrega -2, -3..."""
+    base = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode().lower()
+    base = re.sub(r"[^a-z0-9]+", "-", base).strip("-")[:70] or "tipo"
+    slug, n = base, 2
+    while db.query(TkTipo.id).filter(TkTipo.slug == slug).first():
+        slug, n = f"{base}-{n}", n + 1
+    return slug
 
 
 # === Tickets ===

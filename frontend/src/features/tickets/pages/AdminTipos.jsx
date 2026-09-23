@@ -15,13 +15,9 @@ import {
 const input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 const label = 'mb-1 block text-xs font-medium text-gray-600';
 
-const slugificar = (texto) =>
-    texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
-
 const nuevoTipo = () => ({
-    slug: '', nombre: '', descripcion: '', portada_url: '', definicion: definicionVacia(),
-    tema: { ...TEMA_DEFECTO }, dias_anticipacion: 1, hora_limite: '12:00', activo: false, orden: 0,
+    nombre: '', descripcion: '', portada_url: '', definicion: definicionVacia(),
+    tema: { ...TEMA_DEFECTO }, dias_anticipacion: 1, hora_limite: '12:00', activo: false,
 });
 
 // ponytail: `file` fuera del builder de tickets. survey-core guarda el archivo
@@ -116,10 +112,8 @@ export default function AdminTipos() {
     const guardar = async () => {
         setMensaje('');
         try {
-            const { id, slug, ...datos } = actual;
-            const guardado = id
-                ? await actualizarTipo(id, datos)
-                : await crearTipo({ ...datos, slug: slug || slugificar(actual.nombre) });
+            const { id, ...datos } = actual;
+            const guardado = id ? await actualizarTipo(id, datos) : await crearTipo(datos);
             setActual({ ...guardado, hora_limite: String(guardado.hora_limite).slice(0, 5) });
             setMensaje('Guardado.');
             recargar();
@@ -194,17 +188,6 @@ export default function AdminTipos() {
 
                             {seccion === 'datos' && (
                                 <section className="mt-4 grid gap-4 rounded-xl border border-gray-200 bg-white p-5 sm:grid-cols-2">
-                                    <div>
-                                        <label className={label} htmlFor="tk-slug">Código (no se cambia después)</label>
-                                        <input id="tk-slug" className={input} disabled={!!actual.id} value={actual.slug}
-                                            placeholder={slugificar(actual.nombre || '')}
-                                            onChange={(e) => set({ slug: slugificar(e.target.value) })} />
-                                    </div>
-                                    <div>
-                                        <label className={label} htmlFor="tk-orden">Orden en el portal</label>
-                                        <input id="tk-orden" type="number" className={input} value={actual.orden}
-                                            onChange={(e) => set({ orden: Number(e.target.value) || 0 })} />
-                                    </div>
                                     <div className="sm:col-span-2">
                                         <label className={label} htmlFor="tk-desc">Descripción (se ve en la tarjeta y bajo el título)</label>
                                         <textarea id="tk-desc" rows={2} className={input} value={actual.descripcion || ''}

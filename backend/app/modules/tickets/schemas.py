@@ -64,11 +64,10 @@ class TipoBase(BaseModel):
     dias_anticipacion: int = Field(1, ge=0, le=60)
     hora_limite: time = time(12, 0)
     activo: bool = True
-    orden: int = 0
 
 
 class TipoCreate(TipoBase):
-    slug: str = Field(..., min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9-]*$")
+    pass
 
 
 class TipoUpdate(BaseModel):
@@ -80,14 +79,12 @@ class TipoUpdate(BaseModel):
     dias_anticipacion: int | None = Field(None, ge=0, le=60)
     hora_limite: time | None = None
     activo: bool | None = None
-    orden: int | None = None
 
 
 class TipoOut(TipoBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    slug: str
 
 
 # === Tickets ===

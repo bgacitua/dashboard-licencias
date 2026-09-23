@@ -58,7 +58,7 @@ def cambiar_password(datos: CambioClaveIn, usuario: UsuarioPortal, db: Db) -> No
 
 @portal.get("/tipos", response_model=list[TipoOut])
 def tipos(_: UsuarioPortal, db: Db) -> list[TkTipo]:
-    return db.query(TkTipo).filter(TkTipo.activo.is_(True)).order_by(TkTipo.orden, TkTipo.nombre).all()
+    return db.query(TkTipo).filter(TkTipo.activo.is_(True)).order_by(TkTipo.id).all()
 
 
 @portal.get("/tickets", response_model=list[TicketResumen])
