@@ -1,4 +1,4 @@
-// Correr: node src/features/formularios/components/logica.test.js
+// Correr: node src/components/form-builder/logica.test.js
 import assert from "node:assert/strict";
 import { Model } from "survey-core";
 

@@ -4,7 +4,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 
-import { TIPOS } from './tipos';
+import { TIPOS, claveTipo } from './tipos';
 
 function Item({ pregunta, seleccionada, onSeleccionar }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -36,7 +36,7 @@ function Item({ pregunta, seleccionada, onSeleccionar }) {
                     {pregunta.title || pregunta.name}
                 </span>
                 <span className="text-xs text-gray-500">
-                    {TIPOS[pregunta.type]?.label || pregunta.type}
+                    {TIPOS[claveTipo(pregunta)]?.label || pregunta.type}
                     {pregunta.visibleIf ? ' · condicional' : ''}
                 </span>
             </button>

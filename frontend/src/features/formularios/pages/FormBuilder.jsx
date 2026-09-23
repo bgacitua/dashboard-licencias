@@ -5,17 +5,9 @@ import { DefaultLight } from 'survey-core/themes';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
 
-import ListaPreguntas from '../components/ListaPreguntas';
-import PanelPropiedades from '../components/PanelPropiedades';
-import TextareaBuffer from '../components/TextareaBuffer';
-import {
-    TIPOS,
-    aCompletedHtml,
-    deCompletedHtml,
-    definicionVacia,
-    nuevaPagina,
-    nuevaPregunta,
-} from '../components/tipos';
+import TextareaBuffer from '../../../components/form-builder/TextareaBuffer';
+import { aCompletedHtml, deCompletedHtml, definicionVacia } from '../../../components/form-builder/tipos';
+import useEditorDefinicion from '../../../components/form-builder/useEditorDefinicion';
 import {
     actualizarFormulario,
     crearFormulario,
@@ -32,8 +24,6 @@ const slugificar = (texto) =>
 export default function FormBuilder() {
     const [formularios, setFormularios] = useState([]);
     const [actual, setActual] = useState(null);       // formulario en edición
-    const [paginaIdx, setPaginaIdx] = useState(0);
-    const [seleccionada, setSeleccionada] = useState(null);
     const [vista, setVista] = useState('editor');     // editor | preview
     const [mensaje, setMensaje] = useState('');
 
@@ -59,44 +49,24 @@ export default function FormBuilder() {
     }, [params]);
 
     const definicion = actual?.definicion || definicionVacia();
-    const pagina = definicion.pages?.[paginaIdx] || definicion.pages?.[0];
-    const pregunta = pagina?.elements?.find((e) => e.name === seleccionada) || null;
 
     const setDefinicion = (nueva) => setActual({ ...actual, definicion: nueva });
 
-    const setPaginas = (paginas) => setDefinicion({ ...definicion, pages: paginas });
-
-    const setElementos = (elementos) =>
-        setPaginas(definicion.pages.map((p, i) => (i === paginaIdx ? { ...p, elements: elementos } : p)));
+    // ponytail: el file de survey-core guarda el archivo en base64 dentro de la
+    // respuesta; queda como estaba. Las imágenes del builder (image,
+    // imagepicker) no se ofrecen acá porque formularios no tiene dónde subirlas.
+    const editor = useEditorDefinicion({ definicion, onChange: setDefinicion });
 
     const nuevo = () => {
         setActual({ slug: '', titulo: '', definicion: definicionVacia(), n8n_webhook_url: '', activo: true });
-        setPaginaIdx(0);
-        setSeleccionada(null);
+        editor.reset();
         setMensaje('');
     };
 
     const abrir = (f) => {
         setActual(f);
-        setPaginaIdx(0);
-        setSeleccionada(null);
+        editor.reset();
         setMensaje('');
-    };
-
-    const agregar = (tipo) => {
-        const p = nuevaPregunta(tipo);
-        setElementos([...(pagina.elements || []), p]);
-        setSeleccionada(p.name);
-    };
-
-    const cambiarPregunta = (nueva) => {
-        setElementos(pagina.elements.map((e) => (e.name === pregunta.name ? nueva : e)));
-        setSeleccionada(nueva.name);
-    };
-
-    const eliminarPregunta = () => {
-        setElementos(pagina.elements.filter((e) => e.name !== pregunta.name));
-        setSeleccionada(null);
     };
 
     const guardar = async () => {
@@ -263,63 +233,11 @@ export default function FormBuilder() {
                                 <Survey model={preview} />
                             </div>
                         ) : (
-                            <section className="mt-6">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    {definicion.pages.map((p, i) => (
-                                        <button
-                                            key={p.name}
-                                            onClick={() => { setPaginaIdx(i); setSeleccionada(null); }}
-                                            className={`rounded-lg px-3 py-1.5 text-sm ${
-                                                i === paginaIdx ? 'bg-gray-900 text-white' : 'border border-gray-300 text-gray-700'
-                                            }`}
-                                        >
-                                            {p.title || p.name}
-                                        </button>
-                                    ))}
-                                    <button
-                                        onClick={() => {
-                                            setPaginas([...definicion.pages, nuevaPagina(definicion.pages.length)]);
-                                            setPaginaIdx(definicion.pages.length);
-                                            setSeleccionada(null);
-                                        }}
-                                        className="rounded-lg border border-dashed border-gray-400 px-3 py-1.5 text-sm text-gray-600"
-                                    >
-                                        + Página
-                                    </button>
-                                </div>
-
-                                <div className="mt-4 flex flex-wrap gap-2">
-                                    {Object.entries(TIPOS).map(([tipo, meta]) => (
-                                        <button
-                                            key={tipo}
-                                            onClick={() => agregar(tipo)}
-                                            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
-                                        >
-                                            + {meta.label}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <div className="mt-4 max-w-xl">
-                                    <ListaPreguntas
-                                        elementos={pagina.elements || []}
-                                        seleccionada={seleccionada}
-                                        onSeleccionar={setSeleccionada}
-                                        onReordenar={setElementos}
-                                    />
-                                </div>
-                            </section>
+                            editor.lista
                         )}
                     </main>
 
-                    {vista === 'editor' && (
-                        <PanelPropiedades
-                            definicion={definicion}
-                            pregunta={pregunta}
-                            onChange={cambiarPregunta}
-                            onEliminar={eliminarPregunta}
-                        />
-                    )}
+                    {vista === 'editor' && editor.panel}
                 </>
             )}
         </div>

@@ -45,6 +45,12 @@ const FormBuilder = lazy(() => import('./features/formularios/pages/FormBuilder'
 const GestorFormularios = lazy(() => import('./features/formularios/pages/GestorFormularios'));
 const GestorRespuestas = lazy(() => import('./features/formularios/pages/GestorRespuestas'));
 const EnviarFormulario = lazy(() => import('./features/formularios/pages/EnviarFormulario'));
+const PortalAcceso = lazy(() => import('./features/tickets/pages/PortalAcceso'));
+const PortalInicio = lazy(() => import('./features/tickets/pages/PortalInicio'));
+const PortalSolicitud = lazy(() => import('./features/tickets/pages/PortalSolicitud'));
+const AdminTickets = lazy(() => import('./features/tickets/pages/AdminTickets'));
+const AdminTipos = lazy(() => import('./features/tickets/pages/AdminTipos'));
+const AdminUsuarios = lazy(() => import('./features/tickets/pages/AdminUsuarios'));
 
 
 function App() {
@@ -285,6 +291,38 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="formularios">
                   <EnviarFormulario />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Módulo Tickets. El portal (/tickets, /tickets/nueva, /tickets/t)
+                va fuera de ProtectedRoute: tiene su propia sesión, que no es la
+                de la plataforma. El panel sí exige el módulo. */}
+            <Route path="/tickets/ingresar" element={<PortalAcceso />} />
+            <Route path="/tickets" element={<PortalInicio />} />
+            <Route path="/tickets/nueva/:tipoId" element={<PortalSolicitud />} />
+            <Route path="/tickets/t/:id" element={<PortalSolicitud />} />
+            <Route
+              path="/tickets/admin"
+              element={
+                <ProtectedRoute requiredModule="tickets">
+                  <AdminTickets />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tickets/admin/tipos"
+              element={
+                <ProtectedRoute requiredModule="tickets">
+                  <AdminTipos />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tickets/admin/usuarios"
+              element={
+                <ProtectedRoute requiredModule="tickets">
+                  <AdminUsuarios />
                 </ProtectedRoute>
               }
             />

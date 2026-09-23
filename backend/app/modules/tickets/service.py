@@ -220,9 +220,13 @@ def detalle_ticket(db: Session, ticket_id: int, *, usuario_id: int | None = None
     r["datos"] = versiones[0].datos
     # El usuario ve la vigente; el historial de versiones es para el panel.
     r["versiones"] = versiones if admin else []
-    r["eventos"] = (
-        db.query(TkEvento).filter(TkEvento.ticket_id == ticket_id).order_by(TkEvento.created_at).all()
-    )
+    eventos = db.query(TkEvento).filter(TkEvento.ticket_id == ticket_id).order_by(TkEvento.created_at).all()
+    # El usuario del portal no ve el username de la plataforma de quien lo atendió.
+    r["eventos"] = eventos if admin else [
+        {**{c: getattr(e, c) for c in ("es_admin", "estado_nuevo", "texto", "created_at")},
+         "autor": "Administración" if e.es_admin else e.autor}
+        for e in eventos
+    ]
     if admin and r["modificado"]:
         db.execute(
             text("UPDATE app.tk_tickets SET version_vista_admin = version_actual WHERE id = :id"),

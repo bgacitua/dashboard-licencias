@@ -103,10 +103,11 @@ def eliminar_tipo(tipo_id: int, db: Db) -> None:
 
 
 @router.post("/archivos", response_model=ArchivoOut, status_code=201)
-async def subir_imagen(db: Db, admin: Admin, archivo: UploadFile = File(...)) -> ArchivoOut:
-    # Lee un byte más que el tope: alcanza para saber que se pasó sin cargar
-    # a memoria un archivo arbitrariamente grande.
-    datos = await archivo.read(settings.archivo_max_mb * 1024 * 1024 + 1)
+def subir_imagen(db: Db, admin: Admin, archivo: UploadFile = File(...)) -> ArchivoOut:
+    # def y no async: la sesión es síncrona y así corre en el threadpool en vez
+    # de bloquear el event loop. Lee un byte más que el tope: alcanza para
+    # saber que se pasó sin cargar a memoria un archivo arbitrariamente grande.
+    datos = archivo.file.read(settings.archivo_max_mb * 1024 * 1024 + 1)
     a = service.guardar_imagen(db, archivo.filename, datos, admin.username)
     return ArchivoOut(id=a.id, url=f"/api/v1/tickets/archivos/{a.id}")
 
