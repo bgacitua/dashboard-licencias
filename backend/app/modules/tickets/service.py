@@ -1,4 +1,4 @@
-"""Lógica y acceso a datos del módulo. Lo único que se lee fuera de app.tk_*
+"""Lógica y acceso a datos del módulo. Lo único que se lee fuera del esquema tickets
 es rh.employees, para validar el registro contra la nómina."""
 import secrets
 from datetime import date, datetime, timedelta, timezone
@@ -148,7 +148,7 @@ def editar_ticket(
     # instante, o si llegan dos ediciones a la vez.
     nueva = db.execute(
         text("""
-            UPDATE app.tk_tickets
+            UPDATE tickets.tickets
                SET version_actual = version_actual + 1, fecha_servicio = :f,
                    plazo = :p, updated_at = NOW()
              WHERE id = :id AND usuario_id = :u AND estado = 'pendiente'
@@ -169,9 +169,9 @@ _SELECT_TICKETS = """
     SELECT t.id, t.tipo_id, tp.nombre AS tipo, t.estado, t.fecha_servicio, t.plazo,
            t.version_actual, t.version_vista_admin, t.created_at, t.updated_at,
            u.nombre AS usuario, u.email
-    FROM app.tk_tickets t
-    JOIN app.tk_tipos tp ON tp.id = t.tipo_id
-    JOIN app.tk_usuarios u ON u.id = t.usuario_id
+    FROM tickets.tickets t
+    JOIN tickets.tipos tp ON tp.id = t.tipo_id
+    JOIN tickets.usuarios u ON u.id = t.usuario_id
 """
 
 
@@ -229,7 +229,7 @@ def detalle_ticket(db: Session, ticket_id: int, *, usuario_id: int | None = None
     ]
     if admin and r["modificado"]:
         db.execute(
-            text("UPDATE app.tk_tickets SET version_vista_admin = version_actual WHERE id = :id"),
+            text("UPDATE tickets.tickets SET version_vista_admin = version_actual WHERE id = :id"),
             {"id": ticket_id},
         )
         db.commit()

@@ -6,12 +6,12 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db.base import Base
 
-_S = {"schema": "app"}
+_S = {"schema": "tickets"}
 TZ = DateTime(timezone=True)
 
 
 class TkUsuario(Base):
-    __tablename__ = "tk_usuarios"
+    __tablename__ = "usuarios"
     __table_args__ = _S
 
     id = Column(Integer, primary_key=True)
@@ -28,7 +28,7 @@ class TkUsuario(Base):
 
 
 class TkTipo(Base):
-    __tablename__ = "tk_tipos"
+    __tablename__ = "tipos"
     __table_args__ = _S
 
     id = Column(Integer, primary_key=True)
@@ -47,12 +47,12 @@ class TkTipo(Base):
 
 
 class TkTicket(Base):
-    __tablename__ = "tk_tickets"
+    __tablename__ = "tickets"
     __table_args__ = _S
 
     id = Column(Integer, primary_key=True)
-    tipo_id = Column(Integer, ForeignKey("app.tk_tipos.id"), nullable=False)
-    usuario_id = Column(Integer, ForeignKey("app.tk_usuarios.id"), nullable=False)
+    tipo_id = Column(Integer, ForeignKey("tickets.tipos.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("tickets.usuarios.id"), nullable=False)
     estado = Column(String(20), nullable=False, default="pendiente")
     fecha_servicio = Column(Date, nullable=False)
     plazo = Column(TZ, nullable=False)
@@ -63,11 +63,11 @@ class TkTicket(Base):
 
 
 class TkVersion(Base):
-    __tablename__ = "tk_versiones"
+    __tablename__ = "versiones"
     __table_args__ = (UniqueConstraint("ticket_id", "version"), _S)
 
     id = Column(Integer, primary_key=True)
-    ticket_id = Column(Integer, ForeignKey("app.tk_tickets.id", ondelete="CASCADE"), nullable=False)
+    ticket_id = Column(Integer, ForeignKey("tickets.tickets.id", ondelete="CASCADE"), nullable=False)
     version = Column(Integer, nullable=False)
     fecha_servicio = Column(Date, nullable=False)
     datos = Column(JSONB, nullable=False)
@@ -76,11 +76,11 @@ class TkVersion(Base):
 
 
 class TkEvento(Base):
-    __tablename__ = "tk_eventos"
+    __tablename__ = "eventos"
     __table_args__ = _S
 
     id = Column(Integer, primary_key=True)
-    ticket_id = Column(Integer, ForeignKey("app.tk_tickets.id", ondelete="CASCADE"), nullable=False)
+    ticket_id = Column(Integer, ForeignKey("tickets.tickets.id", ondelete="CASCADE"), nullable=False)
     autor = Column(String(150), nullable=False)
     es_admin = Column(Boolean, nullable=False)
     estado_nuevo = Column(String(20))
@@ -89,7 +89,7 @@ class TkEvento(Base):
 
 
 class TkArchivo(Base):
-    __tablename__ = "tk_archivos"
+    __tablename__ = "archivos"
     __table_args__ = _S
 
     id = Column(String(32), primary_key=True)

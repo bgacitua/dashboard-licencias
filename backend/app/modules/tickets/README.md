@@ -33,7 +33,9 @@ Borrar las carpetas, el bloque final de `app/api/v1/api.py` y las rutas de
 
 ## Decisiones
 
-- **Cuentas aparte.** `app.tk_usuarios`, no `app.usuarios`. El JWT del portal
+- **Esquema propio.** Todo vive en `tickets.*`: `pg_dump -n tickets` se lleva el
+  módulo entero. Solo la fila `tickets` de `app.modulos` queda en `app`.
+- **Cuentas aparte.** `tickets.usuarios`, no `app.usuarios`. El JWT del portal
   se firma con una clave derivada de `JWT_SECRET_KEY` (`logica.clave_jwt`): un
   token del portal no pasa `get_current_user` aunque su `sub` coincida con un
   username, y viceversa.
@@ -45,15 +47,15 @@ Borrar las carpetas, el bloque final de `app/api/v1/api.py` y las rutas de
 - **Clave olvidada.** El admin la restablece: se borra el hash y se abre una
   ventana de `TICKETS_RESET_HORAS` en que la persona vuelve a registrarse con
   el mismo correo. La cuenta conserva su estado.
-- **Versiones, no UPDATE.** El número de ticket es `tk_tickets.id` y no cambia.
-  Cada edición inserta en `tk_versiones`. `version_actual > version_vista_admin`
+- **Versiones, no UPDATE.** El número de ticket es `tickets.tickets.id` y no cambia.
+  Cada edición inserta en `tickets.versiones`. `version_actual > version_vista_admin`
   marca el ticket como modificado en el panel hasta que el admin lo abre.
 - **Plazo congelado.** Se calcula al crear o editar (`fecha_servicio -
   dias_anticipacion` a `hora_limite`, hora de Chile) y se guarda. Cambiar la
   regla del tipo no mueve lo ya pedido. La edición es un UPDATE condicional
   (`estado = 'pendiente' AND plazo > NOW() AND version_actual = :v`), que es lo
   que decide si el admin cambia el estado en el mismo instante.
-- **Imágenes en Postgres.** `tk_archivos`, con tope de `TICKETS_ARCHIVO_MAX_MB`,
+- **Imágenes en Postgres.** `tickets.archivos`, con tope de `TICKETS_ARCHIVO_MAX_MB`,
   tipo detectado por firma (PNG, JPG, GIF, WebP; SVG no) y servidas sin sesión
   por un id aleatorio de 128 bits, porque las pide un `<img>`.
 - **Sin `file` en el builder de tickets.** survey-core lo guardaría en base64
@@ -73,7 +75,11 @@ TICKETS_ARCHIVO_MAX_MB=3
 
 ```
 psql -d rh_cramer -f backend/migrations/022_create_tickets_module.sql
+psql -d rh_cramer -v ON_ERROR_STOP=1 -f backend/migrations/023_tickets_a_esquema_propio.sql
 ```
+
+La 022 creó las tablas como `app.tk_*`; la 023 las borra (solo si están
+vacías) y las crea en el esquema `tickets`.
 
 Siembra el módulo `tickets` en `app.modulos`. Falta asignarlo al perfil que
 atiende las solicitudes desde el panel de administración.
