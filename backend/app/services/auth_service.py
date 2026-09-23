@@ -61,7 +61,11 @@ class AuthService:
         token_data = {
             "sub": user.username,
             "user_id": user.id,
-            "rol": user.rol.nombre if user.rol else None
+            "rol": user.rol.nombre if user.rol else None,
+            # Marca explícita de sesión: get_current_user solo acepta este tipo,
+            # para que ningún otro token firmado con la misma clave (p. ej. el
+            # ms_oauth_state) sirva como Bearer de sesión.
+            "token_type": "session",
         }
         return create_access_token(token_data)
     

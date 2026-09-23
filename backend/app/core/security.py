@@ -97,13 +97,31 @@ def decode_access_token(token: str) -> Optional[dict]:
         return None
 
 
+def es_token_de_sesion(payload: Optional[dict]) -> bool:
+    """True solo para un token que abre sesión en la plataforma.
+
+    Allowlist, no denylist: la firma sola no basta. Todos los tokens de la app
+    (sesión, pre_2fa, ms_oauth_state, contract_response, overtime_selection) van
+    firmados con la MISMA clave, así que uno emitido para otro propósito pasaría
+    la verificación de firma. El caso concreto: `ms_oauth_state` lleva `sub` y
+    viaja en la URL del OAuth de Microsoft (barra de direcciones, historial,
+    logs), de modo que aceptarlo como Bearer daría una sesión completa sin Duo.
+
+    `token_type` ausente = sesión emitida antes de este cambio: se acepta durante
+    la ventana de JWT_EXPIRE_MINUTES para no cerrar las sesiones vivas. Pasada
+    esa ventana desde el despliegue, este `None` se puede quitar y exigir
+    exactamente "session".
+    """
+    return payload is not None and payload.get("token_type") in ("session", None)
+
+
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> Usuario:
     """
     Dependencia FastAPI que obtiene el usuario actual desde el token JWT.
-    
+
     Raises:
         HTTPException 401: Si el token es inválido o el usuario no existe
     """
@@ -112,9 +130,9 @@ def get_current_user(
         detail="Credenciales inválidas",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     payload = decode_access_token(token)
-    if payload is None or payload.get("token_type") == "pre_2fa":
+    if not es_token_de_sesion(payload):
         raise credentials_exception
 
     username: str = payload.get("sub")

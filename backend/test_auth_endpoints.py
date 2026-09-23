@@ -23,7 +23,8 @@ for var in (
 from app.main import app  # noqa: E402
 from app.core.security import (  # noqa: E402
     consume_oauth_state_token, create_access_token, create_oauth_state_token,
-    decode_oauth_state_token, get_current_user, get_current_active_user,
+    create_pre_auth_token, decode_access_token, decode_oauth_state_token,
+    es_token_de_sesion, get_current_user, get_current_active_user,
 )
 
 # Rutas que un externo debe poder abrir sin cuenta en la plataforma. Cada una
@@ -42,6 +43,11 @@ PUBLICAS = {
     # Formulario que responde la jefatura desde el correo: no tiene cuenta.
     ("GET",  "/api/v1/asistencia/notificacion/{token}"),
     ("POST", "/api/v1/asistencia/notificacion/{token}"),
+    # Formulario que responde el trabajador desde un QR/enlace: no tiene cuenta.
+    # Lo protege el token de la tabla app.form_tokens (secrets, 256 bits), ligado
+    # al formulario y con vencimiento; se valida en repo.token_vigente / service.
+    ("GET",  "/api/v1/formularios/publico/f/{slug}"),
+    ("POST", "/api/v1/formularios/publico/f/{slug}"),
     # No toca estado en el servidor: el cliente borra su token. Exigir un token
     # valido solo impediria cerrar sesion con uno ya expirado.
     ("POST", "/api/v1/auth/logout"),
@@ -101,6 +107,34 @@ def check_oauth_state() -> None:
     print("OK: el state del OAuth rechaza tokens ajenos, alterados, vacios y reusados.")
 
 
+def check_token_confusion() -> None:
+    """get_current_user solo abre sesion con un token de sesion.
+
+    Todos los tokens de la app van firmados con la misma clave; sin este filtro,
+    uno emitido para otro proposito (el ms_oauth_state viaja en la URL del OAuth
+    de Microsoft) valdria como Bearer de sesion, saltandose Duo.
+    """
+    # Un ms_oauth_state lleva `sub` y firma valida, pero NO es sesion.
+    estado_ms = decode_access_token(create_oauth_state_token("benja"))
+    assert estado_ms is not None and estado_ms["sub"] == "benja"
+    assert es_token_de_sesion(estado_ms) is False, "ms_oauth_state no debe abrir sesion"
+
+    # El pre_2fa (post-password, pre-Duo) tampoco.
+    pre = decode_access_token(create_pre_auth_token(1, "benja", "benja@x.cl"))
+    assert es_token_de_sesion(pre) is False, "pre_2fa no debe abrir sesion"
+
+    # El token de sesion real, con su token_type, si.
+    assert es_token_de_sesion({"sub": "benja", "token_type": "session"}) is True
+
+    # Back-compat: un token sin token_type (emitido antes del cambio) sigue
+    # sirviendo mientras no expire, para no cerrar las sesiones vivas.
+    assert es_token_de_sesion({"sub": "benja"}) is True
+
+    assert es_token_de_sesion(None) is False
+
+    print("OK: solo un token de sesion abre sesion (sin confusion de tipos).")
+
+
 # `async def` que sí deben seguir siendo corrutinas, cada una por su motivo.
 ASYNC_JUSTIFICADAS = {
     ("app/main.py", "lifespan"),                              # @asynccontextmanager
@@ -149,6 +183,7 @@ def check_sin_async_de_mas() -> None:
 
 def main() -> int:
     check_oauth_state()
+    check_token_confusion()
     check_sin_async_de_mas()
 
     huecos = []
