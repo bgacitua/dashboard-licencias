@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.api.v1.endpoints import licencias, marcas, auth, admin, finiquitos, employees, calculadora, vacaciones, contract_alerts, costos, retorno, seleccion, overtime, creditos, liquidaciones
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_module
 
 
 api_router = APIRouter()
@@ -10,6 +10,16 @@ api_router = APIRouter()
 # proposito (auth, y los formularios por token de contract-alerts/asistencia)
 # se incluyen aparte, sin esta lista.
 _auth = [Depends(get_current_user)]
+
+# Alertas de contratos: no basta con estar autenticado, hay que tener el modulo.
+# Se exige a nivel de router (no solo sesion), asi ningun endpoint nuevo de
+# alertas nace visible para el resto de los usuarios. Se usa require_module y no
+# require_role porque el acceso en la plataforma es por modulo/perfil, y ademas
+# calza 1:1 con el gate del frontend (requiredModule="contract_alerts"), de modo
+# que quien ve la pantalla no recibe 403 en el backend. require_module ya
+# autentica, asi que reemplaza a _auth. Las rutas publicas por token cuelgan de
+# contract_alerts.publico, que se incluye aparte y sin esta dependencia.
+_auth_contract = [Depends(require_module("contract_alerts"))]
 
 # Router de autenticación (sin protección)
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -38,7 +48,7 @@ api_router.include_router(calculadora.router, prefix="/calculadora", tags=["calc
 api_router.include_router(vacaciones.router, prefix="/vacaciones", tags=["vacaciones"], dependencies=_auth)
 
 api_router.include_router(
-    contract_alerts.router, prefix="/contract-alerts", tags=["contract-alerts"], dependencies=_auth
+    contract_alerts.router, prefix="/contract-alerts", tags=["contract-alerts"], dependencies=_auth_contract
 )
 # Callback OAuth de Microsoft y formulario de respuesta de la jefatura: quien
 # los abre no tiene sesion en la plataforma. Los protege el token del enlace.
