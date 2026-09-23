@@ -65,9 +65,31 @@ def test_dominio():
     print("ok  dominio")
 
 
+def test_slug_libre():
+    from app.modules.tickets.service import slug_libre
+
+    class _Db:
+        """Simula la tabla: .first() devuelve algo si el slug consultado ya existe."""
+        def __init__(self, ocupados):
+            self.ocupados, self.pedido = set(ocupados), None
+        def query(self, *_):
+            return self
+        def filter(self, cond):
+            self.pedido = cond.right.value
+            return self
+        def first(self):
+            return 1 if self.pedido in self.ocupados else None
+
+    assert slug_libre(_Db([]), "Almuerzos Área Técnica") == "almuerzos-area-tecnica"
+    assert slug_libre(_Db(["almuerzos", "almuerzos-2"]), "Almuerzos") == "almuerzos-3"
+    assert slug_libre(_Db([]), "¡¡¡") == "tipo"
+    print("ok  slug_libre")
+
+
 if __name__ == "__main__":
     test_plazo()
     test_editable()
     test_mime()
     test_jwt_separado()
     test_dominio()
+    test_slug_libre()
