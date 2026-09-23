@@ -1,10 +1,21 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { ESTADOS, fechaHora } from '../services/tickets';
 
-/** Historial de estados y comentarios de un ticket, con caja para responder. */
-export default function Conversacion({ eventos = [], onEnviar, lado = 'usuario' }) {
+/**
+ * Historial de estados y comentarios de un ticket, con caja para responder.
+ *
+ * `columna`: para ir en una columna lateral de alto fijo. Los mensajes
+ * scrollean dentro y la caja de respuesta queda siempre abajo, a la vista.
+ */
+export default function Conversacion({ eventos = [], onEnviar, lado = 'usuario', columna = false }) {
     const [texto, setTexto] = useState('');
+    const lista = useRef(null);
+
+    // En columna, el último mensaje queda a la vista, como en un chat.
+    useEffect(() => {
+        if (columna && lista.current) lista.current.scrollTop = lista.current.scrollHeight;
+    }, [columna, eventos.length]);
     const [error, setError] = useState('');
     const [enviando, setEnviando] = useState(false);
 
@@ -24,9 +35,9 @@ export default function Conversacion({ eventos = [], onEnviar, lado = 'usuario' 
     };
 
     return (
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+        <section className={`rounded-2xl border border-slate-200 bg-white p-5 ${columna ? 'flex h-full flex-col' : 'mt-6'}`}>
             <h2 className="text-sm font-semibold text-slate-900">Seguimiento</h2>
-            <ol className="mt-4 space-y-3">
+            <ol ref={lista} className={`mt-4 space-y-3 ${columna ? 'max-h-[60vh] min-h-0 flex-1 overflow-y-auto pr-1 lg:max-h-none' : ''}`}>
                 {eventos.map((ev, i) => {
                     const propio = (lado === 'admin') === ev.es_admin;
                     return (
