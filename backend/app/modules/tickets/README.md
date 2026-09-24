@@ -23,7 +23,8 @@ Panel (/tickets/admin)    require_module("tickets")
 ## Regla de acoplamiento
 
 Imports hacia fuera de la carpeta: `require_module`, `get_current_active_user`,
-`settings.JWT_SECRET_KEY` y los tamaños del pool, `app.core.rate_limit`,
+`settings.JWT_SECRET_KEY`, `PUBLIC_URL`, `ALERTS_N8N_CA_BUNDLE` y los tamaños
+del pool, `app.core.rate_limit`, `logger`,
 `get_db` (panel), `SessionLocal` (portal) y `Base`. En el
 frontend: `SidebarLayout`, `getAuthHeaders` y el builder compartido.
 
@@ -31,6 +32,22 @@ Para separar el módulo: mover esta carpeta y `frontend/src/features/tickets/`,
 copiar `components/form-builder/`, y reemplazar `require_module` del panel.
 Borrar las carpetas, el bloque final de `app/api/v1/api.py` y las rutas de
 `App.jsx` lo desinstala.
+
+## Correos de cuentas (n8n)
+
+El backend no manda correos: hace POST a `TICKETS_N8N_WEBHOOK_URL` (Bearer
+`TICKETS_N8N_TOKEN`) y n8n los envía desde su casilla. Siempre en segundo
+plano; si n8n falla, la cuenta queda igual y el error va al log.
+
+```json
+{"evento": "usuario_registrado | usuario_aprobado | usuario_rechazado",
+ "para": ["..."], "usuario": {"nombre": "", "rut": "", "email": ""},
+ "link": "https://…", "motivo": null}
+```
+
+- `usuario_registrado`: cuenta nueva pendiente; `para` = `TICKETS_ADMIN_EMAILS`.
+- `usuario_aprobado` / `usuario_rechazado`: solo al responder una solicitud
+  (`logica.aviso_de_cambio`); `para` = el usuario.
 
 ## Decisiones
 

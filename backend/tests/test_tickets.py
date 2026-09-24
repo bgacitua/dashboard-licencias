@@ -7,7 +7,7 @@ Todo puro, no necesita base. Ejecutar:
 from datetime import date, datetime, time, timedelta, timezone
 
 from app.modules.tickets.config import TicketsSettings
-from app.modules.tickets.logica import calcular_plazo, clave_jwt, editable, mime_de_imagen
+from app.modules.tickets.logica import aviso_de_cambio, calcular_plazo, clave_jwt, editable, mime_de_imagen
 
 
 def test_plazo():
@@ -86,6 +86,18 @@ def test_slug_libre():
     print("ok  slug_libre")
 
 
+def test_aviso_de_cambio():
+    assert aviso_de_cambio("pendiente", "activo") == "usuario_aprobado"
+    assert aviso_de_cambio("rechazado", "activo") == "usuario_aprobado"  # el admin se arrepintió
+    assert aviso_de_cambio("pendiente", "rechazado") == "usuario_rechazado"
+    # Dar de baja o reactivar una cuenta ya usada no es respuesta a una solicitud.
+    assert aviso_de_cambio("activo", "inactivo") is None
+    assert aviso_de_cambio("inactivo", "activo") is None
+    assert aviso_de_cambio("activo", "rechazado") is None
+    assert aviso_de_cambio("activo", "activo") is None
+    print("ok  aviso de cambio")
+
+
 if __name__ == "__main__":
     test_plazo()
     test_editable()
@@ -93,3 +105,4 @@ if __name__ == "__main__":
     test_jwt_separado()
     test_dominio()
     test_slug_libre()
+    test_aviso_de_cambio()

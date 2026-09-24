@@ -53,3 +53,17 @@ def clave_jwt(secreto_plataforma: str) -> str:
     no hace falta otro secreto en el .env y los dos mundos no se cruzan.
     """
     return hashlib.sha256(f"tickets|{secreto_plataforma}".encode()).hexdigest()
+
+
+def aviso_de_cambio(anterior: str, nuevo: str) -> str | None:
+    """Evento a notificar cuando el admin cambia el estado de una cuenta.
+
+    Solo se avisa la respuesta a una solicitud de acceso: aprobar a quien
+    esperaba (o a quien se había rechazado) y rechazar a quien esperaba.
+    Desactivar o reactivar una cuenta ya usada no manda correo.
+    """
+    if nuevo == "activo" and anterior in ("pendiente", "rechazado"):
+        return "usuario_aprobado"
+    if nuevo == "rechazado" and anterior == "pendiente":
+        return "usuario_rechazado"
+    return None

@@ -176,7 +176,9 @@ class UsuarioOut(BaseModel):
 
 
 class UsuarioEstadoIn(BaseModel):
-    estado: Literal["activo", "inactivo"]
+    estado: Literal["activo", "inactivo", "rechazado"]
+    # Va en el correo de rechazo; en los demás cambios se ignora.
+    motivo: str | None = Field(None, max_length=500)
 
 
 class ArchivoOut(BaseModel):

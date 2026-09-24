@@ -14,7 +14,7 @@ require_module del panel.
 """
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,7 @@ from app.db.deps import get_db
 
 from . import service
 from .config import settings
+from .logica import aviso_de_cambio
 from .models import TkTicket, TkTipo, TkUsuario
 from .schemas import (
     ArchivoOut, ComentarioIn, Estado, EstadoIn, TicketDetalle, TicketResumen, TipoCreate,
@@ -125,14 +126,24 @@ def usuarios(db: Db) -> list[UsuarioOut]:
 
 
 @router.patch("/usuarios/{usuario_id}", status_code=204)
-def estado_usuario(usuario_id: int, datos: UsuarioEstadoIn, db: Db, admin: Admin) -> None:
+def estado_usuario(
+    usuario_id: int, datos: UsuarioEstadoIn, db: Db, admin: Admin, tareas: BackgroundTasks,
+) -> None:
     u = db.get(TkUsuario, usuario_id)
     if not u:
         raise HTTPException(404, "Usuario no encontrado.")
+    evento = aviso_de_cambio(u.estado, datos.estado)
     if datos.estado == "activo" and u.estado != "activo":
         u.activado_por, u.activado_at = admin.username, service.ahora()
     u.estado = datos.estado
     db.commit()
+    if evento:
+        tareas.add_task(
+            service.notificar, evento, [u.email],
+            {"nombre": u.nombre, "rut": u.rut, "email": u.email},
+            service.url_portal("/tickets/ingresar"),
+            datos.motivo if evento == "usuario_rechazado" else None,
+        )
 
 
 @router.post("/usuarios/{usuario_id}/reset", status_code=204)

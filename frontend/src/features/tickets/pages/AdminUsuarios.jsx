@@ -7,6 +7,7 @@ const ESTADO = {
     pendiente: 'bg-amber-100 text-amber-800',
     activo: 'bg-green-100 text-green-800',
     inactivo: 'bg-gray-200 text-gray-700',
+    rechazado: 'bg-red-100 text-red-800',
 };
 
 export default function AdminUsuarios() {
@@ -16,6 +17,14 @@ export default function AdminUsuarios() {
 
     const recargar = () => listarUsuarios().then(setUsuarios).catch((e) => setError(e.message));
     useEffect(() => { recargar(); }, []);
+
+    const rechazar = (u) => {
+        // ponytail: prompt nativo; un modal si piden dar formato al motivo.
+        const motivo = window.prompt(
+            `Se rechazará el acceso de ${u.nombre || u.email} y se le avisará por correo.\nMotivo (opcional):`, '',
+        );
+        if (motivo !== null) accion(() => estadoUsuario(u.id, 'rechazado', motivo.trim() || null));
+    };
 
     const accion = async (fn) => {
         setError('');
@@ -81,6 +90,12 @@ export default function AdminUsuarios() {
                                 <td className="px-4 py-3 text-gray-600">{fechaHora(u.created_at)}</td>
                                 <td className="px-4 py-3 text-gray-600">{fechaHora(u.last_login_at)}</td>
                                 <td className="space-x-2 whitespace-nowrap px-4 py-3 text-right">
+                                    {u.estado === 'pendiente' && (
+                                        <button onClick={() => rechazar(u)}
+                                            className="rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50">
+                                            Rechazar
+                                        </button>
+                                    )}
                                     {u.estado !== 'activo' ? (
                                         <button onClick={() => accion(() => estadoUsuario(u.id, 'activo'))}
                                             className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700">
