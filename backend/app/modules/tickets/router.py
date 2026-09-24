@@ -49,8 +49,13 @@ def ticket(ticket_id: int, db: Db) -> dict:
 
 
 @router.post("/tickets/{ticket_id}/estado", status_code=204)
-def estado(ticket_id: int, datos: EstadoIn, db: Db, admin: Admin) -> None:
-    service.cambiar_estado(db, ticket_id, datos.estado, datos.comentario, admin.username)
+def estado(ticket_id: int, datos: EstadoIn, db: Db, admin: Admin, tareas: BackgroundTasks) -> None:
+    aviso = service.cambiar_estado(db, ticket_id, datos.estado, datos.comentario, admin.username)
+    if aviso:
+        tareas.add_task(
+            service.notificar, "ticket_estado", aviso["para"], aviso["usuario"],
+            service.url_portal(f"/tickets/t/{ticket_id}"), ticket=aviso["ticket"],
+        )
 
 
 @router.post("/tickets/{ticket_id}/comentarios", status_code=204)
