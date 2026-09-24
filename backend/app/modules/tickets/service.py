@@ -45,7 +45,10 @@ def _persona_por_email(db: Session, email: str) -> dict | None:
     return dict(row) if row else None
 
 
-def notificar(evento: str, para: list[str], usuario: dict, link: str, motivo: str | None = None) -> None:
+def notificar(
+    evento: str, para: list[str], usuario: dict, link: str,
+    motivo: str | None = None, ticket: dict | None = None,
+) -> None:
     """POST al webhook de n8n, que arma y manda el correo desde su casilla.
 
     Corre como BackgroundTask: si n8n no responde, la cuenta ya quedó
@@ -60,7 +63,8 @@ def notificar(evento: str, para: list[str], usuario: dict, link: str, motivo: st
 
         resp = httpx.post(
             settings.n8n_webhook_url,
-            json={"evento": evento, "para": para, "usuario": usuario, "link": link, "motivo": motivo},
+            json={"evento": evento, "para": para, "usuario": usuario, "link": link,
+                  "motivo": motivo, "ticket": ticket},
             headers={"Authorization": f"Bearer {settings.n8n_token}"} if settings.n8n_token else None,
             verify=app_settings.ALERTS_N8N_CA_BUNDLE or True,
             timeout=10,
@@ -291,16 +295,31 @@ def detalle_ticket(db: Session, ticket_id: int, *, usuario_id: int | None = None
     return r
 
 
-def cambiar_estado(db: Session, ticket_id: int, estado: str, comentario: str | None, autor: str) -> None:
+def cambiar_estado(db: Session, ticket_id: int, estado: str, comentario: str | None, autor: str) -> dict | None:
+    """Cambia el estado y devuelve los datos del aviso al usuario, o None si no
+    corresponde avisar (devolverlo a pendiente es una corrección del admin)."""
     ticket = db.get(TkTicket, ticket_id)
     if not ticket:
         raise HTTPException(404, "Ticket no encontrado.")
     if ticket.estado == estado:
         raise HTTPException(400, "El ticket ya está en ese estado.")
+    comentario = (comentario or "").strip() or None
     ticket.estado = estado
-    db.add(TkEvento(ticket_id=ticket_id, autor=autor, es_admin=True, estado_nuevo=estado,
-                    texto=(comentario or "").strip() or None))
+    db.add(TkEvento(ticket_id=ticket_id, autor=autor, es_admin=True, estado_nuevo=estado, texto=comentario))
     db.commit()
+    if estado == "pendiente":
+        return None
+    # Se arma acá y no en la tarea: la tarea corre con la sesión ya cerrada.
+    u = db.get(TkUsuario, ticket.usuario_id)
+    tipo = db.get(TkTipo, ticket.tipo_id)
+    return {
+        "para": [u.email],
+        "usuario": {"nombre": u.nombre, "rut": u.rut, "email": u.email},
+        "ticket": {
+            "id": ticket.id, "tipo": tipo.nombre if tipo else "Solicitud",
+            "fecha_servicio": ticket.fecha_servicio.isoformat(), "estado": estado, "comentario": comentario,
+        },
+    }
 
 
 def comentar(db: Session, ticket_id: int, texto: str, autor: str, es_admin: bool) -> None:

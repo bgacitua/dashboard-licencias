@@ -40,14 +40,17 @@ El backend no manda correos: hace POST a `TICKETS_N8N_WEBHOOK_URL` (Bearer
 plano; si n8n falla, la cuenta queda igual y el error va al log.
 
 ```json
-{"evento": "usuario_registrado | usuario_aprobado | usuario_rechazado",
+{"evento": "usuario_registrado | usuario_aprobado | usuario_rechazado | ticket_estado",
  "para": ["..."], "usuario": {"nombre": "", "rut": "", "email": ""},
- "link": "https://…", "motivo": null}
+ "link": "https://…", "motivo": null, "ticket": null}
 ```
 
 - `usuario_registrado`: cuenta nueva pendiente; `para` = `TICKETS_ADMIN_EMAILS`.
 - `usuario_aprobado` / `usuario_rechazado`: solo al responder una solicitud
   (`logica.aviso_de_cambio`); `para` = el usuario.
+- `ticket_estado`: el admin pasa un ticket a en curso, rechazado o cerrado;
+  `para` = quien lo pidió. Trae `ticket` = `{id, tipo, fecha_servicio, estado,
+  comentario}`. Volver a pendiente no avisa.
 
 ## Decisiones
 
