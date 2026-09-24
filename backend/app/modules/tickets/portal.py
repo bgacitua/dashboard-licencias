@@ -6,7 +6,7 @@ activa; eso es lo que reemplaza a la verificación por correo.
 """
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.rate_limit import check_rate_limit, client_ip, reset_rate_limit
@@ -27,9 +27,17 @@ Db = Annotated[Session, Depends(db_portal)]
 
 
 @portal.post("/registro")
-def registro(datos: RegistroIn, request: Request, db: Db) -> dict:
+def registro(datos: RegistroIn, request: Request, db: Db, tareas: BackgroundTasks) -> dict:
     check_rate_limit(f"tk-registro:{client_ip(request)}", 5, 3600)
-    return {"mensaje": service.registrar(db, datos.email, datos.password)}
+    nuevo = service.registrar(db, datos.email, datos.password)
+    # En segundo plano a propósito: esperar a n8n solo cuando la cuenta es
+    # nueva haría que el tiempo de respuesta revelara qué correos existen.
+    if nuevo:
+        tareas.add_task(
+            service.notificar, "usuario_registrado", service.settings.admin_emails_list,
+            nuevo, service.url_portal("/tickets/admin/usuarios"),
+        )
+    return {"mensaje": service.MSG_REGISTRO}
 
 
 @portal.post("/login", response_model=SesionOut)

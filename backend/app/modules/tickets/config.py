@@ -32,6 +32,19 @@ class TicketsSettings(BaseSettings):
 
     zona: str = "America/Santiago"
 
+    # Webhook de n8n que manda los correos de las cuentas (aviso de registro al
+    # admin, aprobación y rechazo al usuario). La pone quien despliega, no un
+    # admin desde el panel, así que no necesita allowlist. Vacío = sin correos.
+    n8n_webhook_url: str = ""
+    # Bearer del nodo Webhook (Header Auth). Sin él el webhook queda abierto.
+    n8n_token: str = ""
+    # A quién avisar cuando alguien se registra, separados por coma.
+    admin_emails: str = ""
+
+    @property
+    def admin_emails_list(self) -> list[str]:
+        return [e.strip() for e in self.admin_emails.split(",") if e.strip()]
+
     @property
     def dominios_list(self) -> list[str]:
         return [d.strip().lower() for d in self.dominios.split(",") if d.strip()]

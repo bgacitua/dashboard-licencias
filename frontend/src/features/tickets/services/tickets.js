@@ -82,7 +82,8 @@ export const subirImagen = async (archivo) => {
 };
 
 export const listarUsuarios = () => admin('/usuarios');
-export const estadoUsuario = (id, estado) => admin(`/usuarios/${id}`, { method: 'PATCH', body: { estado } });
+export const estadoUsuario = (id, estado, motivo) =>
+    admin(`/usuarios/${id}`, { method: 'PATCH', body: { estado, motivo } });
 export const resetUsuario = (id) => admin(`/usuarios/${id}/reset`, { method: 'POST' });
 
 // === Formato compartido ===

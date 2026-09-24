@@ -10,6 +10,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings as app_settings
+from app.core.logging_config import logger
+
 from .auth import HASH_SEÑUELO, pwd
 from .config import settings
 from .logica import calcular_plazo, editable, mime_de_imagen
@@ -42,7 +45,39 @@ def _persona_por_email(db: Session, email: str) -> dict | None:
     return dict(row) if row else None
 
 
-def registrar(db: Session, email: str, password: str) -> str:
+def notificar(evento: str, para: list[str], usuario: dict, link: str, motivo: str | None = None) -> None:
+    """POST al webhook de n8n, que arma y manda el correo desde su casilla.
+
+    Corre como BackgroundTask: si n8n no responde, la cuenta ya quedó
+    registrada o aprobada igual y solo se pierde el aviso (queda en el log).
+    """
+    if not settings.n8n_webhook_url or not para:
+        return
+    if not settings.n8n_token:
+        logger.warning("[Tickets] TICKETS_N8N_TOKEN sin configurar: el webhook se llama sin autenticación")
+    try:
+        import httpx
+
+        resp = httpx.post(
+            settings.n8n_webhook_url,
+            json={"evento": evento, "para": para, "usuario": usuario, "link": link, "motivo": motivo},
+            headers={"Authorization": f"Bearer {settings.n8n_token}"} if settings.n8n_token else None,
+            verify=app_settings.ALERTS_N8N_CA_BUNDLE or True,
+            timeout=10,
+        )
+        if resp.status_code >= 400:
+            logger.warning(f"[Tickets] n8n respondió {resp.status_code} al evento {evento}")
+    except Exception as e:
+        logger.warning(f"[Tickets] No se pudo notificar {evento} a n8n: {e}")
+
+
+def url_portal(ruta: str) -> str:
+    return f"{app_settings.PUBLIC_URL.rstrip('/')}{ruta}"
+
+
+def registrar(db: Session, email: str, password: str) -> dict | None:
+    """Crea la cuenta pendiente. Devuelve sus datos solo si la cuenta es nueva,
+    para avisar al admin; el endpoint responde MSG_REGISTRO en todos los casos."""
     email = email.strip().lower()
     # El hash se calcula siempre, antes de decidir nada: si solo se calculara
     # al crear la cuenta, el tiempo de respuesta diría si el correo existe.
@@ -59,19 +94,21 @@ def registrar(db: Session, email: str, password: str) -> str:
             existente.password_hash = hashed
             existente.reset_hasta = None
             db.commit()
-        return MSG_REGISTRO
+        return None
 
     persona = _persona_por_email(db, email)
-    if persona:
-        db.add(TkUsuario(
-            email=email, nombre=persona["full_name"], rut=persona["rut"],
-            password_hash=hashed, estado="pendiente",
-        ))
-        try:
-            db.commit()
-        except IntegrityError:  # dos registros simultáneos del mismo correo
-            db.rollback()
-    return MSG_REGISTRO
+    if not persona:
+        return None
+    db.add(TkUsuario(
+        email=email, nombre=persona["full_name"], rut=persona["rut"],
+        password_hash=hashed, estado="pendiente",
+    ))
+    try:
+        db.commit()
+    except IntegrityError:  # dos registros simultáneos del mismo correo
+        db.rollback()
+        return None
+    return {"nombre": persona["full_name"], "rut": persona["rut"], "email": email}
 
 
 def login(db: Session, email: str, password: str) -> TkUsuario:
@@ -83,6 +120,8 @@ def login(db: Session, email: str, password: str) -> TkUsuario:
     # Recién acá se distingue el estado: quien llegó hasta aquí sabe la clave.
     if usuario.estado == "pendiente":
         raise HTTPException(403, "Tu cuenta está esperando la activación de un administrador.")
+    if usuario.estado == "rechazado":
+        raise HTTPException(403, "Tu solicitud de acceso no fue aprobada. Habla con el administrador.")
     if usuario.estado != "activo":
         raise HTTPException(403, "Tu cuenta está desactivada. Habla con el administrador.")
     usuario.last_login_at = ahora()
