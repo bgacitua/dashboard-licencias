@@ -53,6 +53,12 @@ export async function leerAtrasos(file) {
   return XLSX.utils.sheet_to_json(hoja, { raw: false, defval: '' })
 }
 
+// Excel crashea al usar "Texto en columnas" sobre lo que escribe xlsx por
+// defecto: marca todo el rango con <ignoredErrors> y tipa los textos como
+// t="str" (resultado de fórmula). bookSST los deja en sharedStrings, que es
+// lo que hace Excel mismo.
+export const OPTS_XLSX = { ignoreEC: false, bookSST: true }
+
 /** Hojas del backend ({nombre, rows, columns}) -> descarga de un .xlsx. */
 export function descargarHojas(hojas, nombreArchivo) {
   const wb = XLSX.utils.book_new()
@@ -62,7 +68,7 @@ export function descargarHojas(hojas, nombreArchivo) {
     const ws = XLSX.utils.json_to_sheet(rows, { header: columns })
     XLSX.utils.book_append_sheet(wb, ws, nombre.slice(0, 31)) // límite de Excel
   }
-  XLSX.writeFile(wb, nombreArchivo)
+  XLSX.writeFile(wb, nombreArchivo, OPTS_XLSX)
 }
 
 // ponytail: self-check con `node src/features/asistencia/planilla.js`.
