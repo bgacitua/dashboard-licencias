@@ -12,6 +12,7 @@
 import * as XLSX from 'xlsx'
 
 import { aIso } from './marcas.js'
+import { OPTS_XLSX } from './planilla.js'
 
 // El campo `turno` del marcaje trae este formato exacto.
 export const TURNO_NOCHE = '20:00-06:30'
@@ -248,7 +249,7 @@ export function descargarBonoEspecial(rows, rango) {
   if (agg.trabajadores.length === 0) {
     return { ok: false, mensaje: `No hay turnos ${TURNO_NOCHE} pagables en el periodo filtrado.` }
   }
-  XLSX.writeFile(construirLibro(rows, { rango }), 'bono_especial.xlsx')
+  XLSX.writeFile(construirLibro(rows, { rango }), 'bono_especial.xlsx', OPTS_XLSX)
   return { ok: true, trabajadores: agg.trabajadores.length }
 }
 

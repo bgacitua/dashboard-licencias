@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx'
 
 import { desplazar, inicioSemana } from './bonoEspecial.js'
 import { aIso } from './marcas.js'
+import { OPTS_XLSX } from './planilla.js'
 
 // Fuera del bono de fin de semana: no generan movilización ni colación, aunque se
 // trabaje sábado o domingo y aunque superen las horas.
@@ -264,7 +265,8 @@ export function prepararColMov(rows, periodo) {
     descargar: () =>
       XLSX.writeFile(
         construirLibroColMov(rows, periodo),
-        `colacion_movilizacion_${periodo.desde}_${periodo.hasta}.xlsx`
+        `colacion_movilizacion_${periodo.desde}_${periodo.hasta}.xlsx`,
+        OPTS_XLSX
       ),
   }
 }
@@ -396,7 +398,7 @@ export function prepararContratista(rows, mes) {
     filas: agg.trabajadores.length,
     confirmar: faltaCobertura(rows, periodo),
     descargar: () =>
-      XLSX.writeFile(construirLibroContratista(rows, mes), `bono_contratista_${mes}.xlsx`),
+      XLSX.writeFile(construirLibroContratista(rows, mes), `bono_contratista_${mes}.xlsx`, OPTS_XLSX),
   }
 }
 
