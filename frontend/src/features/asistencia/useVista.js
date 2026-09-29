@@ -83,6 +83,38 @@ export function useMorpho(desde, hasta, activo = true) {
   return { marcas, cargando }
 }
 
+/**
+ * Mapa `rut|fecha` -> días de la racha, para las ausencias en días seguidos.
+ *
+ * Lo resuelve el backend: "consecutivo" se mide sobre los días con turno
+ * asignado y esa regla también la usa el correo del job diario. Fail-open: si
+ * el endpoint falla la tabla se muestra igual, solo sin la columna pintada.
+ */
+export function useAusenciasConsecutivas(desde, hasta, obraId, activo = true) {
+  const [dias, setDias] = useState(new Map())
+
+  useEffect(() => {
+    if (!activo || !desde || !hasta) {
+      setDias(new Map())
+      return
+    }
+    let vigente = true
+    AsistenciaService.getAusenciasConsecutivas({ desde, hasta, obraId })
+      .then((rachas) => {
+        if (!vigente) return
+        const m = new Map()
+        for (const r of rachas) for (const f of r.fechas) m.set(`${r.rut}|${f}`, r.dias)
+        setDias(m)
+      })
+      .catch(() => vigente && setDias(new Map()))
+    return () => {
+      vigente = false
+    }
+  }, [desde, hasta, obraId, activo])
+
+  return dias
+}
+
 export function useObras() {
   const [obras, setObras] = useState([])
   useEffect(() => {

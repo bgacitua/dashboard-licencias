@@ -226,6 +226,17 @@ const AsistenciaService = {
     return data
   },
 
+  // Rachas de ausencias en días seguidos (sin motivo y sin marca Morpho). La
+  // regla de "consecutivo" vive en el backend: el badge de la tabla y el correo
+  // del job diario comparten definición en vez de tener una copia cada uno.
+  getAusenciasConsecutivas: async ({ desde, hasta, obraId } = {}) => {
+    const { data } = await axios.get(`${API_URL}/ausencias-consecutivas`, {
+      headers: authHeaders(),
+      params: { desde, hasta, ...(obraId ? { obra_id: obraId } : {}) },
+    })
+    return data
+  },
+
   getMorphoMarcas: async ({ desde, hasta }) => {
     const { data } = await axios.get(`${API_URL}/morpho-marcas`, {
       headers: authHeaders(),
