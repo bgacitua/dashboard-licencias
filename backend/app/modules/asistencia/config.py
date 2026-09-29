@@ -77,6 +77,19 @@ class AsistenciaSettings(BaseSettings):
     # Obras del selector. Formato: "id:Nombre,id:Nombre,..."
     obras: str = ""
 
+    # === Ausencias en dias consecutivos ===
+    # Job diario: detecta rachas de >1 dia sin motivo y sin marca Morpho, y las
+    # manda por correo. Sin casilla configurada el job no se registra: una
+    # alerta que no llega a nadie solo gasta cuota de Buk.
+    ausencias_scheduler_enabled: bool = False
+    ausencias_email: str = ""
+    ausencias_scheduler_hour: int = 8
+    ausencias_scheduler_minute: int = 30
+    # Ventana movil hacia atras. Buk hace desaparecer las inasistencias ya
+    # justificadas, asi que volver a mirar los dias pasados corrige solo los
+    # avisos que hoy ya no corresponden.
+    ausencias_ventana_dias: int = 14
+
     # === Horas extras (submodulo hhee) ===
     # Las alertas las escribe el contenedor hhee-scrapping en app.hhee_alertas;
     # la lectura no necesita nada de esto. Estas dos variables son solo para el

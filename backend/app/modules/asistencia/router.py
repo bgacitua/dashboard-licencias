@@ -19,6 +19,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.core.logging_config import logger
@@ -28,7 +29,7 @@ from app.db.deps import get_db, get_marcas_db
 from .client import to_buk_date
 from .columnas import columnas_crudas, ordered_columns
 from .config import AsistenciaSettings, get_settings
-from . import historial, notificaciones
+from . import ausencias, historial, notificaciones
 from .marcas import registrar
 from .morpho import marcas_en_rango
 from .plataforma import buk_core_url
@@ -192,6 +193,44 @@ def morpho_marcas(
     """
     claves = marcas_en_rango(db, desde, hasta)
     return {"busquedas": sorted(claves), "total": len(claves)}
+
+
+@router.get("/ausencias-consecutivas")
+async def ausencias_consecutivas(
+    settings: Settings,
+    db_marcas: MarcasDb,
+    desde: str = Query(..., description="yyyy-mm-dd"),
+    hasta: str = Query(..., description="yyyy-mm-dd"),
+    obra_id: str | None = Query(None),
+) -> list[dict]:
+    """Rachas de ausencias en días seguidos: sin motivo y sin marca en Morpho.
+
+    El mismo ciclo que se hace a mano en la pestaña Inasistencias, resuelto de
+    una vez. Lo consume el badge de la tabla y el job que manda el correo, para
+    que la regla de "consecutivo" exista una sola vez.
+    """
+    return await ausencias.detectar(settings, db_marcas, desde, hasta, obra_id)
+
+
+@router.post(
+    "/ausencias-consecutivas/correr",
+    dependencies=[Depends(require_role(["admin"]))],
+)
+async def correr_job_ausencias() -> dict:
+    """Dispara ahora el job diario de ausencias consecutivas. Manda correo real.
+
+    Rol admin porque escribe hacia afuera: sale un correo y las rachas avisadas
+    quedan registradas, así que la corrida automática de mañana ya no las
+    repite. Corre en un hilo aparte: el job abre su propia sesión y su propio
+    event loop, y tarda lo que tarde Buk.
+    """
+    if not ausencias.job_habilitado():
+        raise HTTPException(
+            status_code=503,
+            detail="Job sin configurar: falta ASISTENCIA_AUSENCIAS_SCHEDULER_ENABLED "
+                   "o ASISTENCIA_AUSENCIAS_EMAIL.",
+        )
+    return await run_in_threadpool(ausencias.correr_job)
 
 
 # === Reportes: bono de asistencia ===

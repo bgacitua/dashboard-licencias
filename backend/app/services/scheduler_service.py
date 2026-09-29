@@ -192,6 +192,19 @@ def _run_graph_token_check() -> None:
         logger.warning(f"[GraphCheck] No se pudo verificar la sesión: {e}")
 
 
+def _ausencias_consecutivas():
+    """Job del modulo de asistencia, si el modulo esta montado y configurado.
+
+    Import perezoso y tolerante a que no exista: borrar la carpeta del modulo
+    tiene que seguir desinstalandolo por completo, sin tocar este archivo.
+    """
+    try:
+        from app.modules.asistencia import ausencias
+    except Exception:
+        return None
+    return ausencias if ausencias.job_habilitado() else None
+
+
 def start_scheduler() -> None:
     global _scheduler
 
@@ -203,6 +216,7 @@ def start_scheduler() -> None:
         or settings.LIQUIDOS_SCHEDULER_ENABLED
         or settings.RETORNO_SCHEDULER_ENABLED
         or settings.GRAPH_TOKEN_CHECK_ENABLED
+        or _ausencias_consecutivas() is not None
     ):
         logger.info("[Scheduler] Deshabilitado — ningún job está activo.")
         return
@@ -325,6 +339,9 @@ def start_scheduler() -> None:
             f"[Scheduler] Job chequeo de sesión Microsoft registrado — "
             f"{settings.GRAPH_TOKEN_CHECK_HOUR:02d}:{settings.GRAPH_TOKEN_CHECK_MINUTE:02d}"
         )
+
+    if (ausencias := _ausencias_consecutivas()):
+        ausencias.registrar_job(_scheduler, tz)
 
     _scheduler.start()
     logger.info(

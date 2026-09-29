@@ -5,7 +5,7 @@ import TablaDinamica from './TablaDinamica'
 import EnviarMarcas from './EnviarMarcas'
 import AvisarJefatura from './AvisarJefatura'
 import { descargarCsv } from './exportar'
-import { useMorpho, useVista } from './useVista'
+import { useAusenciasConsecutivas, useMorpho, useVista } from './useVista'
 import {
   claveAsignacion,
   claveMarcaje,
@@ -45,6 +45,7 @@ const Badge = ({ tono, children }) => {
     ok: 'bg-green-50 text-green-700 border-green-200',
     no: 'bg-amber-50 text-amber-700 border-amber-200',
     mudo: 'bg-app-surface text-app-muted border-app-line',
+    alerta: 'bg-red-50 text-red-700 border-red-200',
   }
   return (
     <span className={`inline-block px-2 py-0.5 text-xs rounded border whitespace-nowrap ${tonos[tono]}`}>
@@ -119,6 +120,10 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
     rango.hasta,
     rows.length > 0
   )
+
+  // Días que forman parte de una racha de ausencias (>1 día seguido sin motivo
+  // y sin marca). Lo calcula el backend, que es también quien manda el correo.
+  const rachas = useAusenciasConsecutivas(rango.desde, rango.hasta, obraId, rows.length > 0)
 
   // Motivos que ya respondió la jefatura, para no volver a preguntar por ellos.
   const cargarJefatura = useCallback(() => {
@@ -215,6 +220,19 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
           <Badge tono="no">⚠ Sin marca</Badge>
         ),
     }
+    const racha = {
+      id: 'racha',
+      header: 'Días seguidos',
+      accessorFn: (r) => rachas.get(claveMorpho(r)) ?? '',
+      cell: ({ row }) => {
+        const dias = rachas.get(claveMorpho(row.original))
+        return dias ? (
+          <Badge tono="alerta">⚠ {dias} días seguidos</Badge>
+        ) : (
+          <span className="text-app-muted">—</span>
+        )
+      },
+    }
     const estado = {
       id: 'estado_ingreso',
       header: 'Estado ingreso',
@@ -279,10 +297,10 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
       },
     }))
     return clavesIntento.size > 0
-      ? [seleccionCol, morpho, estado, intento, jefaturaCol, sync, ...base]
-      : [seleccionCol, morpho, estado, jefaturaCol, sync, ...base]
+      ? [seleccionCol, morpho, racha, estado, intento, jefaturaCol, sync, ...base]
+      : [seleccionCol, morpho, racha, estado, jefaturaCol, sync, ...base]
   }, [data.columns, marcasMorpho, cargandoMorpho, clavesIntento, sincronizadas, jefatura,
-      turnoPorClave, marcajePorClave])
+      rachas, turnoPorClave, marcajePorClave])
 
   const cargarIntentos = async (file) => {
     if (!file) {

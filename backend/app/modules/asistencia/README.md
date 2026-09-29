@@ -73,6 +73,41 @@ plataforma usa para las alertas de contrato y las horas extras. Solo hace falta
 Sin `ASISTENCIA_EXTERNAL_API_KEY` los endpoints devuelven 503 en vez de fallar
 al arrancar: una credencial faltante no puede tumbar el resto de la plataforma.
 
+## Ausencias en días consecutivos
+
+Alerta de rachas: dos o más días seguidos con inasistencia sin motivo (`Motivo`
+= `-`) y sin marca en Morpho en ninguno de ellos. "Seguidos" se mide sobre los
+días con turno asignado, no sobre el calendario: viernes y lunes cuentan como
+consecutivos si el fin de semana no había turno.
+
+```
+API Inasistencias ─> Motivo "-" ─> ¿sin marca Morpho? ─> ¿días de turno seguidos?
+```
+
+La regla vive solo en `ausencias.py`: la consumen el badge de la pestaña
+Inasistencias (`GET /ausencias-consecutivas`) y el job diario que manda el
+correo. `python -m app.modules.asistencia.ausencias` corre sus asserts.
+
+El job re-avisa una racha solo si sumó días desde el último correo; el estado
+vive en `app.asistencia_racha_avisada` (`docs/sql/modulo_asistencia_ausencias.sql`).
+Sin casilla configurada el job no se registra.
+
+```
+ASISTENCIA_AUSENCIAS_SCHEDULER_ENABLED=true
+ASISTENCIA_AUSENCIAS_EMAIL=<casilla que recibe la alerta>
+ASISTENCIA_AUSENCIAS_SCHEDULER_HOUR=8
+ASISTENCIA_AUSENCIAS_SCHEDULER_MINUTE=30
+ASISTENCIA_AUSENCIAS_VENTANA_DIAS=14
+```
+
+`POST /ausencias-consecutivas/correr` (rol admin) dispara el job ahora, sin
+esperar al horario: manda el correo de verdad y marca las rachas como avisadas,
+así que la corrida automática ya no las repite.
+
+La ventana es móvil hacia atrás: Buk hace desaparecer las inasistencias ya
+justificadas, así que volver a mirar los días pasados corrige solo los avisos
+que hoy ya no corresponden.
+
 ## Registro en la plataforma
 
 `require_module("asistencia")` valida contra `app.modulos`. Sin esas filas todo
