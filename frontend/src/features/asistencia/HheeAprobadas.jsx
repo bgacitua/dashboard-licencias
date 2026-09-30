@@ -35,11 +35,14 @@ const COLUMNAS_DETALLE = [
 const input =
   'block mt-1 text-sm border border-app-line rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-app-ink'
 
+const select = `${input} text-app-ink`
+
 const HheeAprobadas = () => {
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [recinto, setRecinto] = useState('')
   const [rut, setRut] = useState('')
+  const [recintos, setRecintos] = useState([])
   const [data, setData] = useState(null)
   const [cargando, setCargando] = useState(false)
   const [refrescando, setRefrescando] = useState(false)
@@ -77,6 +80,15 @@ const HheeAprobadas = () => {
   }, [])
 
   useEffect(() => pararSondeo, [pararSondeo])
+
+  // Los recintos del selector salen de la frescura del scraper, igual que en
+  // Horas Extras: es la lista de los que efectivamente barre. Fail-open: si no
+  // responde, queda solo "Todos" y el filtro no acota nada.
+  useEffect(() => {
+    AsistenciaService.getHheeFrescura()
+      .then((f) => setRecintos(f.map((x) => x.recinto)))
+      .catch(() => setRecintos([]))
+  }, [])
 
   // Arranca el barrido y sigue su avance. El POST vuelve enseguida: lo que
   // tarda es el barrido, que corre en el scraper. Al terminar se relee la tabla.
@@ -170,8 +182,13 @@ const HheeAprobadas = () => {
         </label>
         <label className="text-sm text-app-muted">
           Recinto
-          <input type="text" placeholder="todos" className={input} value={recinto}
-                 onChange={(e) => setRecinto(e.target.value.trim())} />
+          <select className={select} value={recinto}
+                  onChange={(e) => setRecinto(e.target.value)}>
+            <option value="">Todos</option>
+            {recintos.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
         </label>
         <label className="text-sm text-app-muted">
           RUT
