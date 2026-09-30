@@ -61,15 +61,20 @@ const Asistencia = () => {
         </div>
 
         <div className="bg-white rounded-xl border border-app-line p-6">
-          <div className="flex flex-wrap gap-2 mb-6 border-b border-app-line">
+          {/* La barra se queda arriba al scrollear una tabla larga; el blur es
+              para que las filas que pasan por debajo no compitan con las
+              pestañas. Sin el fondo translúcido el backdrop-filter no hace nada. */}
+          <div className="sticky top-0 z-10 -mx-2 mb-6 px-2 py-2 flex flex-wrap gap-2
+                          rounded-2xl border border-app-line/60 bg-white/70 backdrop-blur-md
+                          supports-[backdrop-filter]:bg-white/60">
             {VISTAS.map((v) => (
               <button
                 key={v.id}
                 onClick={() => setVista(v.id)}
-                className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors ${
+                className={`px-4 py-2 text-sm font-medium rounded-xl border transition-colors ${
                   vista === v.id
-                    ? 'border-app-brand text-app-brand'
-                    : 'border-transparent text-app-muted hover:text-app-ink'
+                    ? 'border-app-brand/40 text-app-brand bg-app-surface'
+                    : 'border-transparent text-app-muted hover:text-app-ink hover:bg-app-surface/60'
                 }`}
               >
                 {v.label}

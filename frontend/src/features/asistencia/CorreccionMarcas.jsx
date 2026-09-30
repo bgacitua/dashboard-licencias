@@ -24,15 +24,18 @@ const CorreccionMarcas = ({ desde, hasta, obraId, obras }) => {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2 mb-6">
+      {/* Misma barra redondeada y translúcida que las pestañas de arriba, para
+          que las dos jerarquías se lean como el mismo control. */}
+      <div className="flex flex-wrap gap-2 mb-6 p-2 rounded-2xl border border-app-line/60
+                      bg-app-surface/50 backdrop-blur-md">
         {SUBTABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setSub(t.id)}
             className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
               sub === t.id
-                ? 'border-app-brand text-app-brand bg-app-surface'
-                : 'border-app-line text-app-muted hover:text-app-ink'
+                ? 'border-app-brand/40 text-app-brand bg-white/80'
+                : 'border-transparent text-app-muted hover:text-app-ink hover:bg-white/50'
             }`}
           >
             {t.label}
