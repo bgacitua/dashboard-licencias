@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS app.asistencia_sin_marca (
     obra_id      TEXT NOT NULL DEFAULT '',
     -- Foto al momento del cálculo (rh.employees): el informe de un mes cerrado
     -- no debería cambiar porque alguien cambió de jefatura después.
+    cargo        TEXT NOT NULL DEFAULT '',
     jefe         TEXT NOT NULL DEFAULT '',
     area         TEXT NOT NULL DEFAULT '',
     recinto      TEXT NOT NULL DEFAULT '',
@@ -26,6 +27,7 @@ CREATE INDEX IF NOT EXISTS asistencia_sin_marca_fecha_idx
     ON app.asistencia_sin_marca (fecha);
 
 -- Para una base que ya tenía la tabla sin estas columnas.
+ALTER TABLE app.asistencia_sin_marca ADD COLUMN IF NOT EXISTS cargo   TEXT NOT NULL DEFAULT '';
 ALTER TABLE app.asistencia_sin_marca ADD COLUMN IF NOT EXISTS jefe    TEXT NOT NULL DEFAULT '';
 ALTER TABLE app.asistencia_sin_marca ADD COLUMN IF NOT EXISTS area    TEXT NOT NULL DEFAULT '';
 ALTER TABLE app.asistencia_sin_marca ADD COLUMN IF NOT EXISTS recinto TEXT NOT NULL DEFAULT '';

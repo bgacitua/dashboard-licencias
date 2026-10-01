@@ -113,9 +113,10 @@ def sin_marca(
 # varios contratos históricos y duplicaría la fila.
 
 _RH = text("""
-    SELECT DISTINCT ON (rut) rut, jefe, area, recinto
+    SELECT DISTINCT ON (rut) rut, cargo, jefe, area, recinto
       FROM (
         SELECT ltrim(left(regexp_replace(e.rut, '[^0-9kK]', '', 'g'), -1), '0') AS rut,
+               COALESCE(e.name_role, '')      AS cargo,
                COALESCE(j.full_name, '')      AS jefe,
                COALESCE(a.name, '')           AS area,
                COALESCE(e.recinto_primario, '') AS recinto,
@@ -131,7 +132,7 @@ _RH = text("""
 
 
 def datos_rh(db: Session, ruts: list[str]) -> dict[str, dict]:
-    """rut -> {jefe, area, recinto}. Fail-open: el RUT que no esté queda vacío.
+    """rut -> {cargo, jefe, area, recinto}. Fail-open: el RUT que no esté queda vacío.
 
     `rh.employees` guarda el RUT como xx.xxx.xxx-x; acá las claves son el cuerpo
     sin DV ni ceros, igual que en el resto del módulo, así que la normalización
@@ -140,7 +141,8 @@ def datos_rh(db: Session, ruts: list[str]) -> dict[str, dict]:
     if not ruts:
         return {}
     filas = db.execute(_RH, {"ruts": sorted(set(ruts))}).mappings().all()
-    out = {f["rut"]: {"jefe": f["jefe"], "area": f["area"], "recinto": f["recinto"]}
+    out = {f["rut"]: {"cargo": f["cargo"], "jefe": f["jefe"], "area": f["area"],
+                      "recinto": f["recinto"]}
            for f in filas}
     logger.info("[asistencia/sin-marca] RH: %d de %d RUT resueltos", len(out), len(set(ruts)))
     return out
@@ -203,11 +205,12 @@ _BORRAR = text("""
 
 _INSERTAR = text("""
     INSERT INTO app.asistencia_sin_marca
-        (rut, fecha, nombre, obra_id, jefe, area, recinto, calculado_at)
-    VALUES (:rut, :fecha, :nombre, :obra_id, :jefe, :area, :recinto, :ts)
+        (rut, fecha, nombre, obra_id, cargo, jefe, area, recinto, calculado_at)
+    VALUES (:rut, :fecha, :nombre, :obra_id, :cargo, :jefe, :area, :recinto, :ts)
     ON CONFLICT (rut, fecha) DO UPDATE
        SET nombre = EXCLUDED.nombre,
            obra_id = EXCLUDED.obra_id,
+           cargo = EXCLUDED.cargo,
            jefe = EXCLUDED.jefe,
            area = EXCLUDED.area,
            recinto = EXCLUDED.recinto,
@@ -227,7 +230,7 @@ def guardar(
     obra = obra_id or ""
     ts = datetime.now(timezone.utc)
     rh = datos_rh(db, [r["rut"] for r in resultados])
-    vacio = {"jefe": "", "area": "", "recinto": ""}
+    vacio = {"cargo": "", "jefe": "", "area": "", "recinto": ""}
     filas = [
         {"rut": r["rut"], "fecha": f, "nombre": r["nombre"], "obra_id": obra, "ts": ts,
          **rh.get(r["rut"], vacio)}
@@ -249,7 +252,7 @@ _TRAMOS = text("""
 """)
 
 _DETALLE = text("""
-    SELECT rut, nombre, jefe, area, recinto, fecha
+    SELECT rut, nombre, cargo, jefe, area, recinto, fecha
       FROM app.asistencia_sin_marca
      WHERE fecha BETWEEN :desde AND :hasta
        AND (:obra_id = '' OR obra_id = :obra_id)
@@ -264,12 +267,13 @@ def consultar(db: Session, desde: str, hasta: str, obra_id: str | None = None) -
         _DETALLE, {"desde": desde, "hasta": hasta, "obra_id": obra_id or ""}
     ).mappings():
         reg = agrupado.setdefault(f["rut"], {
-            "rut": f["rut"], "nombre": "", "jefe": "", "area": "", "recinto": "",
+            "rut": f["rut"], "nombre": "", "cargo": "", "jefe": "", "area": "",
+            "recinto": "",
             "fechas": [],
         })
         # La última corrida manda: si un dato se resolvió vacío en un tramo y
         # con valor en otro, gana el que tiene valor.
-        for campo in ("nombre", "jefe", "area", "recinto"):
+        for campo in ("nombre", "cargo", "jefe", "area", "recinto"):
             if f[campo]:
                 reg[campo] = f[campo]
         reg["fechas"].append(str(f["fecha"])[:10])

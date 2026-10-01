@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import BonosMarcaje from './BonosMarcaje'
 import HheeAlertas from './HheeAlertas'
 import HheeAprobadas from './HheeAprobadas'
+import Presencialidad from './Presencialidad'
 import Reportes from './Reportes'
 
 /**
@@ -18,6 +19,7 @@ const SUB = [
   { id: 'bonos-marcaje', label: 'Bonos de Marcaje', Componente: BonosMarcaje },
   { id: 'hhee', label: 'Horas Extras', Componente: HheeAlertas },
   { id: 'hhee-aprobadas', label: 'HHEE Aprobadas', Componente: HheeAprobadas },
+  { id: 'presencialidad', label: 'Presencialidad', Componente: Presencialidad },
 ]
 
 const ReportesPanel = () => {

@@ -4,7 +4,7 @@ import TablaDinamica from './TablaDinamica'
 import { descargarCsv } from './exportar'
 
 /**
- * Vino pero no pasó por el torniquete.
+ * Presencialidad: vino pero no pasó por el torniquete.
  *
  * La persona marcó un reloj de área o una puerta ese día —está acreditado que
  * vino— y aun así no registró ninguna marca en los torniquetes. Que no haya
@@ -17,7 +17,7 @@ import { descargarCsv } from './exportar'
  * hay dos controles separados —calcular un tramo y ver el mes— en vez de un
  * solo botón.
  */
-const COLUMNAS = ['RUT', 'Nombre', 'Jefe', 'Área', 'Recinto', 'Días sin torniquete', 'Fechas']
+const COLUMNAS = ['RUT', 'Nombre', 'Cargo', 'Jefe', 'Área', 'Recinto', 'Días sin torniquete', 'Fechas']
 
 const iso = (d) => d.toISOString().slice(0, 10)
 const hoy = () => iso(new Date())
@@ -42,7 +42,7 @@ const dmy = (f) => f.split('-').reverse().join('-')
 const input =
   'block mt-1 text-sm border border-app-line rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-app-ink'
 
-const SinMarca = ({ obraId }) => {
+const Presencialidad = ({ obraId }) => {
   // Tramo a calcular: por defecto la última semana.
   const [desde, setDesde] = useState(haceDias(7))
   const [hasta, setHasta] = useState(ayer())
@@ -93,6 +93,7 @@ const SinMarca = ({ obraId }) => {
       informe.filas.map((f) => ({
         RUT: f.rut,
         Nombre: f.nombre || '—',
+        Cargo: f.cargo || '—',
         Jefe: f.jefe || '—',
         'Área': f.area || '—',
         Recinto: f.recinto || '—',
@@ -139,7 +140,7 @@ const SinMarca = ({ obraId }) => {
           <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className={input} />
         </label>
         <button
-          onClick={() => descargarCsv(rows, COLUMNAS, `sin_marca_torniquete_${mes}`)}
+          onClick={() => descargarCsv(rows, COLUMNAS, `reporte_presencialidad_${mes}`)}
           disabled={!rows.length}
           className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
         >
@@ -162,4 +163,4 @@ const SinMarca = ({ obraId }) => {
   )
 }
 
-export default SinMarca
+export default Presencialidad
