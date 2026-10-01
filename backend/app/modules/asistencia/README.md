@@ -121,6 +121,10 @@ Morpho no aguanta rangos largos, así que el mes no se calcula de una vez:
     POST /sin-marca-torniquete/calcular?desde&hasta[&obra_id]   un tramo, lo guarda
     GET  /sin-marca-torniquete?desde&hasta[&obra_id]            lee lo acumulado
 
+El día en curso nunca entra: a media jornada el que todavía no pasó por el
+torniquete no es un caso, y entraban cientos de falsos positivos. El tramo se
+recorta en `ultimo_dia_cerrado()` (ayer).
+
 El tramo tiene tope de `sin_marca.MAX_DIAS` (31) y es idempotente: recalcular
 una semana reemplaza lo guardado, así que una licencia cargada tarde se corrige
 sola. Lo acumulado vive en `app.asistencia_sin_marca`

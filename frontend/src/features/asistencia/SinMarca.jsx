@@ -25,6 +25,9 @@ const haceDias = (n) => {
   d.setDate(d.getDate() - n)
   return iso(d)
 }
+// El día en curso no se calcula (a media jornada nadie "falta" todavía), así
+// que el tope de los selectores es ayer. El backend recorta igual.
+const ayer = () => haceDias(1)
 const mesActual = () => hoy().slice(0, 7)
 
 // Fin de mes sin aritmética de calendario: día 0 del mes siguiente.
@@ -40,8 +43,8 @@ const input =
 
 const SinMarca = ({ obraId }) => {
   // Tramo a calcular: por defecto la última semana.
-  const [desde, setDesde] = useState(haceDias(6))
-  const [hasta, setHasta] = useState(hoy())
+  const [desde, setDesde] = useState(haceDias(7))
+  const [hasta, setHasta] = useState(ayer())
   const [mes, setMes] = useState(mesActual())
 
   const [informe, setInforme] = useState({ filas: [], cobertura: null })
@@ -72,7 +75,11 @@ const SinMarca = ({ obraId }) => {
     try {
       const r = await AsistenciaService.calcularSinMarca({ desde, hasta, obraId })
       setAviso(`Tramo ${dmy(desde)} → ${dmy(hasta)}: ${r.dias} día(s) sin marca en ${r.trabajadores} trabajador(es).`)
-      await cargar()
+      // El informe muestra un mes y el tramo puede caer en otro: sin esto lo
+      // recién calculado "desaparece" (queda fuera del mes que estaba elegido).
+      const mesTramo = desde.slice(0, 7)
+      if (mesTramo !== mes) setMes(mesTramo)
+      else await cargar()
     } catch (e) {
       setError(e?.response?.data?.detail || 'No se pudo calcular el tramo.')
     } finally {
@@ -94,19 +101,20 @@ const SinMarca = ({ obraId }) => {
   const cob = informe.cobertura
   // Un mes al que le falta una semana se ve igual que un mes limpio: menos
   // filas. El aviso es lo único que distingue "nadie faltó" de "falta correr".
-  const incompleto =
-    cob && (!cob.hasta_calculado || cob.hasta_calculado < (hoy() < rangoMes.hasta ? hoy() : rangoMes.hasta))
+  // El último día exigible del mes: su fin, o ayer si el mes aún está corriendo.
+  const ultimoExigible = ayer() < rangoMes.hasta ? ayer() : rangoMes.hasta
+  const incompleto = cob && (!cob.hasta_calculado || cob.hasta_calculado < ultimoExigible)
 
   return (
     <div>
       <div className="flex flex-wrap items-end gap-3 mb-4 p-3 rounded-2xl border border-app-line/60 bg-app-surface/50">
         <label className="text-sm text-app-muted">
           Calcular desde
-          <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className={input} />
+          <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} max={ayer()} className={input} />
         </label>
         <label className="text-sm text-app-muted">
           hasta
-          <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className={input} />
+          <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} max={ayer()} className={input} />
         </label>
         <button
           onClick={calcular}
@@ -116,7 +124,8 @@ const SinMarca = ({ obraId }) => {
           {calculando ? 'Calculando…' : 'Calcular y guardar tramo'}
         </button>
         <p className="text-xs text-app-muted basis-full">
-          Máximo 31 días por tramo (límite del reloj). Recalcular una semana reemplaza lo guardado.
+          Máximo 31 días por tramo (límite del reloj). El día en curso no se calcula.
+          Recalcular una semana reemplaza lo guardado.
         </p>
       </div>
 

@@ -15,8 +15,10 @@ import {
  * y el orden lo decide `columnas.py` en el servidor. Definir las columnas acá
  * a mano significaría mantener el mismo listado en dos lados.
  */
+// `\b\w` no es unicode-aware: en "Días" la tilde cuenta como límite de palabra y
+// el título salía "DíAs". El límite se declara explícito (inicio, espacio o guión).
 const titulo = (col) =>
-  col.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  col.replace(/_/g, ' ').replace(/(^|[\s-])(\p{L})/gu, (_, sep, c) => sep + c.toUpperCase())
 
 const TablaDinamica = ({
   rows,
