@@ -41,3 +41,6 @@ compose.dev.yml
 # Credenciales temporales de la prueba de carga (tests/carga)
 backend/tests/carga/tokens.json
 tokens.json
+
+# Salida de Playwright MCP (snapshots, logs y descargas de las pruebas)
+.playwright-mcp/
