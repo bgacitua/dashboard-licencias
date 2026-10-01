@@ -4,19 +4,45 @@ import TablaDinamica from './TablaDinamica'
 import { descargarCsv } from './exportar'
 
 /**
- * Presencialidad: vino pero no pasó por el torniquete.
+ * Presencialidad: días exigibles sin marca de torniquete.
  *
- * La persona marcó un reloj de área o una puerta ese día —está acreditado que
- * vino— y aun así no registró ninguna marca en los torniquetes. Que no haya
- * marca de ninguna clase no entra acá: eso es una inasistencia y la persigue la
- * otra pestaña. Los días que Buk explica (licencia, permiso, vacaciones) quedan
- * fuera.
+ * Dos grupos, dos definiciones de "día exigible", y por eso dos sub-pestañas con
+ * sus propias tablas y exportables en vez de una tabla mezclada:
+ *
+ *   Con turno — Buk registró la entrada ese día (la persona vino) y Morpho no
+ *   tiene ninguna marca suya. Sin marca en Buk no entra: eso es una
+ *   inasistencia y la persigue su propia pestaña.
+ *
+ *   No sujetos a marca — gerencias y KAM, que no tienen turno ni marcan en Buk.
+ *   El día exigible es el hábil no feriado, y lo único que puede acreditarlos es
+ *   el torniquete.
+ *
+ * En los dos casos los días que Buk explica (licencia, permiso, vacaciones)
+ * quedan fuera.
  *
  * El mes no se calcula de una vez porque Morpho no aguanta el rango: se corre
  * semana a semana, se guarda, y el informe mensual lee lo acumulado. Por eso
  * hay dos controles separados —calcular un tramo y ver el mes— en vez de un
  * solo botón.
  */
+const GRUPOS = [
+  {
+    id: 'turno',
+    label: 'Con turno',
+    archivo: 'reporte_presencialidad',
+    // El denominador útil es distinto en cada grupo: acá los días que vino.
+    ayuda: 'Vino según Buk Asistencia y no hay ninguna marca suya en el torniquete.',
+  },
+  {
+    id: 'nomina',
+    label: 'No sujetos a marca',
+    archivo: 'reporte_presencialidad_nomina',
+    ayuda:
+      'Gerencias y KAM (rh.employees.name_role). Sin turno ni marca en Buk: ' +
+      'se exigen los días hábiles no feriados.',
+  },
+]
+
 const COLUMNAS = ['RUT', 'Nombre', 'Cargo', 'Jefe', 'Área', 'Recinto', 'Días sin torniquete', 'Fechas']
 
 const iso = (d) => d.toISOString().slice(0, 10)
@@ -42,7 +68,7 @@ const dmy = (f) => f.split('-').reverse().join('-')
 const input =
   'block mt-1 text-sm border border-app-line rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-app-ink'
 
-const Presencialidad = ({ obraId }) => {
+const Informe = ({ obraId, grupo }) => {
   // Tramo a calcular: por defecto la última semana.
   const [desde, setDesde] = useState(haceDias(7))
   const [hasta, setHasta] = useState(ayer())
@@ -58,12 +84,12 @@ const Presencialidad = ({ obraId }) => {
   const cargar = useCallback(async () => {
     setError(null)
     try {
-      setInforme(await AsistenciaService.getSinMarca({ ...rangoMes, obraId }))
+      setInforme(await AsistenciaService.getPresencialidad({ ...rangoMes, obraId, grupo: grupo.id }))
     } catch (e) {
       setError(e?.response?.data?.detail || 'No se pudo cargar el informe.')
       setInforme({ filas: [], cobertura: null })
     }
-  }, [rangoMes, obraId])
+  }, [rangoMes, obraId, grupo])
 
   useEffect(() => {
     cargar()
@@ -74,7 +100,9 @@ const Presencialidad = ({ obraId }) => {
     setError(null)
     setAviso(null)
     try {
-      const r = await AsistenciaService.calcularSinMarca({ desde, hasta, obraId })
+      const r = await AsistenciaService.calcularPresencialidad({
+        desde, hasta, obraId, grupo: grupo.id,
+      })
       setAviso(`Tramo ${dmy(desde)} → ${dmy(hasta)}: ${r.dias} día(s) sin torniquete en ${r.trabajadores} trabajador(es).`)
       // El informe muestra un mes y el tramo puede caer en otro: sin esto lo
       // recién calculado "desaparece" (queda fuera del mes que estaba elegido).
@@ -112,6 +140,8 @@ const Presencialidad = ({ obraId }) => {
 
   return (
     <div>
+      <p className="mb-3 text-sm text-app-muted">{grupo.ayuda}</p>
+
       <div className="flex flex-wrap items-end gap-3 mb-4 p-3 rounded-2xl border border-app-line/60 bg-app-surface/50">
         <label className="text-sm text-app-muted">
           Calcular desde
@@ -140,7 +170,7 @@ const Presencialidad = ({ obraId }) => {
           <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className={input} />
         </label>
         <button
-          onClick={() => descargarCsv(rows, COLUMNAS, `reporte_presencialidad_${mes}`)}
+          onClick={() => descargarCsv(rows, COLUMNAS, `${grupo.archivo}_${mes}`)}
           disabled={!rows.length}
           className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
         >
@@ -159,6 +189,39 @@ const Presencialidad = ({ obraId }) => {
       )}
 
       <TablaDinamica rows={rows} columns={COLUMNAS} descartados={0} loading={false} error={error} />
+    </div>
+  )
+}
+
+/**
+ * Las dos sub-pestañas. Se montan por separado (no `hidden`) a propósito: cada
+ * una tiene su propio tramo guardado y su propio informe, y mantener las dos
+ * cargadas sería pedir dos veces lo mismo al entrar.
+ */
+const Presencialidad = ({ obraId }) => {
+  const [grupoId, setGrupoId] = useState(GRUPOS[0].id)
+  const grupo = GRUPOS.find((g) => g.id === grupoId)
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-5 p-2 rounded-2xl border border-app-line/60
+                      bg-app-surface/50 backdrop-blur-md">
+        {GRUPOS.map((g) => (
+          <button
+            key={g.id}
+            onClick={() => setGrupoId(g.id)}
+            className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+              grupoId === g.id
+                ? 'border-app-brand/40 text-app-brand bg-white/80'
+                : 'border-transparent text-app-muted hover:text-app-ink hover:bg-white/50'
+            }`}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+
+      <Informe key={grupo.id} obraId={obraId} grupo={grupo} />
     </div>
   )
 }

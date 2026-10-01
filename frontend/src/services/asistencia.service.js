@@ -237,22 +237,26 @@ const AsistenciaService = {
     return data
   },
 
-  // Días con turno exigible y sin ninguna marca de torniquete. El cálculo se
-  // hace por tramos cortos (Morpho no aguanta rangos largos) y se guarda; el
-  // informe del mes lee lo acumulado sin volver a consultar el reloj.
-  calcularSinMarca: async ({ desde, hasta, obraId } = {}) => {
+  // Presencialidad: días exigibles sin marca de torniquete. `grupo` elige la
+  // regla del día exigible ('turno' o 'nomina'). El cálculo se hace por tramos
+  // cortos (Morpho no aguanta rangos largos) y se guarda; el informe del mes
+  // lee lo acumulado sin volver a consultar el reloj.
+  calcularPresencialidad: async ({ desde, hasta, obraId, grupo } = {}) => {
     const { data } = await axios.post(
-      `${API_URL}/sin-marca-torniquete/calcular`,
+      `${API_URL}/presencialidad/calcular`,
       null,
-      { headers: authHeaders(), params: { desde, hasta, ...(obraId ? { obra_id: obraId } : {}) } }
+      {
+        headers: authHeaders(),
+        params: { desde, hasta, grupo, ...(obraId ? { obra_id: obraId } : {}) },
+      }
     )
     return data
   },
 
-  getSinMarca: async ({ desde, hasta, obraId } = {}) => {
-    const { data } = await axios.get(`${API_URL}/sin-marca-torniquete`, {
+  getPresencialidad: async ({ desde, hasta, obraId, grupo } = {}) => {
+    const { data } = await axios.get(`${API_URL}/presencialidad`, {
       headers: authHeaders(),
-      params: { desde, hasta, ...(obraId ? { obra_id: obraId } : {}) },
+      params: { desde, hasta, grupo, ...(obraId ? { obra_id: obraId } : {}) },
     })
     return data
   },

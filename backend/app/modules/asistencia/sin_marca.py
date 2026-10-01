@@ -197,18 +197,22 @@ async def detectar(
 # Morpho no aguanta rangos largos (ver MAX_DIAS), así que el mes no se calcula
 # de una vez: se acumulan tramos cortos y el informe mensual lee lo guardado.
 
+GRUPO = "turno"
+
 _BORRAR = text("""
     DELETE FROM app.asistencia_sin_marca
      WHERE fecha BETWEEN :desde AND :hasta
+       AND grupo = :grupo
        AND (:obra_id = '' OR obra_id = :obra_id)
 """)
 
 _INSERTAR = text("""
     INSERT INTO app.asistencia_sin_marca
-        (rut, fecha, nombre, obra_id, cargo, jefe, area, recinto, calculado_at)
-    VALUES (:rut, :fecha, :nombre, :obra_id, :cargo, :jefe, :area, :recinto, :ts)
+        (rut, fecha, grupo, nombre, obra_id, cargo, jefe, area, recinto, calculado_at)
+    VALUES (:rut, :fecha, :grupo, :nombre, :obra_id, :cargo, :jefe, :area, :recinto, :ts)
     ON CONFLICT (rut, fecha) DO UPDATE
-       SET nombre = EXCLUDED.nombre,
+       SET grupo = EXCLUDED.grupo,
+           nombre = EXCLUDED.nombre,
            obra_id = EXCLUDED.obra_id,
            cargo = EXCLUDED.cargo,
            jefe = EXCLUDED.jefe,
@@ -232,12 +236,12 @@ def guardar(
     rh = datos_rh(db, [r["rut"] for r in resultados])
     vacio = {"cargo": "", "jefe": "", "area": "", "recinto": ""}
     filas = [
-        {"rut": r["rut"], "fecha": f, "nombre": r["nombre"], "obra_id": obra, "ts": ts,
-         **rh.get(r["rut"], vacio)}
+        {"rut": r["rut"], "fecha": f, "grupo": GRUPO, "nombre": r["nombre"],
+         "obra_id": obra, "ts": ts, **rh.get(r["rut"], vacio)}
         for r in resultados
         for f in r["fechas"]
     ]
-    db.execute(_BORRAR, {"desde": desde, "hasta": hasta, "obra_id": obra})
+    db.execute(_BORRAR, {"desde": desde, "hasta": hasta, "obra_id": obra, "grupo": GRUPO})
     if filas:
         db.execute(_INSERTAR, filas)
     db.commit()
@@ -249,22 +253,30 @@ _TRAMOS = text("""
            COUNT(*) AS dias, COUNT(DISTINCT rut) AS trabajadores
       FROM app.asistencia_sin_marca
      WHERE fecha BETWEEN :desde AND :hasta
+       AND grupo = :grupo
 """)
 
 _DETALLE = text("""
     SELECT rut, nombre, cargo, jefe, area, recinto, fecha
       FROM app.asistencia_sin_marca
      WHERE fecha BETWEEN :desde AND :hasta
+       AND grupo = :grupo
        AND (:obra_id = '' OR obra_id = :obra_id)
      ORDER BY rut, fecha
 """)
 
 
-def consultar(db: Session, desde: str, hasta: str, obra_id: str | None = None) -> list[dict]:
-    """Lo ya calculado y guardado en el rango, agrupado por trabajador."""
+def consultar(
+    db: Session, desde: str, hasta: str, obra_id: str | None = None, grupo: str = GRUPO
+) -> list[dict]:
+    """Lo ya calculado y guardado en el rango, agrupado por trabajador.
+
+    Sirve a los dos grupos: lo que cambia entre ellos es cómo se arma el día
+    exigible al calcular, no la forma de lo guardado.
+    """
     agrupado: dict[str, dict] = {}
     for f in db.execute(
-        _DETALLE, {"desde": desde, "hasta": hasta, "obra_id": obra_id or ""}
+        _DETALLE, {"desde": desde, "hasta": hasta, "obra_id": obra_id or "", "grupo": grupo}
     ).mappings():
         reg = agrupado.setdefault(f["rut"], {
             "rut": f["rut"], "nombre": "", "cargo": "", "jefe": "", "area": "",
@@ -282,11 +294,11 @@ def consultar(db: Session, desde: str, hasta: str, obra_id: str | None = None) -
     return sorted(agrupado.values(), key=lambda r: (-r["dias_sin_torniquete"], r["rut"]))
 
 
-def cobertura(db: Session, desde: str, hasta: str) -> dict:
+def cobertura(db: Session, desde: str, hasta: str, grupo: str = GRUPO) -> dict:
     """Qué parte del mes ya se calculó. El informe mensual no sirve si falta
     una semana, y desde la UI eso no se ve: una tabla con menos filas parece
     un buen mes."""
-    fila = db.execute(_TRAMOS, {"desde": desde, "hasta": hasta}).one()
+    fila = db.execute(_TRAMOS, {"desde": desde, "hasta": hasta, "grupo": grupo}).one()
     return {
         "desde_calculado": str(fila.desde)[:10] if fila.desde else None,
         "hasta_calculado": str(fila.hasta)[:10] if fila.hasta else None,
