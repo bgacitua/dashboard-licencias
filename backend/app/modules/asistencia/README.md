@@ -108,7 +108,7 @@ La ventana es móvil hacia atrás: Buk hace desaparecer las inasistencias ya
 justificadas, así que volver a mirar los días pasados corrige solo los avisos
 que hoy ya no corresponden.
 
-## Sin marca de torniquete
+## Presencialidad
 
 Responde una pregunta sola: **¿quiénes vinieron y no pasaron por el torniquete,
 y qué días?**
@@ -130,10 +130,32 @@ Jefe, área y recinto salen de `rh.employees` (`full_name` vía `rut_boss`,
 el informe de un mes cerrado no cambia porque alguien cambió de jefatura
 después.
 
+### Dos grupos
+
+Lo anterior es el grupo `turno`. El grupo `nomina` (`nomina.py`) responde la
+misma pregunta para quienes **no están sujetos a marca**: gerencias y KAM, que
+no tienen turno asignado ni marca en Buk y por eso el informe con turno no los
+ve nunca. Ahí el universo se construye en vez de leerse:
+
+    día hábil (lun-vie)  -  feriado  -  lo que Buk explica  =  día exigible
+
+La nómina sale de `rh.employees` por cargo (`nomina.CARGOS`: `%Gerente%`, que
+ya incluye las subgerencias, más cuatro cargos exactos —Key Account Manager,
+Global Innovation Manager, Market Responsible Manager y Líder de Optimización
+Estratégica) y los feriados son una lista a mano por año en
+`nomina.FERIADOS`. Un año sin cargar **falla**: contar un feriado como día
+exigible manda a revisar a alguien que no tenía que venir. Los feriados de
+elecciones se publican por ley cada ciclo y no están en la lista.
+
+Los dos grupos comparten tabla (columna `grupo`) y forma de respuesta, no
+lógica: lo que cambia es cómo se arma el día exigible.
+
 Morpho no aguanta rangos largos, así que el mes no se calcula de una vez:
 
-    POST /sin-marca-torniquete/calcular?desde&hasta[&obra_id]   un tramo, lo guarda
-    GET  /sin-marca-torniquete?desde&hasta[&obra_id]            lee lo acumulado
+    POST /presencialidad/calcular?desde&hasta[&obra_id][&grupo]   un tramo, lo guarda
+    GET  /presencialidad?desde&hasta[&obra_id][&grupo]            lee lo acumulado
+
+`grupo` es `turno` (default) o `nomina`.
 
 El día en curso nunca entra: a media jornada el que todavía no pasó por el
 torniquete no es un caso, y entraban cientos de falsos positivos. El tramo se
@@ -146,9 +168,10 @@ sola. Lo acumulado vive en `app.asistencia_sin_marca`
 `cobertura`: hasta qué día alcanza lo calculado, porque un mes al que le falta
 una semana se ve igual que un mes limpio.
 
-En la UI es la pestaña "Sin Marca de Torniquete" (calcular por semana arriba,
-informe mensual exportable abajo).
-`python -m app.modules.asistencia.sin_marca` corre sus asserts.
+En la UI es la pestaña "Presencialidad" dentro de Asistencia → Reportes, con una
+sub-pestaña por grupo: cada una tiene su tabla y su exportable
+(`reporte_presencialidad_{mes}` y `reporte_presencialidad_nomina_{mes}`).
+`python -m app.modules.asistencia.sin_marca` y `... .nomina` corren sus asserts.
 
 ## Registro en la plataforma
 

@@ -29,7 +29,7 @@ from app.db.deps import get_db, get_marcas_db
 from .client import to_buk_date
 from .columnas import columnas_crudas, ordered_columns
 from .config import AsistenciaSettings, get_settings
-from . import ausencias, historial, notificaciones, sin_marca
+from . import ausencias, historial, nomina, notificaciones, sin_marca
 from .marcas import registrar
 from .morpho import marcas_en_rango
 from .plataforma import buk_core_url
@@ -212,47 +212,67 @@ async def ausencias_consecutivas(
     return await ausencias.detectar(settings, db_marcas, desde, hasta, obra_id)
 
 
-@router.post("/sin-marca-torniquete/calcular")
-async def calcular_sin_marca(
+# Dos grupos, dos reglas para el día exigible: con turno lo dicta el turno y la
+# presencia la acredita Buk; por nómina son los días hábiles no feriados de la
+# gente que no está sujeta a marca. Comparten tabla y forma de respuesta, no
+# lógica.
+GRUPOS = {sin_marca.GRUPO, nomina.GRUPO}
+
+
+def _exigir_grupo(grupo: str) -> str:
+    if grupo not in GRUPOS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Grupo inválido: {grupo}. Usar {' o '.join(sorted(GRUPOS))}.",
+        )
+    return grupo
+
+
+@router.post("/presencialidad/calcular")
+async def calcular_presencialidad(
     settings: Settings,
     db: Db,
     db_marcas: MarcasDb,
     desde: str = Query(..., description="yyyy-mm-dd"),
     hasta: str = Query(..., description="yyyy-mm-dd"),
     obra_id: str | None = Query(None),
+    grupo: str = Query(sin_marca.GRUPO, description="turno | nomina"),
 ) -> dict:
     """Calcula un tramo (una semana, en la práctica) y lo guarda.
 
-    Días con turno exigible y cero marcas de torniquete, excluyendo los que Buk
-    ya explica (ausencias, licencias, permisos, vacaciones): esos los persigue
-    la pestaña Inasistencias.
-
-    Es idempotente por tramo: vuelve a correrse sobre la misma semana y
+    Es idempotente por tramo y grupo: vuelve a correrse sobre la misma semana y
     reemplaza lo guardado, así que una licencia cargada tarde se corrige sola.
     """
+    _exigir_grupo(grupo)
+    modulo = nomina if grupo == nomina.GRUPO else sin_marca
     try:
-        filas = await sin_marca.detectar(settings, db_marcas, desde, hasta, obra_id)
+        if modulo is nomina:
+            filas = await nomina.detectar(settings, db, db_marcas, desde, hasta, obra_id)
+        else:
+            filas = await sin_marca.detectar(settings, db_marcas, desde, hasta, obra_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    guardados = await run_in_threadpool(sin_marca.guardar, db, filas, desde, hasta, obra_id)
+    guardados = await run_in_threadpool(modulo.guardar, db, filas, desde, hasta, obra_id)
     return {"trabajadores": len(filas), "dias": guardados, "filas": filas}
 
 
-@router.get("/sin-marca-torniquete")
-def sin_marca_torniquete(
+@router.get("/presencialidad")
+def presencialidad(
     db: Db,
     desde: str = Query(..., description="yyyy-mm-dd"),
     hasta: str = Query(..., description="yyyy-mm-dd"),
     obra_id: str | None = Query(None),
+    grupo: str = Query(sin_marca.GRUPO, description="turno | nomina"),
 ) -> dict:
     """Informe acumulado: lee lo ya calculado, no vuelve a consultar Morpho.
 
     `cobertura` dice hasta qué día alcanza lo guardado: un mes al que le falta
     una semana se ve igual que un buen mes, solo con menos filas.
     """
+    _exigir_grupo(grupo)
     return {
-        "filas": sin_marca.consultar(db, desde, hasta, obra_id),
-        "cobertura": sin_marca.cobertura(db, desde, hasta),
+        "filas": sin_marca.consultar(db, desde, hasta, obra_id, grupo),
+        "cobertura": sin_marca.cobertura(db, desde, hasta, grupo),
     }
 
 
