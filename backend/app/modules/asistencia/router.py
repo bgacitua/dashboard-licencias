@@ -29,7 +29,7 @@ from app.db.deps import get_db, get_marcas_db
 from .client import to_buk_date
 from .columnas import columnas_crudas, ordered_columns
 from .config import AsistenciaSettings, get_settings
-from . import ausencias, historial, notificaciones
+from . import ausencias, historial, notificaciones, sin_marca
 from .marcas import registrar
 from .morpho import marcas_en_rango
 from .plataforma import buk_core_url
@@ -210,6 +210,50 @@ async def ausencias_consecutivas(
     que la regla de "consecutivo" exista una sola vez.
     """
     return await ausencias.detectar(settings, db_marcas, desde, hasta, obra_id)
+
+
+@router.post("/sin-marca-torniquete/calcular")
+async def calcular_sin_marca(
+    settings: Settings,
+    db: Db,
+    db_marcas: MarcasDb,
+    desde: str = Query(..., description="yyyy-mm-dd"),
+    hasta: str = Query(..., description="yyyy-mm-dd"),
+    obra_id: str | None = Query(None),
+) -> dict:
+    """Calcula un tramo (una semana, en la práctica) y lo guarda.
+
+    Días con turno exigible y cero marcas de torniquete, excluyendo los que Buk
+    ya explica (ausencias, licencias, permisos, vacaciones): esos los persigue
+    la pestaña Inasistencias.
+
+    Es idempotente por tramo: vuelve a correrse sobre la misma semana y
+    reemplaza lo guardado, así que una licencia cargada tarde se corrige sola.
+    """
+    try:
+        filas = await sin_marca.detectar(settings, db_marcas, desde, hasta, obra_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    guardados = await run_in_threadpool(sin_marca.guardar, db, filas, desde, hasta, obra_id)
+    return {"trabajadores": len(filas), "dias": guardados, "filas": filas}
+
+
+@router.get("/sin-marca-torniquete")
+def sin_marca_torniquete(
+    db: Db,
+    desde: str = Query(..., description="yyyy-mm-dd"),
+    hasta: str = Query(..., description="yyyy-mm-dd"),
+    obra_id: str | None = Query(None),
+) -> dict:
+    """Informe acumulado: lee lo ya calculado, no vuelve a consultar Morpho.
+
+    `cobertura` dice hasta qué día alcanza lo guardado: un mes al que le falta
+    una semana se ve igual que un buen mes, solo con menos filas.
+    """
+    return {
+        "filas": sin_marca.consultar(db, desde, hasta, obra_id),
+        "cobertura": sin_marca.cobertura(db, desde, hasta),
+    }
 
 
 @router.post(

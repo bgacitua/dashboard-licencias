@@ -237,6 +237,26 @@ const AsistenciaService = {
     return data
   },
 
+  // Días con turno exigible y sin ninguna marca de torniquete. El cálculo se
+  // hace por tramos cortos (Morpho no aguanta rangos largos) y se guarda; el
+  // informe del mes lee lo acumulado sin volver a consultar el reloj.
+  calcularSinMarca: async ({ desde, hasta, obraId } = {}) => {
+    const { data } = await axios.post(
+      `${API_URL}/sin-marca-torniquete/calcular`,
+      null,
+      { headers: authHeaders(), params: { desde, hasta, ...(obraId ? { obra_id: obraId } : {}) } }
+    )
+    return data
+  },
+
+  getSinMarca: async ({ desde, hasta, obraId } = {}) => {
+    const { data } = await axios.get(`${API_URL}/sin-marca-torniquete`, {
+      headers: authHeaders(),
+      params: { desde, hasta, ...(obraId ? { obra_id: obraId } : {}) },
+    })
+    return data
+  },
+
   getMorphoMarcas: async ({ desde, hasta }) => {
     const { data } = await axios.get(`${API_URL}/morpho-marcas`, {
       headers: authHeaders(),

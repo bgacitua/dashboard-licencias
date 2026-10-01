@@ -4,6 +4,7 @@ import TablaDinamica from '../features/asistencia/TablaDinamica'
 import { descargarCsv } from '../features/asistencia/exportar'
 import CorreccionMarcas from '../features/asistencia/CorreccionMarcas'
 import Historial from '../features/asistencia/Historial'
+import SinMarca from '../features/asistencia/SinMarca'
 import { useObras, useVista } from '../features/asistencia/useVista'
 
 // Orden de uso: se mira lo que pasó (Marcajes), se corrige, y recién después
@@ -17,6 +18,7 @@ const VISTAS = [
   { id: 'correccion', label: 'Corrección de Marcas', rango: true, propia: true },
   { id: 'recinto-trabajador', label: 'Recinto por Trabajador', rango: false },
   { id: 'historial', label: 'Historial', rango: true, propia: true },
+  { id: 'sin-marca', label: 'Sin Marca de Torniquete', rango: false, propia: true },
   { id: 'auditoria', label: 'Auditoría de Marcas', rango: true },
 ]
 
@@ -147,6 +149,8 @@ const Asistencia = () => {
             <CorreccionMarcas desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
           ) : vista === 'historial' ? (
             <Historial desde={desde} hasta={hasta} />
+          ) : vista === 'sin-marca' ? (
+            <SinMarca obraId={obraId} />
           ) : (
           <TablaDinamica
             rows={rows}
