@@ -39,6 +39,49 @@ def clave(rut_limpio: str, fecha_iso: str) -> str:
     return f"{rut_limpio}|{fecha_iso}"
 
 
+# El torniquete no es un tipo en la base: se reconoce por el nombre del
+# dispositivo. Hoy son 10 de 33 y todos se llaman "TORNIQUETE ..."; el resto son
+# relojes de área y puertas. Si alguna vez se instala uno con otro nombre, esto
+# es lo único a tocar (o pasa a ser una lista en settings).
+PREFIJO_TORNIQUETE = "TORNIQUETE"
+
+_SQL_POR_DISPOSITIVO = text(f"""
+    SELECT DISTINCT
+        u.[EMPLOYEEID] AS empleado,
+        CAST(m.[LOGDATETIME] AT TIME ZONE 'UTC'
+             AT TIME ZONE 'Pacific SA Standard Time' AS DATE) AS fecha,
+        CASE WHEN bd.[NAME_] LIKE '{PREFIJO_TORNIQUETE}%' THEN 1 ELSE 0 END AS torniquete
+    FROM [dbo].[AccessLog] AS m
+    INNER JOIN [dbo].[BiometricDevice] AS bd ON m.[MORPHOACCESSID] = bd.[ID]
+    INNER JOIN [dbo].[User_] AS u ON m.[USERID] = u.[ID]
+    WHERE CAST(m.[LOGDATETIME] AT TIME ZONE 'UTC'
+               AT TIME ZONE 'Pacific SA Standard Time' AS DATE)
+          BETWEEN :desde AND :hasta
+""")
+
+
+def marcas_por_dispositivo(db: Session, desde: str, hasta: str) -> tuple[set[str], set[str]]:
+    """(claves con marca de reloj, claves con marca de torniquete).
+
+    Separadas porque son preguntas distintas: el reloj dice que la persona vino
+    y el torniquete dice que pasó por el control de acceso. Un día puede estar
+    en los dos conjuntos; "vino pero no pasó" es reloj menos torniquete.
+    """
+    filas = db.execute(_SQL_POR_DISPOSITIVO, {"desde": desde, "hasta": hasta}).all()
+    reloj: set[str] = set()
+    torniquete: set[str] = set()
+    for emp, fecha, es_torniquete in filas:
+        if not emp or not fecha:
+            continue
+        k = clave(limpiar_employeeid(str(emp)), str(fecha)[:10])
+        (torniquete if es_torniquete else reloj).add(k)
+    logger.info(
+        "[asistencia/morpho] rango=%s..%s filas=%d reloj=%d torniquete=%d",
+        desde, hasta, len(filas), len(reloj), len(torniquete),
+    )
+    return reloj, torniquete
+
+
 def marcas_en_rango(db: Session, desde: str, hasta: str) -> set[str]:
     """Claves `rut|fecha` con al menos una marca entre ambas fechas (yyyy-mm-dd)."""
     filas = db.execute(_SQL, {"desde": desde, "hasta": hasta}).all()

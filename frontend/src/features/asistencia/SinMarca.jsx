@@ -4,19 +4,20 @@ import TablaDinamica from './TablaDinamica'
 import { descargarCsv } from './exportar'
 
 /**
- * Días con turno exigible y cero marcas de torniquete.
+ * Vino pero no pasó por el torniquete.
  *
- * Es la pregunta inversa a Inasistencias: allá Buk reporta la falta y el reloj
- * la desmiente; acá nadie reporta nada y lo que falta es el paso por el
- * torniquete. Los días que Buk explica (licencia, permiso, vacaciones,
- * ausencia) quedan fuera: esos ya tienen dueño en la otra pestaña.
+ * La persona marcó un reloj de área o una puerta ese día —está acreditado que
+ * vino— y aun así no registró ninguna marca en los torniquetes. Que no haya
+ * marca de ninguna clase no entra acá: eso es una inasistencia y la persigue la
+ * otra pestaña. Los días que Buk explica (licencia, permiso, vacaciones) quedan
+ * fuera.
  *
  * El mes no se calcula de una vez porque Morpho no aguanta el rango: se corre
  * semana a semana, se guarda, y el informe mensual lee lo acumulado. Por eso
  * hay dos controles separados —calcular un tramo y ver el mes— en vez de un
  * solo botón.
  */
-const COLUMNAS = ['RUT', 'Nombre', 'Días sin marca', 'Fechas']
+const COLUMNAS = ['RUT', 'Nombre', 'Jefe', 'Área', 'Recinto', 'Días sin torniquete', 'Fechas']
 
 const iso = (d) => d.toISOString().slice(0, 10)
 const hoy = () => iso(new Date())
@@ -74,7 +75,7 @@ const SinMarca = ({ obraId }) => {
     setAviso(null)
     try {
       const r = await AsistenciaService.calcularSinMarca({ desde, hasta, obraId })
-      setAviso(`Tramo ${dmy(desde)} → ${dmy(hasta)}: ${r.dias} día(s) sin marca en ${r.trabajadores} trabajador(es).`)
+      setAviso(`Tramo ${dmy(desde)} → ${dmy(hasta)}: ${r.dias} día(s) sin torniquete en ${r.trabajadores} trabajador(es).`)
       // El informe muestra un mes y el tramo puede caer en otro: sin esto lo
       // recién calculado "desaparece" (queda fuera del mes que estaba elegido).
       const mesTramo = desde.slice(0, 7)
@@ -92,7 +93,10 @@ const SinMarca = ({ obraId }) => {
       informe.filas.map((f) => ({
         RUT: f.rut,
         Nombre: f.nombre || '—',
-        'Días sin marca': f.dias_sin_marca,
+        Jefe: f.jefe || '—',
+        'Área': f.area || '—',
+        Recinto: f.recinto || '—',
+        'Días sin torniquete': f.dias_sin_torniquete,
         Fechas: f.fechas.map(dmy).join(', '),
       })),
     [informe]

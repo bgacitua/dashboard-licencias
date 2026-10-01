@@ -1,16 +1,22 @@
-"""Reporte mensual inverso al de Inasistencias: trabajó, pero no hay torniquete.
+"""Vino pero no pasó por el torniquete: quién, qué días.
 
 Inasistencias pregunta "Buk dice que faltó, ¿marcó igual?". Acá la pregunta es
-la contraria: "Buk no reporta nada raro, ¿pero pasó alguna vez por el
-torniquete?". Un día con turno asignado, sin ausencia ni motivo cargado en Buk
-y con cero marcas en Morpho es un día que nadie puede acreditar.
+otra: la persona **sí vino** —hay marca en un reloj de área o en una puerta— y
+aun así no registró **ninguna** marca en los torniquetes ese día.
 
-Las tres fuentes y el cruce son los mismos que usa `ausencias.py`; de ahí se
-reutilizan los normalizadores para que la clave `rut|fecha` siga siendo una
-sola en todo el módulo.
+    día con turno  +  sin fila en Inasistencias  +  marca de reloj  +  cero torniquete
 
-Cualquier fila de Inasistencias excluye el día, tenga o no motivo: permisos,
-vacaciones, licencias y las ausencias puras ya las persigue la otra vista.
+Que no haya marca de ninguna clase no es un caso de este informe: eso es una
+inasistencia y la persigue la otra pestaña. Por eso la marca de reloj es un
+requisito, no un detalle: es lo que acredita que la persona estuvo.
+
+Los días que Buk explica (licencia, permiso, vacaciones, ausencia) quedan fuera
+con o sin motivo cargado.
+
+Morpho no aguanta rangos largos, así que el mes no se calcula de una vez: se
+acumulan tramos cortos y el informe mensual lee lo guardado. Jefe, área y
+recinto se guardan junto con el día: el informe de un mes cerrado no debería
+cambiar porque alguien cambió de jefatura en noviembre.
 """
 from datetime import date, datetime, timedelta, timezone
 
@@ -28,7 +34,7 @@ from .ausencias import (
 )
 from .client import to_buk_date
 from .config import AsistenciaSettings
-from .morpho import clave, marcas_en_rango
+from .morpho import clave, marcas_por_dispositivo
 from .recintos import filtrar_por_obra
 from .service import exigir_configurado, get_por_obra, get_recintos
 
@@ -54,28 +60,72 @@ def dias_excluidos(inasistencias: list[dict]) -> dict[str, set[str]]:
 
 
 def sin_marca(
-    turnos: list[dict], inasistencias: list[dict], morpho: set[str]
+    turnos: list[dict],
+    inasistencias: list[dict],
+    reloj: set[str],
+    torniquete: set[str],
 ) -> list[dict]:
-    """Un registro por trabajador con al menos un día de turno sin marca."""
+    """Un registro por trabajador con al menos un día presente y sin torniquete."""
     excluidos = dias_excluidos(inasistencias)
     nombres = nombres_por_rut(turnos)
     out = []
     for rut, dias in sorted(calendario_por_rut(turnos).items()):
         exentos = excluidos.get(rut, set())
-        faltantes = [
-            d for d in dias if d not in exentos and clave(rut, d) not in morpho
+        presentes = [
+            d for d in dias if d not in exentos and clave(rut, d) in reloj
         ]
+        faltantes = [d for d in presentes if clave(rut, d) not in torniquete]
         if not faltantes:
             continue
-        exigibles = [d for d in dias if d not in exentos]
         out.append({
             "rut": rut,
             "nombre": nombres.get(rut, ""),
-            "dias_exigibles": len(exigibles),
-            "dias_sin_marca": len(faltantes),
+            # Denominador honesto: los días que la persona efectivamente vino,
+            # no los que tenía turno. Sirve para leer "3 de 20" vs "20 de 20".
+            "dias_presente": len(presentes),
+            "dias_sin_torniquete": len(faltantes),
             "fechas": faltantes,
         })
-    return sorted(out, key=lambda r: (-r["dias_sin_marca"], r["rut"]))
+    return sorted(out, key=lambda r: (-r["dias_sin_torniquete"], r["rut"]))
+
+
+# === Datos de RH ===
+# El cruce con Buk no trae jefe, área ni recinto: salen de rh.employees, que es
+# la copia que la plataforma ya mantiene. DISTINCT ON porque un RUT puede tener
+# varios contratos históricos y duplicaría la fila.
+
+_RH = text("""
+    SELECT DISTINCT ON (rut) rut, jefe, area, recinto
+      FROM (
+        SELECT ltrim(left(regexp_replace(e.rut, '[^0-9kK]', '', 'g'), -1), '0') AS rut,
+               COALESCE(j.full_name, '')      AS jefe,
+               COALESCE(a.name, '')           AS area,
+               COALESCE(e.recinto_primario, '') AS recinto,
+               (e.status = 'activo')          AS vigente,
+               e.id                           AS id
+          FROM rh.employees e
+          LEFT JOIN rh.employees j ON j.rut = e.rut_boss
+          LEFT JOIN rh.areas a ON a.id = e.area_id
+      ) t
+     WHERE rut = ANY(:ruts)
+     ORDER BY rut, vigente DESC, id DESC
+""")
+
+
+def datos_rh(db: Session, ruts: list[str]) -> dict[str, dict]:
+    """rut -> {jefe, area, recinto}. Fail-open: el RUT que no esté queda vacío.
+
+    `rh.employees` guarda el RUT como xx.xxx.xxx-x; acá las claves son el cuerpo
+    sin DV ni ceros, igual que en el resto del módulo, así que la normalización
+    va en el SQL (misma expresión que usa `notificaciones.jefaturas`).
+    """
+    if not ruts:
+        return {}
+    filas = db.execute(_RH, {"ruts": sorted(set(ruts))}).mappings().all()
+    out = {f["rut"]: {"jefe": f["jefe"], "area": f["area"], "recinto": f["recinto"]}
+           for f in filas}
+    logger.info("[asistencia/sin-marca] RH: %d de %d RUT resueltos", len(out), len(set(ruts)))
+    return out
 
 
 async def detectar(
@@ -85,7 +135,7 @@ async def detectar(
     hasta: str,
     obra_id: str | None = None,
 ) -> list[dict]:
-    """Días con turno y sin ninguna marca de torniquete en el rango."""
+    """Días en que la persona vino (marca de reloj) y no pasó por el torniquete."""
     if (date.fromisoformat(hasta) - date.fromisoformat(desde)).days + 1 > MAX_DIAS:
         raise ValueError(f"El rango no puede superar {MAX_DIAS} días (límite de Morpho).")
     # El día en curso no se puede juzgar: a media jornada el que todavía no pasa
@@ -112,69 +162,13 @@ async def detectar(
         }
         turnos = [t for t in turnos if limpiar_rut(t.get("dni")) in permitidos]
 
-    morpho = marcas_en_rango(marcas_db, desde, hasta)
-    encontrados = sin_marca(turnos, filas, morpho)
+    reloj, torniquete = marcas_por_dispositivo(marcas_db, desde, hasta)
+    encontrados = sin_marca(turnos, filas, reloj, torniquete)
     logger.info(
-        "[asistencia/sin-marca] %s..%s obra=%s: %d turnos, %d con días sin marca",
+        "[asistencia/sin-marca] %s..%s obra=%s: %d turnos, %d con días sin torniquete",
         desde, hasta, obra_id, len(turnos), len(encontrados),
     )
     return encontrados
-
-
-def _demo() -> None:
-    """python -m app.modules.asistencia.sin_marca"""
-    turnos = [
-        {"dni": "19117548-9", "nombreTrabajador": "Ana", "diaTurno": d,
-         "horarioTurno": "08:00-17:00"}
-        for d in ("28-08-2026", "31-08-2026", "01-09-2026")
-    ]
-    fila = lambda d, mot="-": {"DNI": "19117548-9", "ano": 2026, "mes": int(d[3:5]),
-                               "dia": int(d[:2]), "Motivo": mot}
-
-    # Sin ninguna marca: los tres días quedan sin acreditar.
-    r = sin_marca(turnos, [], set())
-    assert r[0]["dias_sin_marca"] == 3 and r[0]["dias_exigibles"] == 3, r
-
-    # Una sola marca en el día basta para darlo por presente.
-    r = sin_marca(turnos, [], {clave("19117548", "2026-08-31")})
-    assert r[0]["fechas"] == ["2026-08-28", "2026-09-01"], r
-
-    # Vacaciones cargadas en Buk: el día no se exige.
-    r = sin_marca(turnos, [fila("28-08-2026", "Vacaciones")], set())
-    assert r[0]["dias_sin_marca"] == 2 and r[0]["dias_exigibles"] == 2, r
-
-    # Una ausencia sin motivo tampoco se exige acá: es la otra vista.
-    r = sin_marca(turnos, [fila("28-08-2026")], set())
-    assert r[0]["fechas"] == ["2026-08-31", "2026-09-01"], r
-
-    # Todo marcado: no aparece en el reporte.
-    todas = {clave("19117548", d) for d in ("2026-08-28", "2026-08-31", "2026-09-01")}
-    assert sin_marca(turnos, [], todas) == []
-
-    # Un día sin turno asignado no se exige.
-    assert sin_marca(turnos[:1], [], {clave("19117548", "2026-08-28")}) == []
-    # El día en curso nunca se exige, ni siquiera estando en el rango pedido.
-    hoy = date.today().isoformat()
-    assert ultimo_dia_cerrado() < hoy
-
-    # El rango se acota antes de salir a buscar datos.
-    import asyncio
-    try:
-        asyncio.run(detectar(None, None, "2026-01-01", "2026-03-01"))
-    except ValueError as e:
-        assert "Morpho" in str(e), e
-    else:
-        raise AssertionError("rango largo debería fallar")
-
-    # Un tramo que empieza hoy no tiene días que juzgar: no sale a buscar nada
-    # (settings=None reventaría si lo hiciera).
-    assert asyncio.run(detectar(None, None, hoy, hoy)) == []
-
-    print("ok")
-
-
-if __name__ == "__main__":
-    _demo()
 
 
 # === Persistencia ===
@@ -188,11 +182,15 @@ _BORRAR = text("""
 """)
 
 _INSERTAR = text("""
-    INSERT INTO app.asistencia_sin_marca (rut, fecha, nombre, obra_id, calculado_at)
-    VALUES (:rut, :fecha, :nombre, :obra_id, :ts)
+    INSERT INTO app.asistencia_sin_marca
+        (rut, fecha, nombre, obra_id, jefe, area, recinto, calculado_at)
+    VALUES (:rut, :fecha, :nombre, :obra_id, :jefe, :area, :recinto, :ts)
     ON CONFLICT (rut, fecha) DO UPDATE
        SET nombre = EXCLUDED.nombre,
            obra_id = EXCLUDED.obra_id,
+           jefe = EXCLUDED.jefe,
+           area = EXCLUDED.area,
+           recinto = EXCLUDED.recinto,
            calculado_at = EXCLUDED.calculado_at
 """)
 
@@ -208,8 +206,11 @@ def guardar(
     """
     obra = obra_id or ""
     ts = datetime.now(timezone.utc)
+    rh = datos_rh(db, [r["rut"] for r in resultados])
+    vacio = {"jefe": "", "area": "", "recinto": ""}
     filas = [
-        {"rut": r["rut"], "fecha": f, "nombre": r["nombre"], "obra_id": obra, "ts": ts}
+        {"rut": r["rut"], "fecha": f, "nombre": r["nombre"], "obra_id": obra, "ts": ts,
+         **rh.get(r["rut"], vacio)}
         for r in resultados
         for f in r["fechas"]
     ]
@@ -228,7 +229,7 @@ _TRAMOS = text("""
 """)
 
 _DETALLE = text("""
-    SELECT rut, nombre, fecha
+    SELECT rut, nombre, jefe, area, recinto, fecha
       FROM app.asistencia_sin_marca
      WHERE fecha BETWEEN :desde AND :hasta
        AND (:obra_id = '' OR obra_id = :obra_id)
@@ -239,16 +240,22 @@ _DETALLE = text("""
 def consultar(db: Session, desde: str, hasta: str, obra_id: str | None = None) -> list[dict]:
     """Lo ya calculado y guardado en el rango, agrupado por trabajador."""
     agrupado: dict[str, dict] = {}
-    for rut, nombre, fecha in db.execute(
+    for f in db.execute(
         _DETALLE, {"desde": desde, "hasta": hasta, "obra_id": obra_id or ""}
-    ).all():
-        reg = agrupado.setdefault(rut, {"rut": rut, "nombre": nombre or "", "fechas": []})
-        if nombre:
-            reg["nombre"] = nombre
-        reg["fechas"].append(str(fecha)[:10])
+    ).mappings():
+        reg = agrupado.setdefault(f["rut"], {
+            "rut": f["rut"], "nombre": "", "jefe": "", "area": "", "recinto": "",
+            "fechas": [],
+        })
+        # La última corrida manda: si un dato se resolvió vacío en un tramo y
+        # con valor en otro, gana el que tiene valor.
+        for campo in ("nombre", "jefe", "area", "recinto"):
+            if f[campo]:
+                reg[campo] = f[campo]
+        reg["fechas"].append(str(f["fecha"])[:10])
     for reg in agrupado.values():
-        reg["dias_sin_marca"] = len(reg["fechas"])
-    return sorted(agrupado.values(), key=lambda r: (-r["dias_sin_marca"], r["rut"]))
+        reg["dias_sin_torniquete"] = len(reg["fechas"])
+    return sorted(agrupado.values(), key=lambda r: (-r["dias_sin_torniquete"], r["rut"]))
 
 
 def cobertura(db: Session, desde: str, hasta: str) -> dict:
@@ -263,3 +270,64 @@ def cobertura(db: Session, desde: str, hasta: str) -> dict:
         "dias": fila.dias,
         "trabajadores": fila.trabajadores,
     }
+
+
+def _demo() -> None:
+    """python -m app.modules.asistencia.sin_marca"""
+    turnos = [
+        {"dni": "19117548-9", "nombreTrabajador": "Ana", "diaTurno": d,
+         "horarioTurno": "08:00-17:00"}
+        for d in ("28-08-2026", "31-08-2026", "01-09-2026")
+    ]
+    fila = lambda d, mot="-": {"DNI": "19117548-9", "ano": 2026, "mes": int(d[3:5]),
+                               "dia": int(d[:2]), "Motivo": mot}
+    k = lambda d: clave("19117548", d)
+    DIAS = ["2026-08-28", "2026-08-31", "2026-09-01"]
+    todos_reloj = {k(d) for d in DIAS}
+
+    # Vino los tres días (reloj) y nunca pasó por el torniquete: el caso del informe.
+    r = sin_marca(turnos, [], todos_reloj, set())
+    assert r[0]["dias_sin_torniquete"] == 3 and r[0]["dias_presente"] == 3, r
+
+    # Sin marca de ninguna clase no es este informe, es una inasistencia.
+    assert sin_marca(turnos, [], set(), set()) == []
+
+    # Un torniquete en el día lo salva, aunque sea uno solo.
+    r = sin_marca(turnos, [], todos_reloj, {k("2026-08-31")})
+    assert r[0]["fechas"] == ["2026-08-28", "2026-09-01"], r
+
+    # Vino solo un día: el denominador son los días presentes, no los de turno.
+    r = sin_marca(turnos, [], {k("2026-08-28")}, set())
+    assert r[0]["dias_presente"] == 1 and r[0]["fechas"] == ["2026-08-28"], r
+
+    # Vacaciones cargadas en Buk: el día no se exige ni aunque haya marca de reloj.
+    r = sin_marca(turnos, [fila("28-08-2026", "Vacaciones")], todos_reloj, set())
+    assert r[0]["dias_sin_torniquete"] == 2 and r[0]["dias_presente"] == 2, r
+
+    # Todos los días con torniquete: no aparece.
+    assert sin_marca(turnos, [], todos_reloj, todos_reloj) == []
+
+    # Un día sin turno asignado no se mira, aunque tenga marca de reloj.
+    assert sin_marca(turnos[:1], [], {k("2026-08-31")}, set()) == []
+
+    # El día en curso nunca se exige, ni siquiera estando en el rango pedido.
+    hoy = date.today().isoformat()
+    assert ultimo_dia_cerrado() < hoy
+
+    # El rango se acota antes de salir a buscar datos.
+    import asyncio
+    try:
+        asyncio.run(detectar(None, None, "2026-01-01", "2026-03-01"))
+    except ValueError as e:
+        assert "Morpho" in str(e), e
+    else:
+        raise AssertionError("rango largo debería fallar")
+
+    # Un tramo que empieza hoy no tiene días que juzgar: no sale a buscar nada
+    # (settings=None reventaría si lo hiciera).
+    assert asyncio.run(detectar(None, None, hoy, hoy)) == []
+    print("ok")
+
+
+if __name__ == "__main__":
+    _demo()
