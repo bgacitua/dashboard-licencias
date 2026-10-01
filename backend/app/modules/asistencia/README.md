@@ -108,6 +108,30 @@ La ventana es móvil hacia atrás: Buk hace desaparecer las inasistencias ya
 justificadas, así que volver a mirar los días pasados corrige solo los avisos
 que hoy ya no corresponden.
 
+## Sin marca de torniquete
+
+La pregunta inversa a Inasistencias: no es "Buk dice que faltó, ¿marcó?", sino
+"nadie reportó nada, ¿pasó alguna vez por el torniquete?". Un día con turno
+asignado, sin fila en Inasistencias (con o sin motivo: licencias, permisos y
+vacaciones quedan fuera) y con cero marcas en Morpho es un día que nadie puede
+acreditar.
+
+Morpho no aguanta rangos largos, así que el mes no se calcula de una vez:
+
+    POST /sin-marca-torniquete/calcular?desde&hasta[&obra_id]   un tramo, lo guarda
+    GET  /sin-marca-torniquete?desde&hasta[&obra_id]            lee lo acumulado
+
+El tramo tiene tope de `sin_marca.MAX_DIAS` (31) y es idempotente: recalcular
+una semana reemplaza lo guardado, así que una licencia cargada tarde se corrige
+sola. Lo acumulado vive en `app.asistencia_sin_marca`
+(`docs/sql/modulo_asistencia_sin_marca.sql`). La respuesta del GET trae
+`cobertura`: hasta qué día alcanza lo calculado, porque un mes al que le falta
+una semana se ve igual que un mes limpio.
+
+En la UI es la pestaña "Sin Marca de Torniquete" (calcular por semana arriba,
+informe mensual exportable abajo).
+`python -m app.modules.asistencia.sin_marca` corre sus asserts.
+
 ## Registro en la plataforma
 
 `require_module("asistencia")` valida contra `app.modulos`. Sin esas filas todo

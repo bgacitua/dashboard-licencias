@@ -1,0 +1,152 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import AsistenciaService from '../../services/asistencia.service'
+import TablaDinamica from './TablaDinamica'
+import { descargarCsv } from './exportar'
+
+/**
+ * Días con turno exigible y cero marcas de torniquete.
+ *
+ * Es la pregunta inversa a Inasistencias: allá Buk reporta la falta y el reloj
+ * la desmiente; acá nadie reporta nada y lo que falta es el paso por el
+ * torniquete. Los días que Buk explica (licencia, permiso, vacaciones,
+ * ausencia) quedan fuera: esos ya tienen dueño en la otra pestaña.
+ *
+ * El mes no se calcula de una vez porque Morpho no aguanta el rango: se corre
+ * semana a semana, se guarda, y el informe mensual lee lo acumulado. Por eso
+ * hay dos controles separados —calcular un tramo y ver el mes— en vez de un
+ * solo botón.
+ */
+const COLUMNAS = ['RUT', 'Nombre', 'Días sin marca', 'Fechas']
+
+const iso = (d) => d.toISOString().slice(0, 10)
+const hoy = () => iso(new Date())
+const haceDias = (n) => {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return iso(d)
+}
+const mesActual = () => hoy().slice(0, 7)
+
+// Fin de mes sin aritmética de calendario: día 0 del mes siguiente.
+const finDeMes = (mes) => {
+  const [a, m] = mes.split('-').map(Number)
+  return iso(new Date(Date.UTC(a, m, 0)))
+}
+
+const dmy = (f) => f.split('-').reverse().join('-')
+
+const input =
+  'block mt-1 text-sm border border-app-line rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-app-ink'
+
+const SinMarca = ({ obraId }) => {
+  // Tramo a calcular: por defecto la última semana.
+  const [desde, setDesde] = useState(haceDias(6))
+  const [hasta, setHasta] = useState(hoy())
+  const [mes, setMes] = useState(mesActual())
+
+  const [informe, setInforme] = useState({ filas: [], cobertura: null })
+  const [calculando, setCalculando] = useState(false)
+  const [error, setError] = useState(null)
+  const [aviso, setAviso] = useState(null)
+
+  const rangoMes = useMemo(() => ({ desde: `${mes}-01`, hasta: finDeMes(mes) }), [mes])
+
+  const cargar = useCallback(async () => {
+    setError(null)
+    try {
+      setInforme(await AsistenciaService.getSinMarca({ ...rangoMes, obraId }))
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'No se pudo cargar el informe.')
+      setInforme({ filas: [], cobertura: null })
+    }
+  }, [rangoMes, obraId])
+
+  useEffect(() => {
+    cargar()
+  }, [cargar])
+
+  const calcular = async () => {
+    setCalculando(true)
+    setError(null)
+    setAviso(null)
+    try {
+      const r = await AsistenciaService.calcularSinMarca({ desde, hasta, obraId })
+      setAviso(`Tramo ${dmy(desde)} → ${dmy(hasta)}: ${r.dias} día(s) sin marca en ${r.trabajadores} trabajador(es).`)
+      await cargar()
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'No se pudo calcular el tramo.')
+    } finally {
+      setCalculando(false)
+    }
+  }
+
+  const rows = useMemo(
+    () =>
+      informe.filas.map((f) => ({
+        RUT: f.rut,
+        Nombre: f.nombre || '—',
+        'Días sin marca': f.dias_sin_marca,
+        Fechas: f.fechas.map(dmy).join(', '),
+      })),
+    [informe]
+  )
+
+  const cob = informe.cobertura
+  // Un mes al que le falta una semana se ve igual que un mes limpio: menos
+  // filas. El aviso es lo único que distingue "nadie faltó" de "falta correr".
+  const incompleto =
+    cob && (!cob.hasta_calculado || cob.hasta_calculado < (hoy() < rangoMes.hasta ? hoy() : rangoMes.hasta))
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-end gap-3 mb-4 p-3 rounded-2xl border border-app-line/60 bg-app-surface/50">
+        <label className="text-sm text-app-muted">
+          Calcular desde
+          <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className={input} />
+        </label>
+        <label className="text-sm text-app-muted">
+          hasta
+          <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className={input} />
+        </label>
+        <button
+          onClick={calcular}
+          disabled={calculando || !desde || !hasta}
+          className="px-3 py-1.5 text-sm rounded border border-app-brand/40 text-app-brand hover:bg-white disabled:opacity-40"
+        >
+          {calculando ? 'Calculando…' : 'Calcular y guardar tramo'}
+        </button>
+        <p className="text-xs text-app-muted basis-full">
+          Máximo 31 días por tramo (límite del reloj). Recalcular una semana reemplaza lo guardado.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3 mb-4">
+        <label className="text-sm text-app-muted">
+          Informe del mes
+          <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className={input} />
+        </label>
+        <button
+          onClick={() => descargarCsv(rows, COLUMNAS, `sin_marca_torniquete_${mes}`)}
+          disabled={!rows.length}
+          className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+        >
+          Exportar CSV
+        </button>
+      </div>
+
+      {aviso && <p className="mb-3 text-sm text-app-brand">{aviso}</p>}
+      {cob && (
+        <p className={`mb-3 text-sm ${incompleto ? 'text-amber-600' : 'text-app-muted'}`}>
+          {cob.hasta_calculado
+            ? `Calculado del ${dmy(cob.desde_calculado)} al ${dmy(cob.hasta_calculado)}.`
+            : 'Este mes todavía no tiene tramos calculados.'}
+          {incompleto && ' Faltan días por calcular: el informe aún no está completo.'}
+        </p>
+      )}
+
+      <TablaDinamica rows={rows} columns={COLUMNAS} descartados={0} loading={false} error={error} />
+    </div>
+  )
+}
+
+export default SinMarca
