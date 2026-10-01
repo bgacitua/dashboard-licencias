@@ -1,13 +1,13 @@
 """Vino pero no pasó por el torniquete: quién, qué días.
 
 Inasistencias pregunta "Buk dice que faltó, ¿marcó igual?". Acá la pregunta es
-otra: la persona **sí vino** —hay marca en un reloj de área o en una puerta— y
-aun así no registró **ninguna** marca en los torniquetes ese día.
+otra: la persona **sí vino** —Buk Asistencia registró su marca de entrada ese
+día— y aun así no hay **ninguna** marca suya en Morpho.
 
-    día con turno  +  sin fila en Inasistencias  +  marca de reloj  +  cero torniquete
+    día con turno  +  sin fila en Inasistencias  +  marca en Buk  +  cero Morpho
 
 Que no haya marca de ninguna clase no es un caso de este informe: eso es una
-inasistencia y la persigue la otra pestaña. Por eso la marca de reloj es un
+inasistencia y la persigue la otra pestaña. Por eso la marca de Buk es un
 requisito, no un detalle: es lo que acredita que la persona estuvo.
 
 Los días que Buk explica (licencia, permiso, vacaciones, ausencia) quedan fuera
@@ -27,6 +27,7 @@ from app.core.logging_config import logger
 
 from .ausencias import (
     _turnos,
+    a_iso,
     calendario_por_rut,
     fecha_iso,
     limpiar_rut,
@@ -34,9 +35,9 @@ from .ausencias import (
 )
 from .client import to_buk_date
 from .config import AsistenciaSettings
-from .morpho import clave, marcas_por_dispositivo
+from .morpho import clave, marcas_en_rango
 from .recintos import filtrar_por_obra
-from .service import exigir_configurado, get_por_obra, get_recintos
+from .service import exigir_configurado, get_marcajes, get_por_obra, get_recintos
 
 # Morpho deja de responder con rangos largos y el cálculo se hace por tramos
 # cortos igual. El tope es explícito para que el error salga en la UI y no
@@ -59,22 +60,39 @@ def dias_excluidos(inasistencias: list[dict]) -> dict[str, set[str]]:
     return out
 
 
+def presencia_buk(marcajes: list[dict], desde: str, hasta: str) -> set[str]:
+    """Claves `rut|fecha` con marca de entrada en Buk Asistencia.
+
+    Cada fila del dataset es una entrada registrada (no hay filas de turno sin
+    marcar), así que la sola existencia de la fila acredita la presencia. El
+    rango se vuelve a acotar acá: el dataset viene cacheado y puede traer días
+    de más respecto a lo pedido.
+    """
+    out = set()
+    for m in marcajes:
+        rut = limpiar_rut(m.get("rut_trabajador"))
+        f = a_iso(m.get("dia_entrada")) or a_iso(m.get("entrada_format"))
+        if rut and f and desde <= f <= hasta:
+            out.add(clave(rut, f))
+    return out
+
+
 def sin_marca(
     turnos: list[dict],
     inasistencias: list[dict],
-    reloj: set[str],
-    torniquete: set[str],
+    buk: set[str],
+    morpho: set[str],
 ) -> list[dict]:
-    """Un registro por trabajador con al menos un día presente y sin torniquete."""
+    """Un registro por trabajador con al menos un día presente y sin Morpho."""
     excluidos = dias_excluidos(inasistencias)
     nombres = nombres_por_rut(turnos)
     out = []
     for rut, dias in sorted(calendario_por_rut(turnos).items()):
         exentos = excluidos.get(rut, set())
         presentes = [
-            d for d in dias if d not in exentos and clave(rut, d) in reloj
+            d for d in dias if d not in exentos and clave(rut, d) in buk
         ]
-        faltantes = [d for d in presentes if clave(rut, d) not in torniquete]
+        faltantes = [d for d in presentes if clave(rut, d) not in morpho]
         if not faltantes:
             continue
         out.append({
@@ -135,7 +153,7 @@ async def detectar(
     hasta: str,
     obra_id: str | None = None,
 ) -> list[dict]:
-    """Días en que la persona vino (marca de reloj) y no pasó por el torniquete."""
+    """Días en que Buk registró la entrada y Morpho no tiene ninguna marca."""
     if (date.fromisoformat(hasta) - date.fromisoformat(desde)).days + 1 > MAX_DIAS:
         raise ValueError(f"El rango no puede superar {MAX_DIAS} días (límite de Morpho).")
     # El día en curso no se puede juzgar: a media jornada el que todavía no pasa
@@ -162,8 +180,10 @@ async def detectar(
         }
         turnos = [t for t in turnos if limpiar_rut(t.get("dni")) in permitidos]
 
-    reloj, torniquete = marcas_por_dispositivo(marcas_db, desde, hasta)
-    encontrados = sin_marca(turnos, filas, reloj, torniquete)
+    marcajes, _ = await get_marcajes(desde, hasta, obra_id)
+    buk = presencia_buk(marcajes, desde, hasta)
+    morpho = marcas_en_rango(marcas_db, desde, hasta)
+    encontrados = sin_marca(turnos, filas, buk, morpho)
     logger.info(
         "[asistencia/sin-marca] %s..%s obra=%s: %d turnos, %d con días sin torniquete",
         desde, hasta, obra_id, len(turnos), len(encontrados),
@@ -283,31 +303,42 @@ def _demo() -> None:
                                "dia": int(d[:2]), "Motivo": mot}
     k = lambda d: clave("19117548", d)
     DIAS = ["2026-08-28", "2026-08-31", "2026-09-01"]
-    todos_reloj = {k(d) for d in DIAS}
+    todo_buk = {k(d) for d in DIAS}
 
-    # Vino los tres días (reloj) y nunca pasó por el torniquete: el caso del informe.
-    r = sin_marca(turnos, [], todos_reloj, set())
+    # El rut del dataset viene sin puntos ni guión y la fecha como dd/mm/yyyy.
+    assert presencia_buk(
+        [{"rut_trabajador": "191175489", "dia_entrada": "28/08/2026"}],
+        "2026-08-01", "2026-08-31",
+    ) == {k("2026-08-28")}
+    # El dataset viene cacheado y puede traer días fuera del rango pedido.
+    assert presencia_buk(
+        [{"rut_trabajador": "191175489", "dia_entrada": "01/09/2026"}],
+        "2026-08-01", "2026-08-31",
+    ) == set()
+
+    # Vino los tres días según Buk y Morpho no tiene nada: el caso del informe.
+    r = sin_marca(turnos, [], todo_buk, set())
     assert r[0]["dias_sin_torniquete"] == 3 and r[0]["dias_presente"] == 3, r
 
     # Sin marca de ninguna clase no es este informe, es una inasistencia.
     assert sin_marca(turnos, [], set(), set()) == []
 
-    # Un torniquete en el día lo salva, aunque sea uno solo.
-    r = sin_marca(turnos, [], todos_reloj, {k("2026-08-31")})
+    # Una marca en Morpho salva el día, aunque sea una sola.
+    r = sin_marca(turnos, [], todo_buk, {k("2026-08-31")})
     assert r[0]["fechas"] == ["2026-08-28", "2026-09-01"], r
 
     # Vino solo un día: el denominador son los días presentes, no los de turno.
     r = sin_marca(turnos, [], {k("2026-08-28")}, set())
     assert r[0]["dias_presente"] == 1 and r[0]["fechas"] == ["2026-08-28"], r
 
-    # Vacaciones cargadas en Buk: el día no se exige ni aunque haya marca de reloj.
-    r = sin_marca(turnos, [fila("28-08-2026", "Vacaciones")], todos_reloj, set())
+    # Vacaciones cargadas en Buk: el día no se exige ni aunque haya marca.
+    r = sin_marca(turnos, [fila("28-08-2026", "Vacaciones")], todo_buk, set())
     assert r[0]["dias_sin_torniquete"] == 2 and r[0]["dias_presente"] == 2, r
 
-    # Todos los días con torniquete: no aparece.
-    assert sin_marca(turnos, [], todos_reloj, todos_reloj) == []
+    # Todos los días con marca en Morpho: no aparece.
+    assert sin_marca(turnos, [], todo_buk, todo_buk) == []
 
-    # Un día sin turno asignado no se mira, aunque tenga marca de reloj.
+    # Un día sin turno asignado no se mira, aunque Buk tenga la entrada.
     assert sin_marca(turnos[:1], [], {k("2026-08-31")}, set()) == []
 
     # El día en curso nunca se exige, ni siquiera estando en el rango pedido.

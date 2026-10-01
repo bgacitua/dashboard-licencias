@@ -113,18 +113,17 @@ que hoy ya no corresponden.
 Responde una pregunta sola: **¿quiénes vinieron y no pasaron por el torniquete,
 y qué días?**
 
-    día con turno  +  sin fila en Inasistencias  +  marca de reloj  +  cero torniquete
+    día con turno  +  sin fila en Inasistencias  +  marca en Buk  +  cero Morpho
 
-La marca de reloj es un requisito, no un detalle: es lo que acredita que la
-persona estuvo. Un día sin marca de ninguna clase no entra acá —eso es una
+La marca de Buk Asistencia (el mismo dataset de la pestaña Marcajes) es un
+requisito, no un detalle: es lo que acredita que la persona estuvo. Cada fila de
+ese dataset es una entrada registrada —no hay filas de turno sin marcar— así que
+basta su existencia. Un día sin marca de ninguna clase no entra acá —eso es una
 inasistencia y la persigue la otra pestaña— y los días que Buk explica
 (licencia, permiso, vacaciones) quedan fuera con o sin motivo cargado.
 
-Reloj y torniquete salen de la misma base (MorphoManager) y se separan por el
-nombre del dispositivo: `morpho.PREFIJO_TORNIQUETE`. Hoy son 10 de 33 y todos se
-llaman `TORNIQUETE ...`; el resto son relojes de área y puertas. Un torniquete
-nuevo con otro nombre se contaría como reloj, así que esa constante es lo único
-a tocar si cambia la convención.
+Del lado de Morpho vale cualquier dispositivo: es el mismo `marcas_en_rango` que
+usan Inasistencias y las ausencias consecutivas.
 
 Jefe, área y recinto salen de `rh.employees` (`full_name` vía `rut_boss`,
 `rh.areas.name` vía `area_id`, y `recinto_primario`) y se guardan junto al día:
