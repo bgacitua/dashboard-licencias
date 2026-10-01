@@ -12,7 +12,7 @@ sola en todo el módulo.
 Cualquier fila de Inasistencias excluye el día, tenga o no motivo: permisos,
 vacaciones, licencias y las ausencias puras ya las persigue la otra vista.
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -36,6 +36,11 @@ from .service import exigir_configurado, get_por_obra, get_recintos
 # cortos igual. El tope es explícito para que el error salga en la UI y no
 # como un timeout a los dos minutos.
 MAX_DIAS = 31
+
+
+def ultimo_dia_cerrado() -> str:
+    """Ayer. Hoy aún no termina, así que no se puede afirmar que nadie marcó."""
+    return (date.today() - timedelta(days=1)).isoformat()
 
 
 def dias_excluidos(inasistencias: list[dict]) -> dict[str, set[str]]:
@@ -83,6 +88,11 @@ async def detectar(
     """Días con turno y sin ninguna marca de torniquete en el rango."""
     if (date.fromisoformat(hasta) - date.fromisoformat(desde)).days + 1 > MAX_DIAS:
         raise ValueError(f"El rango no puede superar {MAX_DIAS} días (límite de Morpho).")
+    # El día en curso no se puede juzgar: a media jornada el que todavía no pasa
+    # por el torniquete no es un caso, y entraban cientos de falsos positivos.
+    hasta = min(hasta, ultimo_dia_cerrado())
+    if hasta < desde:
+        return []
     exigir_configurado(settings)
     params: dict[str, object] = {}
     if (d := to_buk_date(desde)):
@@ -143,6 +153,10 @@ def _demo() -> None:
 
     # Un día sin turno asignado no se exige.
     assert sin_marca(turnos[:1], [], {clave("19117548", "2026-08-28")}) == []
+    # El día en curso nunca se exige, ni siquiera estando en el rango pedido.
+    hoy = date.today().isoformat()
+    assert ultimo_dia_cerrado() < hoy
+
     # El rango se acota antes de salir a buscar datos.
     import asyncio
     try:
@@ -151,6 +165,10 @@ def _demo() -> None:
         assert "Morpho" in str(e), e
     else:
         raise AssertionError("rango largo debería fallar")
+
+    # Un tramo que empieza hoy no tiene días que juzgar: no sale a buscar nada
+    # (settings=None reventaría si lo hiciera).
+    assert asyncio.run(detectar(None, None, hoy, hoy)) == []
 
     print("ok")
 
