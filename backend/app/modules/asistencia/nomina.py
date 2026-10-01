@@ -28,9 +28,16 @@ from .sin_marca import MAX_DIAS, dias_excluidos, ultimo_dia_cerrado
 
 GRUPO = "nomina"
 
-# Cargos que se siguen por nómina. El LIKE va con comodines porque "Gerente"
-# aparece dentro de cargos compuestos (Gerente de Planta, Gerente Comercial…).
-CARGOS = ("Key Account Manager", "%Gerente%", "Subgerente")
+# Cargos que se siguen por nómina, como patrones ILIKE.
+#
+# "%Gerente%" trae las 26 gerencias de la nómina e incluye las 11 subgerencias
+# ("Subgerente De Calidad", "Subgerente de Ventas"…), porque la palabra está
+# contenida: un patrón aparte para Subgerente sobra, y "Subgerente" sin
+# comodines no calzaría con ninguno de los cargos reales.
+#
+# "Key Account Manager" sí existe tal cual. Ojo: los otros Manager de la nómina
+# (Brand, Global Innovation, Market Responsible) quedan fuera a propósito.
+CARGOS = ("%Gerente%", "Key Account Manager")
 
 # Feriados legales de Chile con fecha fija conocida. Solo importan los que caen
 # en día hábil; los de fin de semana se omiten porque ya no cuentan.
