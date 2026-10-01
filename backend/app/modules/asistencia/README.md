@@ -140,7 +140,9 @@ ve nunca. Ahí el universo se construye en vez de leerse:
     día hábil (lun-vie)  -  feriado  -  lo que Buk explica  =  día exigible
 
 La nómina sale de `rh.employees` por cargo (`nomina.CARGOS`: `%Gerente%`, que
-ya incluye las subgerencias, y `Key Account Manager`) y los feriados son una lista a mano por año en
+ya incluye las subgerencias, más cuatro cargos exactos —Key Account Manager,
+Global Innovation Manager, Market Responsible Manager y Líder de Optimización
+Estratégica) y los feriados son una lista a mano por año en
 `nomina.FERIADOS`. Un año sin cargar **falla**: contar un feriado como día
 exigible manda a revisar a alguien que no tenía que venir. Los feriados de
 elecciones se publican por ley cada ciclo y no están en la lista.

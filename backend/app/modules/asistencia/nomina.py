@@ -35,9 +35,16 @@ GRUPO = "nomina"
 # contenida: un patrón aparte para Subgerente sobra, y "Subgerente" sin
 # comodines no calzaría con ninguno de los cargos reales.
 #
-# "Key Account Manager" sí existe tal cual. Ojo: los otros Manager de la nómina
-# (Brand, Global Innovation, Market Responsible) quedan fuera a propósito.
-CARGOS = ("%Gerente%", "Key Account Manager")
+# Los demás van exactos, tal como están escritos en la nómina (con tildes). No
+# se generalizan a "%Manager%" ni a "%Líder%" a propósito: Brand Manager y los
+# otros doce Líder de… sí están sujetos a marca, y un comodín los arrastraría.
+CARGOS = (
+    "%Gerente%",
+    "Key Account Manager",
+    "Global Innovation Manager",
+    "Market Responsible Manager",
+    "Líder de Optimización Estratégica",
+)
 
 # Feriados legales de Chile con fecha fija conocida. Solo importan los que caen
 # en día hábil; los de fin de semana se omiten porque ya no cuentan.
