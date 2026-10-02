@@ -128,8 +128,6 @@ class Settings(BaseSettings):
     SALIDA_PERSONAL_PARALELO_TO: str = ""
     # Copia del aviso paralelo, separadas por ";". Vacio = sin CC.
     SALIDA_PERSONAL_PARALELO_CC: str = ""
-    # Copia oculta del aviso paralelo, separadas por ";". Vacio = sin BCC.
-    SALIDA_PERSONAL_PARALELO_BCC: str = ""
 
     # Carpeta donde el scraper de BUK deja screenshot + HTML cuando falla.
     BUK_WEB_DEBUG_DIR: str = "/tmp/buk_scraper"
