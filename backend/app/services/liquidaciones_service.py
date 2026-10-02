@@ -256,9 +256,18 @@ class LiquidacionesService:
                         resp.raise_for_status()
                         break
                     except httpx.HTTPStatusError as e:
-                        raise LiquidacionesError(
-                            f"BUK respondió {e.response.status_code} en {url}: {e.response.text[:300]}"
+                        # ponytail: 5xx/429 son transitorios (BUK cae intermitente),
+                        # el resto son errores nuestros y no mejoran reintentando.
+                        transitorio = e.response.status_code in (429, 500, 502, 503, 504)
+                        if not transitorio or intento == 2:
+                            raise LiquidacionesError(
+                                f"BUK respondió {e.response.status_code} en {url}: {e.response.text[:300]}"
+                            )
+                        logger.warning(
+                            "[Liquidos] BUK %s en %s, reintento %s/2",
+                            e.response.status_code, url, intento + 1,
                         )
+                        await asyncio.sleep(2 ** intento)
                     except httpx.RequestError as e:
                         if intento == 2:
                             raise LiquidacionesError(
