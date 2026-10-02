@@ -1,4 +1,4 @@
-"""Verifica el cuerpo del aviso paralelo de salida sin enviar nada.
+"""Verifica el cuerpo del aviso paralelo de salida sin enviar nada ni tocar la BD.
 
 Ejecutar desde backend/:
     python -m tests.test_correo_salida_paralelo
@@ -15,44 +15,55 @@ for _k in (
 ):
     os.environ.setdefault(_k, "dummy")
 
-from app.schemas.desvinculacion import CorreoSalidaRequest
 from app.services.correo_salida_paralelo import enviar_correo_salida_paralelo
 
 RUT = "12.345.678-9"
 
+FILA_BD = {
+    "nombre_trabajador": "Juan Muñoz Soto",
+    "rut_trabajador": RUT,
+    "empresa": "Cramer S.A.",
+    "contract_type": "Indefinido",
+}
 
-def _enviar(tipo_contrato, paralelo_to="legal@cramer.cl"):
-    """Intercepta el envío y devuelve (resultado, mock de Graph)."""
-    data = CorreoSalidaRequest(
-        nombre_trabajador="Juan Muñoz Soto",
-        cargo="Analista de Operaciones",
-        fecha_salida=date(2026, 5, 20),
-        motivo="desvinculacion",
-        tipo_contrato=tipo_contrato,
-    )
+
+def _enviar(fila=FILA_BD, paralelo_to="seguros@cramer.cl"):
+    """Intercepta el envío y la consulta a la BD; devuelve (resultado, mock de Graph)."""
     with patch("app.services.correo_salida_paralelo.send_email_graph", return_value=True) as mock, \
+         patch("app.services.correo_salida_paralelo.DesvinculacionRepository") as repo, \
          patch("app.services.correo_salida_paralelo.settings") as fake_settings:
         fake_settings.SALIDA_PERSONAL_PARALELO_TO = paralelo_to
         fake_settings.SALIDA_PERSONAL_FROM = ""
-        enviado = enviar_correo_salida_paralelo(RUT, data)
+        repo.return_value.get_datos_aviso_paralelo.return_value = fila
+        enviado = enviar_correo_salida_paralelo(None, RUT, date(2026, 5, 20))
         return enviado, mock
 
 
-indefinido_ok, indefinido = _enviar("indefinido")
+indefinido_ok, indefinido = _enviar()
 assert indefinido_ok
 kw = indefinido.call_args.kwargs
-assert kw["to"] == "legal@cramer.cl"
-assert "con fecha de 20-05-2026" in kw["html_body"]
-assert f"Rut: {RUT} (Analista de Operaciones)" in kw["html_body"]
-assert "contrato indefinido" in kw["html_body"]
-assert "indemnización por años de servicio" in kw["html_body"]
+assert kw["to"] == "seguros@cramer.cl"
+assert kw["subject"] == "Movimiento de personal - Cramer S.A."
+assert "excluir con fecha de 20-05-2026" in kw["html_body"]
+assert "seguro complementario de salud o vida" in kw["html_body"]
+assert "Juan Muñoz Soto" in kw["html_body"]
+assert RUT in kw["html_body"]
+assert "Cramer S.A." in kw["html_body"]
+assert "Contrato indefinido" in kw["html_body"]
 
-_, fijo = _enviar("fijo")
-assert "plazo fijo" in fijo.call_args.kwargs["html_body"]
-assert "no corresponde indemnización" in fijo.call_args.kwargs["html_body"]
+_, fijo = _enviar({**FILA_BD, "contract_type": "Fijo"})
+assert "Contrato fijo" in fijo.call_args.kwargs["html_body"]
 
-# Sin casilla configurada no se envía nada.
-sin_config_ok, sin_config = _enviar("indefinido", paralelo_to="")
+_, sin_tipo = _enviar({**FILA_BD, "contract_type": None})
+assert "Contrato sin especificar" in sin_tipo.call_args.kwargs["html_body"]
+
+# Sin fila en rh.employees no se envía nada.
+sin_datos_ok, sin_datos = _enviar(fila=None)
+assert sin_datos_ok is False
+assert sin_datos.call_count == 0
+
+# Sin casilla configurada tampoco.
+sin_config_ok, sin_config = _enviar(paralelo_to="")
 assert sin_config_ok is False
 assert sin_config.call_count == 0
 

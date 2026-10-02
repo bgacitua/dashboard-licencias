@@ -36,7 +36,6 @@ const GeneradorFiniquitos = () => {
   const [modoSalida, setModoSalida] = useState(false);
   const [fechaSalida, setFechaSalida] = useState("");
   const [motivoSalida, setMotivoSalida] = useState("renuncia");
-  const [tipoContrato, setTipoContrato] = useState("indefinido");
   const [enviando, setEnviando] = useState(false);
 
   // Modos que ocultan tablas y usan el buscador con autocompletado.
@@ -187,7 +186,6 @@ const GeneradorFiniquitos = () => {
     setSelectedRut(null);
     setFechaSalida("");
     setMotivoSalida("renuncia");
-    setTipoContrato("indefinido");
   };
 
   const enviarCorreoSalida = async () => {
@@ -199,7 +197,6 @@ const GeneradorFiniquitos = () => {
         cargo: empleadoSeleccionado.cargo,
         fechaSalida,
         motivo: motivoSalida,
-        tipoContrato,
       });
       alert("Correo de salida enviado.");
       fetchProcesos();
@@ -506,14 +503,6 @@ const GeneradorFiniquitos = () => {
                     {Object.entries(MOTIVOS_SALIDA).map(([valor, texto]) => (
                       <option key={valor} value={valor}>{texto}</option>
                     ))}
-                  </select>
-                  <select
-                    value={tipoContrato}
-                    onChange={(e) => setTipoContrato(e.target.value)}
-                    className="px-3 py-2 bg-white border border-app-line rounded-lg text-sm text-app-muted focus:outline-none focus:ring-2 focus:ring-app-ink"
-                  >
-                    <option value="indefinido">Contrato indefinido</option>
-                    <option value="fijo">Contrato a plazo fijo</option>
                   </select>
                   <label className="flex items-center gap-2 text-sm text-app-muted">
                     Fecha de salida:
