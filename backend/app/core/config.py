@@ -123,6 +123,9 @@ class Settings(BaseSettings):
     # Casilla remitente. Vacío = la cuenta autenticada en Graph.
     # Con otra casilla se requiere permiso SendAs en Exchange para esa cuenta.
     SALIDA_PERSONAL_FROM: str = ""
+    # Aviso paralelo: misma salida, otra casilla y cuerpo segun tipo de contrato.
+    # Vacio = no se envia el paralelo.
+    SALIDA_PERSONAL_PARALELO_TO: str = ""
 
     # Carpeta donde el scraper de BUK deja screenshot + HTML cuando falla.
     BUK_WEB_DEBUG_DIR: str = "/tmp/buk_scraper"

@@ -224,6 +224,11 @@ def enviar_correo_salida_personal(
     if not enviado:
         raise HTTPException(status_code=502, detail="El correo no pudo enviarse")
 
+    # Aviso paralelo a otra casilla; no bloquea el flujo si falla.
+    from app.services.correo_salida_paralelo import enviar_correo_salida_paralelo
+
+    enviar_correo_salida_paralelo(rut, data)
+
     # El aviso puede mandarse sin haber guardado el formulario: si no hay proceso, se crea.
     proceso = DesvinculacionService(db).registrar_correo_salida(
         rut, data, created_by=current_user.username
