@@ -8,6 +8,9 @@
  */
 import { BaseTheme, Model } from 'survey-core';
 import { DefaultLight } from 'survey-core/themes';
+// Textos de los botones nativos (Anterior/Siguiente/Completar): el bundle base
+// de survey-core v3 solo trae inglés, el diccionario del idioma se importa.
+import 'survey-core/i18n/spanish';
 
 export const TEMA_DEFECTO = {
     color: '#2563eb',
