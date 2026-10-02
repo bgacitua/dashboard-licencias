@@ -227,7 +227,7 @@ def enviar_correo_salida_personal(
     # Aviso paralelo a otra casilla; no bloquea el flujo si falla.
     from app.services.correo_salida_paralelo import enviar_correo_salida_paralelo
 
-    enviar_correo_salida_paralelo(rut, data)
+    enviar_correo_salida_paralelo(db, rut, data.fecha_salida)
 
     # El aviso puede mandarse sin haber guardado el formulario: si no hay proceso, se crea.
     proceso = DesvinculacionService(db).registrar_correo_salida(

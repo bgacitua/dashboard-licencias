@@ -79,7 +79,7 @@ const FiniquitosService = {
   },
 
   // motivo: 'renuncia' | 'desvinculacion'. Sella el hito 'correo' en el backend.
-  enviarCorreoSalida: async (rut, { nombre, cargo, fechaSalida, motivo, tipoContrato }) => {
+  enviarCorreoSalida: async (rut, { nombre, cargo, fechaSalida, motivo }) => {
     const response = await axios.post(
       `${API_URL}/${rut}/correo-salida`,
       {
@@ -87,7 +87,6 @@ const FiniquitosService = {
         cargo: cargo || null,
         fecha_salida: fechaSalida,
         motivo,
-        tipo_contrato: tipoContrato,
       },
       { headers: authHeaders() },
     );

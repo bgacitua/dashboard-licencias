@@ -127,3 +127,25 @@ class DesvinculacionRepository:
             return None
         logger.info(f"Hito {columna} marcado para {rut}")
         return dict(row)
+
+    def get_datos_aviso_paralelo(self, rut: str) -> Optional[Dict[str, Any]]:
+        """Datos del trabajador para el aviso paralelo de salida.
+
+        DISTINCT ON porque un RUT puede tener más de una fila en rh.employees;
+        se toma la contratación más reciente.
+        """
+        row = self.db.execute(
+            text("""
+                SELECT DISTINCT ON (e.rut)
+                    e.full_name        AS nombre_trabajador,
+                    e.rut              AS rut_trabajador,
+                    e.contract_type    AS contract_type,
+                    a.first_level_name AS empresa
+                FROM rh.employees AS e
+                LEFT JOIN rh.areas AS a ON a.id = e.area_id
+                WHERE e.rut = :rut
+                ORDER BY e.rut, e.active_since DESC NULLS LAST
+            """),
+            {"rut": rut},
+        ).mappings().first()
+        return dict(row) if row else None
