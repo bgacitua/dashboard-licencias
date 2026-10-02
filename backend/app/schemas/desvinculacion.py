@@ -25,6 +25,7 @@ class CorreoSalidaRequest(BaseModel):
     cargo: Optional[str] = None
     fecha_salida: date
     motivo: Literal["renuncia", "desvinculacion", "mutuo_acuerdo", "jubilacion"]
+    tipo_contrato: Literal["indefinido", "fijo"] = "indefinido"
 
 
 class DesvinculacionResponse(BaseModel):
