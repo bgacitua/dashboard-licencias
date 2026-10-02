@@ -33,6 +33,7 @@ def _enviar(fila=FILA_BD, paralelo_to="seguros@cramer.cl"):
          patch("app.services.correo_salida_paralelo.DesvinculacionRepository") as repo, \
          patch("app.services.correo_salida_paralelo.settings") as fake_settings:
         fake_settings.SALIDA_PERSONAL_PARALELO_TO = paralelo_to
+        fake_settings.SALIDA_PERSONAL_PARALELO_CC = "rrhh@cramer.cl"
         fake_settings.SALIDA_PERSONAL_PARALELO_BCC = "auditoria@cramer.cl"
         fake_settings.SALIDA_PERSONAL_FROM = ""
         repo.return_value.get_datos_aviso_paralelo.return_value = fila
@@ -45,7 +46,7 @@ assert indefinido_ok
 kw = indefinido.call_args.kwargs
 assert kw["to"] == "seguros@cramer.cl"
 assert kw["bcc"] == "auditoria@cramer.cl"
-assert kw["cc"] == ""
+assert kw["cc"] == "rrhh@cramer.cl"
 assert kw["subject"] == "Movimiento de personal - Cramer S.A."
 assert "excluir con fecha de 20-05-2026" in kw["html_body"]
 assert "seguro complementario de salud o vida" in kw["html_body"]

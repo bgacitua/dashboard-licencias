@@ -126,6 +126,8 @@ class Settings(BaseSettings):
     # Aviso paralelo: misma salida, otra casilla y cuerpo segun tipo de contrato.
     # Vacio = no se envia el paralelo.
     SALIDA_PERSONAL_PARALELO_TO: str = ""
+    # Copia del aviso paralelo, separadas por ";". Vacio = sin CC.
+    SALIDA_PERSONAL_PARALELO_CC: str = ""
     # Copia oculta del aviso paralelo, separadas por ";". Vacio = sin BCC.
     SALIDA_PERSONAL_PARALELO_BCC: str = ""
 

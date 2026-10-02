@@ -29,7 +29,7 @@ def enviar_correo_salida_paralelo(db: Session, rut: str, fecha_salida: date) -> 
             return False
         return send_email_graph(
             to=settings.SALIDA_PERSONAL_PARALELO_TO,
-            cc="",
+            cc=settings.SALIDA_PERSONAL_PARALELO_CC,
             bcc=settings.SALIDA_PERSONAL_PARALELO_BCC,
             subject=asunto(datos["empresa"]),
             html_body=cuerpo(
