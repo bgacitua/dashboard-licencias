@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 import AdminMarco from '../components/AdminMarco';
+import { money } from '../respuestas';
 import {
     actualizarServicio, crearServicio, fijarPrecio, listarServicios, verServicio,
 } from '../services/tickets';
@@ -13,11 +14,6 @@ const MODOS = {
 };
 
 const hoy = () => new Date().toISOString().slice(0, 10);
-
-/** Montos en pesos, sin decimales: los precios acá son CLP. */
-export const money = (v) => (v === null || v === undefined || v === ''
-    ? '—'
-    : Number(v).toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }));
 
 const nuevoServicio = () => ({ nombre: '', descripcion: '', modo: 'fijo', activo: true, valor: '', desde: hoy() });
 

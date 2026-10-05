@@ -8,8 +8,8 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from app.modules.tickets.config import TicketsSettings
 from app.modules.tickets.logica import (
-    aviso_de_cambio, calcular_plazo, cantidad_de, clave_jwt, editable, id_de_servicio,
-    mime_de_imagen, servicios_respondidos,
+    aviso_de_cambio, calcular_costo, calcular_plazo, cantidad_de, clave_jwt, editable,
+    id_de_servicio, mime_de_imagen, servicios_respondidos,
 )
 
 
@@ -140,6 +140,43 @@ def test_cantidad_de():
     print("ok  cantidad_de")
 
 
+def test_calcular_costo():
+    tarifas = {
+        4: {"nombre": "Coffee Básico", "modo": "cantidad", "valor": 3500},
+        7: {"nombre": "Arriendo sala", "modo": "fijo", "valor": 25000},
+        9: {"nombre": "Sin tarifa", "modo": "fijo", "valor": None},
+    }
+    # 'cantidad' multiplica; 'fijo' se cobra una vez, con la misma respuesta.
+    c = calcular_costo({"coffee": "srv:4", "sala": "srv:7", "personas": 5}, tarifas, "personas")
+    assert c["total"] == 3500 * 5 + 25000
+    assert [l["subtotal"] for l in c["lineas"]] == [17500, 25000]
+    assert [l["cantidad"] for l in c["lineas"]] == [5, 1]
+
+    # Sin pregunta de cantidad marcada, lo 'cantidad' se cobra una vez.
+    assert calcular_costo({"coffee": "srv:4", "personas": 5}, tarifas, None)["total"] == 3500
+
+    # Un servicio sin precio vigente se omite en vez de inventar tarifa.
+    assert calcular_costo({"x": "srv:9"}, tarifas, None) is None
+    c = calcular_costo({"x": "srv:9", "y": "srv:7"}, tarifas, None)
+    assert c["total"] == 25000 and len(c["lineas"]) == 1
+
+    # Un servicio que no está en el catálogo tampoco rompe.
+    assert calcular_costo({"x": "srv:999"}, tarifas, None) is None
+
+    # Sin servicios no hay costo: None, que no es lo mismo que total 0.
+    assert calcular_costo({"texto": "nada"}, tarifas, None) is None
+    assert calcular_costo({}, tarifas, None) is None
+
+    # Un servicio que vale 0 sí produce costo, con total 0.
+    c = calcular_costo({"x": "srv:1"}, {1: {"nombre": "Gratis", "modo": "fijo", "valor": 0}}, None)
+    assert c is not None and c["total"] == 0
+
+    # Checkbox: varios servicios en una sola respuesta.
+    c = calcular_costo({"extras": ["srv:4", "srv:7"], "personas": 2}, tarifas, "personas")
+    assert c["total"] == 3500 * 2 + 25000
+    print("ok  calcular_costo")
+
+
 if __name__ == "__main__":
     test_plazo()
     test_editable()
@@ -151,3 +188,4 @@ if __name__ == "__main__":
     test_id_de_servicio()
     test_servicios_respondidos()
     test_cantidad_de()
+    test_calcular_costo()

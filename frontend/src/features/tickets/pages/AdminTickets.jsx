@@ -8,7 +8,9 @@ import AdminMarco from '../components/AdminMarco';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
 import { descargarHojas } from '../../asistencia/planilla';
-import { columnas, etiquetas, filasExport, mostrar, titulos } from '../respuestas';
+import {
+    columnas, detalleCosto, etiquetas, filasExport, money, mostrar, titulos, totalDe,
+} from '../respuestas';
 import {
     ESTADOS, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets, listarTipos, verTicket,
 } from '../services/tickets';
@@ -185,6 +187,12 @@ export default function AdminTickets() {
     const cols = useMemo(() => columnas(tipoElegido?.definicion), [tipoElegido]);
     // Las respuestas guardan el `value`; el texto de la opción sale de la definición.
     const etqs = useMemo(() => etiquetas(tipoElegido?.definicion), [tipoElegido]);
+    // Suma de lo congelado en cada ticket, no un recálculo: es lo que de
+    // verdad costó. null si ninguno tiene costo, para no mostrar un $0 falso.
+    const totalPeriodo = useMemo(() => {
+        const conCosto = tickets.map(totalDe).filter((v) => v !== null);
+        return conCosto.length ? conCosto.reduce((a, b) => a + b, 0) : null;
+    }, [tickets]);
     // Sin un tipo elegido no hay un juego de columnas común que mostrar.
     const enTabla = tabla && !!tipoElegido;
 
@@ -240,6 +248,11 @@ export default function AdminTickets() {
                     {tabla && !tipoElegido && (
                         <span className="text-xs text-gray-500">Elige un tipo de solicitud para ver la tabla</span>
                     )}
+                    {enTabla && totalPeriodo !== null && (
+                        <span className="text-sm text-gray-600">
+                            Total: <strong className="tabular-nums">{money(totalPeriodo)}</strong>
+                        </span>
+                    )}
                     {enTabla && (
                         <button type="button" onClick={descargar} disabled={tickets.length === 0}
                             className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-50">
@@ -268,6 +281,7 @@ export default function AdminTickets() {
                                 <th className="px-3 py-2 font-medium">Solicitante</th>
                                 <th className="px-3 py-2 font-medium">Estado</th>
                                 <th className="px-3 py-2 font-medium">Fecha servicio</th>
+                                <th className="px-3 py-2 text-right font-medium">Costo</th>
                                 {cols.map((c) => (
                                     <th key={c.name} className="px-3 py-2 font-medium">{c.title}</th>
                                 ))}
@@ -283,6 +297,10 @@ export default function AdminTickets() {
                                     <td className="px-3 py-2">{t.usuario || t.email}</td>
                                     <td className="px-3 py-2"><Estado estado={t.estado} /></td>
                                     <td className="px-3 py-2 whitespace-nowrap">{fechaCorta(t.fecha_servicio)}</td>
+                                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums"
+                                        title={detalleCosto(t)}>
+                                        {money(totalDe(t))}
+                                    </td>
                                     {cols.map((c) => {
                                         const texto = mostrar(t.datos?.[c.name], etqs);
                                         return (
@@ -295,7 +313,7 @@ export default function AdminTickets() {
                             ))}
                             {tickets.length === 0 && (
                                 <tr>
-                                    <td colSpan={4 + cols.length} className="px-4 py-8 text-center text-sm text-gray-500">
+                                    <td colSpan={5 + cols.length} className="px-4 py-8 text-center text-sm text-gray-500">
                                         Sin solicitudes con esos filtros.
                                     </td>
                                 </tr>

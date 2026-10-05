@@ -74,6 +74,10 @@ class TkVersion(Base):
     version = Column(Integer, nullable=False)
     fecha_servicio = Column(Date, nullable=False)
     datos = Column(JSONB, nullable=False)
+    # Costo calculado al guardar esta versión, con las tarifas de ese momento.
+    # No se recalcula: un reporte emitido no puede moverse porque cambie un
+    # precio. NULL = versión previa al costeo, o sin servicios tarifados.
+    costo = Column(JSONB)
     ip = Column(String(64))
     created_at = Column(TZ, nullable=False, server_default=func.now())
 

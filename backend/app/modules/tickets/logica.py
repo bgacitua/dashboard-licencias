@@ -116,3 +116,38 @@ def cantidad_de(datos: dict, pregunta_cantidad: str | None) -> int:
     except (TypeError, ValueError):
         return 1
     return n if n > 0 else 1
+
+
+def calcular_costo(datos: dict, tarifas: dict, pregunta_cantidad: str | None) -> dict | None:
+    """Costo de una respuesta según las tarifas vigentes al momento de guardarla.
+
+    `tarifas` es `{servicio_id: {"nombre", "modo", "valor"}}` ya resuelto a una
+    fecha por quien llama: acá no se consulta nada, para que el cálculo sea
+    puro y testeable sin base.
+
+    Devuelve None si la respuesta no toca ningún servicio tarifado. Es distinto
+    de un total 0 —que sí puede darse con un servicio que vale 0— y quien lo
+    guarda lo deja en NULL en vez de inventar un costo.
+
+    Un servicio elegido pero sin precio vigente se omite de las líneas: cobrar
+    de menos y que se note en el detalle es mejor que inventar una tarifa.
+    """
+    lineas = []
+    cantidad = cantidad_de(datos, pregunta_cantidad)
+    for sid in servicios_respondidos(datos):
+        tarifa = tarifas.get(sid)
+        if not tarifa or tarifa.get("valor") is None:
+            continue
+        unitario = tarifa["valor"]
+        veces = cantidad if tarifa.get("modo") == "cantidad" else 1
+        lineas.append({
+            "servicio_id": sid,
+            "nombre": tarifa.get("nombre"),
+            "modo": tarifa.get("modo"),
+            "valor_unitario": unitario,
+            "cantidad": veces,
+            "subtotal": unitario * veces,
+        })
+    if not lineas:
+        return None
+    return {"total": sum(l["subtotal"] for l in lineas), "lineas": lineas}

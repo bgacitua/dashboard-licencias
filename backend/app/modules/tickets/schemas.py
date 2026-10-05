@@ -178,6 +178,7 @@ class VersionOut(BaseModel):
     version: int
     fecha_servicio: date
     datos: dict
+    costo: dict | None = None
     created_at: datetime
 
 
@@ -208,6 +209,9 @@ class TicketResumen(BaseModel):
     modificado: bool = False
     # Respuestas de la versión vigente; solo con ?incluir_datos=true.
     datos: dict | None = None
+    # Costo congelado al guardar esa versión. None si el formulario no tiene
+    # servicios tarifados, o si el ticket es anterior al costeo.
+    costo: dict | None = None
 
 
 class TicketDetalle(TicketResumen):

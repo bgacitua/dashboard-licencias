@@ -16,7 +16,10 @@ from app.core.logging_config import logger
 
 from .auth import HASH_SEÑUELO, pwd
 from .config import settings
-from .logica import calcular_plazo, editable, id_de_servicio, mime_de_imagen
+from .logica import (
+    calcular_costo, calcular_plazo, editable, id_de_servicio, mime_de_imagen,
+    servicios_respondidos,
+)
 from .models import (
     TkArchivo, TkEvento, TkServicio, TkServicioPrecio, TkTicket, TkTipo, TkUsuario, TkVersion,
 )
@@ -188,7 +191,10 @@ def crear_ticket(db: Session, usuario: TkUsuario, tipo_id: int, fecha: date, dat
     )
     db.add(ticket)
     db.flush()
-    db.add(TkVersion(ticket_id=ticket.id, version=1, fecha_servicio=fecha, datos=datos, ip=ip))
+    db.add(TkVersion(
+        ticket_id=ticket.id, version=1, fecha_servicio=fecha, datos=datos, ip=ip,
+        costo=costo_de(db, tipo, datos),
+    ))
     db.commit()
     return ticket.id
 
@@ -222,7 +228,10 @@ def editar_ticket(
     if nueva is None:
         db.rollback()
         raise HTTPException(409, "Este ticket ya no se puede editar.")
-    db.add(TkVersion(ticket_id=ticket_id, version=nueva, fecha_servicio=fecha, datos=datos, ip=ip))
+    db.add(TkVersion(
+        ticket_id=ticket_id, version=nueva, fecha_servicio=fecha, datos=datos, ip=ip,
+        costo=costo_de(db, db.get(TkTipo, ticket.tipo_id), datos),
+    ))
     db.commit()
     return nueva
 
@@ -240,7 +249,7 @@ _SELECT_TICKETS = """
 # aparte porque el listado normal no las necesita y son el campo más pesado.
 _JOIN_DATOS = """
     LEFT JOIN LATERAL (
-        SELECT v.datos FROM tickets.versiones v
+        SELECT v.datos, v.costo FROM tickets.versiones v
          WHERE v.ticket_id = t.id ORDER BY v.version DESC LIMIT 1
     ) vd ON TRUE
 """
@@ -248,8 +257,10 @@ _JOIN_DATOS = """
 
 def _resumen(row: dict, admin: bool) -> dict:
     r = dict(row)
-    if "datos" in r and not admin:
-        r.pop("datos")
+    # El portal no ve respuestas ajenas ni, sobre todo, lo que cuestan.
+    if not admin:
+        r.pop("datos", None)
+        r.pop("costo", None)
     r["editable"] = editable(r["estado"], r["plazo"], ahora())
     vista = r.pop("version_vista_admin")
     r["modificado"] = admin and r["version_actual"] > vista
@@ -265,7 +276,7 @@ def listar_tickets(
 ) -> list[dict]:
     seleccion = _SELECT_TICKETS
     if incluir_datos:
-        seleccion = seleccion.replace("SELECT t.id,", "SELECT vd.datos, t.id,") + _JOIN_DATOS
+        seleccion = seleccion.replace("SELECT t.id,", "SELECT vd.datos, vd.costo, t.id,") + _JOIN_DATOS
     rows = db.execute(
         text(seleccion + """
             WHERE (CAST(:u AS INT) IS NULL OR t.usuario_id = :u)
@@ -301,6 +312,7 @@ def detalle_ticket(db: Session, ticket_id: int, *, usuario_id: int | None = None
         .order_by(TkVersion.version.desc()).all()
     )
     r["datos"] = versiones[0].datos
+    r["costo"] = versiones[0].costo if admin else None
     # El usuario ve la vigente; el historial de versiones es para el panel.
     r["versiones"] = versiones if admin else []
     eventos = db.query(TkEvento).filter(TkEvento.ticket_id == ticket_id).order_by(TkEvento.created_at).all()
@@ -510,3 +522,41 @@ def con_servicios_al_dia(db: Session, tipos: list[TkTipo]) -> list[dict]:
             fila["definicion"] = definicion
         salida.append(fila)
     return salida
+
+
+def costo_de(db: Session, tipo: TkTipo | None, datos: dict, cuando: date | None = None) -> dict | None:
+    """Congela el costo de una respuesta con las tarifas vigentes a `cuando`.
+
+    Se llama al guardar cada versión y lo que devuelve queda escrito ahí. No
+    hay recálculo en ningún otro lado: el reporte lee lo guardado, así cambiar
+    un precio nunca mueve un ticket ya ingresado.
+
+    `cuando` por defecto es hoy, que es cuando se está guardando la versión.
+    Una edición se cotiza al día de la edición, no al del ticket original: es
+    lo que corresponde si el usuario agrega servicios después.
+    """
+    ids = servicios_respondidos(datos)
+    if not ids or tipo is None:
+        return None
+    filas = db.execute(
+        text("""
+            SELECT s.id, s.nombre, s.modo, p.valor
+              FROM tickets.servicios s
+              LEFT JOIN tickets.servicio_precios p
+                     ON p.servicio_id = s.id
+                    AND p.desde <= :cuando
+                    AND (p.hasta IS NULL OR p.hasta >= :cuando)
+             WHERE s.id = ANY(:ids)
+        """),
+        {"ids": ids, "cuando": cuando or ahora().date()},
+    ).mappings().all()
+    tarifas = {
+        f["id"]: {
+            "nombre": f["nombre"],
+            "modo": f["modo"],
+            # A pesos: los precios acá son CLP y un Decimal no va a JSONB.
+            "valor": int(f["valor"]) if f["valor"] is not None else None,
+        }
+        for f in filas
+    }
+    return calcular_costo(datos, tarifas, tipo.pregunta_cantidad)

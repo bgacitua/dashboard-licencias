@@ -62,6 +62,19 @@ export const mostrar = (v, etqs = {}) => {
   return typeof t === 'object' ? JSON.stringify(t) : String(t)
 }
 
+/** El total congelado del ticket, o null si esa versión no tiene costo. */
+export const totalDe = (t) => (t?.costo?.total ?? null)
+
+/** Montos en pesos: los precios del catálogo son CLP. */
+export const money = (v) => (v === null || v === undefined || v === ''
+  ? '—'
+  : Number(v).toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }))
+
+/** Detalle legible de las líneas, para el tooltip de la celda y el Excel. */
+export const detalleCosto = (t) => (t?.costo?.lineas || [])
+  .map((l) => `${l.nombre}: ${money(l.valor_unitario)}${l.cantidad > 1 ? ` x${l.cantidad}` : ''}`)
+  .join(' · ')
+
 // Columnas fijas del export, antes de las preguntas. Separadas de la tabla
 // en pantalla porque acá importa la trazabilidad: correo, cuándo se envió y
 // qué versión es, no solo lo que se ve de un vistazo.
@@ -74,6 +87,10 @@ const FIJAS = [
   ['Enviado', (t) => t.created_at || ''],
   ['Última edición', (t) => t.updated_at || ''],
   ['Versión', (t) => t.version_actual],
+  // El costo va en las fijas y no como pregunta: no sale del formulario,
+  // sale del catálogo al momento de guardar.
+  ['Costo', (t) => totalDe(t) ?? ''],
+  ['Detalle del costo', (t) => detalleCosto(t)],
 ]
 
 /**
@@ -158,7 +175,9 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
     columnas(def),
   )
   eq(exp.columns, ['N°', 'Solicitante', 'Correo', 'Estado', 'Fecha servicio', 'Enviado',
-    'Última edición', 'Versión', 'Nombre', 'Servicios', 'c'])
+    'Última edición', 'Versión', 'Costo', 'Detalle del costo', 'Nombre', 'Servicios', 'c'])
+  // Sin costo congelado la celda va vacía, no en 0: no es lo mismo.
+  eq(exp.rows[0].Costo, '')
   eq(exp.rows[0]['N°'], 5)
   eq(exp.rows[0].Nombre, 'Hola')
   eq(exp.rows[0].Servicios, 'x, y')
@@ -173,6 +192,26 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
   // El export traduce igual que la tabla.
   const expSrv = filasExport([{ datos: { coffee: 'srv:12' } }], columnas(defSrv), etqs)
   eq(expSrv.rows[0].Coffee, 'Coffee Básico')
+
+  // Costo congelado: total, formato y detalle.
+  const conCosto = {
+    datos: {}, costo: { total: 42500, lineas: [
+      { nombre: 'Coffee Básico', valor_unitario: 3500, cantidad: 5, subtotal: 17500 },
+      { nombre: 'Arriendo sala', valor_unitario: 25000, cantidad: 1, subtotal: 25000 },
+    ] },
+  }
+  eq(totalDe(conCosto), 42500)
+  eq(totalDe({}), null)
+  eq(detalleCosto(conCosto), 'Coffee Básico: $3.500 x5 · Arriendo sala: $25.000')
+  eq(detalleCosto({}), '')
+  eq(money(null), '—')
+  eq(money(0), '$0')
+  eq(money(''), '—')
+  // El backend serializa los Decimal como string; igual tienen que formatearse.
+  eq(money('3500.00'), '$3.500')
+  const expCosto = filasExport([conCosto], [])
+  eq(expCosto.rows[0].Costo, 42500)
+  eq(expCosto.rows[0]['Detalle del costo'], 'Coffee Básico: $3.500 x5 · Arriendo sala: $25.000')
 
   console.log('ok')
 }
