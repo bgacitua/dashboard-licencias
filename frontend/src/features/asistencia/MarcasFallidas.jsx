@@ -168,6 +168,19 @@ const MarcasFallidas = ({ obraId, obras }) => {
     marcarEstado(ids, 'discarded')
   }
 
+  // El reporte de jornadas incompletas apunta a las salidas que faltan: toda
+  // marca de entrada que se envía vuelve con error desde la API.
+  const descartarEntradas = () => {
+    const ids = visibles.filter((r) => sentidoDe(r) === 'entrada').map((r) => r.id)
+    if (!ids.length) return
+    setSeleccion((prev) => {
+      const n = new Set(prev)
+      ids.forEach((id) => n.delete(id))
+      return n
+    })
+    marcarEstado(ids, 'discarded')
+  }
+
   const cargarJornadas = async (file) => {
     if (!file) return
     setErrorArchivo(null)
@@ -298,6 +311,10 @@ const MarcasFallidas = ({ obraId, obras }) => {
             <button className={boton} onClick={descartarManuales}
               title="Deja fuera las filas que no cruzaron con ningún intento">
               Descartar los manuales
+            </button>
+            <button className={boton} onClick={descartarEntradas}
+              title="Deja fuera todas las filas clasificadas como entrada">
+              Descartar las entradas
             </button>
             <button
               onClick={registrar}
