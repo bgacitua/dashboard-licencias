@@ -11,6 +11,10 @@
 -- cuánto costaba algo en septiembre se lee la fila vigente en septiembre.
 --
 -- Se puede correr antes del deploy: nada lee estas tablas todavía.
+--
+-- Va entera o no va: si falla a medias, el BEGIN/COMMIT la revierte. Desde
+-- un cliente gráfico hay que ejecutarla como script completo, no sentencia
+-- por sentencia, o el cuerpo de la función llega partido por sus ';'.
 -- =============================================================
 
 BEGIN;
@@ -53,7 +57,7 @@ CREATE INDEX servicio_precios_vigencia ON tickets.servicio_precios (servicio_id,
 -- para comparar el servicio_id con '=', y la extensión no está disponible en
 -- este servidor. Un trigger da la misma garantía sin depender de contrib.
 CREATE OR REPLACE FUNCTION tickets.servicio_precio_sin_solape()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS $solape$
 BEGIN
     -- Sobre la fila del servicio, no sobre las de precios: dos altas
     -- simultáneas para el mismo servicio tienen que turnarse, o ambas leerían
@@ -74,7 +78,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$solape$ LANGUAGE plpgsql;
 
 CREATE TRIGGER servicio_precios_sin_solape
     BEFORE INSERT OR UPDATE OF servicio_id, desde, hasta ON tickets.servicio_precios
