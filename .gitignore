@@ -26,6 +26,7 @@ frontend/coverage/
 
 # --- BACKEND SPECIFIC (Ejemplo Python) ---
 backend/venv/
+backend/.venv/
 backend/__pycache__/
 *.pyc
 
@@ -44,3 +45,6 @@ tokens.json
 
 # Salida de Playwright MCP (snapshots, logs y descargas de las pruebas)
 .playwright-mcp/
+
+# Documentacion local (screenshots y pagina de prueba). No se versiona.
+docs-local/
