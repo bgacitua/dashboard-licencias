@@ -7,7 +7,8 @@ import { crearModelo } from '../../../components/form-builder/tema';
 import AdminMarco from '../components/AdminMarco';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
-import { columnas, mostrar, titulos } from '../respuestas';
+import { descargarHojas } from '../../asistencia/planilla';
+import { columnas, filasExport, mostrar, titulos } from '../respuestas';
 import {
     ESTADOS, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets, listarTipos, verTicket,
 } from '../services/tickets';
@@ -185,6 +186,13 @@ export default function AdminTickets() {
     // Sin un tipo elegido no hay un juego de columnas común que mostrar.
     const enTabla = tabla && !!tipoElegido;
 
+    const descargar = () => {
+        const { columns, rows } = filasExport(tickets, cols);
+        const hoja = (tipoElegido.nombre || 'Solicitudes').trim() || 'Solicitudes';
+        const fecha = new Date().toISOString().slice(0, 10);
+        descargarHojas([{ nombre: hoja, rows, columns }], `tickets_${hoja}_${fecha}.xlsx`);
+    };
+
     return (
         <AdminMarco>
             <div className="flex flex-wrap items-center gap-2">
@@ -211,6 +219,12 @@ export default function AdminTickets() {
                 <div className="ml-auto flex items-center gap-2">
                     {tabla && !tipoElegido && (
                         <span className="text-xs text-gray-500">Elige un tipo de solicitud para ver la tabla</span>
+                    )}
+                    {enTabla && (
+                        <button type="button" onClick={descargar} disabled={tickets.length === 0}
+                            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-50">
+                            Descargar Excel
+                        </button>
                     )}
                     <div className="inline-flex overflow-hidden rounded-lg border border-gray-300">
                         {[['Lista', false], ['Tabla', true]].map(([etiqueta, valor]) => (
