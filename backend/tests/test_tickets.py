@@ -7,7 +7,10 @@ Todo puro, no necesita base. Ejecutar:
 from datetime import date, datetime, time, timedelta, timezone
 
 from app.modules.tickets.config import TicketsSettings
-from app.modules.tickets.logica import aviso_de_cambio, calcular_plazo, clave_jwt, editable, mime_de_imagen
+from app.modules.tickets.logica import (
+    aviso_de_cambio, calcular_plazo, cantidad_de, clave_jwt, editable, id_de_servicio,
+    mime_de_imagen, servicios_respondidos,
+)
 
 
 def test_plazo():
@@ -98,6 +101,45 @@ def test_aviso_de_cambio():
     print("ok  aviso de cambio")
 
 
+def test_id_de_servicio():
+    assert id_de_servicio("srv:12") == 12
+    # Las opciones de texto libre de siempre no son servicios.
+    assert id_de_servicio("Opción 1") is None
+    assert id_de_servicio("srv:") is None
+    assert id_de_servicio("srv:abc") is None
+    assert id_de_servicio("srv:-1") is None  # el '-' no es dígito: no hay ids negativos
+    assert id_de_servicio(None) is None
+    assert id_de_servicio(12) is None  # un número suelto no referencia al catálogo
+    print("ok  id_de_servicio")
+
+
+def test_servicios_respondidos():
+    datos = {
+        "coffee": "srv:3",
+        "extras": ["srv:7", "Sin azúcar", "srv:3"],  # repetido: una sola vez
+        "comentario": "texto libre",
+        "personas": 5,
+    }
+    assert servicios_respondidos(datos) == [3, 7]
+    assert servicios_respondidos({}) == []
+    assert servicios_respondidos(None) == []
+    print("ok  servicios_respondidos")
+
+
+def test_cantidad_de():
+    assert cantidad_de({"personas": 5}, "personas") == 5
+    assert cantidad_de({"personas": "12"}, "personas") == 12
+    assert cantidad_de({"personas": "5.0"}, "personas") == 5
+    # Sin pregunta marcada se cobra una vez.
+    assert cantidad_de({"personas": 5}, None) == 1
+    # Respuesta inservible: cobrar de menos antes que inventar el multiplicador.
+    assert cantidad_de({"personas": "muchas"}, "personas") == 1
+    assert cantidad_de({"personas": 0}, "personas") == 1
+    assert cantidad_de({"personas": -3}, "personas") == 1
+    assert cantidad_de({}, "personas") == 1
+    print("ok  cantidad_de")
+
+
 if __name__ == "__main__":
     test_plazo()
     test_editable()
@@ -106,3 +148,6 @@ if __name__ == "__main__":
     test_dominio()
     test_slug_libre()
     test_aviso_de_cambio()
+    test_id_de_servicio()
+    test_servicios_respondidos()
+    test_cantidad_de()

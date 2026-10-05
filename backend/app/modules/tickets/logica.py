@@ -67,3 +67,52 @@ def aviso_de_cambio(anterior: str, nuevo: str) -> str | None:
     if nuevo == "rechazado" and anterior == "pendiente":
         return "usuario_rechazado"
     return None
+
+
+# === Catálogo de servicios ===
+
+PREFIJO_SERVICIO = "srv:"
+
+
+def id_de_servicio(valor) -> int | None:
+    """El id del servicio detrás del `value` de una opción, o None si esa
+    opción es texto libre de los de siempre.
+
+    Las opciones del catálogo se guardan como 'srv:<id>' justamente para poder
+    distinguirlas sin mirar la definición del formulario.
+    """
+    if not isinstance(valor, str) or not valor.startswith(PREFIJO_SERVICIO):
+        return None
+    resto = valor[len(PREFIJO_SERVICIO):]
+    return int(resto) if resto.isdigit() else None
+
+
+def servicios_respondidos(datos: dict) -> list[int]:
+    """Ids de servicio elegidos en una respuesta, en orden y sin repetir.
+
+    Recorre todas las preguntas porque una respuesta puede ser un valor suelto
+    (radio, dropdown) o una lista (checkbox).
+    """
+    salida = []
+    for valor in (datos or {}).values():
+        for v in (valor if isinstance(valor, list) else [valor]):
+            sid = id_de_servicio(v)
+            if sid is not None and sid not in salida:
+                salida.append(sid)
+    return salida
+
+
+def cantidad_de(datos: dict, pregunta_cantidad: str | None) -> int:
+    """Por cuánto se multiplican los servicios cobrados por unidad.
+
+    Sin pregunta marcada, o con una respuesta que no es un número usable, se
+    cobra una vez: es preferible costear de menos que inventar un multiplicador.
+    """
+    if not pregunta_cantidad:
+        return 1
+    crudo = (datos or {}).get(pregunta_cantidad)
+    try:
+        n = int(float(crudo))
+    except (TypeError, ValueError):
+        return 1
+    return n if n > 0 else 1

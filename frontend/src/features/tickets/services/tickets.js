@@ -81,6 +81,15 @@ export const subirImagen = async (archivo) => {
     return r.url;
 };
 
+export const listarServicios = (incluirInactivos = false) =>
+    admin(`/servicios?incluir_inactivos=${incluirInactivos}`);
+export const verServicio = (id) => admin(`/servicios/${id}`);
+export const crearServicio = (datos) => admin('/servicios', { method: 'POST', body: datos });
+export const actualizarServicio = (id, datos) => admin(`/servicios/${id}`, { method: 'PUT', body: datos });
+// Un precio nuevo cierra al anterior; no hay edición del ya cargado.
+export const fijarPrecio = (id, valor, desde) =>
+    admin(`/servicios/${id}/precios`, { method: 'POST', body: { valor, desde } });
+
 export const listarUsuarios = () => admin('/usuarios');
 export const estadoUsuario = (id, estado, motivo) =>
     admin(`/usuarios/${id}`, { method: 'PATCH', body: { estado, motivo } });

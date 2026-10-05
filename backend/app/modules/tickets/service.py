@@ -16,7 +16,9 @@ from app.core.logging_config import logger
 from .auth import HASH_SEÑUELO, pwd
 from .config import settings
 from .logica import calcular_plazo, editable, mime_de_imagen
-from .models import TkArchivo, TkEvento, TkTicket, TkTipo, TkUsuario, TkVersion
+from .models import (
+    TkArchivo, TkEvento, TkServicio, TkServicioPrecio, TkTicket, TkTipo, TkUsuario, TkVersion,
+)
 
 # Mismo texto pase lo que pase: no confirma desde internet quién trabaja acá
 # ni qué correos ya tienen cuenta.
@@ -364,3 +366,106 @@ def guardar_imagen(db: Session, nombre: str | None, datos: bytes, autor: str) ->
     db.add(archivo)
     db.commit()
     return archivo
+
+
+# === Catálogo de servicios ===
+
+_SELECT_SERVICIOS = """
+    SELECT s.id, s.nombre, s.descripcion, s.modo, s.activo,
+           (SELECT p.valor FROM tickets.servicio_precios p
+             WHERE p.servicio_id = s.id
+               AND p.desde <= CURRENT_DATE
+               AND (p.hasta IS NULL OR p.hasta >= CURRENT_DATE)
+             LIMIT 1) AS valor_vigente
+    FROM tickets.servicios s
+"""
+
+
+def listar_servicios(db: Session, *, incluir_inactivos: bool = False) -> list[dict]:
+    rows = db.execute(
+        text(_SELECT_SERVICIOS + """
+            WHERE (:todos OR s.activo)
+            ORDER BY s.activo DESC, lower(s.nombre)
+        """),
+        {"todos": incluir_inactivos},
+    ).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def detalle_servicio(db: Session, servicio_id: int) -> dict:
+    row = db.execute(
+        text(_SELECT_SERVICIOS + " WHERE s.id = :id"), {"id": servicio_id}
+    ).mappings().first()
+    if not row:
+        raise HTTPException(404, "Servicio no encontrado.")
+    r = dict(row)
+    r["precios"] = (
+        db.query(TkServicioPrecio)
+        .filter(TkServicioPrecio.servicio_id == servicio_id)
+        .order_by(TkServicioPrecio.desde.desc())
+        .all()
+    )
+    return r
+
+
+def crear_servicio(db: Session, datos: dict, autor: str) -> dict:
+    valor, desde = datos.pop("valor", None), datos.pop("desde", None)
+    servicio = TkServicio(**datos)
+    db.add(servicio)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Ya existe un servicio activo con ese nombre.")
+    if valor is not None:
+        db.add(TkServicioPrecio(
+            servicio_id=servicio.id, valor=valor, desde=desde or ahora().date(),
+            creado_por=autor,
+        ))
+    db.commit()
+    return detalle_servicio(db, servicio.id)
+
+
+def actualizar_servicio(db: Session, servicio_id: int, cambios: dict) -> dict:
+    servicio = db.get(TkServicio, servicio_id)
+    if not servicio:
+        raise HTTPException(404, "Servicio no encontrado.")
+    for campo, valor in cambios.items():
+        setattr(servicio, campo, valor)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Ya existe un servicio activo con ese nombre.")
+    return detalle_servicio(db, servicio_id)
+
+
+def fijar_precio(db: Session, servicio_id: int, valor, desde: date, autor: str) -> dict:
+    """Pone un precio a partir de `desde` y cierra el que estuviera vigente.
+
+    No se edita el precio anterior: un ticket de septiembre tiene que seguir
+    costando lo de septiembre. Corregir un precio mal cargado es trabajo de
+    base de datos a propósito, no algo que el panel permita.
+    """
+    if not db.get(TkServicio, servicio_id):
+        raise HTTPException(404, "Servicio no encontrado.")
+
+    # Cierra el vigente la víspera del nuevo. Si ya hubiera uno que arranca en
+    # esa misma fecha o después, el EXCLUDE de la tabla rechaza el alta.
+    db.execute(
+        text("""
+            UPDATE tickets.servicio_precios
+               SET hasta = CAST(:desde AS DATE) - 1
+             WHERE servicio_id = :sid
+               AND desde < CAST(:desde AS DATE)
+               AND (hasta IS NULL OR hasta >= CAST(:desde AS DATE))
+        """),
+        {"sid": servicio_id, "desde": desde},
+    )
+    db.add(TkServicioPrecio(servicio_id=servicio_id, valor=valor, desde=desde, creado_por=autor))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Ya hay un precio cargado para esa fecha o posterior.")
+    return detalle_servicio(db, servicio_id)

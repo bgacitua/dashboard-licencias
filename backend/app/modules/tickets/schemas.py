@@ -1,9 +1,11 @@
 from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Estado = Literal["pendiente", "en_curso", "rechazado", "cerrado"]
+ModoCobro = Literal["fijo", "cantidad"]
 
 # Tope del JSON de una respuesta. Los campos los define el admin, pero el body
 # lo arma el navegador: sin techo, cualquiera con cuenta llena la tabla.
@@ -64,6 +66,8 @@ class TipoBase(BaseModel):
     dias_anticipacion: int = Field(1, ge=0, le=60)
     hora_limite: time = time(12, 0)
     activo: bool = True
+    # `name` de la pregunta que multiplica a los servicios cobrados por unidad.
+    pregunta_cantidad: str | None = Field(None, max_length=80)
 
 
 class TipoCreate(TipoBase):
@@ -79,12 +83,64 @@ class TipoUpdate(BaseModel):
     dias_anticipacion: int | None = Field(None, ge=0, le=60)
     hora_limite: time | None = None
     activo: bool | None = None
+    pregunta_cantidad: str | None = Field(None, max_length=80)
 
 
 class TipoOut(TipoBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+
+
+# === Catálogo de servicios ===
+
+class ServicioBase(BaseModel):
+    nombre: str = Field(..., min_length=1, max_length=160)
+    descripcion: str | None = None
+    modo: ModoCobro = "fijo"
+    activo: bool = True
+
+
+class ServicioCreate(ServicioBase):
+    # Precio inicial opcional: un servicio puede nacer sin tarifa cargada.
+    valor: Decimal | None = Field(None, ge=0, max_digits=12, decimal_places=2)
+    desde: date | None = None
+
+
+class ServicioUpdate(BaseModel):
+    nombre: str | None = Field(None, min_length=1, max_length=160)
+    descripcion: str | None = None
+    modo: ModoCobro | None = None
+    activo: bool | None = None
+
+
+class PrecioIn(BaseModel):
+    """Alta de un precio. No se edita el anterior: se cierra y entra este."""
+
+    valor: Decimal = Field(..., ge=0, max_digits=12, decimal_places=2)
+    desde: date
+
+
+class PrecioOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    valor: Decimal
+    desde: date
+    hasta: date | None
+    creado_por: str | None
+
+
+class ServicioOut(ServicioBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    # Precio al día de hoy; None si todavía no tiene tarifa vigente.
+    valor_vigente: Decimal | None = None
+
+
+class ServicioDetalle(ServicioOut):
+    precios: list[PrecioOut] = []
 
 
 # === Tickets ===
