@@ -258,7 +258,7 @@ def _resumen(row: dict, admin: bool) -> dict:
 def listar_tickets(
     db: Session, *, usuario_id: int | None = None, estado: str | None = None,
     tipo_id: int | None = None, q: str = "", limit: int = 500,
-    incluir_datos: bool = False,
+    incluir_datos: bool = False, desde: date | None = None, hasta: date | None = None,
 ) -> list[dict]:
     seleccion = _SELECT_TICKETS
     if incluir_datos:
@@ -268,13 +268,19 @@ def listar_tickets(
             WHERE (CAST(:u AS INT) IS NULL OR t.usuario_id = :u)
               AND (CAST(:e AS TEXT) IS NULL OR t.estado = :e)
               AND (CAST(:tp AS INT) IS NULL OR t.tipo_id = :tp)
+              -- El rango va sobre cuándo se envió la solicitud, que es lo que
+              -- se cuenta al preguntar "cuántos servicios hubo en el período".
+              -- 'hasta' incluye su propio día: el usuario elige fechas, no horas.
+              AND (CAST(:desde AS DATE) IS NULL OR t.created_at >= CAST(:desde AS DATE))
+              AND (CAST(:hasta AS DATE) IS NULL OR t.created_at < CAST(:hasta AS DATE) + 1)
               AND (:q = '' OR CAST(t.id AS TEXT) = :q
                    OR lower(u.nombre) LIKE :patron OR u.email LIKE :patron)
             ORDER BY t.updated_at DESC
             LIMIT :limit
         """),
         {"u": usuario_id, "e": estado, "tp": tipo_id, "q": q.strip(),
-         "patron": f"%{q.strip().lower()}%", "limit": limit},
+         "patron": f"%{q.strip().lower()}%", "limit": limit,
+         "desde": desde, "hasta": hasta},
     ).mappings().all()
     return [_resumen(r, admin=usuario_id is None) for r in rows]
 

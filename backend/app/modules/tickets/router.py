@@ -12,6 +12,7 @@ Cualquier import adicional hacia `app.*` es acoplamiento: revisarlo antes de
 agregarlo. Para separar el módulo, lo único que hay que reemplazar es
 require_module del panel.
 """
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
@@ -41,9 +42,12 @@ Admin = Annotated[object, Depends(get_current_active_user)]
 @router.get("/tickets", response_model=list[TicketResumen])
 def tickets(
     db: Db, estado: Estado | None = None, tipo_id: int | None = None, q: str = "",
-    incluir_datos: bool = False,
+    incluir_datos: bool = False, desde: date | None = None, hasta: date | None = None,
 ) -> list[dict]:
-    return service.listar_tickets(db, estado=estado, tipo_id=tipo_id, q=q[:100], incluir_datos=incluir_datos)
+    return service.listar_tickets(
+        db, estado=estado, tipo_id=tipo_id, q=q[:100], incluir_datos=incluir_datos,
+        desde=desde, hasta=hasta,
+    )
 
 
 @router.get("/tickets/{ticket_id}", response_model=TicketDetalle)

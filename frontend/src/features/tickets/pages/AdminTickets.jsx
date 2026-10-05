@@ -165,7 +165,7 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
 export default function AdminTickets() {
     const [tickets, setTickets] = useState([]);
     const [tipos, setTipos] = useState([]);
-    const [filtros, setFiltros] = useState({ estado: '', tipo_id: '', q: '' });
+    const [filtros, setFiltros] = useState({ estado: '', tipo_id: '', q: '', desde: '', hasta: '' });
     const [abierto, setAbierto] = useState(null);
     const [slot, setSlot] = useState(null);
     const [error, setError] = useState('');
@@ -178,7 +178,7 @@ export default function AdminTickets() {
 
     useEffect(() => { listarTipos().then(setTipos).catch((e) => setError(e.message)); }, []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => { recargar(); }, [filtros.estado, filtros.tipo_id, tabla]);
+    useEffect(() => { recargar(); }, [filtros.estado, filtros.tipo_id, filtros.desde, filtros.hasta, tabla]);
 
     const modificados = tickets.filter((t) => t.modificado).length;
     const tipoElegido = tipos.find((t) => String(t.id) === String(filtros.tipo_id));
@@ -206,6 +206,24 @@ export default function AdminTickets() {
                     <option value="">Todos los tipos</option>
                     {tipos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
                 </select>
+                {/* El rango va sobre la fecha de envío: responde "cuántos
+                    servicios hubo en este período", no cuándo se prestan. */}
+                <label className="flex items-center gap-1 text-sm text-gray-600">
+                    Desde
+                    <input type="date" className={control} value={filtros.desde} max={filtros.hasta || undefined}
+                        onChange={(e) => setFiltros({ ...filtros, desde: e.target.value })} />
+                </label>
+                <label className="flex items-center gap-1 text-sm text-gray-600">
+                    Hasta
+                    <input type="date" className={control} value={filtros.hasta} min={filtros.desde || undefined}
+                        onChange={(e) => setFiltros({ ...filtros, hasta: e.target.value })} />
+                </label>
+                {(filtros.desde || filtros.hasta) && (
+                    <button type="button" onClick={() => setFiltros({ ...filtros, desde: '', hasta: '' })}
+                        className="text-xs text-blue-700 underline">
+                        Limpiar fechas
+                    </button>
+                )}
                 <form onSubmit={(e) => { e.preventDefault(); recargar(); }} className="flex gap-2">
                     <input type="search" className={control} placeholder="N° de ticket, nombre o correo…"
                         value={filtros.q} onChange={(e) => setFiltros({ ...filtros, q: e.target.value })} />
