@@ -18,21 +18,12 @@ import {
   VALID_VARIABLE_MONTHS_REQUIRED,
 } from "../lib/variableBonus";
 
-// Formatea fechas como "dd - mes - aaaa" en español
-// Tope de años de indemnización por años de servicio, según causal de término.
-// null / ausente = sin tope (renuncia, no concurrencia, etc. no generan indemnización).
-const TOPE_ANOS_INDEMNIZACION = {
-  necesidades_empresa: 11, // Art. 161 - Necesidades de la empresa
-  mutuo_acuerdo_especial: 11, // Mismo cálculo que necesidades_empresa; solo cambia la redacción del finiquito/carta
-  mutuo_acuerdo: null, // Art. 159 N°1 - se rige por tramos, ver TOPE_MUTUO_ACUERDO
-};
+import {
+  calcularIndemnizacionAnosServicio,
+  edadEnFecha,
+} from "../lib/topeIndemnizacion";
 
-// Mutuo acuerdo (Art. 159 N°1): tope de años por tramo de antigüedad.
-// Fuera de estos tramos (años < 4, años >= 25) o edad >= 65: sin tope de años ni de base.
-const TOPE_MUTUO_ACUERDO = [
-  { minAnos: 4, maxAnos: 20, topeAnos: 11 },
-  { minAnos: 20, maxAnos: 25, topeAnos: 16 },
-];
+// Formatea fechas como "dd - mes - aaaa" en español
 
 function formatDateWords(dateString) {
   if (!dateString) return "";
@@ -573,7 +564,6 @@ const CrearFiniquito = () => {
         const proceso = await FiniquitosService.getProceso(rut);
         setProceso(proceso);
         if (aplicar(proceso?.payload_json)) {
-          console.log("Formulario restaurado desde el proceso guardado");
           return;
         }
       } catch (e) {
@@ -581,9 +571,7 @@ const CrearFiniquito = () => {
       }
       if (location.state?.preserveData) {
         const savedData = sessionStorage.getItem(`finiquito_${rut}`);
-        if (savedData && aplicar(JSON.parse(savedData))) {
-          console.log("Formulario restaurado desde sessionStorage");
-        }
+        if (savedData) aplicar(JSON.parse(savedData));
       }
     };
 
@@ -790,72 +778,6 @@ const CrearFiniquito = () => {
       diasInhabilesExtra +
       decimalDays;
 
-    console.log("=== CÁLCULO DÍAS CORRIDOS ===");
-    console.log(
-      "Fecha de término (último día trabajo):",
-      startDate.toLocaleDateString("es-CL"),
-      "(" +
-        ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][startDate.getDay()] +
-        ")",
-    );
-    console.log("Días pendientes vacaciones:", availableDays);
-    console.log(
-      "Parte entera:",
-      integerDays,
-      "| Decimal:",
-      decimalDays.toFixed(2),
-    );
-    console.log(
-      "Fecha día siguiente término:",
-      trueStartDate.toLocaleDateString("es-CL"),
-      "(" +
-        ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][
-          trueStartDate.getDay()
-        ] +
-        ")",
-    );
-    console.log(
-      "Días inhábiles ANTES del primer día hábil:",
-      diasInhabilesInicio,
-    );
-    console.log(
-      "Fecha INICIO conteo vacaciones (primer día hábil):",
-      firstBusinessDate.toLocaleDateString("es-CL"),
-      "(" +
-        ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][
-          firstBusinessDate.getDay()
-        ] +
-        ")",
-    );
-    console.log(
-      "Fecha FIN días hábiles:",
-      lastBusinessDate.toLocaleDateString("es-CL"),
-      "(" +
-        ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][
-          lastBusinessDate.getDay()
-        ] +
-        ")",
-    );
-    console.log(
-      "Días corridos enteros (calendario hábil):",
-      diasCorridosEnteros,
-    );
-    console.log("Días inhábiles extra (decimal > 0.2):", diasInhabilesExtra);
-    console.log("Decimal:", decimalDays.toFixed(2));
-    console.log(
-      "DÍAS CORRIDOS TOTAL:",
-      diasCorridos.toFixed(2),
-      "= ",
-      diasInhabilesInicio,
-      "+",
-      diasCorridosEnteros,
-      "+",
-      diasInhabilesExtra,
-      "+",
-      decimalDays.toFixed(2),
-    );
-    console.log("=============================");
-
     return diasCorridos;
   };
 
@@ -866,7 +788,6 @@ const CrearFiniquito = () => {
     setIsLoadingSalaryHistory(true);
     try {
       const history = await EmployeesService.getSalaryHistory(rut, lastDayWork);
-      console.log("Salary History Fetch:", history);
       setSalaryHistory(history);
 
       // Calculate average
@@ -876,17 +797,6 @@ const CrearFiniquito = () => {
           0,
         );
         const avg = Math.round(total / history.length);
-        console.log(
-          "Calculated Average:",
-          avg,
-          "from total:",
-          total,
-          "items:",
-          history.length,
-        );
-        setAverageSalary(avg);
-      } else {
-        console.log("No salary history items found.");
         setAverageSalary(0);
       }
     } catch (error) {
@@ -958,11 +868,6 @@ const CrearFiniquito = () => {
           setVacationDaysStock(rawDays);
         }
         setVacationDays(rawDays);
-
-        console.log("=== VACACIONES DESDE API ===");
-        console.log("Fecha de término:", lastDayWork || "Sin fecha");
-        console.log("Días disponibles:", rawDays);
-        console.log("============================");
       } catch (err) {
         console.error("Error fetching vacation days:", err);
       } finally {
@@ -1226,104 +1131,26 @@ const CrearFiniquito = () => {
   // Si tiene menos de 1 año (antigüedad real), no tiene indemnización por años de servicio
   // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso), mutuo_acuerdo_especial (mismo cálculo que necesidades_empresa)
   // NO aplica para: no_concurrencia (No), renuncia (No)
-  const yearsIndemnityApplies =
-    terminationReason === "necesidades_empresa" ||
-    terminationReason === "mutuo_acuerdo" ||
-    terminationReason === "mutuo_acuerdo_especial";
+  // Topes de años y de base (90 UF) por causal: ver src/lib/topeIndemnizacion.js
+  const edadAlTermino = edadEnFecha(employee?.fecha_nacimiento, lastDayWork);
+  const indemnizacionAnos = calcularIndemnizacionAnosServicio({
+    terminationReason,
+    yearsOfService,
+    yearsForIndemnity,
+    totalHaberes,
+    averageSalary,
+    salary,
+    ufValue,
+    edad: edadAlTermino,
+  });
 
-  let yearsIndemnity = 0;
-  let mutuoEspecialRules = null;
-  if (yearsIndemnityApplies && yearsOfService >= 1) {
-    if (terminationReason === "mutuo_acuerdo" && employee?.fecha_nacimiento) {
-      // Mutuo Acuerdo Special Rules
-      const birthDate = new Date(employee.fecha_nacimiento);
-      const ageDiffMs = Date.now() - birthDate.getTime();
-      const ageDate = new Date(ageDiffMs);
-      const age = Math.abs(ageDate.getUTCFullYear() - 1970);
-
-      const years = yearsForIndemnity;
-      // Base Salary: Use average of last 48 salaries if available, else current total haberes fallback
-      // Rule says "Promedio de últimos 48 sueldos base".
-      let baseAmount = averageSalary > 0 ? averageSalary : salary || 0;
-
-      const cap90UF = (ufValue || 0) * 90;
-
-      // Used for audit/logs
-      let ruleApplied = "";
-      let cappedBase = null;
-      let cappedYears = null;
-
-      // Rule 4: 65 years old (no caps)
-      if (age >= 65) {
-        ruleApplied = "Rule 4 (edad >= 65): sin topes";
-        yearsIndemnity = baseAmount * years;
-      }
-      // Rule 1: 4 to 20 years
-      else if (years >= 4 && years < 20) {
-        ruleApplied = "Rule 1 (4 <= años < 20): topes por 90 UF y años acotados";
-        cappedBase =
-          cap90UF > 0 && baseAmount > cap90UF ? cap90UF : baseAmount;
-        cappedYears = Math.min(years, TOPE_MUTUO_ACUERDO[0].topeAnos);
-        yearsIndemnity = cappedBase * cappedYears;
-      }
-      // Rule 2: 20 to 25 years
-      else if (years >= 20 && years < 25) {
-        ruleApplied = "Rule 2 (20 <= años < 25): topes por 90 UF y años acotados";
-        cappedBase =
-          cap90UF > 0 && baseAmount > cap90UF ? cap90UF : baseAmount;
-        cappedYears = Math.min(years, TOPE_MUTUO_ACUERDO[1].topeAnos);
-        yearsIndemnity = cappedBase * cappedYears;
-      }
-      // Rule 3: More than 25 years (no caps)
-      else if (years >= 25) {
-        ruleApplied = "Rule 3 (años >= 25): sin topes";
-        yearsIndemnity = baseAmount * years;
-      }
-      // Fallback for < 4 years or other cases
-      else {
-        ruleApplied = "Fallback (años < 4): años * totalHaberes";
-        // Standard rule: Years * TotalHaberes (or maybe Base? The prompt is ambiguous but usually standard is TotalHaberes)
-        // However, user prompt says "Promedio de últimos 48 sueldos base" is the key.
-        // Let's stick to standard Total Haberes for < 4 years unless specified otherwise.
-        yearsIndemnity = years * totalHaberes;
-      }
-
-      console.log("Mutuo Acuerdo Calc:", {
-        age,
-        years,
-        baseAmount,
-        cap90UF,
-        result: yearsIndemnity,
-      });
-
-      // Persist audit/logs so Excel can display them
-      mutuoEspecialRules = {
-        applied: true,
-        ruleApplied,
-        age,
-        years,
-        baseAmount,
-        cap90UF,
-        cappedBase,
-        cappedYears,
-        result: yearsIndemnity,
-      };
-    } else {
-      // Standard Calculation (Necesidades de la Empresa or Mutuo w/o special data)
-      const topeAnos = TOPE_ANOS_INDEMNIZACION[terminationReason];
-      const anosTopeados = topeAnos
-        ? Math.min(yearsForIndemnity, topeAnos)
-        : yearsForIndemnity;
-      yearsIndemnity = anosTopeados * totalHaberes;
-    }
-  }
-  yearsIndemnity = Math.round(yearsIndemnity);
-
+  const yearsIndemnity = indemnizacionAnos.monto;
+  // Shape histórico que la auditoría del Excel espera para mutuo acuerdo especial.
+  const mutuoEspecialRules = indemnizacionAnos.auditoria;
   // Años efectivamente pagados (ya topeados), para mostrar en pantalla/Excel/carta.
-  const topeAnosCausal = TOPE_ANOS_INDEMNIZACION[terminationReason];
-  const yearsForIndemnityCapped =
-    mutuoEspecialRules?.cappedYears ??
-    (topeAnosCausal ? Math.min(yearsForIndemnity, topeAnosCausal) : yearsForIndemnity);
+  const yearsForIndemnityCapped = indemnizacionAnos.aplica
+    ? indemnizacionAnos.anosPagados
+    : 0;
 
   // 3. Notice Month = Total Haberes (si no se dio aviso de 30 días)
   // Aplica para: necesidades_empresa (Sí), mutuo_acuerdo (caso a caso), mutuo_acuerdo_especial (como necesidades)
@@ -3177,6 +3004,46 @@ const CrearFiniquito = () => {
               </p>
             </div>
           </div>
+
+          {/* Regla de tope aplicada. En vez de fallar en silencio, la pantalla
+              dice qué tramo se usó y avisa cuando un tope no pudo aplicarse. */}
+          {indemnizacionAnos.regla && (
+            <div className="mb-8 rounded-lg border border-app-line bg-app-surface p-4">
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-app-brand text-base">
+                  gavel
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-app-ink">
+                    Regla de tope aplicada: {indemnizacionAnos.regla.titulo}
+                  </p>
+                  <p className="text-xs text-app-muted mt-0.5">
+                    {indemnizacionAnos.regla.detalle}
+                  </p>
+                  {(indemnizacionAnos.topeAnosAplicado ||
+                    indemnizacionAnos.topeBaseAplicado) && (
+                    <p className="text-xs text-app-muted mt-1">
+                      {indemnizacionAnos.topeAnosAplicado &&
+                        `Años topados: se pagan ${indemnizacionAnos.anosPagados} de ${yearsForIndemnity}. `}
+                      {indemnizacionAnos.topeBaseAplicado &&
+                        `Base topada a 90 UF: $ ${Math.round(indemnizacionAnos.topeUF).toLocaleString("es-CL")}.`}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {indemnizacionAnos.avisos.map((aviso, i) => (
+                <div
+                  key={i}
+                  className="mt-3 flex items-start gap-2 rounded border border-red-300 bg-red-50 p-2"
+                >
+                  <span className="material-symbols-outlined text-red-600 text-base">
+                    warning
+                  </span>
+                  <p className="text-xs text-red-700">{aviso.texto}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="space-y-3 border-t border-app-line pt-6">
             {/* Sección 1: Haberes */}
