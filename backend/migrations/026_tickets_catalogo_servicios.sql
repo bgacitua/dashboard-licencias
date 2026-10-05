@@ -15,10 +15,6 @@
 
 BEGIN;
 
--- Necesaria para el EXCLUDE de más abajo: gist no sabe comparar un INTEGER
--- con '=' sin esto.
-CREATE EXTENSION IF NOT EXISTS btree_gist;
-
 CREATE TABLE tickets.servicios (
     id          SERIAL PRIMARY KEY,
     nombre      VARCHAR(160) NOT NULL,
@@ -51,12 +47,38 @@ CREATE TABLE tickets.servicio_precios (
 CREATE INDEX servicio_precios_vigencia ON tickets.servicio_precios (servicio_id, desde DESC);
 
 -- Un servicio no puede tener dos precios vigentes el mismo día: el cálculo del
--- costo elegiría uno al azar. El rango es [desde, hasta], por eso el '[]'.
-ALTER TABLE tickets.servicio_precios ADD CONSTRAINT servicio_precios_sin_solape
-    EXCLUDE USING gist (
-        servicio_id WITH =,
-        daterange(desde, hasta, '[]') WITH &&
-    );
+-- costo elegiría uno al azar.
+--
+-- Lo natural acá sería un EXCLUDE con daterange, pero eso necesita btree_gist
+-- para comparar el servicio_id con '=', y la extensión no está disponible en
+-- este servidor. Un trigger da la misma garantía sin depender de contrib.
+CREATE OR REPLACE FUNCTION tickets.servicio_precio_sin_solape()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Sobre la fila del servicio, no sobre las de precios: dos altas
+    -- simultáneas para el mismo servicio tienen que turnarse, o ambas leerían
+    -- un estado sin solape y ambas insertarían.
+    PERFORM 1 FROM tickets.servicios WHERE id = NEW.servicio_id FOR UPDATE;
+
+    IF EXISTS (
+        SELECT 1 FROM tickets.servicio_precios p
+         WHERE p.servicio_id = NEW.servicio_id
+           AND p.id IS DISTINCT FROM NEW.id
+           AND daterange(p.desde, p.hasta, '[]') && daterange(NEW.desde, NEW.hasta, '[]')
+    ) THEN
+        RAISE EXCEPTION
+            'El servicio % ya tiene un precio vigente en ese rango de fechas', NEW.servicio_id
+            -- exclusion_violation: psycopg2 lo entrega como IntegrityError,
+            -- que es lo que el service ya atrapa para responder 409.
+            USING ERRCODE = '23P01';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER servicio_precios_sin_solape
+    BEFORE INSERT OR UPDATE OF servicio_id, desde, hasta ON tickets.servicio_precios
+    FOR EACH ROW EXECUTE FUNCTION tickets.servicio_precio_sin_solape();
 
 -- Cuál de las preguntas del formulario es la cantidad por la que se multiplican
 -- los servicios 'cantidad'. Es el `name` de la pregunta dentro de `definicion`.
