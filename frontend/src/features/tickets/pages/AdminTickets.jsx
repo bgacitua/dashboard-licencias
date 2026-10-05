@@ -7,24 +7,12 @@ import { crearModelo } from '../../../components/form-builder/tema';
 import AdminMarco from '../components/AdminMarco';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
+import { columnas, mostrar, titulos } from '../respuestas';
 import {
     ESTADOS, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets, listarTipos, verTicket,
 } from '../services/tickets';
 
 const control = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-
-/** Enunciado de cada campo según la definición, para mostrar el cambio con nombre humano. */
-const titulos = (definicion) => {
-    const salida = {};
-    for (const p of definicion?.pages || []) for (const e of p.elements || []) salida[e.name] = e.title || e.name;
-    return salida;
-};
-
-const mostrar = (v) => {
-    if (v === undefined || v === null || v === '') return '—';
-    if (Array.isArray(v)) return v.join(', ');
-    return typeof v === 'object' ? JSON.stringify(v) : String(v);
-};
 
 /** Campos que cambiaron entre dos versiones (la fecha del servicio incluida). */
 export const diferencias = (actual, anterior) => {
@@ -180,14 +168,22 @@ export default function AdminTickets() {
     const [abierto, setAbierto] = useState(null);
     const [slot, setSlot] = useState(null);
     const [error, setError] = useState('');
+    // La tabla necesita las respuestas de cada ticket; el listado no, así que
+    // solo se piden cuando toca mostrarlas.
+    const [tabla, setTabla] = useState(false);
 
-    const recargar = () => listarTickets(filtros).then(setTickets).catch((e) => setError(e.message));
+    const recargar = () => listarTickets({ ...filtros, incluir_datos: tabla || undefined })
+        .then(setTickets).catch((e) => setError(e.message));
 
     useEffect(() => { listarTipos().then(setTipos).catch((e) => setError(e.message)); }, []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => { recargar(); }, [filtros.estado, filtros.tipo_id]);
+    useEffect(() => { recargar(); }, [filtros.estado, filtros.tipo_id, tabla]);
 
     const modificados = tickets.filter((t) => t.modificado).length;
+    const tipoElegido = tipos.find((t) => String(t.id) === String(filtros.tipo_id));
+    const cols = useMemo(() => columnas(tipoElegido?.definicion), [tipoElegido]);
+    // Sin un tipo elegido no hay un juego de columnas común que mostrar.
+    const enTabla = tabla && !!tipoElegido;
 
     return (
         <AdminMarco>
@@ -212,9 +208,69 @@ export default function AdminTickets() {
                         {modificados} modificado{modificados > 1 ? 's' : ''} sin revisar
                     </span>
                 )}
+                <div className="ml-auto flex items-center gap-2">
+                    {tabla && !tipoElegido && (
+                        <span className="text-xs text-gray-500">Elige un tipo de solicitud para ver la tabla</span>
+                    )}
+                    <div className="inline-flex overflow-hidden rounded-lg border border-gray-300">
+                        {[['Lista', false], ['Tabla', true]].map(([etiqueta, valor]) => (
+                            <button key={etiqueta} type="button" onClick={() => setTabla(valor)}
+                                aria-pressed={tabla === valor}
+                                className={`px-3 py-2 text-sm ${tabla === valor ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-100'}`}>
+                                {etiqueta}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
+            {enTabla ? (
+                <div className="mt-4 overflow-auto rounded-xl border border-gray-200 bg-white">
+                    <table className="min-w-full text-sm">
+                        <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                            <tr>
+                                <th className="px-3 py-2 font-medium">N°</th>
+                                <th className="px-3 py-2 font-medium">Solicitante</th>
+                                <th className="px-3 py-2 font-medium">Estado</th>
+                                <th className="px-3 py-2 font-medium">Fecha servicio</th>
+                                {cols.map((c) => (
+                                    <th key={c.name} className="px-3 py-2 font-medium">{c.title}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {tickets.map((t) => (
+                                // Abrir una fila lleva al detalle de siempre: la tabla cambia
+                                // cómo se listan las respuestas, no cómo se atienden.
+                                <tr key={t.id} onClick={() => { setTabla(false); setAbierto(t.id); }}
+                                    className="cursor-pointer align-top hover:bg-gray-50">
+                                    <td className="px-3 py-2 font-mono text-gray-500">#{t.id}</td>
+                                    <td className="px-3 py-2">{t.usuario || t.email}</td>
+                                    <td className="px-3 py-2"><Estado estado={t.estado} /></td>
+                                    <td className="px-3 py-2 whitespace-nowrap">{fechaCorta(t.fecha_servicio)}</td>
+                                    {cols.map((c) => {
+                                        const texto = mostrar(t.datos?.[c.name]);
+                                        return (
+                                            <td key={c.name} className="max-w-[16rem] truncate px-3 py-2" title={texto}>
+                                                {texto}
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            ))}
+                            {tickets.length === 0 && (
+                                <tr>
+                                    <td colSpan={4 + cols.length} className="px-4 py-8 text-center text-sm text-gray-500">
+                                        Sin solicitudes con esos filtros.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+            <>
             {/* Izquierda: listado + seguimiento en una columna fija del alto de la
                 pantalla; cada uno scrollea por dentro, así la página no crece
                 con cientos de solicitudes. Derecha: el detalle, que sí scrollea. */}
@@ -259,6 +315,8 @@ export default function AdminTickets() {
                     )}
                 </div>
             </div>
+            </>
+            )}
         </AdminMarco>
     );
 }

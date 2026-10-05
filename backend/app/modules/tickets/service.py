@@ -233,9 +233,20 @@ _SELECT_TICKETS = """
     JOIN tickets.usuarios u ON u.id = t.usuario_id
 """
 
+# Las respuestas de la versión vigente, para la vista de tabla del panel. Va
+# aparte porque el listado normal no las necesita y son el campo más pesado.
+_JOIN_DATOS = """
+    LEFT JOIN LATERAL (
+        SELECT v.datos FROM tickets.versiones v
+         WHERE v.ticket_id = t.id ORDER BY v.version DESC LIMIT 1
+    ) vd ON TRUE
+"""
+
 
 def _resumen(row: dict, admin: bool) -> dict:
     r = dict(row)
+    if "datos" in r and not admin:
+        r.pop("datos")
     r["editable"] = editable(r["estado"], r["plazo"], ahora())
     vista = r.pop("version_vista_admin")
     r["modificado"] = admin and r["version_actual"] > vista
@@ -247,9 +258,13 @@ def _resumen(row: dict, admin: bool) -> dict:
 def listar_tickets(
     db: Session, *, usuario_id: int | None = None, estado: str | None = None,
     tipo_id: int | None = None, q: str = "", limit: int = 500,
+    incluir_datos: bool = False,
 ) -> list[dict]:
+    seleccion = _SELECT_TICKETS
+    if incluir_datos:
+        seleccion = seleccion.replace("SELECT t.id,", "SELECT vd.datos, t.id,") + _JOIN_DATOS
     rows = db.execute(
-        text(_SELECT_TICKETS + """
+        text(seleccion + """
             WHERE (CAST(:u AS INT) IS NULL OR t.usuario_id = :u)
               AND (CAST(:e AS TEXT) IS NULL OR t.estado = :e)
               AND (CAST(:tp AS INT) IS NULL OR t.tipo_id = :tp)

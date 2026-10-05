@@ -150,6 +150,8 @@ class TicketResumen(BaseModel):
     usuario: str | None = None
     email: str | None = None
     modificado: bool = False
+    # Respuestas de la versión vigente; solo con ?incluir_datos=true.
+    datos: dict | None = None
 
 
 class TicketDetalle(TicketResumen):

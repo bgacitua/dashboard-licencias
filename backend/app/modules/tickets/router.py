@@ -39,8 +39,11 @@ Admin = Annotated[object, Depends(get_current_active_user)]
 # === Tickets ===
 
 @router.get("/tickets", response_model=list[TicketResumen])
-def tickets(db: Db, estado: Estado | None = None, tipo_id: int | None = None, q: str = "") -> list[dict]:
-    return service.listar_tickets(db, estado=estado, tipo_id=tipo_id, q=q[:100])
+def tickets(
+    db: Db, estado: Estado | None = None, tipo_id: int | None = None, q: str = "",
+    incluir_datos: bool = False,
+) -> list[dict]:
+    return service.listar_tickets(db, estado=estado, tipo_id=tipo_id, q=q[:100], incluir_datos=incluir_datos)
 
 
 @router.get("/tickets/{ticket_id}", response_model=TicketDetalle)
