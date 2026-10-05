@@ -38,7 +38,9 @@ function BotonBarra({ icono, texto, onClick, activo }) {
  * `cabecera` = { nombre, descripcion } del tipo: se editan en la tarjeta de
  * encabezado, que es donde el usuario los va a ver.
  */
-export default function Lienzo({ definicion: def, onChange, tema, onTema, cabecera, onCabecera }) {
+export default function Lienzo({
+    definicion: def, onChange, tema, onTema, cabecera, onCabecera, servicios,
+}) {
     const definicion = def?.pages?.length ? def : definicionVacia();
     const [sel, setSel] = useState(null);        // nombre de pregunta | 'cabecera' | 'seccion:i'
     const [verTema, setVerTema] = useState(false);
@@ -160,6 +162,7 @@ export default function Lienzo({ definicion: def, onChange, tema, onTema, cabece
                                                         onEliminar={() => { onChange(eliminar(definicion, p.name)); setSel(null); }}
                                                         arrastre={arrastre}
                                                         estiloTarjeta={estiloTarjeta}
+                                                        servicios={servicios}
                                                     />
                                                 </div>
                                             )}

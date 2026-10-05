@@ -8,7 +8,7 @@ import AdminMarco from '../components/AdminMarco';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
 import { descargarHojas } from '../../asistencia/planilla';
-import { columnas, filasExport, mostrar, titulos } from '../respuestas';
+import { columnas, etiquetas, filasExport, mostrar, titulos } from '../respuestas';
 import {
     ESTADOS, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets, listarTipos, verTicket,
 } from '../services/tickets';
@@ -183,11 +183,13 @@ export default function AdminTickets() {
     const modificados = tickets.filter((t) => t.modificado).length;
     const tipoElegido = tipos.find((t) => String(t.id) === String(filtros.tipo_id));
     const cols = useMemo(() => columnas(tipoElegido?.definicion), [tipoElegido]);
+    // Las respuestas guardan el `value`; el texto de la opción sale de la definición.
+    const etqs = useMemo(() => etiquetas(tipoElegido?.definicion), [tipoElegido]);
     // Sin un tipo elegido no hay un juego de columnas común que mostrar.
     const enTabla = tabla && !!tipoElegido;
 
     const descargar = () => {
-        const { columns, rows } = filasExport(tickets, cols);
+        const { columns, rows } = filasExport(tickets, cols, etqs);
         const hoja = (tipoElegido.nombre || 'Solicitudes').trim() || 'Solicitudes';
         const fecha = new Date().toISOString().slice(0, 10);
         descargarHojas([{ nombre: hoja, rows, columns }], `tickets_${hoja}_${fecha}.xlsx`);
@@ -282,7 +284,7 @@ export default function AdminTickets() {
                                     <td className="px-3 py-2"><Estado estado={t.estado} /></td>
                                     <td className="px-3 py-2 whitespace-nowrap">{fechaCorta(t.fecha_servicio)}</td>
                                     {cols.map((c) => {
-                                        const texto = mostrar(t.datos?.[c.name]);
+                                        const texto = mostrar(t.datos?.[c.name], etqs);
                                         return (
                                             <td key={c.name} className="max-w-[16rem] truncate px-3 py-2" title={texto}>
                                                 {texto}

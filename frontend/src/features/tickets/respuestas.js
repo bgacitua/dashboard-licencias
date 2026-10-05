@@ -22,15 +22,44 @@ export function columnas(definicion) {
   return salida
 }
 
+/**
+ * `{ value: texto }` de todas las opciones de la definición.
+ *
+ * Lo que se guarda en la respuesta es el `value`, así que sin esto una opción
+ * del catálogo se vería como 'srv:12'. El texto sale de la definición, que el
+ * backend ya devuelve con los nombres del catálogo al día; un servicio dado de
+ * baja conserva ahí su último nombre conocido y se sigue leyendo.
+ */
+export function etiquetas(definicion) {
+  const salida = {}
+  const recorrer = (elementos) => {
+    for (const e of elementos || []) {
+      if (e.elements) recorrer(e.elements)
+      for (const o of e.choices || []) {
+        if (o && typeof o === 'object' && o.value != null && o.text) salida[o.value] = o.text
+      }
+    }
+  }
+  for (const p of definicion?.pages || []) recorrer(p.elements)
+  return salida
+}
+
 /** Enunciado de cada campo según la definición: `{ nombre: título }`. */
 export const titulos = (definicion) =>
   Object.fromEntries(columnas(definicion).map((c) => [c.name, c.title]))
 
-/** Una respuesta como texto plano, lista para una celda. */
-export const mostrar = (v) => {
+/**
+ * Una respuesta como texto plano, lista para una celda.
+ *
+ * `etqs` traduce el valor guardado al texto de la opción. Sin él se muestra el
+ * valor crudo, que es lo correcto para las respuestas escritas a mano.
+ */
+export const mostrar = (v, etqs = {}) => {
   if (v === undefined || v === null || v === '') return '—'
-  if (Array.isArray(v)) return v.join(', ')
-  return typeof v === 'object' ? JSON.stringify(v) : String(v)
+  const uno = (x) => (typeof x === 'string' && etqs[x]) || x
+  if (Array.isArray(v)) return v.map(uno).join(', ')
+  const t = uno(v)
+  return typeof t === 'object' ? JSON.stringify(t) : String(t)
 }
 
 // Columnas fijas del export, antes de las preguntas. Separadas de la tabla
@@ -55,7 +84,7 @@ const FIJAS = [
  * texto de la columna, así que dos preguntas con el mismo título se pisarían.
  * Cuando pasa, se desambigua con el nombre interno.
  */
-export function filasExport(tickets, columnasDef) {
+export function filasExport(tickets, columnasDef, etqs = {}) {
   const vistos = new Map()
   const etiqueta = (c) => {
     const n = (vistos.get(c.title) || 0) + 1
@@ -68,7 +97,7 @@ export function filasExport(tickets, columnasDef) {
   const rows = tickets.map((t) => {
     const fila = {}
     for (const [h, get] of FIJAS) fila[h] = get(t)
-    for (const [h, c] of preguntas) fila[h] = mostrar(t.datos?.[c.name])
+    for (const [h, c] of preguntas) fila[h] = mostrar(t.datos?.[c.name], etqs)
     return fila
   })
   return { columns, rows }
@@ -99,6 +128,28 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
   eq(mostrar(0), '0')
   eq(mostrar(false), 'false')
 
+  // Opciones del catálogo: lo guardado es el value, se muestra el texto.
+  const defSrv = {
+    pages: [{
+      elements: [
+        { name: 'coffee', type: 'radiogroup', title: 'Coffee',
+          choices: [{ value: 'srv:12', text: 'Coffee Básico' }, 'Ninguno'] },
+        { name: 'extras', type: 'checkbox', title: 'Extras',
+          choices: [{ value: 'srv:7', text: 'Almuerzo' }] },
+      ],
+    }],
+  }
+  const etqs = etiquetas(defSrv)
+  eq(etqs, { 'srv:12': 'Coffee Básico', 'srv:7': 'Almuerzo' })
+  eq(mostrar('srv:12', etqs), 'Coffee Básico')
+  eq(mostrar(['srv:12', 'srv:7'], etqs), 'Coffee Básico, Almuerzo')
+  // Sin mapa, o con un valor que no está en él, se muestra el valor crudo.
+  eq(mostrar('srv:12'), 'srv:12')
+  eq(mostrar('Ninguno', etqs), 'Ninguno')
+  // Un servicio sacado de la definición ya no se traduce, pero no rompe.
+  eq(mostrar('srv:99', etqs), 'srv:99')
+  eq(etiquetas(undefined), {})
+
   // Export: columnas fijas + una por pregunta, filas keyed por la cabecera.
   const exp = filasExport(
     [{ id: 5, usuario: 'Ana', email: 'a@x.cl', estado: 'pendiente', fecha_servicio: '2026-10-09',
@@ -118,6 +169,10 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
   eq(dup.columns.slice(-2), ['Monto', 'Monto (q)'])
   eq(dup.rows[0]['Monto'], '1')
   eq(dup.rows[0]['Monto (q)'], '2')
+
+  // El export traduce igual que la tabla.
+  const expSrv = filasExport([{ datos: { coffee: 'srv:12' } }], columnas(defSrv), etqs)
+  eq(expSrv.rows[0].Coffee, 'Coffee Básico')
 
   console.log('ok')
 }

@@ -3,6 +3,7 @@ es rh.employees, para validar el registro contra la nómina."""
 import re
 import secrets
 import unicodedata
+from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException
@@ -15,7 +16,7 @@ from app.core.logging_config import logger
 
 from .auth import HASH_SEÑUELO, pwd
 from .config import settings
-from .logica import calcular_plazo, editable, mime_de_imagen
+from .logica import calcular_plazo, editable, id_de_servicio, mime_de_imagen
 from .models import (
     TkArchivo, TkEvento, TkServicio, TkServicioPrecio, TkTicket, TkTipo, TkUsuario, TkVersion,
 )
@@ -469,3 +470,43 @@ def fijar_precio(db: Session, servicio_id: int, valor, desde: date, autor: str) 
         db.rollback()
         raise HTTPException(409, "Ya hay un precio cargado para esa fecha o posterior.")
     return detalle_servicio(db, servicio_id)
+
+
+def _opciones_refrescadas(elementos: list, nombres: dict[int, str]) -> bool:
+    """Pone el nombre de hoy en las opciones del catálogo. Devuelve si cambió algo."""
+    tocado = False
+    for e in elementos or []:
+        if e.get("elements"):
+            tocado |= _opciones_refrescadas(e["elements"], nombres)
+        for i, opcion in enumerate(e.get("choices") or []):
+            if not isinstance(opcion, dict):
+                continue
+            sid = id_de_servicio(opcion.get("value"))
+            # Un servicio borrado del catálogo conserva su último texto: mejor
+            # eso que dejar la opción en blanco en un formulario en uso.
+            if sid is None or sid not in nombres or opcion.get("text") == nombres[sid]:
+                continue
+            e["choices"][i] = {**opcion, "text": nombres[sid]}
+            tocado = True
+    return tocado
+
+
+def con_servicios_al_dia(db: Session, tipos: list[TkTipo]) -> list[dict]:
+    """Los tipos con el texto de sus opciones de catálogo puesto al día.
+
+    El vínculo con el servicio es el id ('srv:<n>'), así que el texto guardado
+    en la definición es solo una copia para mostrar. Refrescarlo acá hace que
+    renombrar un servicio se propague solo a todos los formularios que lo usan.
+
+    Devuelve dicts y no los modelos: mutar la definición del ORM podría
+    terminar escrita en la base por un flush posterior.
+    """
+    nombres = dict(db.execute(text("SELECT id, nombre FROM tickets.servicios")).all())
+    salida = []
+    for tipo in tipos:
+        fila = {c.name: getattr(tipo, c.name) for c in tipo.__table__.columns}
+        definicion = deepcopy(fila.get("definicion") or {})
+        if _opciones_refrescadas(definicion.get("pages") or [], nombres):
+            fila["definicion"] = definicion
+        salida.append(fila)
+    return salida

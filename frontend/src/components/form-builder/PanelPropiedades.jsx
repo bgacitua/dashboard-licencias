@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 import TextareaBuffer from './TextareaBuffer';
 import { OPERADORES, operadorPorDefecto, operadoresPara, parsear, preguntasAnteriores, serializar } from './logica';
+import { separarOpciones, unirOpciones, valorDeServicio } from './servicios';
 import { TIPOS, TIPOS_CON_OPCIONES, aHtmlInformativo, claveTipo, deHtmlInformativo } from './tipos';
 
 const input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -99,7 +100,61 @@ function OpcionesImagen({ opciones, onChange, subirImagen }) {
 }
 
 /** Panel de propiedades de la pregunta seleccionada. */
-export default function PanelPropiedades({ definicion, pregunta, onChange, onEliminar, subirImagen }) {
+/**
+ * Opciones que vienen del catálogo de servicios, separadas del textarea.
+ *
+ * No pueden compartir control con las opciones libres: ese textarea devuelve
+ * strings, y al primer tecleo aplanaría `{value:'srv:12'}` a su texto,
+ * perdiendo el vínculo con el catálogo y por lo tanto el precio.
+ *
+ * `servicios` lo inyecta el módulo (tickets). Sin catálogo no se renderiza,
+ * así el builder de formularios sigue igual que siempre.
+ */
+function OpcionesServicio({ opciones, servicios, onChange }) {
+    const [aAgregar, setAAgregar] = useState('');
+    const { servicios: elegidos, libres } = separarOpciones(opciones);
+    const elegidosIds = new Set(elegidos.map((o) => o.value));
+    const disponibles = servicios.filter((s) => !elegidosIds.has(valorDeServicio(s.id)));
+
+    const agregar = (id) => {
+        const s = servicios.find((x) => String(x.id) === String(id));
+        if (!s) return;
+        onChange(unirOpciones([...elegidos, { value: valorDeServicio(s.id), text: s.nombre }], libres));
+        setAAgregar('');
+    };
+
+    const quitar = (valor) =>
+        onChange(unirOpciones(elegidos.filter((o) => o.value !== valor), libres));
+
+    return (
+        <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
+            <p className="text-xs font-medium text-gray-600">Servicios del catálogo</p>
+            <ul className="mt-1 space-y-1">
+                {elegidos.map((o) => (
+                    <li key={o.value} className="flex items-center gap-2 text-sm">
+                        <span className="min-w-0 flex-1 truncate">{o.text}</span>
+                        <button type="button" onClick={() => quitar(o.value)}
+                            className="text-xs text-red-600 hover:underline">quitar</button>
+                    </li>
+                ))}
+                {elegidos.length === 0 && (
+                    <li className="text-xs text-gray-500">Ninguno. Las opciones de abajo no tienen precio.</li>
+                )}
+            </ul>
+            {disponibles.length > 0 && (
+                <select className={`${input} mt-2`} value={aAgregar} onChange={(e) => agregar(e.target.value)}>
+                    <option value="">Insertar servicio…</option>
+                    {disponibles.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+            )}
+        </div>
+    );
+}
+
+
+export default function PanelPropiedades({
+    definicion, pregunta, onChange, onEliminar, subirImagen, servicios,
+}) {
     if (!pregunta) {
         return (
             <aside className="w-80 shrink-0 border-l border-gray-200 bg-white p-4">

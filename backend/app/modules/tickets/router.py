@@ -76,9 +76,9 @@ def comentar(ticket_id: int, datos: ComentarioIn, db: Db, admin: Admin) -> None:
 # === Tipos de solicitud ===
 
 @router.get("/tipos", response_model=list[TipoOut])
-def tipos(db: Db) -> list[TkTipo]:
+def tipos(db: Db) -> list[dict]:
     # Orden de creación: el primero que se creó es la primera tarjeta del portal.
-    return db.query(TkTipo).order_by(TkTipo.id).all()
+    return service.con_servicios_al_dia(db, db.query(TkTipo).order_by(TkTipo.id).all())
 
 
 @router.post("/tipos", response_model=TipoOut, status_code=201)

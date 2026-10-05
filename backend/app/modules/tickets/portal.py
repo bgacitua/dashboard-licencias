@@ -65,8 +65,12 @@ def cambiar_password(datos: CambioClaveIn, usuario: UsuarioPortal, db: Db) -> No
 
 
 @portal.get("/tipos", response_model=list[TipoOut])
-def tipos(_: UsuarioPortal, db: Db) -> list[TkTipo]:
-    return db.query(TkTipo).filter(TkTipo.activo.is_(True)).order_by(TkTipo.id).all()
+def tipos(_: UsuarioPortal, db: Db) -> list[dict]:
+    # Con el nombre de los servicios al día. El precio no viaja: el portal
+    # muestra la opción, nunca lo que cuesta.
+    return service.con_servicios_al_dia(
+        db, db.query(TkTipo).filter(TkTipo.activo.is_(True)).order_by(TkTipo.id).all()
+    )
 
 
 @portal.get("/tickets", response_model=list[TicketResumen])

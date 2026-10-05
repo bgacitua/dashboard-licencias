@@ -8,8 +8,9 @@ import { aCompletedHtml, deCompletedHtml, definicionVacia } from '../../../compo
 import TextareaBuffer from '../../../components/form-builder/TextareaBuffer';
 import Lienzo from '../builder/Lienzo';
 import AdminMarco from '../components/AdminMarco';
+import { columnas } from '../respuestas';
 import {
-    actualizarTipo, crearTipo, eliminarTipo, listarTipos, subirImagen,
+    actualizarTipo, crearTipo, eliminarTipo, listarServicios, listarTipos, subirImagen,
 } from '../services/tickets';
 
 const input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -22,6 +23,9 @@ const nuevoTipo = () => ({
 
 export default function AdminTipos() {
     const [tipos, setTipos] = useState([]);
+    // El catálogo se inyecta al builder: el form-builder compartido no sabe
+    // de tickets, igual que con subirImagen.
+    const [servicios, setServicios] = useState([]);
     const [actual, setActual] = useState(null);
     const [seccion, setSeccion] = useState('formulario'); // formulario | datos | preview
     const [mensaje, setMensaje] = useState('');
@@ -31,6 +35,9 @@ export default function AdminTipos() {
 
     const recargar = () => listarTipos().then(setTipos).catch((e) => setMensaje(e.message));
     useEffect(() => { recargar(); }, []);
+    // Solo los activos: un servicio dado de baja no debería poder insertarse
+    // en un formulario nuevo, aunque siga en los que ya lo usan.
+    useEffect(() => { listarServicios().then(setServicios).catch(() => setServicios([])); }, []);
 
     const set = (cambios) => {
         setActual((a) => ({ ...a, ...cambios }));
@@ -145,6 +152,22 @@ export default function AdminTipos() {
                                         </p>
                                     </div>
                                     <div className="sm:col-span-2">
+                                        <label className={label} htmlFor="tk-cantidad">
+                                            Pregunta que indica la cantidad
+                                        </label>
+                                        <select id="tk-cantidad" className={input}
+                                            value={actual.pregunta_cantidad || ''}
+                                            onChange={(e) => set({ pregunta_cantidad: e.target.value || null })}>
+                                            <option value="">Ninguna: cada servicio se cobra una vez</option>
+                                            {columnas(definicion).map((c) => (
+                                                <option key={c.name} value={c.name}>{c.title}</option>
+                                            ))}
+                                        </select>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            Los servicios cobrados por cantidad se multiplican por lo que responda acá.
+                                        </p>
+                                    </div>
+                                    <div className="sm:col-span-2">
                                         <span className={label}>Imagen de la tarjeta en el portal</span>
                                         <CampoImagen valor={actual.portada_url} onChange={(v) => set({ portada_url: v })} subirImagen={subirImagen} />
                                     </div>
@@ -178,6 +201,7 @@ export default function AdminTipos() {
                                         onTema={(tema) => set({ tema })}
                                         cabecera={{ nombre: actual.nombre, descripcion: actual.descripcion }}
                                         onCabecera={set}
+                                        servicios={servicios}
                                     />
                                 </div>
                             )}
