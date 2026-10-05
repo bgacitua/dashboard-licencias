@@ -37,7 +37,8 @@ from app.services.email_token_service import AuthRequiredError, get_access_token
 
 from .config import AsistenciaSettings
 
-OPCIONES = ["Olvidó marcar", "Permiso pagado", "Permiso sin goce", "Inasistencia"]
+OPCIONES = ["Olvidó marcar", "Permiso pagado", "Permiso sin goce", "Inasistencia",
+            "Otro motivo"]
 
 
 def base_publica(settings: AsistenciaSettings) -> str:
@@ -438,7 +439,8 @@ def formulario(token: str, db: Session = Depends(get_db)) -> HTMLResponse:
         f"d{'ía' if dias == 1 else 'ías'} sin marcas de asistencia. "
         f"Indica el motivo de cada fecha.</p>"
         f"<form method=post>{campos}"
-        f"<label><span class=fecha>Comentario (opcional)</span>"
+        f"<label><span class=fecha>Comentario "
+        f"(obligatorio si elegiste &quot;Otro motivo&quot;)</span>"
         f"<textarea name=comentario rows=3></textarea></label>"
         f"<button type=submit>Enviar respuesta</button></form>"
         f"</div>",
@@ -470,7 +472,12 @@ async def responder_formulario(
             raise HTTPException(400, f"Motivo inválido para la fecha {f}.")
         respuestas[f] = valor
 
-    responder(db, token, respuestas, form.get("comentario", "")[:1000])
+    comentario = form.get("comentario", "").strip()[:1000]
+    # "Otro motivo" no dice nada por sí solo: sin comentario la respuesta es inútil.
+    if "Otro motivo" in respuestas.values() and not comentario:
+        raise HTTPException(400, 'Indica el comentario al elegir "Otro motivo".')
+
+    responder(db, token, respuestas, comentario)
     return _pagina("Gracias",
                    "<div class=card__body><p class=ok>✓ Respuesta registrada</p>"
                    "<p class=nota>Gracias. Puedes cerrar esta ventana.</p></div>")
