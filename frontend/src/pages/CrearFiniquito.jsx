@@ -537,6 +537,7 @@ const CrearFiniquito = () => {
         setVacationDaysManuallyEdited(data.vacationDaysManuallyEdited);
       if (data.vacationDays) setVacationDays(data.vacationDays);
       if (data.yearsForIndemnity) setYearsForIndemnity(data.yearsForIndemnity);
+      if (data.averageSalary) setAverageSalary(data.averageSalary);
       if (data.descuentosPersonalizados)
         setDescuentosPersonalizados(data.descuentosPersonalizados);
       // Campos que el usuario escribe a mano. `!== undefined` y no truthy: 0 es un
@@ -796,7 +797,10 @@ const CrearFiniquito = () => {
           (sum, item) => sum + Number(item.amount || 0),
           0,
         );
-        const avg = Math.round(total / history.length);
+        setAverageSalary(Math.round(total / history.length));
+      } else {
+        // Sin registros no hay promedio: dejarlo en 0 para que el cálculo avise,
+        // en vez de arrastrar el promedio de un trabajador consultado antes.
         setAverageSalary(0);
       }
     } catch (error) {
@@ -1003,6 +1007,9 @@ const CrearFiniquito = () => {
       vacationDays,
       vacationDaysManuallyEdited,
       yearsForIndemnity,
+      // El promedio de las 48 liquidaciones se consulta a mano con un botón: si no se
+      // guarda, al recargar vuelve a 0 y el cálculo de mutuo acuerdo cambia de base.
+      averageSalary,
       movilizacion,
       liquidacionMesActual: Math.round(parseFloat(liquidacionMesActual) || 0),
       descuentos: Math.round(parseFloat(descuentos) || 0),
@@ -1042,6 +1049,7 @@ const CrearFiniquito = () => {
     vacationDays,
     vacationDaysManuallyEdited,
     yearsForIndemnity,
+    averageSalary,
     movilizacion,
     liquidacionMesActual,
     descuentos,
