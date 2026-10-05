@@ -116,9 +116,9 @@ def test_filtros_van_parametrizados():
     """Los valores del usuario nunca se interpolan en el SQL."""
     db = FakeSession()
     repo = CostosRepository(db, "peru")
-    repo.costo_total(_filtros("peru", persona_rut="07884700", cargo="GERENTE"))
+    repo.costo_total(_filtros("peru", persona_rut="07884700", cargos=["GERENTE"]))
     assert "07884700" not in db.sql and "GERENTE" not in db.sql
-    assert ":persona_rut" in db.sql and ":cargo" in db.sql
+    assert ":persona_rut" in db.sql and "POSTCOMPILE_cargos" in db.sql
 
 
 def test_cache_de_catalogos_segmentada_por_pais():

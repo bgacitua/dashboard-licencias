@@ -19,7 +19,7 @@ class FilterRequest(BaseModel):
     subareas: Optional[list[str]] = None
     centros_costo: Optional[list[str]] = None
     jefatura_rut: Optional[str] = None         # cadena descendente vía MV recursiva
-    cargo: Optional[str] = None
+    cargos: Optional[list[str]] = None         # multi-selección; None o vacío = todos
     persona_rut: Optional[str] = None
     income_types: Optional[list[str]] = None   # None o vacío = todos
     conceptos: Optional[list[str]] = None      # filtro fino por hsi.name (Sueldo Base, Hora Extra, …)

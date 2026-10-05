@@ -37,14 +37,15 @@ def get_dimensiones(
     empresa: list[str] | None = Query(default=None),
     area: list[str] | None = Query(default=None),
     subarea: list[str] | None = Query(default=None),
+    cargo: list[str] | None = Query(default=None),
     db: Session = Depends(get_db),
     _: Usuario = Depends(require_module("costos")),
 ):
-    """Catálogos para selectores en cascada. Cache TTL 1h.
+    """Catálogos para selectores multi-selección (filtrado cruzado). Cache TTL 1h.
 
     Query repetidos: ?empresa=A&empresa=B&area=X
     """
-    return _service(db, pais).get_dimensiones(empresa, area, subarea)
+    return _service(db, pais).get_dimensiones(empresa, area, subarea, cargo)
 
 
 @router.get("/income-types", response_model=list[str])

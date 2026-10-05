@@ -14,7 +14,7 @@ const initial = () => {
     centros_costo: [],
     jefatura_rut: null,
     jefatura_label: null,        // sólo UI
-    cargo: null,
+    cargos: [],                  // [] = todos
     persona_rut: null,
     persona_label: null,         // sólo UI
     conceptos: [],               // [] = todos
@@ -53,7 +53,7 @@ export function useCostosFilters() {
       subareas: empty(filtros.subareas),
       centros_costo: empty(filtros.centros_costo),
       jefatura_rut: filtros.jefatura_rut || null,
-      cargo: filtros.cargo || null,
+      cargos: empty(filtros.cargos),
       persona_rut: filtros.persona_rut || null,
       conceptos: empty(filtros.conceptos),
     }

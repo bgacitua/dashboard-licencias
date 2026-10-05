@@ -11,7 +11,7 @@ export function useViewportRules(filtros) {
 
     const tienePersona = !!filtros.persona_rut
     const tieneJefatura = !!filtros.jefatura_rut
-    const tieneCargo = !!filtros.cargo
+    const tieneCargo = (filtros.cargos?.length || 0) > 0
     const tieneCC = (filtros.centros_costo?.length || 0) > 0
     const tieneArea = (filtros.areas?.length || 0) > 0
     const tieneSubarea = (filtros.subareas?.length || 0) > 0
