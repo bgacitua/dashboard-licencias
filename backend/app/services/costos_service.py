@@ -37,12 +37,12 @@ class CostosService:
         self.repo = repo
 
     # ------------------------------------------------------------------ catálogos
-    def get_dimensiones(self, empresas=None, areas=None, subareas=None) -> dict:
-        key = (self.repo.pais, "dim", tuple(empresas or []), tuple(areas or []), tuple(subareas or []))
+    def get_dimensiones(self, empresas=None, areas=None, subareas=None, cargos=None) -> dict:
+        key = (self.repo.pais, "dim", tuple(empresas or []), tuple(areas or []), tuple(subareas or []), tuple(cargos or []))
         with _cache_lock:
             if key in _cache_dimensiones:
                 return _cache_dimensiones[key]
-        data = self.repo.get_dimensiones(empresas, areas, subareas)
+        data = self.repo.get_dimensiones(empresas, areas, subareas, cargos)
         with _cache_lock:
             _cache_dimensiones[key] = data
         return data
@@ -238,7 +238,7 @@ class CostosService:
                     label = v.get("full_name") or rut or "?"
             elif s.tipo == "cargo":
                 name_role = v.get("name_role")
-                extra["cargo"] = name_role
+                extra["cargos"] = [name_role] if name_role else None
                 if not label:
                     label = name_role or "?"
             elif s.tipo == "persona":

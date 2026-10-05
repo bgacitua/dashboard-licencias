@@ -76,9 +76,10 @@ def build_where(
         parts.append(f"{p}centro_costo_efectivo IN :centros_costo")
         params["centros_costo"] = f.centros_costo
         expanding.append(bindparam("centros_costo", expanding=True))
-    if f.cargo:
-        parts.append(f"{p}cargo = :cargo")
-        params["cargo"] = f.cargo
+    if f.cargos:
+        parts.append(f"{p}cargo IN :cargos")
+        params["cargos"] = f.cargos
+        expanding.append(bindparam("cargos", expanding=True))
     if f.persona_rut:
         parts.append(f"{p}rut = :persona_rut")
         params["persona_rut"] = f.persona_rut
@@ -118,37 +119,34 @@ class CostosRepository:
         empresas: Optional[list[str]] = None,
         areas: Optional[list[str]] = None,
         subareas: Optional[list[str]] = None,
+        cargos: Optional[list[str]] = None,
     ) -> dict[str, list[str]]:
-        """Devuelve catálogos en cascada. Cada filtro reduce el universo del siguiente."""
-        binds: list[Any] = []
-        params: dict[str, Any] = {}
-        conds = ["1 = 1"]
-        if empresas:
-            conds.append("empresa IN :empresas")
-            params["empresas"] = empresas
-            binds.append(bindparam("empresas", expanding=True))
-        if areas:
-            conds.append("area IN :areas")
-            params["areas"] = areas
-            binds.append(bindparam("areas", expanding=True))
-        if subareas:
-            conds.append("subarea IN :subareas")
-            params["subareas"] = subareas
-            binds.append(bindparam("subareas", expanding=True))
+        """Catálogos para selectores multi-selección con filtrado cruzado.
 
-        where = " AND ".join(conds)
+        Las opciones de cada dimensión respetan lo seleccionado en las *demás*
+        dimensiones, pero ignoran la selección propia. Así, tras elegir una
+        empresa el selector de empresas sigue ofreciendo las otras y se pueden
+        marcar varias. centro_costo se ve acotado por las cuatro.
+        """
         sql = text(f"""
             SELECT empresa, area, subarea, centro_costo, cargo
             FROM {self.src['dimensiones']}
-            WHERE {where}
         """)
-        if binds:
-            sql = sql.bindparams(*binds)
+        rows = self.db.execute(sql).mappings().all()
 
-        rows = self.db.execute(sql, params).mappings().all()
+        sel = {
+            "empresa": set(empresas or []),
+            "area": set(areas or []),
+            "subarea": set(subareas or []),
+            "cargo": set(cargos or []),
+        }
 
         def uniq(col: str) -> list[str]:
-            return sorted({r[col] for r in rows if r[col]})
+            otros = {k: v for k, v in sel.items() if v and k != col}
+            return sorted({
+                r[col] for r in rows
+                if r[col] and all(r[k] in v for k, v in otros.items())
+            })
 
         return {
             "empresas": uniq("empresa"),

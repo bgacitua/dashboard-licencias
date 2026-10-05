@@ -9,12 +9,13 @@ const authHeaders = () => {
 }
 
 const CostosService = {
-  getDimensiones: async ({ empresas = [], areas = [], subareas = [], pais = 'chile' } = {}) => {
+  getDimensiones: async ({ empresas = [], areas = [], subareas = [], cargos = [], pais = 'chile' } = {}) => {
     const params = new URLSearchParams()
     params.set('pais', pais)
     empresas.forEach((v) => params.append('empresa', v))
     areas.forEach((v) => params.append('area', v))
     subareas.forEach((v) => params.append('subarea', v))
+    cargos.forEach((v) => params.append('cargo', v))
     const qs = params.toString()
     const { data } = await axios.get(`${API_URL}/dimensiones?${qs}`, {
       headers: authHeaders(),

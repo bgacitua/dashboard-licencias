@@ -2,16 +2,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { Filter, RotateCcw } from 'lucide-react'
 import { Button } from '../../calculadora/components/ui/button'
 import { MultiSelectDropdown } from './MultiSelectDropdown'
-import { SearchableSelect } from './SearchableSelect'
 import { AutocompleteInput } from './AutocompleteInput'
 import { PeriodPicker } from './PeriodPicker'
 import CostosService from '../../../services/costos.service'
 
 /**
  * Barra de filtros del módulo Costos.
- * - Cascada: empresa → área → subárea → CC (multi-select).
+ * - Empresa, subárea, área, C. costo y cargo: multi-select con filtrado cruzado
+ *   (cada lista respeta los demás filtros pero no el propio).
  * - Autocomplete: jefatura, persona.
- * - Cargo: select simple.
  * - Período: picker con presets.
  */
 export function FiltersBar({ filtros, setFiltros, onReset, disabled = false }) {
@@ -27,6 +26,7 @@ export function FiltersBar({ filtros, setFiltros, onReset, disabled = false }) {
   const empresasKey = (filtros.empresas || []).join('|')
   const areasKey = (filtros.areas || []).join('|')
   const subareasKey = (filtros.subareas || []).join('|')
+  const cargosKey = (filtros.cargos || []).join('|')
 
   // Recargar dimensiones cuando cambia la cascada.
   useEffect(() => {
@@ -36,11 +36,32 @@ export function FiltersBar({ filtros, setFiltros, onReset, disabled = false }) {
       empresas: filtros.empresas,
       areas: filtros.areas,
       subareas: filtros.subareas,
+      cargos: filtros.cargos,
     })
-      .then((d) => { if (!cancelled) setDim(d) })
+      .then((d) => {
+        if (cancelled) return
+        setDim(d)
+        // Quita selecciones que dejaron de ser válidas por otro filtro
+        // (p. ej. un área que no pertenece a las empresas ahora elegidas).
+        setFiltros((prev) => {
+          const podar = (arr, opciones) => {
+            const ok = (arr || []).filter((v) => opciones.includes(v))
+            return ok.length === (arr || []).length ? arr : ok
+          }
+          const next = {
+            empresas: podar(prev.empresas, d.empresas),
+            areas: podar(prev.areas, d.areas),
+            subareas: podar(prev.subareas, d.subareas),
+            centros_costo: podar(prev.centros_costo, d.centros_costo),
+            cargos: podar(prev.cargos, d.cargos),
+          }
+          const cambio = Object.keys(next).some((k) => next[k] !== prev[k])
+          return cambio ? { ...prev, ...next } : prev
+        })
+      })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [filtros.pais, empresasKey, areasKey, subareasKey])
+  }, [filtros.pais, empresasKey, areasKey, subareasKey, cargosKey])
 
   // Búsqueda de jefes restringida por los filtros organizacionales activos.
   const searchJefes = useCallback(
@@ -81,21 +102,24 @@ export function FiltersBar({ filtros, setFiltros, onReset, disabled = false }) {
           label="Empresa"
           options={dim.empresas}
           value={filtros.empresas}
-          onChange={(v) => setFiltros({ empresas: v, subareas: [], areas: [], centros_costo: [] })}
+          onChange={(v) => setFiltros({ empresas: v })}
+          searchable
           disabled={disabled}
         />
         <MultiSelectDropdown
           label="Subárea"
           options={dim.subareas}
           value={filtros.subareas}
-          onChange={(v) => setFiltros({ subareas: v, areas: [], centros_costo: [] })}
+          onChange={(v) => setFiltros({ subareas: v })}
+          searchable
           disabled={disabled}
         />
         <MultiSelectDropdown
           label="Área"
           options={dim.areas}
           value={filtros.areas}
-          onChange={(v) => setFiltros({ areas: v, centros_costo: [] })}
+          onChange={(v) => setFiltros({ areas: v })}
+          searchable
           disabled={disabled}
         />
         <MultiSelectDropdown
@@ -103,13 +127,15 @@ export function FiltersBar({ filtros, setFiltros, onReset, disabled = false }) {
           options={dim.centros_costo}
           value={filtros.centros_costo}
           onChange={(v) => setFiltros({ centros_costo: v })}
+          searchable
           disabled={disabled}
         />
-        <SearchableSelect
+        <MultiSelectDropdown
           label="Cargo"
           options={dim.cargos}
-          value={filtros.cargo}
-          onChange={(v) => setFiltros({ cargo: v })}
+          value={filtros.cargos}
+          onChange={(v) => setFiltros({ cargos: v })}
+          searchable
           disabled={disabled}
         />
       </div>
