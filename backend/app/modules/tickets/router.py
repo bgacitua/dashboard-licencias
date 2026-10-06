@@ -12,6 +12,7 @@ Cualquier import adicional hacia `app.*` es acoplamiento: revisarlo antes de
 agregarlo. Para separar el módulo, lo único que hay que reemplazar es
 require_module del panel.
 """
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
@@ -26,8 +27,9 @@ from .config import settings
 from .logica import aviso_de_cambio
 from .models import TkTicket, TkTipo, TkUsuario
 from .schemas import (
-    ArchivoOut, ComentarioIn, Estado, EstadoIn, TicketDetalle, TicketResumen, TipoCreate,
-    TipoOut, TipoUpdate, UsuarioEstadoIn, UsuarioOut,
+    ArchivoOut, ComentarioIn, Estado, EstadoIn, PrecioIn, ServicioCreate, ServicioDetalle,
+    ServicioOut, ServicioUpdate, TicketDetalle, TicketResumen, TipoCreate, TipoOut, TipoUpdate,
+    UsuarioEstadoIn, UsuarioOut,
 )
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_module("tickets"))])
@@ -41,9 +43,12 @@ Admin = Annotated[object, Depends(get_current_active_user)]
 @router.get("/tickets", response_model=list[TicketResumen])
 def tickets(
     db: Db, estado: Estado | None = None, tipo_id: int | None = None, q: str = "",
-    incluir_datos: bool = False,
+    incluir_datos: bool = False, desde: date | None = None, hasta: date | None = None,
 ) -> list[dict]:
-    return service.listar_tickets(db, estado=estado, tipo_id=tipo_id, q=q[:100], incluir_datos=incluir_datos)
+    return service.listar_tickets(
+        db, estado=estado, tipo_id=tipo_id, q=q[:100], incluir_datos=incluir_datos,
+        desde=desde, hasta=hasta,
+    )
 
 
 @router.get("/tickets/{ticket_id}", response_model=TicketDetalle)
@@ -71,9 +76,9 @@ def comentar(ticket_id: int, datos: ComentarioIn, db: Db, admin: Admin) -> None:
 # === Tipos de solicitud ===
 
 @router.get("/tipos", response_model=list[TipoOut])
-def tipos(db: Db) -> list[TkTipo]:
+def tipos(db: Db) -> list[dict]:
     # Orden de creación: el primero que se creó es la primera tarjeta del portal.
-    return db.query(TkTipo).order_by(TkTipo.id).all()
+    return service.con_servicios_al_dia(db, db.query(TkTipo).order_by(TkTipo.id).all())
 
 
 @router.post("/tipos", response_model=TipoOut, status_code=201)
@@ -162,3 +167,36 @@ def reset_usuario(usuario_id: int, db: Db) -> None:
     if not u:
         raise HTTPException(404, "Usuario no encontrado.")
     service.resetear_clave(db, u)
+
+
+# === Catálogo de servicios ===
+#
+# Vive solo acá, detrás de require_module("tickets"): el portal nunca ve un
+# precio. Al usuario final se le muestra el nombre del servicio y nada más.
+
+@router.get("/servicios", response_model=list[ServicioOut])
+def servicios(db: Db, incluir_inactivos: bool = False) -> list[dict]:
+    return service.listar_servicios(db, incluir_inactivos=incluir_inactivos)
+
+
+@router.get("/servicios/{servicio_id}", response_model=ServicioDetalle)
+def servicio(servicio_id: int, db: Db) -> dict:
+    return service.detalle_servicio(db, servicio_id)
+
+
+@router.post("/servicios", response_model=ServicioDetalle, status_code=201)
+def crear_servicio(datos: ServicioCreate, db: Db, admin: Admin) -> dict:
+    return service.crear_servicio(db, datos.model_dump(), admin.username)
+
+
+@router.put("/servicios/{servicio_id}", response_model=ServicioDetalle)
+def actualizar_servicio(servicio_id: int, datos: ServicioUpdate, db: Db) -> dict:
+    return service.actualizar_servicio(db, servicio_id, datos.model_dump(exclude_unset=True))
+
+
+@router.post("/servicios/{servicio_id}/precios", response_model=ServicioDetalle, status_code=201)
+def fijar_precio(servicio_id: int, datos: PrecioIn, db: Db, admin: Admin) -> dict:
+    """Deja un precio nuevo vigente desde la fecha dada y cierra el anterior.
+    No hay endpoint para editar un precio ya cargado: cambiar el pasado tiene
+    que doler, porque mueve reportes ya emitidos."""
+    return service.fijar_precio(db, servicio_id, datos.valor, datos.desde, admin.username)

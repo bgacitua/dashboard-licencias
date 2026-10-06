@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, String, Text, Time,
+    Boolean, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, Numeric, String, Text, Time,
     UniqueConstraint, func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -42,6 +42,9 @@ class TkTipo(Base):
     hora_limite = Column(Time, nullable=False)
     activo = Column(Boolean, nullable=False, default=True)
     orden = Column(Integer, nullable=False, default=0)
+    # `name` de la pregunta que sirve de cantidad al costear los servicios
+    # cobrados por unidad. None = en este formulario todo se cobra una vez.
+    pregunta_cantidad = Column(String(80))
     created_at = Column(TZ, nullable=False, server_default=func.now())
     updated_at = Column(TZ, nullable=False, server_default=func.now(), onupdate=func.now())
 
@@ -71,6 +74,10 @@ class TkVersion(Base):
     version = Column(Integer, nullable=False)
     fecha_servicio = Column(Date, nullable=False)
     datos = Column(JSONB, nullable=False)
+    # Costo calculado al guardar esta versión, con las tarifas de ese momento.
+    # No se recalcula: un reporte emitido no puede moverse porque cambie un
+    # precio. NULL = versión previa al costeo, o sin servicios tarifados.
+    costo = Column(JSONB)
     ip = Column(String(64))
     created_at = Column(TZ, nullable=False, server_default=func.now())
 
@@ -98,4 +105,45 @@ class TkArchivo(Base):
     bytes = Column(Integer, nullable=False)
     datos = Column(LargeBinary, nullable=False)
     subido_por = Column(String(150))
+    created_at = Column(TZ, nullable=False, server_default=func.now())
+
+
+class TkServicio(Base):
+    """Servicio cobrable del catálogo.
+
+    Vive aparte de los formularios: estos lo referencian por id en el `value`
+    de la opción (`srv:<id>`), nunca por el texto. Renombrarlo no rompe nada y
+    el mismo servicio vale igual en todos los formularios donde aparece.
+    """
+
+    __tablename__ = "servicios"
+    __table_args__ = _S
+
+    id = Column(Integer, primary_key=True)
+    nombre = Column(String(160), nullable=False)
+    descripcion = Column(Text)
+    # 'fijo' se cobra una vez; 'cantidad' se multiplica por la pregunta que el
+    # tipo marcó como cantidad.
+    modo = Column(String(20), nullable=False, default="fijo")
+    activo = Column(Boolean, nullable=False, default=True)
+    created_at = Column(TZ, nullable=False, server_default=func.now())
+    updated_at = Column(TZ, nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class TkServicioPrecio(Base):
+    """Un precio con vigencia. No se pisa: se cierra el anterior y entra otro,
+    así un reporte de septiembre sigue costando lo que costaba en septiembre."""
+
+    __tablename__ = "servicio_precios"
+    __table_args__ = _S
+
+    id = Column(Integer, primary_key=True)
+    servicio_id = Column(
+        Integer, ForeignKey("tickets.servicios.id", ondelete="CASCADE"), nullable=False
+    )
+    valor = Column(Numeric(12, 2), nullable=False)
+    desde = Column(Date, nullable=False)
+    # None = vigente sin término. `hasta` es inclusivo.
+    hasta = Column(Date)
+    creado_por = Column(String(150))
     created_at = Column(TZ, nullable=False, server_default=func.now())

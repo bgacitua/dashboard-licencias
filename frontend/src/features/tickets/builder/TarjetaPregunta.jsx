@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import { TIPOS, aHtmlInformativo, claveTipo, deHtmlInformativo } from '../../../components/form-builder/tipos';
 import TextareaBuffer from '../../../components/form-builder/TextareaBuffer';
+import { separarOpciones, unirOpciones, valorDeServicio } from '../../../components/form-builder/servicios';
 import { subirImagen } from '../services/tickets';
 import ReglaVisible from './ReglaVisible';
 import { cambiarTipo, tiposDePregunta } from './operaciones';
@@ -144,8 +145,55 @@ function OpcionesImagen({ opciones, onChange }) {
     );
 }
 
+const textoDeOpcion = (o) => (typeof o === 'string' ? o : o?.text ?? o?.value ?? '');
+
+/**
+ * Servicios del catálogo elegidos para esta pregunta.
+ *
+ * Van aparte de OpcionesTexto a propósito: ese editor trabaja con strings y al
+ * primer tecleo aplanaría `{value:'srv:12'}` a su texto, perdiendo el id y con
+ * él el precio. Acá el texto no se edita; se cambia en el panel de servicios y
+ * baja solo.
+ */
+function OpcionesServicio({ opciones, servicios, onChange }) {
+    const { servicios: elegidos, libres } = separarOpciones(opciones);
+    const yaEstan = new Set(elegidos.map((o) => o.value));
+    const disponibles = servicios.filter((s) => !yaEstan.has(valorDeServicio(s.id)));
+
+    const agregar = (id) => {
+        const s = servicios.find((x) => String(x.id) === String(id));
+        if (s) onChange(unirOpciones([...elegidos, { value: valorDeServicio(s.id), text: s.nombre }], libres));
+    };
+
+    return (
+        <div className="mt-3 rounded-lg border border-dashed border-gray-300 p-2">
+            <p className="text-xs font-medium text-gray-500">Servicios con precio</p>
+            {elegidos.map((o) => (
+                <div key={o.value} className="group mt-1 flex items-center gap-3 text-sm">
+                    <span className="w-5 text-center text-gray-400">$</span>
+                    <span className="min-w-0 flex-1 truncate text-gray-800">{o.text}</span>
+                    <button type="button" aria-label={`Quitar ${o.text}`}
+                        onClick={() => onChange(unirOpciones(elegidos.filter((x) => x.value !== o.value), libres))}
+                        className="text-gray-400 opacity-0 hover:text-gray-700 group-hover:opacity-100">
+                        <span className="material-symbols-outlined text-lg">close</span>
+                    </button>
+                </div>
+            ))}
+            {disponibles.length > 0 && (
+                <select value="" aria-label="Insertar servicio"
+                    className="mt-2 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                    onChange={(e) => agregar(e.target.value)}>
+                    <option value="">Insertar servicio…</option>
+                    {disponibles.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+            )}
+        </div>
+    );
+}
+
+
 /** Lo que va bajo el enunciado: editor si está seleccionada, maqueta si no. */
-function Cuerpo({ p, editando, set }) {
+function Cuerpo({ p, editando, set, servicios }) {
     const clave = claveTipo(p);
     const opciones = p.choices || [];
 
@@ -170,10 +218,27 @@ function Cuerpo({ p, editando, set }) {
         case 'checkbox':
         case 'dropdown': {
             const marca = clave === 'radiogroup' ? () => '○' : clave === 'checkbox' ? () => '☐' : (i) => `${i + 1}.`;
-            if (editando) return <OpcionesTexto opciones={opciones} marca={marca} onChange={(v) => set({ choices: v })} />;
+            const { servicios: conPrecio, libres } = separarOpciones(opciones);
+            if (editando) {
+                return (
+                    <>
+                        <OpcionesTexto opciones={libres} marca={marca}
+                            onChange={(v) => set({ choices: unirOpciones(conPrecio, v) })} />
+                        {servicios?.length > 0 && (
+                            <OpcionesServicio opciones={opciones} servicios={servicios}
+                                onChange={(v) => set({ choices: v })} />
+                        )}
+                    </>
+                );
+            }
             return (
                 <ul className="space-y-1.5 text-sm text-gray-700">
-                    {opciones.map((o, i) => <li key={i} className="flex gap-3"><span className="w-5 text-center text-gray-400">{marca(i)}</span>{o}</li>)}
+                    {opciones.map((o, i) => (
+                        <li key={i} className="flex gap-3">
+                            <span className="w-5 text-center text-gray-400">{marca(i)}</span>
+                            {textoDeOpcion(o)}
+                        </li>
+                    ))}
                 </ul>
             );
         }
@@ -255,7 +320,7 @@ function Cuerpo({ p, editando, set }) {
  */
 export default function TarjetaPregunta({
     definicion, pregunta: p, seleccionada, onSeleccionar, onChange, onDuplicar, onEliminar,
-    arrastre, estiloTarjeta,
+    arrastre, estiloTarjeta, servicios,
 }) {
     const [extra, setExtra] = useState(false);
     const meta = TIPOS[claveTipo(p)] || { label: p.type, campos: [] };
@@ -326,7 +391,7 @@ export default function TarjetaPregunta({
                 )}
 
                 <div className="mt-4">
-                    <Cuerpo p={p} editando={seleccionada} set={set} />
+                    <Cuerpo p={p} editando={seleccionada} set={set} servicios={servicios} />
                 </div>
             </div>
 

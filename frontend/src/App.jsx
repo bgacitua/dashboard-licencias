@@ -51,6 +51,7 @@ const PortalSolicitud = lazy(() => import('./features/tickets/pages/PortalSolici
 const AdminTickets = lazy(() => import('./features/tickets/pages/AdminTickets'));
 const AdminTipos = lazy(() => import('./features/tickets/pages/AdminTipos'));
 const AdminUsuarios = lazy(() => import('./features/tickets/pages/AdminUsuarios'));
+const AdminServicios = lazy(() => import('./features/tickets/pages/AdminServicios'));
 
 
 function App() {
@@ -315,6 +316,14 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="tickets">
                   <AdminTipos />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tickets/admin/servicios"
+              element={
+                <ProtectedRoute requiredModule="tickets">
+                  <AdminServicios />
                 </ProtectedRoute>
               }
             />

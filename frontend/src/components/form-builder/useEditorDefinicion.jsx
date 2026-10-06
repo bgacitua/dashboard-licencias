@@ -14,7 +14,9 @@ import { TIPOS, definicionVacia, nuevaPagina, nuevaPregunta } from './tipos';
  * `reset` se llama al abrir otro formulario, para no quedar parado en una
  * página o pregunta que no existe en el nuevo.
  */
-export default function useEditorDefinicion({ definicion: def, onChange, subirImagen, tiposExcluidos = [] }) {
+export default function useEditorDefinicion({
+    definicion: def, onChange, subirImagen, tiposExcluidos = [], servicios,
+}) {
     const [paginaIdx, setPaginaIdx] = useState(0);
     const [seleccionada, setSeleccionada] = useState(null);
 
@@ -93,6 +95,7 @@ export default function useEditorDefinicion({ definicion: def, onChange, subirIm
             definicion={definicion}
             pregunta={pregunta}
             subirImagen={subirImagen}
+            servicios={servicios}
             onChange={(nueva) => {
                 setElementos(pagina.elements.map((e) => (e.name === pregunta.name ? nueva : e)));
                 setSeleccionada(nueva.name);

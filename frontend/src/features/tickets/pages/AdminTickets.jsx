@@ -8,7 +8,9 @@ import AdminMarco from '../components/AdminMarco';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
 import { descargarHojas } from '../../asistencia/planilla';
-import { columnas, filasExport, mostrar, titulos } from '../respuestas';
+import {
+    columnas, detalleCosto, etiquetas, filasExport, money, mostrar, titulos, totalDe,
+} from '../respuestas';
 import {
     ESTADOS, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets, listarTipos, verTicket,
 } from '../services/tickets';
@@ -165,7 +167,7 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
 export default function AdminTickets() {
     const [tickets, setTickets] = useState([]);
     const [tipos, setTipos] = useState([]);
-    const [filtros, setFiltros] = useState({ estado: '', tipo_id: '', q: '' });
+    const [filtros, setFiltros] = useState({ estado: '', tipo_id: '', q: '', desde: '', hasta: '' });
     const [abierto, setAbierto] = useState(null);
     const [slot, setSlot] = useState(null);
     const [error, setError] = useState('');
@@ -178,16 +180,24 @@ export default function AdminTickets() {
 
     useEffect(() => { listarTipos().then(setTipos).catch((e) => setError(e.message)); }, []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => { recargar(); }, [filtros.estado, filtros.tipo_id, tabla]);
+    useEffect(() => { recargar(); }, [filtros.estado, filtros.tipo_id, filtros.desde, filtros.hasta, tabla]);
 
     const modificados = tickets.filter((t) => t.modificado).length;
     const tipoElegido = tipos.find((t) => String(t.id) === String(filtros.tipo_id));
     const cols = useMemo(() => columnas(tipoElegido?.definicion), [tipoElegido]);
+    // Las respuestas guardan el `value`; el texto de la opción sale de la definición.
+    const etqs = useMemo(() => etiquetas(tipoElegido?.definicion), [tipoElegido]);
+    // Suma de lo congelado en cada ticket, no un recálculo: es lo que de
+    // verdad costó. null si ninguno tiene costo, para no mostrar un $0 falso.
+    const totalPeriodo = useMemo(() => {
+        const conCosto = tickets.map(totalDe).filter((v) => v !== null);
+        return conCosto.length ? conCosto.reduce((a, b) => a + b, 0) : null;
+    }, [tickets]);
     // Sin un tipo elegido no hay un juego de columnas común que mostrar.
     const enTabla = tabla && !!tipoElegido;
 
     const descargar = () => {
-        const { columns, rows } = filasExport(tickets, cols);
+        const { columns, rows } = filasExport(tickets, cols, etqs);
         const hoja = (tipoElegido.nombre || 'Solicitudes').trim() || 'Solicitudes';
         const fecha = new Date().toISOString().slice(0, 10);
         descargarHojas([{ nombre: hoja, rows, columns }], `tickets_${hoja}_${fecha}.xlsx`);
@@ -206,6 +216,24 @@ export default function AdminTickets() {
                     <option value="">Todos los tipos</option>
                     {tipos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
                 </select>
+                {/* El rango va sobre la fecha de envío: responde "cuántos
+                    servicios hubo en este período", no cuándo se prestan. */}
+                <label className="flex items-center gap-1 text-sm text-gray-600">
+                    Desde
+                    <input type="date" className={control} value={filtros.desde} max={filtros.hasta || undefined}
+                        onChange={(e) => setFiltros({ ...filtros, desde: e.target.value })} />
+                </label>
+                <label className="flex items-center gap-1 text-sm text-gray-600">
+                    Hasta
+                    <input type="date" className={control} value={filtros.hasta} min={filtros.desde || undefined}
+                        onChange={(e) => setFiltros({ ...filtros, hasta: e.target.value })} />
+                </label>
+                {(filtros.desde || filtros.hasta) && (
+                    <button type="button" onClick={() => setFiltros({ ...filtros, desde: '', hasta: '' })}
+                        className="text-xs text-blue-700 underline">
+                        Limpiar fechas
+                    </button>
+                )}
                 <form onSubmit={(e) => { e.preventDefault(); recargar(); }} className="flex gap-2">
                     <input type="search" className={control} placeholder="N° de ticket, nombre o correo…"
                         value={filtros.q} onChange={(e) => setFiltros({ ...filtros, q: e.target.value })} />
@@ -219,6 +247,11 @@ export default function AdminTickets() {
                 <div className="ml-auto flex items-center gap-2">
                     {tabla && !tipoElegido && (
                         <span className="text-xs text-gray-500">Elige un tipo de solicitud para ver la tabla</span>
+                    )}
+                    {enTabla && totalPeriodo !== null && (
+                        <span className="text-sm text-gray-600">
+                            Total: <strong className="tabular-nums">{money(totalPeriodo)}</strong>
+                        </span>
                     )}
                     {enTabla && (
                         <button type="button" onClick={descargar} disabled={tickets.length === 0}
@@ -248,6 +281,7 @@ export default function AdminTickets() {
                                 <th className="px-3 py-2 font-medium">Solicitante</th>
                                 <th className="px-3 py-2 font-medium">Estado</th>
                                 <th className="px-3 py-2 font-medium">Fecha servicio</th>
+                                <th className="px-3 py-2 text-right font-medium">Costo</th>
                                 {cols.map((c) => (
                                     <th key={c.name} className="px-3 py-2 font-medium">{c.title}</th>
                                 ))}
@@ -263,8 +297,12 @@ export default function AdminTickets() {
                                     <td className="px-3 py-2">{t.usuario || t.email}</td>
                                     <td className="px-3 py-2"><Estado estado={t.estado} /></td>
                                     <td className="px-3 py-2 whitespace-nowrap">{fechaCorta(t.fecha_servicio)}</td>
+                                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums"
+                                        title={detalleCosto(t)}>
+                                        {money(totalDe(t))}
+                                    </td>
                                     {cols.map((c) => {
-                                        const texto = mostrar(t.datos?.[c.name]);
+                                        const texto = mostrar(t.datos?.[c.name], etqs);
                                         return (
                                             <td key={c.name} className="max-w-[16rem] truncate px-3 py-2" title={texto}>
                                                 {texto}
@@ -275,7 +313,7 @@ export default function AdminTickets() {
                             ))}
                             {tickets.length === 0 && (
                                 <tr>
-                                    <td colSpan={4 + cols.length} className="px-4 py-8 text-center text-sm text-gray-500">
+                                    <td colSpan={5 + cols.length} className="px-4 py-8 text-center text-sm text-gray-500">
                                         Sin solicitudes con esos filtros.
                                     </td>
                                 </tr>

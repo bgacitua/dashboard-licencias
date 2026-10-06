@@ -22,16 +22,58 @@ export function columnas(definicion) {
   return salida
 }
 
+/**
+ * `{ value: texto }` de todas las opciones de la definición.
+ *
+ * Lo que se guarda en la respuesta es el `value`, así que sin esto una opción
+ * del catálogo se vería como 'srv:12'. El texto sale de la definición, que el
+ * backend ya devuelve con los nombres del catálogo al día; un servicio dado de
+ * baja conserva ahí su último nombre conocido y se sigue leyendo.
+ */
+export function etiquetas(definicion) {
+  const salida = {}
+  const recorrer = (elementos) => {
+    for (const e of elementos || []) {
+      if (e.elements) recorrer(e.elements)
+      for (const o of e.choices || []) {
+        if (o && typeof o === 'object' && o.value != null && o.text) salida[o.value] = o.text
+      }
+    }
+  }
+  for (const p of definicion?.pages || []) recorrer(p.elements)
+  return salida
+}
+
 /** Enunciado de cada campo según la definición: `{ nombre: título }`. */
 export const titulos = (definicion) =>
   Object.fromEntries(columnas(definicion).map((c) => [c.name, c.title]))
 
-/** Una respuesta como texto plano, lista para una celda. */
-export const mostrar = (v) => {
+/**
+ * Una respuesta como texto plano, lista para una celda.
+ *
+ * `etqs` traduce el valor guardado al texto de la opción. Sin él se muestra el
+ * valor crudo, que es lo correcto para las respuestas escritas a mano.
+ */
+export const mostrar = (v, etqs = {}) => {
   if (v === undefined || v === null || v === '') return '—'
-  if (Array.isArray(v)) return v.join(', ')
-  return typeof v === 'object' ? JSON.stringify(v) : String(v)
+  const uno = (x) => (typeof x === 'string' && etqs[x]) || x
+  if (Array.isArray(v)) return v.map(uno).join(', ')
+  const t = uno(v)
+  return typeof t === 'object' ? JSON.stringify(t) : String(t)
 }
+
+/** El total congelado del ticket, o null si esa versión no tiene costo. */
+export const totalDe = (t) => (t?.costo?.total ?? null)
+
+/** Montos en pesos: los precios del catálogo son CLP. */
+export const money = (v) => (v === null || v === undefined || v === ''
+  ? '—'
+  : Number(v).toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }))
+
+/** Detalle legible de las líneas, para el tooltip de la celda y el Excel. */
+export const detalleCosto = (t) => (t?.costo?.lineas || [])
+  .map((l) => `${l.nombre}: ${money(l.valor_unitario)}${l.cantidad > 1 ? ` x${l.cantidad}` : ''}`)
+  .join(' · ')
 
 // Columnas fijas del export, antes de las preguntas. Separadas de la tabla
 // en pantalla porque acá importa la trazabilidad: correo, cuándo se envió y
@@ -45,6 +87,10 @@ const FIJAS = [
   ['Enviado', (t) => t.created_at || ''],
   ['Última edición', (t) => t.updated_at || ''],
   ['Versión', (t) => t.version_actual],
+  // El costo va en las fijas y no como pregunta: no sale del formulario,
+  // sale del catálogo al momento de guardar.
+  ['Costo', (t) => totalDe(t) ?? ''],
+  ['Detalle del costo', (t) => detalleCosto(t)],
 ]
 
 /**
@@ -55,7 +101,7 @@ const FIJAS = [
  * texto de la columna, así que dos preguntas con el mismo título se pisarían.
  * Cuando pasa, se desambigua con el nombre interno.
  */
-export function filasExport(tickets, columnasDef) {
+export function filasExport(tickets, columnasDef, etqs = {}) {
   const vistos = new Map()
   const etiqueta = (c) => {
     const n = (vistos.get(c.title) || 0) + 1
@@ -68,7 +114,7 @@ export function filasExport(tickets, columnasDef) {
   const rows = tickets.map((t) => {
     const fila = {}
     for (const [h, get] of FIJAS) fila[h] = get(t)
-    for (const [h, c] of preguntas) fila[h] = mostrar(t.datos?.[c.name])
+    for (const [h, c] of preguntas) fila[h] = mostrar(t.datos?.[c.name], etqs)
     return fila
   })
   return { columns, rows }
@@ -99,6 +145,28 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
   eq(mostrar(0), '0')
   eq(mostrar(false), 'false')
 
+  // Opciones del catálogo: lo guardado es el value, se muestra el texto.
+  const defSrv = {
+    pages: [{
+      elements: [
+        { name: 'coffee', type: 'radiogroup', title: 'Coffee',
+          choices: [{ value: 'srv:12', text: 'Coffee Básico' }, 'Ninguno'] },
+        { name: 'extras', type: 'checkbox', title: 'Extras',
+          choices: [{ value: 'srv:7', text: 'Almuerzo' }] },
+      ],
+    }],
+  }
+  const etqs = etiquetas(defSrv)
+  eq(etqs, { 'srv:12': 'Coffee Básico', 'srv:7': 'Almuerzo' })
+  eq(mostrar('srv:12', etqs), 'Coffee Básico')
+  eq(mostrar(['srv:12', 'srv:7'], etqs), 'Coffee Básico, Almuerzo')
+  // Sin mapa, o con un valor que no está en él, se muestra el valor crudo.
+  eq(mostrar('srv:12'), 'srv:12')
+  eq(mostrar('Ninguno', etqs), 'Ninguno')
+  // Un servicio sacado de la definición ya no se traduce, pero no rompe.
+  eq(mostrar('srv:99', etqs), 'srv:99')
+  eq(etiquetas(undefined), {})
+
   // Export: columnas fijas + una por pregunta, filas keyed por la cabecera.
   const exp = filasExport(
     [{ id: 5, usuario: 'Ana', email: 'a@x.cl', estado: 'pendiente', fecha_servicio: '2026-10-09',
@@ -107,7 +175,9 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
     columnas(def),
   )
   eq(exp.columns, ['N°', 'Solicitante', 'Correo', 'Estado', 'Fecha servicio', 'Enviado',
-    'Última edición', 'Versión', 'Nombre', 'Servicios', 'c'])
+    'Última edición', 'Versión', 'Costo', 'Detalle del costo', 'Nombre', 'Servicios', 'c'])
+  // Sin costo congelado la celda va vacía, no en 0: no es lo mismo.
+  eq(exp.rows[0].Costo, '')
   eq(exp.rows[0]['N°'], 5)
   eq(exp.rows[0].Nombre, 'Hola')
   eq(exp.rows[0].Servicios, 'x, y')
@@ -118,6 +188,30 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
   eq(dup.columns.slice(-2), ['Monto', 'Monto (q)'])
   eq(dup.rows[0]['Monto'], '1')
   eq(dup.rows[0]['Monto (q)'], '2')
+
+  // El export traduce igual que la tabla.
+  const expSrv = filasExport([{ datos: { coffee: 'srv:12' } }], columnas(defSrv), etqs)
+  eq(expSrv.rows[0].Coffee, 'Coffee Básico')
+
+  // Costo congelado: total, formato y detalle.
+  const conCosto = {
+    datos: {}, costo: { total: 42500, lineas: [
+      { nombre: 'Coffee Básico', valor_unitario: 3500, cantidad: 5, subtotal: 17500 },
+      { nombre: 'Arriendo sala', valor_unitario: 25000, cantidad: 1, subtotal: 25000 },
+    ] },
+  }
+  eq(totalDe(conCosto), 42500)
+  eq(totalDe({}), null)
+  eq(detalleCosto(conCosto), 'Coffee Básico: $3.500 x5 · Arriendo sala: $25.000')
+  eq(detalleCosto({}), '')
+  eq(money(null), '—')
+  eq(money(0), '$0')
+  eq(money(''), '—')
+  // El backend serializa los Decimal como string; igual tienen que formatearse.
+  eq(money('3500.00'), '$3.500')
+  const expCosto = filasExport([conCosto], [])
+  eq(expCosto.rows[0].Costo, 42500)
+  eq(expCosto.rows[0]['Detalle del costo'], 'Coffee Básico: $3.500 x5 · Arriendo sala: $25.000')
 
   console.log('ok')
 }

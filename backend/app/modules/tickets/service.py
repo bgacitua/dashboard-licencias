@@ -3,6 +3,7 @@ es rh.employees, para validar el registro contra la nómina."""
 import re
 import secrets
 import unicodedata
+from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException
@@ -15,8 +16,13 @@ from app.core.logging_config import logger
 
 from .auth import HASH_SEÑUELO, pwd
 from .config import settings
-from .logica import calcular_plazo, editable, mime_de_imagen
-from .models import TkArchivo, TkEvento, TkTicket, TkTipo, TkUsuario, TkVersion
+from .logica import (
+    calcular_costo, calcular_plazo, editable, id_de_servicio, mime_de_imagen,
+    servicios_respondidos,
+)
+from .models import (
+    TkArchivo, TkEvento, TkServicio, TkServicioPrecio, TkTicket, TkTipo, TkUsuario, TkVersion,
+)
 
 # Mismo texto pase lo que pase: no confirma desde internet quién trabaja acá
 # ni qué correos ya tienen cuenta.
@@ -185,7 +191,10 @@ def crear_ticket(db: Session, usuario: TkUsuario, tipo_id: int, fecha: date, dat
     )
     db.add(ticket)
     db.flush()
-    db.add(TkVersion(ticket_id=ticket.id, version=1, fecha_servicio=fecha, datos=datos, ip=ip))
+    db.add(TkVersion(
+        ticket_id=ticket.id, version=1, fecha_servicio=fecha, datos=datos, ip=ip,
+        costo=costo_de(db, tipo, datos),
+    ))
     db.commit()
     return ticket.id
 
@@ -219,7 +228,10 @@ def editar_ticket(
     if nueva is None:
         db.rollback()
         raise HTTPException(409, "Este ticket ya no se puede editar.")
-    db.add(TkVersion(ticket_id=ticket_id, version=nueva, fecha_servicio=fecha, datos=datos, ip=ip))
+    db.add(TkVersion(
+        ticket_id=ticket_id, version=nueva, fecha_servicio=fecha, datos=datos, ip=ip,
+        costo=costo_de(db, db.get(TkTipo, ticket.tipo_id), datos),
+    ))
     db.commit()
     return nueva
 
@@ -237,7 +249,7 @@ _SELECT_TICKETS = """
 # aparte porque el listado normal no las necesita y son el campo más pesado.
 _JOIN_DATOS = """
     LEFT JOIN LATERAL (
-        SELECT v.datos FROM tickets.versiones v
+        SELECT v.datos, v.costo FROM tickets.versiones v
          WHERE v.ticket_id = t.id ORDER BY v.version DESC LIMIT 1
     ) vd ON TRUE
 """
@@ -245,8 +257,10 @@ _JOIN_DATOS = """
 
 def _resumen(row: dict, admin: bool) -> dict:
     r = dict(row)
-    if "datos" in r and not admin:
-        r.pop("datos")
+    # El portal no ve respuestas ajenas ni, sobre todo, lo que cuestan.
+    if not admin:
+        r.pop("datos", None)
+        r.pop("costo", None)
     r["editable"] = editable(r["estado"], r["plazo"], ahora())
     vista = r.pop("version_vista_admin")
     r["modificado"] = admin and r["version_actual"] > vista
@@ -258,23 +272,29 @@ def _resumen(row: dict, admin: bool) -> dict:
 def listar_tickets(
     db: Session, *, usuario_id: int | None = None, estado: str | None = None,
     tipo_id: int | None = None, q: str = "", limit: int = 500,
-    incluir_datos: bool = False,
+    incluir_datos: bool = False, desde: date | None = None, hasta: date | None = None,
 ) -> list[dict]:
     seleccion = _SELECT_TICKETS
     if incluir_datos:
-        seleccion = seleccion.replace("SELECT t.id,", "SELECT vd.datos, t.id,") + _JOIN_DATOS
+        seleccion = seleccion.replace("SELECT t.id,", "SELECT vd.datos, vd.costo, t.id,") + _JOIN_DATOS
     rows = db.execute(
         text(seleccion + """
             WHERE (CAST(:u AS INT) IS NULL OR t.usuario_id = :u)
               AND (CAST(:e AS TEXT) IS NULL OR t.estado = :e)
               AND (CAST(:tp AS INT) IS NULL OR t.tipo_id = :tp)
+              -- El rango va sobre cuándo se envió la solicitud, que es lo que
+              -- se cuenta al preguntar "cuántos servicios hubo en el período".
+              -- 'hasta' incluye su propio día: el usuario elige fechas, no horas.
+              AND (CAST(:desde AS DATE) IS NULL OR t.created_at >= CAST(:desde AS DATE))
+              AND (CAST(:hasta AS DATE) IS NULL OR t.created_at < CAST(:hasta AS DATE) + 1)
               AND (:q = '' OR CAST(t.id AS TEXT) = :q
                    OR lower(u.nombre) LIKE :patron OR u.email LIKE :patron)
             ORDER BY t.updated_at DESC
             LIMIT :limit
         """),
         {"u": usuario_id, "e": estado, "tp": tipo_id, "q": q.strip(),
-         "patron": f"%{q.strip().lower()}%", "limit": limit},
+         "patron": f"%{q.strip().lower()}%", "limit": limit,
+         "desde": desde, "hasta": hasta},
     ).mappings().all()
     return [_resumen(r, admin=usuario_id is None) for r in rows]
 
@@ -292,6 +312,7 @@ def detalle_ticket(db: Session, ticket_id: int, *, usuario_id: int | None = None
         .order_by(TkVersion.version.desc()).all()
     )
     r["datos"] = versiones[0].datos
+    r["costo"] = versiones[0].costo if admin else None
     # El usuario ve la vigente; el historial de versiones es para el panel.
     r["versiones"] = versiones if admin else []
     eventos = db.query(TkEvento).filter(TkEvento.ticket_id == ticket_id).order_by(TkEvento.created_at).all()
@@ -358,3 +379,197 @@ def guardar_imagen(db: Session, nombre: str | None, datos: bytes, autor: str) ->
     db.add(archivo)
     db.commit()
     return archivo
+
+
+# === Catálogo de servicios ===
+
+_SELECT_SERVICIOS = """
+    SELECT s.id, s.nombre, s.descripcion, s.modo, s.activo,
+           (SELECT p.valor FROM tickets.servicio_precios p
+             WHERE p.servicio_id = s.id
+               AND p.desde <= CURRENT_DATE
+               AND (p.hasta IS NULL OR p.hasta >= CURRENT_DATE)
+             LIMIT 1) AS valor_vigente
+    FROM tickets.servicios s
+"""
+
+
+def listar_servicios(db: Session, *, incluir_inactivos: bool = False) -> list[dict]:
+    rows = db.execute(
+        text(_SELECT_SERVICIOS + """
+            WHERE (:todos OR s.activo)
+            ORDER BY s.activo DESC, lower(s.nombre)
+        """),
+        {"todos": incluir_inactivos},
+    ).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def detalle_servicio(db: Session, servicio_id: int) -> dict:
+    row = db.execute(
+        text(_SELECT_SERVICIOS + " WHERE s.id = :id"), {"id": servicio_id}
+    ).mappings().first()
+    if not row:
+        raise HTTPException(404, "Servicio no encontrado.")
+    r = dict(row)
+    r["precios"] = (
+        db.query(TkServicioPrecio)
+        .filter(TkServicioPrecio.servicio_id == servicio_id)
+        .order_by(TkServicioPrecio.desde.desc())
+        .all()
+    )
+    return r
+
+
+def crear_servicio(db: Session, datos: dict, autor: str) -> dict:
+    valor, desde = datos.pop("valor", None), datos.pop("desde", None)
+    servicio = TkServicio(**datos)
+    db.add(servicio)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Ya existe un servicio activo con ese nombre.")
+    if valor is not None:
+        db.add(TkServicioPrecio(
+            servicio_id=servicio.id, valor=valor, desde=desde or ahora().date(),
+            creado_por=autor,
+        ))
+    db.commit()
+    return detalle_servicio(db, servicio.id)
+
+
+def actualizar_servicio(db: Session, servicio_id: int, cambios: dict) -> dict:
+    servicio = db.get(TkServicio, servicio_id)
+    if not servicio:
+        raise HTTPException(404, "Servicio no encontrado.")
+    for campo, valor in cambios.items():
+        setattr(servicio, campo, valor)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Ya existe un servicio activo con ese nombre.")
+    return detalle_servicio(db, servicio_id)
+
+
+def fijar_precio(db: Session, servicio_id: int, valor, desde: date, autor: str) -> dict:
+    """Pone un precio a partir de `desde` y cierra el que estuviera vigente.
+
+    No se edita el precio anterior: un ticket de septiembre tiene que seguir
+    costando lo de septiembre. Corregir un precio mal cargado es trabajo de
+    base de datos a propósito, no algo que el panel permita.
+    """
+    if not db.get(TkServicio, servicio_id):
+        raise HTTPException(404, "Servicio no encontrado.")
+
+    # Cierra el vigente la víspera del nuevo.
+    db.execute(
+        text("""
+            UPDATE tickets.servicio_precios
+               SET hasta = CAST(:desde AS DATE) - 1
+             WHERE servicio_id = :sid
+               AND desde < CAST(:desde AS DATE)
+               AND (hasta IS NULL OR hasta >= CAST(:desde AS DATE))
+        """),
+        {"sid": servicio_id, "desde": desde},
+    )
+    # Si ya había un alza programada más adelante, el precio nuevo rige solo
+    # hasta su víspera. Dejarlo abierto lo haría pisar a ese tramo futuro y el
+    # alta se rechazaría entera: no se podría corregir el precio vigente sin
+    # antes borrar el alza, y el panel no borra precios.
+    siguiente = db.execute(
+        text("""
+            SELECT MIN(desde) FROM tickets.servicio_precios
+             WHERE servicio_id = :sid AND desde > CAST(:desde AS DATE)
+        """),
+        {"sid": servicio_id, "desde": desde},
+    ).scalar()
+    db.add(TkServicioPrecio(
+        servicio_id=servicio_id, valor=valor, desde=desde, creado_por=autor,
+        hasta=siguiente - timedelta(days=1) if siguiente else None,
+    ))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Ya hay un precio cargado para esa fecha o posterior.")
+    return detalle_servicio(db, servicio_id)
+
+
+def _opciones_refrescadas(elementos: list, nombres: dict[int, str]) -> bool:
+    """Pone el nombre de hoy en las opciones del catálogo. Devuelve si cambió algo."""
+    tocado = False
+    for e in elementos or []:
+        if e.get("elements"):
+            tocado |= _opciones_refrescadas(e["elements"], nombres)
+        for i, opcion in enumerate(e.get("choices") or []):
+            if not isinstance(opcion, dict):
+                continue
+            sid = id_de_servicio(opcion.get("value"))
+            # Un servicio borrado del catálogo conserva su último texto: mejor
+            # eso que dejar la opción en blanco en un formulario en uso.
+            if sid is None or sid not in nombres or opcion.get("text") == nombres[sid]:
+                continue
+            e["choices"][i] = {**opcion, "text": nombres[sid]}
+            tocado = True
+    return tocado
+
+
+def con_servicios_al_dia(db: Session, tipos: list[TkTipo]) -> list[dict]:
+    """Los tipos con el texto de sus opciones de catálogo puesto al día.
+
+    El vínculo con el servicio es el id ('srv:<n>'), así que el texto guardado
+    en la definición es solo una copia para mostrar. Refrescarlo acá hace que
+    renombrar un servicio se propague solo a todos los formularios que lo usan.
+
+    Devuelve dicts y no los modelos: mutar la definición del ORM podría
+    terminar escrita en la base por un flush posterior.
+    """
+    nombres = dict(db.execute(text("SELECT id, nombre FROM tickets.servicios")).all())
+    salida = []
+    for tipo in tipos:
+        fila = {c.name: getattr(tipo, c.name) for c in tipo.__table__.columns}
+        definicion = deepcopy(fila.get("definicion") or {})
+        if _opciones_refrescadas(definicion.get("pages") or [], nombres):
+            fila["definicion"] = definicion
+        salida.append(fila)
+    return salida
+
+
+def costo_de(db: Session, tipo: TkTipo | None, datos: dict, cuando: date | None = None) -> dict | None:
+    """Congela el costo de una respuesta con las tarifas vigentes a `cuando`.
+
+    Se llama al guardar cada versión y lo que devuelve queda escrito ahí. No
+    hay recálculo en ningún otro lado: el reporte lee lo guardado, así cambiar
+    un precio nunca mueve un ticket ya ingresado.
+
+    `cuando` por defecto es hoy, que es cuando se está guardando la versión.
+    Una edición se cotiza al día de la edición, no al del ticket original: es
+    lo que corresponde si el usuario agrega servicios después.
+    """
+    ids = servicios_respondidos(datos)
+    if not ids or tipo is None:
+        return None
+    filas = db.execute(
+        text("""
+            SELECT s.id, s.nombre, s.modo, p.valor
+              FROM tickets.servicios s
+              LEFT JOIN tickets.servicio_precios p
+                     ON p.servicio_id = s.id
+                    AND p.desde <= :cuando
+                    AND (p.hasta IS NULL OR p.hasta >= :cuando)
+             WHERE s.id = ANY(:ids)
+        """),
+        {"ids": ids, "cuando": cuando or ahora().date()},
+    ).mappings().all()
+    tarifas = {
+        f["id"]: {
+            "nombre": f["nombre"],
+            "modo": f["modo"],
+            # A pesos: los precios acá son CLP y un Decimal no va a JSONB.
+            "valor": int(f["valor"]) if f["valor"] is not None else None,
+        }
+        for f in filas
+    }
+    return calcular_costo(datos, tarifas, tipo.pregunta_cantidad)

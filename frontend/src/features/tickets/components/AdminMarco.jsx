@@ -6,6 +6,7 @@ import SidebarLayout from '../../../components/SidebarLayout';
 const PESTAÑAS = [
     ['/tickets/admin', 'Solicitudes'],
     ['/tickets/admin/tipos', 'Tipos y formularios'],
+    ['/tickets/admin/servicios', 'Servicios y precios'],
     ['/tickets/admin/usuarios', 'Usuarios'],
 ];
 
