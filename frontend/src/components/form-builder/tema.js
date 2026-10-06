@@ -22,8 +22,8 @@ export const TEMA_DEFECTO = {
     encabezadoImagen: '',
     fondoImagen: '',
     logo: '',
-    // Para cuando la imagen del encabezado ya trae el nombre escrito: así no
-    // queda el texto del título encima de un título dibujado.
+    // Oculta título y descripción: para cuando la imagen del encabezado ya
+    // trae el texto escrito y no queremos repetirlo encima.
     sinTitulo: false,
     sinPaneles: false,
 };
@@ -86,7 +86,7 @@ export const crearModelo = (definicion, tema, cabecera = {}) => {
     const m = new Model({
         ...definicion,
         title: t.sinTitulo ? '' : (cabecera.titulo ?? definicion.title),
-        description: cabecera.descripcion ?? definicion.description,
+        description: t.sinTitulo ? '' : (cabecera.descripcion ?? definicion.description),
         logo: t.logo || undefined,
         logoFit: 'contain',
         logoHeight: '56px',

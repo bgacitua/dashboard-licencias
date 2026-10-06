@@ -44,14 +44,16 @@ assert.equal(construirTema({ encabezado: "simple" }).headerView, "basic");
 
 console.log("tema: ok");
 
-// El título se puede ocultar cuando la imagen del encabezado ya trae el
-// nombre escrito; la descripción se mantiene.
+// La perilla oculta título Y descripción: con la imagen del encabezado ya
+// escrita, dejar la descripción suelta se veía igual de repetido.
 const sinTitulo = crearModelo(
     { elements: [{ type: "text", name: "q1" }] },
     { encabezado: "imagen", encabezadoImagen: "/x.png", sinTitulo: true },
     { titulo: "Almuerzos", descripcion: "Pide tu almuerzo" },
 );
 assert.equal(sinTitulo.title, "");
-assert.equal(sinTitulo.description, "Pide tu almuerzo");
-// Los tipos guardados antes de la perilla siguen mostrando el título.
-assert.equal(crearModelo({ elements: [] }, {}, { titulo: "Almuerzos" }).title, "Almuerzos");
+assert.equal(sinTitulo.description, "");
+// Los tipos guardados antes de la perilla siguen mostrando ambos.
+const conTitulo = crearModelo({ elements: [] }, {}, { titulo: "Almuerzos", descripcion: "Pide" });
+assert.equal(conTitulo.title, "Almuerzos");
+assert.equal(conTitulo.description, "Pide");
