@@ -198,7 +198,7 @@ export default function PortalSolicitud() {
                             : ticket.editable
                                 ? `Puedes pedir un cambio hasta el ${fechaHora(ticket.plazo_efectivo || ticket.plazo)} · Lo revisa el administrador antes de que rija.`
                                 : ticket.estado === 'pendiente'
-                                    ? 'El plazo para pedir cambios ya venció. Escríbele al administrador si necesitas una excepción.'
+                                    ? 'El plazo para pedir cambios ya venció.'
                                     : 'Ya no se puede modificar: el administrador lo está gestionando.'}
                     </span>
                 </div>

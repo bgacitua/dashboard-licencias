@@ -74,8 +74,12 @@ def resolver_propuesta(
     """Aprueba o rechaza el cambio que el usuario envió. Aprobar lo hace vigente
     con su fecha y su costo; rechazar lo deja registrado sin que haya regido."""
     aviso = service.resolver_propuesta(db, ticket_id, datos.aprobar, admin.username)
+    # Evento propio: no es un cambio de estado del ticket, y el correo tiene
+    # que decir si el cambio entró o no.
     tareas.add_task(
-        service.notificar, "ticket_estado", aviso["para"], aviso["usuario"],
+        service.notificar,
+        "cambio_aprobado" if datos.aprobar else "cambio_rechazado",
+        aviso["para"], aviso["usuario"],
         service.url_portal(f"/tickets/t/{ticket_id}"), ticket=aviso["ticket"],
     )
 
@@ -86,9 +90,12 @@ def abrir_emergencia(
 ) -> None:
     """Reabre el plazo de este ticket por excepción, sin tocar la regla del tipo."""
     aviso = service.abrir_plazo_emergencia(db, ticket_id, datos.hasta, datos.motivo, admin.username)
+    # Al usuario hay que avisarle: es el único modo de que sepa que volvió a
+    # tener plazo. Pedirlo sigue sin ser una opción suya.
     tareas.add_task(
-        service.notificar, "ticket_estado", aviso["para"], aviso["usuario"],
-        service.url_portal(f"/tickets/t/{ticket_id}"), ticket=aviso["ticket"],
+        service.notificar, "plazo_emergencia", aviso["para"], aviso["usuario"],
+        service.url_portal(f"/tickets/t/{ticket_id}"),
+        motivo=datos.motivo or None, ticket=aviso["ticket"],
     )
 
 

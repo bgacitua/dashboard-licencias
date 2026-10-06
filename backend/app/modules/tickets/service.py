@@ -200,6 +200,25 @@ def crear_ticket(db: Session, usuario: TkUsuario, tipo_id: int, fecha: date, dat
     return ticket.id
 
 
+def _aviso_de(db: Session, ticket: TkTicket, extra: dict) -> dict:
+    """Payload del webhook con la misma forma que el de cambio de estado.
+
+    Se arma con la sesión abierta porque la tarea en segundo plano corre con
+    ella ya cerrada.
+    """
+    u = db.get(TkUsuario, ticket.usuario_id)
+    tipo = db.get(TkTipo, ticket.tipo_id)
+    return {
+        "para": [u.email],
+        "usuario": {"nombre": u.nombre, "rut": u.rut, "email": u.email},
+        "ticket": {
+            "id": ticket.id, "tipo": tipo.nombre if tipo else "Solicitud",
+            "fecha_servicio": ticket.fecha_servicio.isoformat(), "estado": ticket.estado,
+            **extra,
+        },
+    }
+
+
 def propuesta_pendiente(db: Session, ticket_id: int) -> TkVersion | None:
     """La propuesta esperando respuesta, si la hay. Solo puede haber una."""
     return (
@@ -274,8 +293,7 @@ def resolver_propuesta(db: Session, ticket_id: int, aprobar: bool, autor: str) -
         f"Cambio {'aprobado' if aprobar else 'rechazado'} (versión {propuesta.version}).",
         autor, es_admin=True,
     )
-    usuario = db.get(TkUsuario, ticket.usuario_id)
-    return {"para": usuario.email, "usuario": usuario.nombre or usuario.email, "ticket": ticket_id}
+    return _aviso_de(db, ticket, {"version": propuesta.version, "aprobado": aprobar})
 
 
 _SELECT_TICKETS = """
@@ -653,5 +671,4 @@ def abrir_plazo_emergencia(db: Session, ticket_id: int, hasta: datetime, motivo:
 
     local = hasta.astimezone(pytz.timezone(settings.zona)).strftime("%d-%m-%Y a las %H:%M")
     comentar(db, ticket_id, f"Plazo de emergencia habilitado hasta el {local}. {motivo}".strip(), autor, es_admin=True)
-    usuario = db.get(TkUsuario, ticket.usuario_id)
-    return {"para": usuario.email, "usuario": usuario.nombre or usuario.email, "ticket": ticket_id}
+    return _aviso_de(db, ticket, {"plazo_emergencia": hasta.isoformat()})
