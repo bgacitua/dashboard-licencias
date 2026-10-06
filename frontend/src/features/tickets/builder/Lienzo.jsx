@@ -89,15 +89,17 @@ export default function Lienzo({
                     <div className="overflow-hidden bg-white" style={estiloTarjeta}>
                         {banda ? (
                             <div className="relative flex items-end px-6 pb-5 pt-16" style={{ ...estiloBanda, minHeight: t.encabezado === 'imagen' ? 200 : 140 }}>
-                                {t.logo && <img src={t.logo} alt="" className="absolute right-5 top-4 h-12 w-auto object-contain" />}
+                                {t.logo && <img src={t.logo} alt="" style={{ height: t.logoAlto }}
+                                    className={`absolute top-4 w-auto object-contain ${posLogo(t.logoPos)}`} />}
                                 <div className="w-full">
-                                    <Titulo cabecera={cabecera} claro />
+                                    <Titulo cabecera={cabecera} oculto={t.sinTitulo} claro />
                                 </div>
                             </div>
                         ) : (
                             <div className="relative border-t-[10px] px-6 pb-5 pt-5" style={{ borderTopColor: t.color }}>
-                                {t.logo && <img src={t.logo} alt="" className="absolute right-5 top-4 h-10 w-auto object-contain" />}
-                                <Titulo cabecera={cabecera} />
+                                {t.logo && <img src={t.logo} alt="" style={{ height: t.logoAlto }}
+                                    className={`absolute top-4 w-auto object-contain ${posLogo(t.logoPos)}`} />}
+                                <Titulo cabecera={cabecera} oculto={t.sinTitulo} />
                             </div>
                         )}
                     </div>
@@ -203,12 +205,19 @@ export default function Lienzo({
  * El nombre y la descripción se editan en la pestaña Configuración y no acá:
  * dos lugares para el mismo dato es una invitación a que uno quede viejo.
  */
-function Titulo({ cabecera, claro = false }) {
+// ponytail: el logo va absoluto, igual que antes; con el título oculto y un
+// logo alto el encabezado puede quedar corto. Ajustar el alto del encabezado
+// solo si alguien se queja.
+const posLogo = (pos) => (pos === 'left' ? 'left-5' : pos === 'center' ? 'left-1/2 -translate-x-1/2' : 'right-5');
+
+function Titulo({ cabecera, claro = false, oculto = false }) {
     return (
         <>
-            <h2 className={`text-3xl font-normal ${claro ? 'text-white' : 'text-gray-900'}`}>
-                {cabecera.nombre || <span className="opacity-60">Formulario sin título</span>}
-            </h2>
+            {!oculto && (
+                <h2 className={`text-3xl font-normal ${claro ? 'text-white' : 'text-gray-900'}`}>
+                    {cabecera.nombre || <span className="opacity-60">Formulario sin título</span>}
+                </h2>
+            )}
             {cabecera.descripcion && (
                 <p className={`mt-2 text-sm ${claro ? 'text-white/85' : 'text-gray-600'}`}>{cabecera.descripcion}</p>
             )}
