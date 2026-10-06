@@ -152,10 +152,11 @@ export default function AdminTipos() {
                                         <label className="flex items-center gap-2 text-sm text-gray-700">
                                             <input type="checkbox" checked={!!actual.tema?.sinTitulo}
                                                 onChange={(e) => set({ tema: { ...TEMA_DEFECTO, ...actual.tema, sinTitulo: e.target.checked } })} />
-                                            Ocultar el título del formulario
+                                            Ocultar el título y la descripción en el formulario
                                         </label>
                                         <p className="mt-1 text-xs text-gray-500">
-                                            Para cuando la imagen del encabezado ya trae el nombre escrito.
+                                            Para cuando la imagen del encabezado ya trae ese texto escrito.
+                                            La tarjeta del portal los sigue mostrando.
                                         </p>
                                     </div>
                                     <div className="sm:col-span-2 rounded-lg bg-blue-50 p-4">

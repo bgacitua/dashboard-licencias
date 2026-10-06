@@ -211,7 +211,7 @@ function Titulo({ cabecera, claro = false, oculto = false }) {
                     {cabecera.nombre || <span className="opacity-60">Formulario sin título</span>}
                 </h2>
             )}
-            {cabecera.descripcion && (
+            {!oculto && cabecera.descripcion && (
                 <p className={`mt-2 text-sm ${claro ? 'text-white/85' : 'text-gray-600'}`}>{cabecera.descripcion}</p>
             )}
         </>
