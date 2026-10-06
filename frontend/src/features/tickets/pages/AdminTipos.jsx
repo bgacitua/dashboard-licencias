@@ -126,7 +126,7 @@ export default function AdminTipos() {
                             </div>
 
                             <div className="mt-4 flex gap-1 rounded-lg bg-gray-100 p-1 text-sm">
-                                {[['formulario', 'Formulario'], ['datos', 'Plazo y publicación'], ['preview', 'Vista previa']].map(([k, l]) => (
+                                {[['formulario', 'Formulario'], ['datos', 'Configuración'], ['preview', 'Vista previa']].map(([k, l]) => (
                                     <button key={k} onClick={() => setSeccion(k)}
                                         className={`flex-1 rounded-md px-3 py-1.5 ${seccion === k ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}`}>
                                         {l}
@@ -136,6 +136,18 @@ export default function AdminTipos() {
 
                             {seccion === 'datos' && (
                                 <section className="mt-4 grid gap-4 rounded-xl border border-gray-200 bg-white p-5 sm:grid-cols-2">
+                                    <div>
+                                        <label className={label} htmlFor="tk-nombre">Nombre</label>
+                                        <input id="tk-nombre" className={input} value={actual.nombre}
+                                            placeholder="p. ej. Almuerzos"
+                                            onChange={(e) => set({ nombre: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className={label} htmlFor="tk-descripcion">Descripción</label>
+                                        <input id="tk-descripcion" className={input} value={actual.descripcion || ''}
+                                            placeholder="Se ve en la tarjeta del portal"
+                                            onChange={(e) => set({ descripcion: e.target.value })} />
+                                    </div>
                                     <div className="sm:col-span-2 rounded-lg bg-blue-50 p-4">
                                         <p className="text-sm font-medium text-blue-900">Plazo para pedir y modificar</p>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-blue-900">
@@ -200,7 +212,6 @@ export default function AdminTipos() {
                                         tema={actual.tema}
                                         onTema={(tema) => set({ tema })}
                                         cabecera={{ nombre: actual.nombre, descripcion: actual.descripcion }}
-                                        onCabecera={set}
                                         servicios={servicios}
                                     />
                                 </div>
