@@ -9,6 +9,10 @@ const reglaPlazo = (t) =>
         ? `Pide hasta el mismo día a las ${String(t.hora_limite).slice(0, 5)}`
         : `Pide hasta ${t.dias_anticipacion} día${t.dias_anticipacion > 1 ? 's' : ''} antes, ${String(t.hora_limite).slice(0, 5)}`;
 
+// La tarjeta reusa la imagen del encabezado del formulario, para no subir dos
+// veces lo mismo. `portada_url` sigue mandando si el admin quiere otra.
+const portada = (t) => t.portada_url || t.tema?.encabezadoImagen || '';
+
 export function Estado({ estado }) {
     const e = ESTADOS[estado] || { label: estado, clase: 'bg-gray-100 text-gray-700' };
     return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${e.clase}`}>{e.label}</span>;
@@ -70,8 +74,8 @@ export default function PortalInicio() {
                         >
                             <div
                                 className="h-36 bg-cover bg-center"
-                                style={t.portada_url
-                                    ? { backgroundImage: `url("${encodeURI(t.portada_url)}")` }
+                                style={portada(t)
+                                    ? { backgroundImage: `url("${encodeURI(portada(t))}")` }
                                     : { background: `linear-gradient(135deg, ${t.tema?.color || '#2563eb'}, #0f172a)` }}
                             />
                             <div className="p-4">

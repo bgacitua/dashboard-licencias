@@ -69,30 +69,6 @@ export default function PanelTema({ tema, onChange, onCerrar }) {
 
             <span className={`${label} mt-5`}>Logo</span>
             <CampoImagen valor={t.logo} subirImagen={subirImagen} onChange={(v) => set({ logo: v })} />
-            {t.logo && (
-                <>
-                    <label className={`${label} mt-3`} htmlFor="tk-logo-alto">Alto del logo: {t.logoAlto}px</label>
-                    <input id="tk-logo-alto" type="range" min="24" max="200" value={t.logoAlto}
-                        onChange={(e) => set({ logoAlto: Number(e.target.value) })} className="w-full" />
-                    <span className={`${label} mt-3`}>Posición del logo</span>
-                    <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1 text-xs">
-                        {[['left', 'Izquierda'], ['center', 'Centro'], ['right', 'Derecha']].map(([k, l]) => (
-                            <button key={k} type="button" onClick={() => set({ logoPos: k })}
-                                className={`rounded-md py-1.5 ${t.logoPos === k ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}`}>
-                                {l}
-                            </button>
-                        ))}
-                    </div>
-                    <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
-                        <input type="checkbox" checked={!!t.sinTitulo}
-                            onChange={(e) => set({ sinTitulo: e.target.checked })} />
-                        Ocultar el título
-                    </label>
-                    <p className="mt-1 text-xs text-gray-500">
-                        Útil cuando el logo ya trae el nombre escrito.
-                    </p>
-                </>
-            )}
 
             <span className={`${label} mt-5`}>Imagen de fondo</span>
             <CampoImagen valor={t.fondoImagen} subirImagen={subirImagen} onChange={(v) => set({ fondoImagen: v })} />
