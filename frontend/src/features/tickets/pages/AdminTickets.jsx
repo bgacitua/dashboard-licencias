@@ -12,7 +12,8 @@ import {
     columnas, detalleCosto, etiquetas, filasExport, money, mostrar, titulos, totalDe,
 } from '../respuestas';
 import {
-    ESTADOS, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets, listarTipos, verTicket,
+    ESTADOS, abrirEmergencia, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets,
+    listarTipos, resolverPropuesta, verTicket,
 } from '../services/tickets';
 
 const control = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -49,7 +50,12 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
     const version = t?.versiones.find((v) => v.version === verVersion);
     const anterior = t?.versiones.find((v) => v.version === verVersion - 1);
     const nombres = useMemo(() => titulos(tipo?.definicion), [tipo]);
+    const etqs = useMemo(() => etiquetas(tipo?.definicion), [tipo]);
     const cambios = version ? diferencias(version, anterior) : [];
+    // El diff de la propuesta va contra la vigente, no contra la anterior:
+    // es lo que cambiaría si el admin aprueba.
+    const vigente = t?.versiones.find((v) => v.version === t.version_actual);
+    const propuestos = t?.propuesta ? diferencias(t.propuesta, vigente) : [];
 
     const model = useMemo(() => {
         if (!tipo || !version) return null;
@@ -60,6 +66,32 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
         m.mode = 'display';
         return m;
     }, [tipo, version]);
+
+    const resolver = async (aprobar) => {
+        setError('');
+        try {
+            await resolverPropuesta(id, aprobar);
+            setRecarga((n) => n + 1);
+        } catch (e) { setError(e.message); }
+    };
+
+    const habilitarEmergencia = async () => {
+        setError('');
+        const hasta = window.prompt(
+            'Hasta cuándo se podrá pedir cambios en esta solicitud.\nFormato: AAAA-MM-DD HH:MM',
+            new Date(Date.now() + 864e5).toISOString().slice(0, 16).replace('T', ' '),
+        );
+        if (!hasta) return;
+        const motivo = window.prompt('Motivo (queda visible para el usuario):', '') || '';
+        try {
+            // Sin zona: el navegador la interpreta local, que es como la piensa
+            // quien la escribe, y viaja en ISO con offset.
+            const cuando = new Date(hasta.replace(' ', 'T'));
+            if (Number.isNaN(cuando.getTime())) throw new Error('Fecha y hora no válidas.');
+            await abrirEmergencia(id, cuando.toISOString(), motivo);
+            setRecarga((n) => n + 1);
+        } catch (e) { setError(e.message); }
+    };
 
     const mover = async (estado) => {
         setError('');
@@ -76,6 +108,43 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
 
     return (
         <div className="space-y-5">
+            {t.propuesta && (
+                <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-5">
+                    <h3 className="text-sm font-semibold text-amber-900">
+                        Solicitud de cambio esperando respuesta
+                    </h3>
+                    <p className="mt-1 text-xs text-amber-800">
+                        Enviada el {fechaHora(t.propuesta.created_at)} · versión {t.propuesta.version}.
+                        Hasta que la apruebes rige la v{t.version_actual}.
+                    </p>
+                    {propuestos.length > 0 ? (
+                        <ul className="mt-3 space-y-1 text-sm text-amber-900">
+                            {propuestos.map((c) => (
+                                <li key={c.campo}>
+                                    <span className="font-medium">
+                                        {c.campo === '__fecha' ? 'Fecha del servicio' : nombres[c.campo] || c.campo}:
+                                    </span>{' '}
+                                    <span className="line-through opacity-60">{mostrar(c.antes, etqs)}</span>
+                                    {' → '}{mostrar(c.ahora, etqs)}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="mt-3 text-sm text-amber-900">Sin diferencias con la versión vigente.</p>
+                    )}
+                    <div className="mt-4 flex gap-2">
+                        <button type="button" onClick={() => resolver(true)}
+                            className="rounded-lg bg-green-700 px-3 py-2 text-sm text-white hover:bg-green-800">
+                            Aprobar el cambio
+                        </button>
+                        <button type="button" onClick={() => resolver(false)}
+                            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-100">
+                            Rechazar
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="flex flex-wrap items-center gap-3">
                     <span className="font-mono text-lg font-semibold">#{t.id}</span>
@@ -85,8 +154,16 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
                 <p className="mt-2 text-sm text-gray-600">
                     {t.usuario} · {t.email}
                     <br />
-                    Creado {fechaHora(t.created_at)} · Plazo del usuario {fechaHora(t.plazo)}
+                    Creado {fechaHora(t.created_at)} · Plazo del usuario {fechaHora(t.plazo_efectivo || t.plazo)}
+                    {t.plazo_emergencia && <> · <span className="text-amber-700">plazo de emergencia abierto</span></>}
                 </p>
+
+                {t.estado === 'pendiente' && (
+                    <button type="button" onClick={habilitarEmergencia}
+                        className="mt-2 text-xs text-blue-700 underline">
+                        {t.plazo_emergencia ? 'Cambiar el plazo de emergencia' : 'Habilitar plazo de emergencia'}
+                    </button>
+                )}
 
                 <div className="mt-4 border-t border-gray-100 pt-4">
                     <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="tk-coment-estado">
@@ -112,9 +189,15 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
                     <div className="flex flex-wrap gap-1">
                         {t.versiones.map((v) => (
                             <button key={v.version} onClick={() => setVerVersion(v.version)}
-                                title={fechaHora(v.created_at)}
+                                title={`${fechaHora(v.created_at)}${v.estado !== 'vigente' ? ` · ${v.estado}` : ''}`}
                                 className={`rounded-md px-2.5 py-1 text-xs ${
-                                    v.version === verVersion ? 'bg-gray-900 text-white' : 'border border-gray-300 text-gray-700'
+                                    v.version === verVersion
+                                        ? 'bg-gray-900 text-white'
+                                        : v.estado === 'propuesta'
+                                            ? 'border border-amber-400 bg-amber-50 text-amber-800'
+                                            : v.estado === 'rechazada'
+                                                ? 'border border-gray-200 text-gray-400 line-through'
+                                                : 'border border-gray-300 text-gray-700'
                                 }`}>
                                 v{v.version}
                             </button>

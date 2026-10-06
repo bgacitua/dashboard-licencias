@@ -59,8 +59,13 @@ class TkTicket(Base):
     estado = Column(String(20), nullable=False, default="pendiente")
     fecha_servicio = Column(Date, nullable=False)
     plazo = Column(TZ, nullable=False)
+    # La versión que rige. Puede no ser la última: una propuesta pendiente
+    # lleva un número mayor y no cuenta hasta que el admin la apruebe.
     version_actual = Column(Integer, nullable=False, default=1)
     version_vista_admin = Column(Integer, nullable=False, default=0)
+    # Plazo excepcional solo para este ticket, por sobre la regla del tipo.
+    plazo_emergencia = Column(TZ)
+    plazo_emergencia_por = Column(String(150))
     created_at = Column(TZ, nullable=False, server_default=func.now())
     updated_at = Column(TZ, nullable=False, server_default=func.now(), onupdate=func.now())
 
@@ -78,6 +83,15 @@ class TkVersion(Base):
     # No se recalcula: un reporte emitido no puede moverse porque cambie un
     # precio. NULL = versión previa al costeo, o sin servicios tarifados.
     costo = Column(JSONB)
+    # 'vigente' | 'propuesta' | 'rechazada'.
+    #
+    # Distingue si la versión llegó a aplicarse, no cuál manda hoy: tras
+    # aprobar un cambio quedan varias en 'vigente', todas las que rigieron en
+    # su momento. Cuál rige ahora lo dice tickets.version_actual, y es por ahí
+    # que se leen los datos y el costo.
+    estado = Column(String(20), nullable=False, default="vigente")
+    resuelta_por = Column(String(150))
+    resuelta_at = Column(TZ)
     ip = Column(String(64))
     created_at = Column(TZ, nullable=False, server_default=func.now())
 

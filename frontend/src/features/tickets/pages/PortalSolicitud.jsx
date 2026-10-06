@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
 
@@ -24,7 +24,10 @@ const hoyIso = () => {
 export default function PortalSolicitud() {
     const { tipoId, id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const manejar = useSesionPortal();
+    // Lo deja crearTicket al navegar al ticket recién hecho.
+    const reciencreada = !!location.state?.creada;
 
     const [tipo, setTipo] = useState(null);
     const [ticket, setTicket] = useState(null);
@@ -32,6 +35,8 @@ export default function PortalSolicitud() {
     const [error, setError] = useState('');
     const [aviso, setAviso] = useState('');
     const [recarga, setRecarga] = useState(0);
+    // Hay respuestas escritas sin guardar. Solo para avisar antes de salir.
+    const [sucio, setSucio] = useState(false);
 
     useEffect(() => {
         setError('');
@@ -50,14 +55,23 @@ export default function PortalSolicitud() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tipoId, id, recarga]);
 
+    const propuesta = ticket?.propuesta || null;
+    // Con un cambio esperando respuesta el formulario se congela: otro
+    // encima dejaría al administrador resolviendo algo ya viejo.
     const soloLectura = !!ticket && !ticket.editable;
+    const plazo = !soloLectura && fecha && tipo ? plazoPara(tipo, fecha) : null;
+    const vencido = !!plazo && plazo <= new Date();
+    // Por qué no se puede enviar todavía, o '' si sí se puede.
+    const traba = soloLectura ? '' : !fecha
+        ? 'Elige la fecha del servicio para poder enviar.'
+        : vencido ? 'El plazo para esa fecha ya venció. Elige otra.' : '';
 
     const model = useMemo(() => {
         if (!tipo) return null;
         const m = crearModelo(tipo.definicion, tipo.tema, { titulo: tipo.nombre, descripcion: tipo.descripcion });
         if (ticket) m.data = ticket.datos;
         if (soloLectura) m.mode = 'display';
-        m.completeText = ticket ? 'Guardar cambios' : 'Enviar solicitud';
+        m.completeText = ticket ? 'Enviar solicitud de cambio' : 'Enviar solicitud';
         return m;
     }, [tipo, ticket, soloLectura]);
 
@@ -66,9 +80,11 @@ export default function PortalSolicitud() {
     useEffect(() => {
         if (!model || soloLectura) return undefined;
         const alCompletar = (_, opciones) => {
-            if (!fecha) {
+            // Red de seguridad: el botón ya está deshabilitado, pero survey-core
+            // también completa con Enter desde la última pregunta.
+            if (traba) {
                 opciones.allow = false;
-                setError('Elige la fecha del servicio antes de enviar.');
+                setError(traba);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         };
@@ -78,12 +94,14 @@ export default function PortalSolicitud() {
             try {
                 if (ticket) {
                     await editarTicket(ticket.id, { fecha_servicio: fecha, datos: sender.data, version: ticket.version_actual });
-                    setAviso('Cambios guardados. El administrador verá la nueva versión.');
+                    setAviso('Solicitud de cambio enviada. Rige la versión anterior hasta que el administrador la apruebe.');
+                    setSucio(false);
                     setRecarga((n) => n + 1);
                 } else {
                     const r = await crearTicket({ tipo_id: tipo.id, fecha_servicio: fecha, datos: sender.data });
                     opciones.showSaveSuccess('Solicitud enviada.');
-                    navigate(`/tickets/t/${r.id}`, { replace: true });
+                    setSucio(false);
+                    navigate(`/tickets/t/${r.id}`, { replace: true, state: { creada: true } });
                 }
             } catch (e) {
                 // Vuelve el formulario a edición con lo escrito, para corregir
@@ -99,10 +117,43 @@ export default function PortalSolicitud() {
             model.onCompleting.remove(alCompletar);
             model.onComplete.remove(alGuardar);
         };
-    }, [model, fecha, ticket, tipo, soloLectura, navigate, manejar]);
+    }, [model, fecha, traba, ticket, tipo, soloLectura, navigate, manejar]);
 
-    const plazo = !soloLectura && fecha ? plazoPara(tipo, fecha) : null;
-    const vencido = plazo && plazo <= new Date();
+    // El botón de enviar queda apagado mientras falte la fecha o el plazo esté
+    // vencido: es preferible a dejar llenar todo y rebotar al final. Si una
+    // versión de survey-core no expone la acción, el guard de onCompleting
+    // sigue cubriendo el caso.
+    useEffect(() => {
+        const accion = model?.navigationBar?.getActionById?.('sv-nav-complete');
+        if (!accion) return;
+        accion.enabled = !traba;
+        accion.tooltip = traba || undefined;
+    }, [model, traba]);
+
+    // Marca que hay respuestas sin guardar, para avisar antes de salir.
+    useEffect(() => {
+        if (!model || soloLectura) return undefined;
+        const alCambiar = () => setSucio(true);
+        model.onValueChanged.add(alCambiar);
+        return () => model.onValueChanged.remove(alCambiar);
+    }, [model, soloLectura]);
+
+    // Cerrar o recargar la pestaña con cambios escritos. El navegador muestra
+    // su propio texto; el nuestro solo activa el aviso.
+    useEffect(() => {
+        if (!sucio) return undefined;
+        const avisar = (e) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', avisar);
+        return () => window.removeEventListener('beforeunload', avisar);
+    }, [sucio]);
+
+    // Salir por el enlace de arriba es la única navegación interna desde acá,
+    // así que se intercepta ahí y no hace falta un router de datos.
+    const alSalir = (e) => {
+        if (sucio && !window.confirm('Tienes cambios sin guardar. ¿Salir de todos modos?')) {
+            e.preventDefault();
+        }
+    };
 
     return (
         // Mismo truco que FormPublico: survey-core pinta el fondo con
@@ -110,7 +161,8 @@ export default function PortalSolicitud() {
         // en la página entera, el resto del viewport resuelve el mismo color.
         <PortalLayout ancho={ticket ? 'max-w-6xl' : 'max-w-3xl'}
             estilo={model ? { ...model.themeVariables, background: 'var(--sjs2-color-utility-body)' } : undefined}>
-            <Link to="/tickets" className="mb-4 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
+            <Link to="/tickets" onClick={alSalir}
+                className="mb-4 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
                 <span className="material-symbols-outlined text-lg">arrow_back</span>
                 Mis solicitudes
             </Link>
@@ -141,12 +193,45 @@ export default function PortalSolicitud() {
                         Actualizado {fechaHora(ticket.updated_at)}
                     </span>
                     <span className="w-full text-sm text-slate-600">
-                        {ticket.editable
-                            ? `Puedes modificarlo hasta el ${fechaHora(ticket.plazo)}. Cada cambio queda registrado con el mismo número.`
-                            : ticket.estado === 'pendiente'
-                                ? 'El plazo para modificarlo ya venció.'
-                                : 'Ya no se puede modificar: el administrador lo está gestionando.'}
+                        {propuesta
+                            ? 'Tienes un cambio esperando respuesta. Podrás pedir otro cuando lo resuelvan.'
+                            : ticket.editable
+                                ? `Puedes pedir un cambio hasta el ${fechaHora(ticket.plazo_efectivo || ticket.plazo)} · Lo revisa el administrador antes de que rija.`
+                                : ticket.estado === 'pendiente'
+                                    ? 'El plazo para pedir cambios ya venció.'
+                                    : 'Ya no se puede modificar: el administrador lo está gestionando.'}
                     </span>
+                </div>
+            )}
+
+            {propuesta && (
+                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4"
+                    role="status">
+                    <span className="material-symbols-outlined text-amber-700">hourglass_top</span>
+                    <div>
+                        <p className="text-sm font-medium text-amber-900">
+                            Tu solicitud de cambio está esperando aprobación.
+                        </p>
+                        <p className="mt-1 text-sm text-amber-800">
+                            La enviaste el {fechaHora(propuesta.created_at)} · Mientras tanto sigue rigiendo
+                            lo que ves abajo; si la aprueban, te avisamos por correo.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {reciencreada && ticket && (
+                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-green-200 bg-green-50 px-5 py-4"
+                    role="status">
+                    <span className="material-symbols-outlined text-green-700">check_circle</span>
+                    <div>
+                        <p className="text-sm font-medium text-green-900">
+                            Solicitud #{ticket.id} registrada.
+                        </p>
+                        <p className="mt-1 text-sm text-green-800">
+                            Te avisaremos por correo cuando cambie de estado.
+                        </p>
+                    </div>
                 </div>
             )}
 
@@ -165,14 +250,22 @@ export default function PortalSolicitud() {
                         disabled={soloLectura}
                         value={fecha}
                         onChange={(e) => { setFecha(e.target.value); setError(''); }}
-                        className="mt-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-slate-50"
+                        aria-invalid={!!traba}
+                        className={`mt-2 rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 disabled:bg-slate-50 ${
+                            traba
+                                ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
+                                : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200'
+                        }`}
                     />
                     {plazo && (
                         <p className={`mt-2 text-xs ${vencido ? 'text-red-600' : 'text-slate-500'}`}>
                             {vencido
-                                ? `Para esa fecha el plazo venció el ${fechaHora(plazo)}. Elige otra.`
-                                : `Podrás modificarla hasta el ${fechaHora(plazo)}.`}
+                                ? `Para esa fecha el plazo venció el ${fechaHora(plazo)} · Elige otra.`
+                                : `Podrás modificarla hasta el ${fechaHora(plazo)}`}
                         </p>
+                    )}
+                    {traba && !plazo && (
+                        <p className="mt-2 text-xs text-slate-500">{traba}</p>
                     )}
                 </div>
             )}

@@ -18,10 +18,29 @@ def calcular_plazo(fecha_servicio: date, dias: int, hora: time, zona: str) -> da
     return pytz.timezone(zona).localize(local)
 
 
-def editable(estado: str, plazo: datetime, ahora: datetime) -> bool:
-    """Solo lo pendiente y dentro de plazo. En curso, rechazado o cerrado ya es
-    del admin: editarlo cambiaría algo que otro está atendiendo."""
-    return estado == "pendiente" and ahora < plazo
+def plazo_efectivo(plazo: datetime, emergencia: datetime | None) -> datetime:
+    """Hasta cuándo se puede pedir un cambio en un ticket puntual.
+
+    El administrador puede abrir un plazo de emergencia; manda el más tardío de
+    los dos, porque abrirlo nunca debería acortar el que ya regía.
+    """
+    return max(plazo, emergencia) if emergencia else plazo
+
+
+def editable(
+    estado: str, plazo: datetime, ahora: datetime, *,
+    emergencia: datetime | None = None, propuesta_pendiente: bool = False,
+) -> bool:
+    """Si el usuario puede proponer un cambio.
+
+    Solo lo pendiente y dentro de plazo. En curso, rechazado o cerrado ya es del
+    admin: tocarlo cambiaría algo que otro está atendiendo. Y con una propuesta
+    esperando respuesta no se admite otra, o el admin estaría resolviendo una
+    mientras la siguiente ya la dejó vieja.
+    """
+    if propuesta_pendiente:
+        return False
+    return estado == "pendiente" and ahora < plazo_efectivo(plazo, emergencia)
 
 
 # Firmas de los formatos que se aceptan. SVG queda fuera a propósito: es XML con

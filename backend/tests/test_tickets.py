@@ -9,7 +9,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from app.modules.tickets.config import TicketsSettings
 from app.modules.tickets.logica import (
     aviso_de_cambio, calcular_costo, calcular_plazo, cantidad_de, clave_jwt, editable,
-    id_de_servicio, mime_de_imagen, servicios_respondidos,
+    id_de_servicio, mime_de_imagen, plazo_efectivo, servicios_respondidos,
 )
 
 
@@ -177,6 +177,35 @@ def test_calcular_costo():
     print("ok  calcular_costo")
 
 
+def test_plazo_de_emergencia():
+    plazo = datetime(2026, 10, 6, 12, 0, tzinfo=timezone.utc)
+    mas_tarde = datetime(2026, 10, 8, 12, 0, tzinfo=timezone.utc)
+    antes = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
+
+    assert plazo_efectivo(plazo, None) == plazo
+    assert plazo_efectivo(plazo, mas_tarde) == mas_tarde
+    # Abrir una emergencia no puede acortar el plazo que ya regía.
+    assert plazo_efectivo(plazo, antes) == plazo
+
+    justo_despues = datetime(2026, 10, 6, 12, 1, tzinfo=timezone.utc)
+    # Vencido el plazo normal, la emergencia lo reabre.
+    assert editable("pendiente", plazo, justo_despues) is False
+    assert editable("pendiente", plazo, justo_despues, emergencia=mas_tarde) is True
+    # Pero no revive un ticket que ya dejó de ser del usuario.
+    assert editable("en_curso", plazo, justo_despues, emergencia=mas_tarde) is False
+    print("ok  plazo de emergencia")
+
+
+def test_una_propuesta_a_la_vez():
+    plazo = datetime(2026, 10, 6, 12, 0, tzinfo=timezone.utc)
+    dentro = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
+
+    assert editable("pendiente", plazo, dentro) is True
+    # Con una propuesta esperando respuesta no se admite otra.
+    assert editable("pendiente", plazo, dentro, propuesta_pendiente=True) is False
+    print("ok  una propuesta a la vez")
+
+
 if __name__ == "__main__":
     test_plazo()
     test_editable()
@@ -189,3 +218,5 @@ if __name__ == "__main__":
     test_servicios_respondidos()
     test_cantidad_de()
     test_calcular_costo()
+    test_plazo_de_emergencia()
+    test_una_propuesta_a_la_vez()
