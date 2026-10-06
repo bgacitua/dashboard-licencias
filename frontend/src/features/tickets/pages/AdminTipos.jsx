@@ -148,6 +148,16 @@ export default function AdminTipos() {
                                             placeholder="Se ve en la tarjeta del portal"
                                             onChange={(e) => set({ descripcion: e.target.value })} />
                                     </div>
+                                    <div className="sm:col-span-2">
+                                        <label className="flex items-center gap-2 text-sm text-gray-700">
+                                            <input type="checkbox" checked={!!actual.tema?.sinTitulo}
+                                                onChange={(e) => set({ tema: { ...TEMA_DEFECTO, ...actual.tema, sinTitulo: e.target.checked } })} />
+                                            Ocultar el título del formulario
+                                        </label>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            Para cuando la imagen del encabezado ya trae el nombre escrito.
+                                        </p>
+                                    </div>
                                     <div className="sm:col-span-2 rounded-lg bg-blue-50 p-4">
                                         <p className="text-sm font-medium text-blue-900">Plazo para pedir y modificar</p>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-blue-900">
@@ -180,7 +190,9 @@ export default function AdminTipos() {
                                         </p>
                                     </div>
                                     <div className="sm:col-span-2">
-                                        <span className={label}>Imagen de la tarjeta en el portal</span>
+                                        <span className={label}>
+                                            Imagen de la tarjeta en el portal (vacío = la del encabezado)
+                                        </span>
                                         <CampoImagen valor={actual.portada_url} onChange={(v) => set({ portada_url: v })} subirImagen={subirImagen} />
                                     </div>
                                     <div className="sm:col-span-2">

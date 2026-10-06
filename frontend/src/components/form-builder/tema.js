@@ -22,10 +22,7 @@ export const TEMA_DEFECTO = {
     encabezadoImagen: '',
     fondoImagen: '',
     logo: '',
-    logoAlto: 56,
-    // Lado del logo dentro del encabezado: 'right' | 'left' | 'center'.
-    logoPos: 'right',
-    // Para cuando el logo ya es una imagen con el nombre escrito: así no
+    // Para cuando la imagen del encabezado ya trae el nombre escrito: así no
     // queda el texto del título encima de un título dibujado.
     sinTitulo: false,
     sinPaneles: false,
@@ -63,7 +60,7 @@ export const construirTema = (tema) => {
                 backgroundImage: t.encabezado === 'imagen' ? t.encabezadoImagen : undefined,
                 backgroundImageFit: 'cover',
                 backgroundImageOpacity: 1,
-                logoPositionX: t.logoPos,
+                logoPositionX: 'right',
                 logoPositionY: 'top',
                 titlePositionX: 'left',
                 titlePositionY: 'bottom',
@@ -92,8 +89,7 @@ export const crearModelo = (definicion, tema, cabecera = {}) => {
         description: cabecera.descripcion ?? definicion.description,
         logo: t.logo || undefined,
         logoFit: 'contain',
-        logoPosition: t.logoPos === 'left' ? 'left' : 'right',
-        logoHeight: `${Number(t.logoAlto) || TEMA_DEFECTO.logoAlto}px`,
+        logoHeight: '56px',
         logoWidth: 'auto',
         showQuestionNumbers: false,
     });
