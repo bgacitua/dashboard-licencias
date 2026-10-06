@@ -20,6 +20,7 @@ export const TIPOS = {
         ],
     },
     fecha: { label: 'Fecha', base: { type: 'text', inputType: 'date' }, campos: [] },
+    hora: { label: 'Hora', base: { type: 'text', inputType: 'time' }, campos: [] },
     radiogroup: { label: 'Selección única', campos: [{ key: 'choices', label: 'Opciones', tipo: 'opciones' }] },
     checkbox: { label: 'Selección múltiple', campos: [{ key: 'choices', label: 'Opciones', tipo: 'opciones' }] },
     dropdown: { label: 'Lista desplegable', campos: [{ key: 'choices', label: 'Opciones', tipo: 'opciones' }] },
@@ -158,3 +159,27 @@ export const deCompletedHtml = (html) =>
         .replace(/&quot;/g, '"')
         .replace(/&amp;/g, '&')
         .trim();
+
+// Check: `node frontend/src/components/form-builder/tipos.js`
+if (globalThis.process?.argv?.[1]?.endsWith('tipos.js')) {
+    const eq = (a, b) => { if (a !== b) throw new Error(`${a} != ${b}`); };
+
+    // Número, Fecha y Hora son todos `text` en survey-core y solo los separa
+    // el inputType: el tipo a secas no alcanza para saber cuál es cuál.
+    eq(claveTipo({ type: 'text', inputType: 'time' }), 'hora');
+    eq(claveTipo({ type: 'text', inputType: 'date' }), 'fecha');
+    eq(claveTipo({ type: 'text', inputType: 'number' }), 'numero');
+    eq(claveTipo({ type: 'text' }), 'text');
+    // Un inputType que el builder no ofrece cae al tipo base, no a otra tarjeta.
+    eq(claveTipo({ type: 'text', inputType: 'email' }), 'text');
+    eq(claveTipo({ type: 'checkbox' }), 'checkbox');
+
+    // Cada tipo nuevo se crea con el inputType que lo identifica.
+    eq(nuevaPregunta('hora').inputType, 'time');
+    eq(nuevaPregunta('hora').type, 'text');
+    eq(claveTipo(nuevaPregunta('hora')), 'hora');
+    // Y el nombre de la respuesta lleva el prefijo del tipo elegido.
+    eq(nuevaPregunta('hora').name.startsWith('hora_'), true);
+
+    console.log('ok');
+}

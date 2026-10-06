@@ -214,6 +214,8 @@ function Cuerpo({ p, editando, set, servicios }) {
             ) : <p className={`${mock} w-32`}>{p.min != null || p.max != null ? `${p.min ?? '…'} a ${p.max ?? '…'}` : 'Número'}</p>;
         case 'fecha':
             return <p className={`${mock} flex w-40 items-center justify-between`}>dd-mm-aaaa <span className="material-symbols-outlined text-base">calendar_today</span></p>;
+        case 'hora':
+            return <p className={`${mock} flex w-32 items-center justify-between`}>--:-- <span className="material-symbols-outlined text-base">schedule</span></p>;
         case 'radiogroup':
         case 'checkbox':
         case 'dropdown': {
