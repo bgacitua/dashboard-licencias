@@ -179,7 +179,8 @@ class VersionOut(BaseModel):
     fecha_servicio: date
     datos: dict
     costo: dict | None = None
-    # 'vigente' | 'propuesta' | 'rechazada'. La propuesta no rige todavía.
+    # 'vigente' (llegó a aplicarse) | 'propuesta' (espera respuesta) |
+    # 'rechazada' (nunca rigió). Cuál manda hoy lo dice version_actual.
     estado: str = "vigente"
     resuelta_por: str | None = None
     resuelta_at: datetime | None = None
@@ -214,6 +215,8 @@ class TicketResumen(BaseModel):
     modificado: bool = False
     # Plazo excepcional abierto por el admin; solo lo ve el panel.
     plazo_emergencia: datetime | None = None
+    # El plazo que rige de verdad, con la emergencia ya considerada.
+    plazo_efectivo: datetime | None = None
     # Respuestas de la versión vigente; solo con ?incluir_datos=true.
     datos: dict | None = None
     # Costo congelado al guardar esa versión. None si el formulario no tiene

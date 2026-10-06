@@ -83,8 +83,12 @@ class TkVersion(Base):
     # No se recalcula: un reporte emitido no puede moverse porque cambie un
     # precio. NULL = versión previa al costeo, o sin servicios tarifados.
     costo = Column(JSONB)
-    # 'vigente' | 'propuesta' | 'rechazada'. Una propuesta no rige mientras el
-    # administrador no la apruebe; una rechazada no rigió nunca.
+    # 'vigente' | 'propuesta' | 'rechazada'.
+    #
+    # Distingue si la versión llegó a aplicarse, no cuál manda hoy: tras
+    # aprobar un cambio quedan varias en 'vigente', todas las que rigieron en
+    # su momento. Cuál rige ahora lo dice tickets.version_actual, y es por ahí
+    # que se leen los datos y el costo.
     estado = Column(String(20), nullable=False, default="vigente")
     resuelta_por = Column(String(150))
     resuelta_at = Column(TZ)

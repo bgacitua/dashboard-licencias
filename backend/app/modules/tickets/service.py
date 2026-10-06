@@ -19,7 +19,7 @@ from .auth import HASH_SEÑUELO, pwd
 from .config import settings
 from .logica import (
     calcular_costo, calcular_plazo, editable, id_de_servicio, mime_de_imagen,
-    servicios_respondidos,
+    plazo_efectivo, servicios_respondidos,
 )
 from .models import (
     TkArchivo, TkEvento, TkServicio, TkServicioPrecio, TkTicket, TkTipo, TkUsuario, TkVersion,
@@ -313,6 +313,9 @@ def _resumen(row: dict, admin: bool) -> dict:
         emergencia=r.get("plazo_emergencia"),
         propuesta_pendiente=bool(r.get("con_propuesta")),
     )
+    # Hasta cuándo se puede pedir un cambio de verdad, contando la emergencia.
+    # Es lo que hay que mostrarle al usuario, no el plazo de la regla.
+    r["plazo_efectivo"] = plazo_efectivo(r["plazo"], r.get("plazo_emergencia"))
     vista = r.pop("version_vista_admin")
     # Lo que el admin tiene que resolver es la propuesta, no una versión ya
     # aplicada: con el flujo de aprobación 'modificado' pasa a significar eso.

@@ -55,6 +55,9 @@ export default function PortalSolicitud() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tipoId, id, recarga]);
 
+    const propuesta = ticket?.propuesta || null;
+    // Con un cambio esperando respuesta el formulario se congela: otro
+    // encima dejaría al administrador resolviendo algo ya viejo.
     const soloLectura = !!ticket && !ticket.editable;
     const plazo = !soloLectura && fecha && tipo ? plazoPara(tipo, fecha) : null;
     const vencido = !!plazo && plazo <= new Date();
@@ -68,7 +71,7 @@ export default function PortalSolicitud() {
         const m = crearModelo(tipo.definicion, tipo.tema, { titulo: tipo.nombre, descripcion: tipo.descripcion });
         if (ticket) m.data = ticket.datos;
         if (soloLectura) m.mode = 'display';
-        m.completeText = ticket ? 'Guardar cambios' : 'Enviar solicitud';
+        m.completeText = ticket ? 'Enviar solicitud de cambio' : 'Enviar solicitud';
         return m;
     }, [tipo, ticket, soloLectura]);
 
@@ -91,7 +94,7 @@ export default function PortalSolicitud() {
             try {
                 if (ticket) {
                     await editarTicket(ticket.id, { fecha_servicio: fecha, datos: sender.data, version: ticket.version_actual });
-                    setAviso('Cambios guardados. El administrador verá la nueva versión.');
+                    setAviso('Solicitud de cambio enviada. Rige la versión anterior hasta que el administrador la apruebe.');
                     setSucio(false);
                     setRecarga((n) => n + 1);
                 } else {
@@ -190,12 +193,30 @@ export default function PortalSolicitud() {
                         Actualizado {fechaHora(ticket.updated_at)}
                     </span>
                     <span className="w-full text-sm text-slate-600">
-                        {ticket.editable
-                            ? `Puedes modificarlo hasta el ${fechaHora(ticket.plazo)} · Cada cambio queda registrado con el mismo número.`
-                            : ticket.estado === 'pendiente'
-                                ? 'El plazo para modificarlo ya venció.'
-                                : 'Ya no se puede modificar: el administrador lo está gestionando.'}
+                        {propuesta
+                            ? 'Tienes un cambio esperando respuesta. Podrás pedir otro cuando lo resuelvan.'
+                            : ticket.editable
+                                ? `Puedes pedir un cambio hasta el ${fechaHora(ticket.plazo_efectivo || ticket.plazo)} · Lo revisa el administrador antes de que rija.`
+                                : ticket.estado === 'pendiente'
+                                    ? 'El plazo para pedir cambios ya venció. Escríbele al administrador si necesitas una excepción.'
+                                    : 'Ya no se puede modificar: el administrador lo está gestionando.'}
                     </span>
+                </div>
+            )}
+
+            {propuesta && (
+                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4"
+                    role="status">
+                    <span className="material-symbols-outlined text-amber-700">hourglass_top</span>
+                    <div>
+                        <p className="text-sm font-medium text-amber-900">
+                            Tu solicitud de cambio está esperando aprobación.
+                        </p>
+                        <p className="mt-1 text-sm text-amber-800">
+                            La enviaste el {fechaHora(propuesta.created_at)} · Mientras tanto sigue rigiendo
+                            lo que ves abajo; si la aprueban, te avisamos por correo.
+                        </p>
+                    </div>
                 </div>
             )}
 

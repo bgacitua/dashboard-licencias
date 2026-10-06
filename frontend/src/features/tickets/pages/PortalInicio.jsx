@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
 import { ESTADOS, fechaCorta, fechaHora, misTickets, tiposPortal } from '../services/tickets';
@@ -16,6 +16,7 @@ export function Estado({ estado }) {
 
 export default function PortalInicio() {
     const manejar = useSesionPortal();
+    const navigate = useNavigate();
     const [tipos, setTipos] = useState([]);
     const [tickets, setTickets] = useState([]);
     const [vista, setVista] = useState('curso'); // curso | historial
@@ -34,6 +35,24 @@ export default function PortalInicio() {
     ], [tickets]);
     const lista = vista === 'curso' ? enCurso : historial;
 
+    // Una tarjeta siempre crea una solicitud nueva. Si ya hay una en curso del
+    // mismo tipo se avisa, porque lo más probable es que la quiera abrir y no
+    // duplicarla; si de verdad necesita otra, sigue pudiendo.
+    const abrirTipo = (e, tipo) => {
+        const abierta = enCurso.find((t) => t.tipo_id === tipo.id);
+        if (!abierta) return;
+        e.preventDefault();
+        const otra = window.confirm(
+            [
+                `Ya tienes la solicitud #${abierta.id} en curso para ${tipo.nombre}.`,
+                '',
+                'Aceptar: crear una solicitud nueva.',
+                'Cancelar: abrir la que ya tienes.',
+            ].join('\n'),
+        );
+        navigate(otra ? `/tickets/nueva/${tipo.id}` : `/tickets/t/${abierta.id}`);
+    };
+
     return (
         <PortalLayout>
             <section>
@@ -46,6 +65,7 @@ export default function PortalInicio() {
                         <Link
                             key={t.id}
                             to={`/tickets/nueva/${t.id}`}
+                            onClick={(e) => abrirTipo(e, t)}
                             className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
                         >
                             <div
