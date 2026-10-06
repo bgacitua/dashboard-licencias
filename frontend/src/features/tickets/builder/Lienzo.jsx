@@ -35,21 +35,21 @@ function BotonBarra({ icono, texto, onClick, activo }) {
  * sobre sí mismo, con el tema aplicado en vivo. Se selecciona una tarjeta y
  * se edita en el lugar; la barra flotante agrega debajo de la seleccionada.
  *
- * `cabecera` = { nombre, descripcion } del tipo: se editan en la tarjeta de
- * encabezado, que es donde el usuario los va a ver.
+ * `cabecera` = { nombre, descripcion } del tipo: solo para mostrarlos como se
+ * verán. Se editan en la pestaña Configuración.
  */
 export default function Lienzo({
-    definicion: def, onChange, tema, onTema, cabecera, onCabecera, servicios,
+    definicion: def, onChange, tema, onTema, cabecera, servicios,
 }) {
     const definicion = def?.pages?.length ? def : definicionVacia();
-    const [sel, setSel] = useState(null);        // nombre de pregunta | 'cabecera' | 'seccion:i'
+    const [sel, setSel] = useState(null);        // nombre de pregunta | 'seccion:i'
     const [verTema, setVerTema] = useState(false);
     const t = { ...TEMA_DEFECTO, ...tema };
     const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
     // Lo recién agregado queda a la vista, como en Forms.
     useEffect(() => {
-        if (sel && !sel.includes(':') && sel !== 'cabecera') {
+        if (sel && !sel.includes(':')) {
             document.getElementById(`tk-q-${sel}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
     }, [sel]);
@@ -86,20 +86,18 @@ export default function Lienzo({
             >
                 <div className="mx-auto max-w-2xl space-y-3">
                     {/* Encabezado */}
-                    <div onClick={(e) => { e.stopPropagation(); setSel('cabecera'); }}
-                        className="cursor-pointer overflow-hidden bg-white"
-                        style={{ ...estiloTarjeta, ...(sel === 'cabecera' ? { boxShadow: 'inset 5px 0 0 var(--tk-color), 0 4px 12px rgba(0,0,0,.08)' } : {}) }}>
+                    <div className="overflow-hidden bg-white" style={estiloTarjeta}>
                         {banda ? (
                             <div className="relative flex items-end px-6 pb-5 pt-16" style={{ ...estiloBanda, minHeight: t.encabezado === 'imagen' ? 200 : 140 }}>
                                 {t.logo && <img src={t.logo} alt="" className="absolute right-5 top-4 h-12 w-auto object-contain" />}
                                 <div className="w-full">
-                                    <Titulo sel={sel === 'cabecera'} cabecera={cabecera} onCabecera={onCabecera} claro />
+                                    <Titulo cabecera={cabecera} claro />
                                 </div>
                             </div>
                         ) : (
                             <div className="relative border-t-[10px] px-6 pb-5 pt-5" style={{ borderTopColor: t.color }}>
                                 {t.logo && <img src={t.logo} alt="" className="absolute right-5 top-4 h-10 w-auto object-contain" />}
-                                <Titulo sel={sel === 'cabecera'} cabecera={cabecera} onCabecera={onCabecera} />
+                                <Titulo cabecera={cabecera} />
                             </div>
                         )}
                     </div>
@@ -199,27 +197,21 @@ export default function Lienzo({
     );
 }
 
-function Titulo({ sel, cabecera, onCabecera, claro = false }) {
-    const colorT = claro ? 'text-white placeholder:text-white/70' : 'text-gray-900 placeholder:text-gray-400';
-    const colorD = claro ? 'text-white/85 placeholder:text-white/60' : 'text-gray-600 placeholder:text-gray-400';
-    if (!sel) {
-        return (
-            <>
-                <h2 className={`text-3xl font-normal ${claro ? 'text-white' : 'text-gray-900'}`}>
-                    {cabecera.nombre || <span className="opacity-60">Formulario sin título</span>}
-                </h2>
-                {cabecera.descripcion && <p className={`mt-2 text-sm ${claro ? 'text-white/85' : 'text-gray-600'}`}>{cabecera.descripcion}</p>}
-            </>
-        );
-    }
+/**
+ * Encabezado del formulario tal como se verá, en solo lectura.
+ *
+ * El nombre y la descripción se editan en la pestaña Configuración y no acá:
+ * dos lugares para el mismo dato es una invitación a que uno quede viejo.
+ */
+function Titulo({ cabecera, claro = false }) {
     return (
         <>
-            <input autoFocus style={SIN_CONTORNO} className={`w-full border-0 border-b bg-transparent p-0 pb-1 text-3xl focus:outline-none focus:ring-0 ${colorT} ${claro ? 'border-white/40' : 'border-gray-200'}`}
-                placeholder="Nombre (p. ej. Almuerzos)" aria-label="Nombre del tipo"
-                value={cabecera.nombre} onChange={(e) => onCabecera({ nombre: e.target.value })} />
-            <input style={SIN_CONTORNO} className={`mt-3 w-full border-0 border-b border-transparent bg-transparent p-0 pb-1 text-sm focus:outline-none focus:ring-0 ${claro ? 'focus:border-white/60' : 'focus:border-[var(--tk-color)]'} ${colorD}`}
-                placeholder="Descripción (se ve también en la tarjeta del portal)" aria-label="Descripción del tipo"
-                value={cabecera.descripcion || ''} onChange={(e) => onCabecera({ descripcion: e.target.value })} />
+            <h2 className={`text-3xl font-normal ${claro ? 'text-white' : 'text-gray-900'}`}>
+                {cabecera.nombre || <span className="opacity-60">Formulario sin título</span>}
+            </h2>
+            {cabecera.descripcion && (
+                <p className={`mt-2 text-sm ${claro ? 'text-white/85' : 'text-gray-600'}`}>{cabecera.descripcion}</p>
+            )}
         </>
     );
 }
