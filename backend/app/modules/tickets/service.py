@@ -463,8 +463,7 @@ def fijar_precio(db: Session, servicio_id: int, valor, desde: date, autor: str) 
     if not db.get(TkServicio, servicio_id):
         raise HTTPException(404, "Servicio no encontrado.")
 
-    # Cierra el vigente la víspera del nuevo. Si ya hubiera uno que arranca en
-    # esa misma fecha o después, el EXCLUDE de la tabla rechaza el alta.
+    # Cierra el vigente la víspera del nuevo.
     db.execute(
         text("""
             UPDATE tickets.servicio_precios
@@ -475,7 +474,21 @@ def fijar_precio(db: Session, servicio_id: int, valor, desde: date, autor: str) 
         """),
         {"sid": servicio_id, "desde": desde},
     )
-    db.add(TkServicioPrecio(servicio_id=servicio_id, valor=valor, desde=desde, creado_por=autor))
+    # Si ya había un alza programada más adelante, el precio nuevo rige solo
+    # hasta su víspera. Dejarlo abierto lo haría pisar a ese tramo futuro y el
+    # alta se rechazaría entera: no se podría corregir el precio vigente sin
+    # antes borrar el alza, y el panel no borra precios.
+    siguiente = db.execute(
+        text("""
+            SELECT MIN(desde) FROM tickets.servicio_precios
+             WHERE servicio_id = :sid AND desde > CAST(:desde AS DATE)
+        """),
+        {"sid": servicio_id, "desde": desde},
+    ).scalar()
+    db.add(TkServicioPrecio(
+        servicio_id=servicio_id, valor=valor, desde=desde, creado_por=autor,
+        hasta=siguiente - timedelta(days=1) if siguiente else None,
+    ))
     try:
         db.commit()
     except IntegrityError:
