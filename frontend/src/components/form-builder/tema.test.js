@@ -43,3 +43,18 @@ assert.equal(construirTema({ encabezado: "imagen", encabezadoImagen: "" }).heade
 assert.equal(construirTema({ encabezado: "simple" }).headerView, "basic");
 
 console.log("tema: ok");
+
+// Logo: alto y lado configurables; el título se puede ocultar cuando el logo
+// ya trae el nombre escrito (si no, quedan dos títulos superpuestos).
+const conLogo = crearModelo(
+    { elements: [{ type: "text", name: "q1" }] },
+    { encabezado: "color", logo: "/x.png", logoAlto: 120, logoPos: "left", sinTitulo: true },
+    { titulo: "Almuerzos", descripcion: "Pide tu almuerzo" },
+);
+assert.equal(conLogo.logoHeight, "120px");
+assert.equal(conLogo.title, "");
+assert.equal(conLogo.description, "Pide tu almuerzo");
+assert.equal(construirTema({ encabezado: "color", logoPos: "left" }).header.logoPositionX, "left");
+// Sin perillas nuevas (temas guardados antes) el logo mantiene lo de siempre.
+assert.equal(crearModelo({ elements: [] }, { logo: "/x.png" }, {}).logoHeight, "56px");
+assert.equal(construirTema({ encabezado: "color" }).header.logoPositionX, "right");
