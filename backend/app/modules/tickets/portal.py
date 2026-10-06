@@ -97,18 +97,16 @@ def editar(
 ) -> dict:
     """Envía un cambio. No rige: queda como propuesta hasta que el admin la
     apruebe, así nadie altera por su cuenta algo que ya se está preparando."""
-    version = service.proponer_cambio(
+    aviso = service.proponer_cambio(
         db, usuario, ticket_id, datos.fecha_servicio, datos.datos, datos.version, client_ip(request)
     )
     # El cambio no rige hasta que alguien lo mire, así que el aviso al admin es
     # parte del flujo, no una cortesía: sin él la solicitud queda esperando.
     tareas.add_task(
         service.notificar, "cambio_propuesto", service.settings.admin_emails_list,
-        {"nombre": usuario.nombre, "rut": usuario.rut, "email": usuario.email},
-        service.url_portal("/tickets/admin"),
-        ticket={"id": ticket_id, "version": version},
+        aviso["usuario"], service.url_portal("/tickets/admin"), ticket=aviso["ticket"],
     )
-    return {"id": ticket_id, "version": version, "propuesta": True}
+    return {"id": ticket_id, "version": aviso["ticket"]["version"], "propuesta": True}
 
 
 @portal.post("/tickets/{ticket_id}/comentarios", status_code=204)

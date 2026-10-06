@@ -230,9 +230,13 @@ def propuesta_pendiente(db: Session, ticket_id: int) -> TkVersion | None:
 
 def proponer_cambio(
     db: Session, usuario: TkUsuario, ticket_id: int, fecha: date, datos: dict, version: int, ip: str
-) -> int:
+) -> dict:
     """Guarda un cambio del usuario como propuesta. No rige: el ticket sigue en
-    su versión vigente hasta que el administrador la apruebe."""
+    su versión vigente hasta que el administrador la apruebe.
+
+    Devuelve el aviso para el admin, con la misma forma que el resto: el correo
+    tiene que decir de qué solicitud se trata, no solo su número.
+    """
     ticket = db.get(TkTicket, ticket_id)
     if not ticket or ticket.usuario_id != usuario.id:
         raise HTTPException(404, "Ticket no encontrado.")
@@ -263,7 +267,7 @@ def proponer_cambio(
         # El índice parcial es el que manda si llegan dos propuestas a la vez.
         db.rollback()
         raise HTTPException(409, "Ya enviaste un cambio que está esperando respuesta.")
-    return siguiente
+    return _aviso_de(db, ticket, {"version": siguiente, "propuesta_por": usuario.nombre or usuario.email})
 
 
 def resolver_propuesta(db: Session, ticket_id: int, aprobar: bool, autor: str) -> dict:
