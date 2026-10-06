@@ -92,10 +92,12 @@ def crear(datos: TicketIn, request: Request, usuario: UsuarioPortal, db: Db) -> 
 
 @portal.put("/tickets/{ticket_id}")
 def editar(ticket_id: int, datos: TicketEdit, request: Request, usuario: UsuarioPortal, db: Db) -> dict:
-    version = service.editar_ticket(
+    """Envía un cambio. No rige: queda como propuesta hasta que el admin la
+    apruebe, así nadie altera por su cuenta algo que ya se está preparando."""
+    version = service.proponer_cambio(
         db, usuario, ticket_id, datos.fecha_servicio, datos.datos, datos.version, client_ip(request)
     )
-    return {"id": ticket_id, "version": version}
+    return {"id": ticket_id, "version": version, "propuesta": True}
 
 
 @portal.post("/tickets/{ticket_id}/comentarios", status_code=204)

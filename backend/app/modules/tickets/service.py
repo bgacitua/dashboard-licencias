@@ -7,6 +7,7 @@ from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException
+import pytz
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -199,46 +200,90 @@ def crear_ticket(db: Session, usuario: TkUsuario, tipo_id: int, fecha: date, dat
     return ticket.id
 
 
-def editar_ticket(
+def propuesta_pendiente(db: Session, ticket_id: int) -> TkVersion | None:
+    """La propuesta esperando respuesta, si la hay. Solo puede haber una."""
+    return (
+        db.query(TkVersion)
+        .filter(TkVersion.ticket_id == ticket_id, TkVersion.estado == "propuesta")
+        .first()
+    )
+
+
+def proponer_cambio(
     db: Session, usuario: TkUsuario, ticket_id: int, fecha: date, datos: dict, version: int, ip: str
 ) -> int:
+    """Guarda un cambio del usuario como propuesta. No rige: el ticket sigue en
+    su versión vigente hasta que el administrador la apruebe."""
     ticket = db.get(TkTicket, ticket_id)
     if not ticket or ticket.usuario_id != usuario.id:
         raise HTTPException(404, "Ticket no encontrado.")
-    if not editable(ticket.estado, ticket.plazo, ahora()):
-        raise HTTPException(409, "Este ticket ya no se puede editar.")
+    if propuesta_pendiente(db, ticket_id):
+        raise HTTPException(409, "Ya enviaste un cambio que está esperando respuesta.")
+    if not editable(ticket.estado, ticket.plazo, ahora(), emergencia=ticket.plazo_emergencia):
+        raise HTTPException(409, "El plazo para pedir cambios ya venció.")
     if ticket.version_actual != version:
         raise HTTPException(409, "El ticket cambió desde que lo abriste. Recarga la página y vuelve a intentarlo.")
-    plazo = _validar_plazo(db.get(TkTipo, ticket.tipo_id), fecha)
 
-    # Los chequeos de arriba dan el mensaje; este UPDATE condicional es el que
-    # manda si el admin lo pasa a "en curso" o vence el plazo en el mismo
-    # instante, o si llegan dos ediciones a la vez.
-    nueva = db.execute(
-        text("""
-            UPDATE tickets.tickets
-               SET version_actual = version_actual + 1, fecha_servicio = :f,
-                   plazo = :p, updated_at = NOW()
-             WHERE id = :id AND usuario_id = :u AND estado = 'pendiente'
-               AND plazo > NOW() AND version_actual = :v
-         RETURNING version_actual
-        """),
-        {"f": fecha, "p": plazo, "id": ticket_id, "u": usuario.id, "v": version},
-    ).scalar()
-    if nueva is None:
-        db.rollback()
-        raise HTTPException(409, "Este ticket ya no se puede editar.")
+    tipo = db.get(TkTipo, ticket.tipo_id)
+    # Con una emergencia abierta no se revalida la fecha contra la regla del
+    # tipo: el administrador ya autorizó salirse de ella para este ticket.
+    if not ticket.plazo_emergencia or ahora() >= ticket.plazo_emergencia:
+        _validar_plazo(tipo, fecha)
+
+    siguiente = (db.execute(
+        text("SELECT COALESCE(MAX(version), 0) FROM tickets.versiones WHERE ticket_id = :id"),
+        {"id": ticket_id},
+    ).scalar() or 0) + 1
     db.add(TkVersion(
-        ticket_id=ticket_id, version=nueva, fecha_servicio=fecha, datos=datos, ip=ip,
-        costo=costo_de(db, db.get(TkTipo, ticket.tipo_id), datos),
+        ticket_id=ticket_id, version=siguiente, fecha_servicio=fecha, datos=datos, ip=ip,
+        costo=costo_de(db, tipo, datos), estado="propuesta",
     ))
+    try:
+        db.commit()
+    except IntegrityError:
+        # El índice parcial es el que manda si llegan dos propuestas a la vez.
+        db.rollback()
+        raise HTTPException(409, "Ya enviaste un cambio que está esperando respuesta.")
+    return siguiente
+
+
+def resolver_propuesta(db: Session, ticket_id: int, aprobar: bool, autor: str) -> dict:
+    """Aprueba o rechaza la propuesta pendiente.
+
+    Aprobar la hace vigente y con ella pasan la fecha del servicio y el costo
+    que traía. Rechazar la deja registrada: queda en el historial, pero nunca
+    rigió, así que el costo del ticket no se mueve.
+    """
+    propuesta = propuesta_pendiente(db, ticket_id)
+    if not propuesta:
+        raise HTTPException(404, "Este ticket no tiene cambios esperando respuesta.")
+    ticket = db.get(TkTicket, ticket_id)
+
+    propuesta.estado = "vigente" if aprobar else "rechazada"
+    propuesta.resuelta_por = autor
+    propuesta.resuelta_at = ahora()
+    if aprobar:
+        ticket.version_actual = propuesta.version
+        ticket.fecha_servicio = propuesta.fecha_servicio
+        ticket.plazo = _plazo(db.get(TkTipo, ticket.tipo_id), propuesta.fecha_servicio)
+        ticket.updated_at = ahora()
     db.commit()
-    return nueva
+
+    comentar(
+        db, ticket_id,
+        f"Cambio {'aprobado' if aprobar else 'rechazado'} (versión {propuesta.version}).",
+        autor, es_admin=True,
+    )
+    usuario = db.get(TkUsuario, ticket.usuario_id)
+    return {"para": usuario.email, "usuario": usuario.nombre or usuario.email, "ticket": ticket_id}
 
 
 _SELECT_TICKETS = """
     SELECT t.id, t.tipo_id, tp.nombre AS tipo, t.estado, t.fecha_servicio, t.plazo,
            t.version_actual, t.version_vista_admin, t.created_at, t.updated_at,
+           t.plazo_emergencia,
+           EXISTS (SELECT 1 FROM tickets.versiones v
+                    WHERE v.ticket_id = t.id AND v.estado = 'propuesta') AS con_propuesta,
            u.nombre AS usuario, u.email
     FROM tickets.tickets t
     JOIN tickets.tipos tp ON tp.id = t.tipo_id
@@ -249,8 +294,10 @@ _SELECT_TICKETS = """
 # aparte porque el listado normal no las necesita y son el campo más pesado.
 _JOIN_DATOS = """
     LEFT JOIN LATERAL (
+        -- La que rige, no la última: una propuesta pendiente lleva un número
+        -- mayor y no cuenta hasta que el administrador la apruebe.
         SELECT v.datos, v.costo FROM tickets.versiones v
-         WHERE v.ticket_id = t.id ORDER BY v.version DESC LIMIT 1
+         WHERE v.ticket_id = t.id AND v.version = t.version_actual
     ) vd ON TRUE
 """
 
@@ -261,9 +308,17 @@ def _resumen(row: dict, admin: bool) -> dict:
     if not admin:
         r.pop("datos", None)
         r.pop("costo", None)
-    r["editable"] = editable(r["estado"], r["plazo"], ahora())
+    r["editable"] = editable(
+        r["estado"], r["plazo"], ahora(),
+        emergencia=r.get("plazo_emergencia"),
+        propuesta_pendiente=bool(r.get("con_propuesta")),
+    )
     vista = r.pop("version_vista_admin")
-    r["modificado"] = admin and r["version_actual"] > vista
+    # Lo que el admin tiene que resolver es la propuesta, no una versión ya
+    # aplicada: con el flujo de aprobación 'modificado' pasa a significar eso.
+    r["modificado"] = admin and bool(r.get("con_propuesta"))
+    if not admin:
+        r.pop("plazo_emergencia", None)
     if not admin:
         r["usuario"] = r["email"] = None
     return r
@@ -311,8 +366,12 @@ def detalle_ticket(db: Session, ticket_id: int, *, usuario_id: int | None = None
         db.query(TkVersion).filter(TkVersion.ticket_id == ticket_id)
         .order_by(TkVersion.version.desc()).all()
     )
-    r["datos"] = versiones[0].datos
-    r["costo"] = versiones[0].costo if admin else None
+    vigente = next((v for v in versiones if v.version == r["version_actual"]), versiones[0])
+    r["datos"] = vigente.datos
+    r["costo"] = vigente.costo if admin else None
+    pendiente = next((v for v in versiones if v.estado == "propuesta"), None)
+    # El usuario ve que su cambio está esperando; el admin, qué tiene que resolver.
+    r["propuesta"] = pendiente
     # El usuario ve la vigente; el historial de versiones es para el panel.
     r["versiones"] = versiones if admin else []
     eventos = db.query(TkEvento).filter(TkEvento.ticket_id == ticket_id).order_by(TkEvento.created_at).all()
@@ -322,12 +381,8 @@ def detalle_ticket(db: Session, ticket_id: int, *, usuario_id: int | None = None
          "autor": "Administración" if e.es_admin else e.autor}
         for e in eventos
     ]
-    if admin and r["modificado"]:
-        db.execute(
-            text("UPDATE tickets.tickets SET version_vista_admin = version_actual WHERE id = :id"),
-            {"id": ticket_id},
-        )
-        db.commit()
+    # Ya no se marca "visto" al abrir: el aviso al admin lo da la propuesta
+    # pendiente y se apaga al resolverla, no al mirarla.
     return r
 
 
@@ -573,3 +628,27 @@ def costo_de(db: Session, tipo: TkTipo | None, datos: dict, cuando: date | None 
         for f in filas
     }
     return calcular_costo(datos, tarifas, tipo.pregunta_cantidad)
+
+
+def abrir_plazo_emergencia(db: Session, ticket_id: int, hasta: datetime, motivo: str, autor: str) -> dict:
+    """Permite pedir cambios en un ticket puntual más allá de la regla del tipo.
+
+    No toca el plazo del tipo ni el de los demás tickets. Queda en el hilo quién
+    lo abrió y por qué, que es donde el usuario ve la historia.
+    """
+    ticket = db.get(TkTicket, ticket_id)
+    if not ticket:
+        raise HTTPException(404, "Ticket no encontrado.")
+    if ticket.estado != "pendiente":
+        raise HTTPException(409, "Solo se puede abrir plazo en una solicitud pendiente.")
+    if hasta <= ahora():
+        raise HTTPException(400, "El plazo de emergencia tiene que ser a futuro.")
+
+    ticket.plazo_emergencia = hasta
+    ticket.plazo_emergencia_por = autor
+    db.commit()
+
+    local = hasta.astimezone(pytz.timezone(settings.zona)).strftime("%d-%m-%Y a las %H:%M")
+    comentar(db, ticket_id, f"Plazo de emergencia habilitado hasta el {local}. {motivo}".strip(), autor, es_admin=True)
+    usuario = db.get(TkUsuario, ticket.usuario_id)
+    return {"para": usuario.email, "usuario": usuario.nombre or usuario.email, "ticket": ticket_id}

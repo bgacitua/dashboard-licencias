@@ -27,7 +27,8 @@ from .config import settings
 from .logica import aviso_de_cambio
 from .models import TkTicket, TkTipo, TkUsuario
 from .schemas import (
-    ArchivoOut, ComentarioIn, Estado, EstadoIn, PrecioIn, ServicioCreate, ServicioDetalle,
+    ArchivoOut, ComentarioIn, EmergenciaIn, Estado, EstadoIn, PrecioIn, ResolucionIn,
+    ServicioCreate, ServicioDetalle,
     ServicioOut, ServicioUpdate, TicketDetalle, TicketResumen, TipoCreate, TipoOut, TipoUpdate,
     UsuarioEstadoIn, UsuarioOut,
 )
@@ -64,6 +65,31 @@ def estado(ticket_id: int, datos: EstadoIn, db: Db, admin: Admin, tareas: Backgr
             service.notificar, "ticket_estado", aviso["para"], aviso["usuario"],
             service.url_portal(f"/tickets/t/{ticket_id}"), ticket=aviso["ticket"],
         )
+
+
+@router.post("/tickets/{ticket_id}/propuesta", status_code=204)
+def resolver_propuesta(
+    ticket_id: int, datos: ResolucionIn, db: Db, admin: Admin, tareas: BackgroundTasks,
+) -> None:
+    """Aprueba o rechaza el cambio que el usuario envió. Aprobar lo hace vigente
+    con su fecha y su costo; rechazar lo deja registrado sin que haya regido."""
+    aviso = service.resolver_propuesta(db, ticket_id, datos.aprobar, admin.username)
+    tareas.add_task(
+        service.notificar, "ticket_estado", aviso["para"], aviso["usuario"],
+        service.url_portal(f"/tickets/t/{ticket_id}"), ticket=aviso["ticket"],
+    )
+
+
+@router.post("/tickets/{ticket_id}/emergencia", status_code=204)
+def abrir_emergencia(
+    ticket_id: int, datos: EmergenciaIn, db: Db, admin: Admin, tareas: BackgroundTasks,
+) -> None:
+    """Reabre el plazo de este ticket por excepción, sin tocar la regla del tipo."""
+    aviso = service.abrir_plazo_emergencia(db, ticket_id, datos.hasta, datos.motivo, admin.username)
+    tareas.add_task(
+        service.notificar, "ticket_estado", aviso["para"], aviso["usuario"],
+        service.url_portal(f"/tickets/t/{ticket_id}"), ticket=aviso["ticket"],
+    )
 
 
 @router.post("/tickets/{ticket_id}/comentarios", status_code=204)

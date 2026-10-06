@@ -179,6 +179,10 @@ class VersionOut(BaseModel):
     fecha_servicio: date
     datos: dict
     costo: dict | None = None
+    # 'vigente' | 'propuesta' | 'rechazada'. La propuesta no rige todavía.
+    estado: str = "vigente"
+    resuelta_por: str | None = None
+    resuelta_at: datetime | None = None
     created_at: datetime
 
 
@@ -206,7 +210,10 @@ class TicketResumen(BaseModel):
     # Solo en el panel.
     usuario: str | None = None
     email: str | None = None
+    # Con el flujo de aprobación: hay un cambio esperando respuesta.
     modificado: bool = False
+    # Plazo excepcional abierto por el admin; solo lo ve el panel.
+    plazo_emergencia: datetime | None = None
     # Respuestas de la versión vigente; solo con ?incluir_datos=true.
     datos: dict | None = None
     # Costo congelado al guardar esa versión. None si el formulario no tiene
@@ -216,8 +223,19 @@ class TicketResumen(BaseModel):
 
 class TicketDetalle(TicketResumen):
     datos: dict
+    # El cambio esperando respuesta, si lo hay.
+    propuesta: VersionOut | None = None
     versiones: list[VersionOut] = []
     eventos: list[EventoOut] = []
+
+
+class ResolucionIn(BaseModel):
+    aprobar: bool
+
+
+class EmergenciaIn(BaseModel):
+    hasta: datetime
+    motivo: str = Field("", max_length=300)
 
 
 # === Usuarios (panel) ===
