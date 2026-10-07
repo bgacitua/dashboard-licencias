@@ -272,11 +272,11 @@ const AsistenciaService = {
     return data
   },
 
-  crearPermiso: async (token, fecha, tipo = '') => {
+  crearPermiso: async (token, fecha, tipo = '', applicationDate = '') => {
     const { data } = await axios.post(
       `${API_URL}/notificaciones/${token}/${fecha}/permiso`,
       null,
-      { headers: authHeaders(), params: { tipo } }
+      { headers: authHeaders(), params: { tipo, application_date: applicationDate } }
     )
     return data
   },

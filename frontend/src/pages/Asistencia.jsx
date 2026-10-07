@@ -58,7 +58,7 @@ const usePendientes = (panel) => {
 
 // Panel de la campana. Overlay y no pestaña: se abre sobre lo que se estaba
 // mirando y se cierra con Escape o clickeando fuera, como cualquier dropdown.
-const PanelNotificaciones = ({ onClose }) => {
+const PanelNotificaciones = ({ onClose, onRegistrarMarca }) => {
   useEffect(() => {
     const esc = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', esc)
@@ -87,7 +87,7 @@ const PanelNotificaciones = ({ onClose }) => {
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
-        <Notificaciones />
+        <Notificaciones onRegistrarMarca={onRegistrarMarca} />
       </aside>
     </div>
   )
@@ -95,6 +95,8 @@ const PanelNotificaciones = ({ onClose }) => {
 
 const Asistencia = () => {
   const [panel, setPanel] = useState(false)
+  // {rut, fecha} que llega desde una notificación "Olvidó marcar".
+  const [prefillMarca, setPrefillMarca] = useState(null)
   const [vista, setVista] = useState('marcajes')
   const [desde, setDesde] = useState(haceDias(7))
   const [hasta, setHasta] = useState(hoy())
@@ -156,7 +158,22 @@ const Asistencia = () => {
           </button>
         </div>
 
-        {panel && <PanelNotificaciones onClose={() => setPanel(false)} />}
+        {panel && (
+          <PanelNotificaciones
+            onClose={() => setPanel(false)}
+            // "Olvidó marcar" no es permiso: se vuelve a la fila que originó
+            // el aviso, con el mismo recinto y el mismo día, y la búsqueda ya
+            // puesta en ese trabajador. Desde ahí se registra la marca.
+            onRegistrarMarca={({ rut, fecha, obraId: obraNotif }) => {
+              setDesde(fecha)
+              setHasta(fecha)
+              if (obraNotif) setObraId(obraNotif)
+              setPrefillMarca({ rut, fecha })
+              setVista('correccion')
+              setPanel(false)
+            }}
+          />
+        )}
 
         <div className="bg-white rounded-xl border border-app-line p-6">
           {/* La barra se queda arriba al scrollear una tabla larga; el blur es
@@ -242,7 +259,13 @@ const Asistencia = () => {
           </div>
 
           {vista === 'correccion' ? (
-            <CorreccionMarcas desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
+            <CorreccionMarcas
+              desde={desde}
+              hasta={hasta}
+              obraId={obraId}
+              obras={obras}
+              prefillMarca={prefillMarca}
+            />
           ) : vista === 'historial' ? (
             <Historial desde={desde} hasta={hasta} />
           ) : (

@@ -8,6 +8,10 @@ const SIN_PERMISO = new Set(['Olvidó marcar'])
 // quien gestiona. El backend igual lo exige.
 const PIDE_TIPO = new Set(['Otro motivo'])
 
+// Lo que se crea en Buk no se puede deshacer desde acá, así que la ventana
+// para arrepentirse va antes de mandar, no después.
+const SEGUNDOS_DESHACER = 5
+
 const dmy = (iso) => (iso || '').split('-').reverse().join('-')
 
 const fechaHora = (iso) =>
@@ -64,7 +68,7 @@ const agrupar = (items) => {
   return [...porToken.values()]
 }
 
-const Notificaciones = () => {
+const Notificaciones = ({ onRegistrarMarca }) => {
   const [items, setItems] = useState([])
   const [todas, setTodas] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -72,6 +76,11 @@ const Notificaciones = () => {
   // token|fecha de la fila en curso: evita doble click sobre una escritura real.
   const [enCurso, setEnCurso] = useState('')
   const [tipos, setTipos] = useState({})
+  // Fecha de aplicación por tramo; vacía = el backend usa el primer día.
+  const [aplicacion, setAplicacion] = useState({})
+  // Acción agendada que todavía se puede cancelar: {k, tramo, accion, segundos}.
+  const [pendiente, setPendiente] = useState(null)
+  const [aviso, setAviso] = useState(null)
 
   const cargar = async (verTodas = todas) => {
     setLoading(true)
@@ -97,14 +106,26 @@ const Notificaciones = () => {
   // partir de la primera, pero descartar sí hay que pedirlo fecha por fecha.
   const gestionar = async (tramo, accion) => {
     const f = tramo[0]
-    setEnCurso(clave(f))
+    const k = clave(f)
+    setEnCurso(k)
     setError('')
     try {
       if (accion === 'permiso') {
-        const r = await AsistenciaService.crearPermiso(f.token, f.fecha, tipos[clave(f)] || '')
-        if (r.dry_run) setError('DRY_RUN: el permiso NO se creó en Buk, solo se registró acá.')
+        const r = await AsistenciaService.crearPermiso(
+          f.token, f.fecha, tipos[k] || '', aplicacion[k] || ''
+        )
+        const dias = r.fechas?.length || tramo.length
+        const quien = items.find((x) => x.token === f.token)?.nombre || f.rut
+        setAviso({
+          tono: r.dry_run ? 'alerta' : 'ok',
+          texto: r.dry_run
+            ? `DRY_RUN: no se creó nada en Buk. Habría sido ${quien}, ${dias} día(s).`
+            : `Creado en Buk para ${quien}: ${dias} día(s)` +
+              (r.buk_ref ? ` · referencia ${r.buk_ref}` : ''),
+        })
       } else {
         for (const x of tramo) await AsistenciaService.descartarNotificacion(x.token, x.fecha)
+        setAviso({ tono: 'ok', texto: `Descartado: ${tramo.length} fecha(s).` })
       }
       await cargar()
     } catch (e) {
@@ -113,6 +134,40 @@ const Notificaciones = () => {
       setEnCurso('')
     }
   }
+
+  // Buk no deja deshacer lo creado, así que la ventana para arrepentirse va
+  // antes de mandar: el botón queda en cuenta regresiva y recién al llegar a
+  // cero sale el request. Cancelar es simplemente no mandarlo.
+  const programar = (tramo, accion) => {
+    const k = clave(tramo[0])
+    setPendiente({ k, tramo, accion, segundos: SEGUNDOS_DESHACER })
+  }
+
+  const cancelar = () => setPendiente(null)
+
+  // El aviso se borra solo: deja de ser noticia a los pocos segundos y el
+  // rastro permanente queda en la propia tarjeta, ya gestionada.
+  useEffect(() => {
+    if (!aviso) return undefined
+    const id = setTimeout(() => setAviso(null), 8000)
+    return () => clearTimeout(id)
+  }, [aviso])
+
+  useEffect(() => {
+    if (!pendiente) return undefined
+    if (pendiente.segundos === 0) {
+      const { tramo, accion } = pendiente
+      setPendiente(null)
+      gestionar(tramo, accion)
+      return undefined
+    }
+    const id = setTimeout(
+      () => setPendiente((p) => (p ? { ...p, segundos: p.segundos - 1 } : p)),
+      1000
+    )
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendiente])
 
   if (loading) return <p className="text-xs text-app-muted">Cargando notificaciones…</p>
 
@@ -137,6 +192,20 @@ const Notificaciones = () => {
       {error && (
         <p className="mb-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
           {error}
+        </p>
+      )}
+
+      {/* Lo que acaba de pasar, con la referencia de Buk: es el único rastro
+          que queda de una escritura que no se puede consultar desde acá. */}
+      {aviso && (
+        <p
+          className={`mb-3 text-xs rounded px-3 py-2 border ${
+            aviso.tono === 'ok'
+              ? 'text-green-800 bg-green-50 border-green-200'
+              : 'text-amber-800 bg-amber-50 border-amber-200'
+          }`}
+        >
+          {aviso.texto}
         </p>
       )}
 
@@ -201,22 +270,70 @@ const Notificaciones = () => {
                             className="text-xs border border-app-line rounded px-2 py-1 w-24"
                           />
                         )}
-                        {!SIN_PERMISO.has(f.respuesta) && (
+                        {/* Esperando: un solo control, con lo que va a pasar y
+                            cuánto queda para evitarlo. */}
+                        {pendiente?.k === clave(f) ? (
                           <button
-                            onClick={() => gestionar(tramo, 'permiso')}
-                            disabled={enCurso === clave(f)}
-                            className="px-2.5 py-1 text-xs rounded bg-app-brand text-white disabled:opacity-40"
+                            onClick={cancelar}
+                            className="px-2.5 py-1 text-xs rounded border border-app-brand
+                                       text-app-brand bg-app-surface animate-pulse"
                           >
-                            Crear permiso
+                            {pendiente.accion === 'permiso' ? 'Creando' : 'Descartando'} en{' '}
+                            {pendiente.segundos}s · Deshacer
                           </button>
+                        ) : enCurso === clave(f) ? (
+                          <span className="px-2.5 py-1 text-xs text-app-muted">Enviando…</span>
+                        ) : (
+                          <>
+                            {!SIN_PERMISO.has(f.respuesta) && (
+                              <>
+                                {/* Fecha de aplicación: por defecto el día de
+                                    la inasistencia, se cambia cuando ese mes
+                                    ya está cerrado en remuneraciones. */}
+                                <input
+                                  type="date"
+                                  value={aplicacion[clave(f)] || f.fecha}
+                                  onChange={(e) =>
+                                    setAplicacion({ ...aplicacion, [clave(f)]: e.target.value })
+                                  }
+                                  title="Fecha de aplicación en Buk"
+                                  className="text-xs border border-app-line rounded px-2 py-1"
+                                />
+                                <button
+                                  onClick={() => programar(tramo, 'permiso')}
+                                  disabled={!!pendiente}
+                                  className="px-2.5 py-1 text-xs rounded bg-app-brand text-white
+                                             disabled:opacity-40"
+                                >
+                                  Crear permiso
+                                </button>
+                              </>
+                            )}
+                            {/* "Olvidó marcar" se arregla registrando la marca,
+                                no con un permiso: se salta directo a ese flujo
+                                con el RUT y la fecha ya puestos. */}
+                            {SIN_PERMISO.has(f.respuesta) && onRegistrarMarca && (
+                              <button
+                                onClick={() =>
+                                  onRegistrarMarca({
+                                    rut: g.rut, fecha: f.fecha, obraId: g.obra_id,
+                                  })
+                                }
+                                className="px-2.5 py-1 text-xs rounded bg-app-brand text-white"
+                              >
+                                Registrar marca
+                              </button>
+                            )}
+                            <button
+                              onClick={() => programar(tramo, 'descartar')}
+                              disabled={!!pendiente}
+                              className="px-2.5 py-1 text-xs border border-app-line rounded
+                                         hover:bg-white disabled:opacity-40"
+                            >
+                              Descartar
+                            </button>
+                          </>
                         )}
-                        <button
-                          onClick={() => gestionar(tramo, 'descartar')}
-                          disabled={enCurso === clave(f)}
-                          className="px-2.5 py-1 text-xs border border-app-line rounded hover:bg-white disabled:opacity-40"
-                        >
-                          Descartar
-                        </button>
                       </div>
                     )
                   })}

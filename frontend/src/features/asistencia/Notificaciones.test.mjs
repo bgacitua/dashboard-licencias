@@ -8,8 +8,31 @@ const src = readFileSync(new URL('./Notificaciones.jsx', import.meta.url), 'utf8
 // El valor que viaja a la API es el RUT normalizado, no el formateado: si
 // alguien cambia esto, el permiso se crea con un RUT que Buk no conoce.
 assert.ok(
-  src.includes('AsistenciaService.crearPermiso(f.token, f.fecha'),
+  /crearPermiso\(\s*f\.token,\s*f\.fecha/.test(src),
   'el permiso se crea con el token y la fecha, no con el RUT de pantalla',
+)
+
+// La escritura en Buk no se puede deshacer, así que la ventana para
+// arrepentirse tiene que estar ANTES del request, no después.
+assert.ok(
+  src.includes('setPendiente({ k, tramo, accion, segundos: SEGUNDOS_DESHACER })'),
+  'la acción se agenda; el request sale recién al terminar la cuenta',
+)
+assert.ok(
+  src.indexOf('const programar') < src.indexOf('const cancelar'),
+  'programar y cancelar van juntas',
+)
+
+// "Olvidó marcar" no ofrece permiso: lleva de vuelta a Inasistencias.
+assert.ok(
+  src.includes("SIN_PERMISO.has(f.respuesta) && onRegistrarMarca"),
+  'el atajo a marcas solo aparece en los motivos que no generan permiso',
+)
+// El recinto viaja con el salto: sin él, la tabla se abriría en otra obra y
+// la fila que se viene a buscar no estaría.
+assert.ok(
+  /onRegistrarMarca\(\{[\s\S]{0,120}obraId: g\.obra_id/.test(src),
+  'el salto lleva rut, fecha y recinto',
 )
 
 // Copias del fuente: el test no monta React, solo fija el comportamiento.
