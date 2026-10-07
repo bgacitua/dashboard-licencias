@@ -1,5 +1,7 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import SidebarLayout from '../components/SidebarLayout'
+import Notificaciones from '../features/asistencia/Notificaciones'
+import AsistenciaService from '../services/asistencia.service'
 import TablaDinamica from '../features/asistencia/TablaDinamica'
 import { descargarCsv } from '../features/asistencia/exportar'
 import CorreccionMarcas from '../features/asistencia/CorreccionMarcas'
@@ -18,13 +20,41 @@ const VISTAS = [
   { id: 'recinto-trabajador', label: 'Recinto por Trabajador', rango: false },
   { id: 'historial', label: 'Historial', rango: true, propia: true },
   { id: 'auditoria', label: 'Auditoría de Marcas', rango: true },
+  { id: 'notificaciones', label: 'Notificaciones', rango: false, propia: true },
 ]
+
+// Cada medio minuto: las respuestas llegan de a una y por correo, así que el
+// contador puede ir unos segundos atrasado sin que a nadie le importe.
+const REFRESCO_BADGE = 30000
 
 const hoy = () => new Date().toISOString().slice(0, 10)
 const haceDias = (n) => {
   const d = new Date()
   d.setDate(d.getDate() - n)
   return d.toISOString().slice(0, 10)
+}
+
+// El contador del círculo rojo. Se refresca solo y, además, cada vez que se
+// cambia de pestaña: al salir de Notificaciones hay que reflejar lo gestionado.
+const usePendientes = (vista) => {
+  const [n, setN] = useState(0)
+
+  useEffect(() => {
+    let vivo = true
+    const leer = () =>
+      AsistenciaService.getNotificaciones()
+        .then((d) => vivo && setN(d.pendientes || 0))
+        // Un contador caído no puede romper la página: se queda en el último valor.
+        .catch(() => {})
+    leer()
+    const id = setInterval(leer, REFRESCO_BADGE)
+    return () => {
+      vivo = false
+      clearInterval(id)
+    }
+  }, [vista])
+
+  return n
 }
 
 const Asistencia = () => {
@@ -35,6 +65,7 @@ const Asistencia = () => {
 
   const obras = useObras()
   const actual = VISTAS.find((v) => v.id === vista)
+  const pendientes = usePendientes(vista)
   // Las vistas sin rango ignoran las fechas: no las mandamos para no romper su
   // clave de caché en el backend.
   const { rows, columns, descartados, loading, error, recargar } = useVista(
@@ -71,13 +102,23 @@ const Asistencia = () => {
               <button
                 key={v.id}
                 onClick={() => setVista(v.id)}
-                className={`px-4 py-2 text-sm font-medium rounded-xl border transition-colors ${
+                className={`relative px-4 py-2 text-sm font-medium rounded-xl border transition-colors ${
                   vista === v.id
                     ? 'border-app-brand/40 text-app-brand bg-app-surface'
                     : 'border-transparent text-app-muted hover:text-app-ink hover:bg-app-surface/60'
                 }`}
               >
                 {v.label}
+                {v.id === 'notificaciones' && pendientes > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[1.25rem] h-5 px-1 rounded-full
+                               bg-red-600 text-white text-xs font-bold
+                               flex items-center justify-center"
+                    aria-label={`${pendientes} respuestas sin gestionar`}
+                  >
+                    {pendientes > 99 ? '99+' : pendientes}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -147,6 +188,8 @@ const Asistencia = () => {
             <CorreccionMarcas desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
           ) : vista === 'historial' ? (
             <Historial desde={desde} hasta={hasta} />
+          ) : vista === 'notificaciones' ? (
+            <Notificaciones />
           ) : (
           <TablaDinamica
             rows={rows}

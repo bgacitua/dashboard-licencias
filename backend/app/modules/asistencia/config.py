@@ -53,6 +53,16 @@ class AsistenciaSettings(BaseSettings):
     marcas_api_key_header: str = "token"
     recinto_keys: str = ""   # "obra_id:clave_recinto,obra_id:clave_recinto"
 
+    # === Permisos en Buk (centro de notificaciones) ===
+    # Vacía = el botón "Crear permiso" responde 503 y el permiso se carga a mano
+    # en Buk; el resto del panel funciona igual. Falta confirmar el contrato del
+    # endpoint contra https://<empresa>.buk.cl/api/v1/es/api_docs.
+    permisos_api_url: str = ""
+    permisos_api_key: SecretStr = SecretStr("")  # vacío => usa buk_api_key
+    # Motivo del formulario -> tipo de permiso en Buk, para corregir los códigos
+    # sin tocar código. Formato: "Permiso pagado:CODIGO,Permiso sin goce:CODIGO".
+    permiso_tipos: str = ""
+
     # Casilla que recibe un aviso por cada respuesta de jefatura. Vacía = nadie
     # recibe nada: la respuesta igual queda guardada, solo que hay que ir a
     # buscarla a la tabla.
@@ -119,6 +129,16 @@ class AsistenciaSettings(BaseSettings):
             code, _, obra = item.strip().partition(":")
             if code.strip() and obra.strip():
                 out[code.strip().lower()] = obra.strip()
+        return out
+
+    @property
+    def permiso_tipos_map(self) -> dict[str, str]:
+        """Motivo del formulario -> tipo de permiso en Buk."""
+        out: dict[str, str] = {}
+        for item in self.permiso_tipos.split(","):
+            motivo, _, tipo = item.strip().partition(":")
+            if motivo.strip() and tipo.strip():
+                out[motivo.strip()] = tipo.strip()
         return out
 
     @property

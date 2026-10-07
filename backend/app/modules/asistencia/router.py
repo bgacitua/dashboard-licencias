@@ -29,7 +29,7 @@ from app.db.deps import get_db, get_marcas_db
 from .client import to_buk_date
 from .columnas import columnas_crudas, ordered_columns
 from .config import AsistenciaSettings, get_settings
-from . import ausencias, historial, nomina, notificaciones, sin_marca
+from . import ausencias, historial, nomina, notificaciones, permisos, sin_marca
 from .marcas import registrar
 from .morpho import marcas_en_rango
 from .plataforma import buk_core_url
@@ -63,6 +63,10 @@ router = APIRouter(dependencies=[Depends(require_module("asistencia"))])
 Settings = Annotated[AsistenciaSettings, Depends(get_settings)]
 MarcasDb = Annotated[Session, Depends(get_marcas_db)]
 Db = Annotated[Session, Depends(get_db)]
+# Gestionar una notificación escribe en Buk o cierra el pendiente: mismo rol
+# que el resto de las escrituras del módulo. El tipo real es app.models.Usuario;
+# no se importa para no sumar otro acoplamiento, solo se lee `.username`.
+Admin = Annotated[object, Depends(require_role(["admin"]))]
 
 
 @router.get("/health")
@@ -452,6 +456,55 @@ async def notificar_jefatura(
 def jefaturas(db: Db, ruts: str = Query(..., description="RUTs sin DV, separados por coma")) -> dict:
     """Correo del jefe directo de cada RUT, para no escribirlo a mano."""
     return notificaciones.jefaturas_por_rut(db, [r.strip() for r in ruts.split(",")])
+
+
+@router.get("/notificaciones")
+def listar_notificaciones(db: Db, todas: bool = Query(False)) -> dict:
+    """Respuestas de jefatura para el centro de notificaciones.
+
+    `pendientes` es el número del círculo rojo: cuenta siempre lo sin gestionar,
+    aunque `todas` pida también el historial.
+    """
+    return {
+        "pendientes": notificaciones.contar_pendientes(db),
+        "items": notificaciones.pendientes(db, incluir_gestionadas=todas),
+    }
+
+
+@router.post("/notificaciones/{token}/{fecha}/permiso")
+async def crear_permiso(
+    token: str, fecha: str, db: Db, settings: Settings, usuario: Admin,
+    tipo: str = Query("", description='Tipo de permiso en Buk; obligatorio en "Otro motivo"'),
+) -> dict:
+    """Crea el permiso en Buk y da la respuesta por gestionada.
+
+    Escribe en Buk de verdad: igual que las marcas, queda en el sistema real y
+    no se puede deshacer desde acá. El motivo sale de la base, no del request.
+    """
+    n = notificaciones.detalle(db, token, fecha)
+    if not n:
+        raise HTTPException(404, "Esa respuesta no existe.")
+    if n["gestion"]:
+        raise HTTPException(409, f"Ya estaba gestionada ({n['gestion']}).")
+
+    ref = await permisos.crear(
+        n["rut"], n["fecha"], n["respuesta"], n["comentario"], settings, tipo=tipo
+    )
+    # Solo después de que Buk acepta: si falla, la notificación sigue pendiente
+    # y se puede reintentar.
+    notificaciones.marcar_gestion(
+        db, token, fecha, "permiso", por=usuario.username, buk_ref=ref
+    )
+    return {"ok": True, "buk_ref": ref, "dry_run": settings.dry_run}
+
+
+@router.post("/notificaciones/{token}/{fecha}/descartar", status_code=204)
+def descartar_notificacion(token: str, fecha: str, db: Db, usuario: Admin) -> None:
+    """Saca la respuesta del contador sin crear nada en Buk."""
+    n = notificaciones.detalle(db, token, fecha)
+    if not n:
+        raise HTTPException(404, "Esa respuesta no existe.")
+    notificaciones.marcar_gestion(db, token, fecha, "descartada", por=usuario.username)
 
 
 @router.get("/respuestas-jefatura")
