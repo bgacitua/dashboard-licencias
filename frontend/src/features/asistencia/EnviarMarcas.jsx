@@ -85,7 +85,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
           onClick={() => !enviando && cerrar()}
         >
           <div
-            className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] flex flex-col"
+            className="bg-white rounded-xl w-full max-w-5xl max-h-[90vh] flex flex-col"
             role="dialog"
             aria-modal="true"
             aria-label="Registrar marcas"
@@ -130,11 +130,11 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                 // Scroll horizontal propio: el modal no debe empujar la página
                 // cuando la tabla no cabe.
                 <div className="overflow-x-auto -mx-2 px-2">
-                <table className="w-full text-sm min-w-[54rem]">
+                <table className="w-full text-sm min-w-[46rem]">
                   <thead className="text-left text-app-muted sticky top-0 bg-white">
                     <tr>
                       {['RUT', 'Nombre', 'Turno', 'Marca', 'Fecha', 'Hora', 'Origen', 'Motivo'].map((h) => (
-                        <th key={h} className="pb-2 pr-4 font-medium whitespace-nowrap">{h}</th>
+                        <th key={h} className="pb-2 pr-3 font-medium whitespace-nowrap">{h}</th>
                       ))}
                       <th className="pb-2 font-medium" />
                     </tr>
@@ -147,22 +147,22 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                           <input
                             value={m[campo] ?? ''}
                             onChange={(e) => parchear(i, { [campo]: e.target.value })}
-                            className={`text-sm border border-app-line rounded px-1.5 py-0.5 ${extra}`}
+                            className={`text-xs border border-app-line rounded px-1.5 py-0.5 ${extra}`}
                           />
                         ) : (
                           m[campo]
                         )
                       return (
                       <tr key={i} className="border-t border-app-line">
-                        <td className="py-2 pr-4 whitespace-nowrap">{m.rut}</td>
-                        <td className="py-2 pr-4 whitespace-nowrap">{m.nombre}</td>
-                        <td className="py-2 pr-4 whitespace-nowrap">{texto('turno', 'w-28')}</td>
-                        <td className="py-2 pr-4 whitespace-nowrap">
+                        <td className="py-2 pr-3 whitespace-nowrap">{m.rut}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap">{m.nombre}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap">{texto('turno', 'w-20')}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap">
                           {edit ? (
                             <select
                               value={m.i}
                               onChange={(e) => parchear(i, { i: e.target.value })}
-                              className="text-sm border border-app-line rounded px-1.5 py-0.5"
+                              className="text-xs border border-app-line rounded px-1 py-0.5 w-24"
                             >
                               <option value="entrada">entrada</option>
                               <option value="salida">salida</option>
@@ -173,7 +173,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                         </td>
                         {/* Los inputs nativos validan solos; se convierte al formato
                             que pide Buk ("d/M/yyyy" y "H:m:s") recién al guardar. */}
-                        <td className="py-2 pr-4 whitespace-nowrap">
+                        <td className="py-2 pr-3 whitespace-nowrap">
                           {edit ? (
                             <input
                               type="date"
@@ -183,13 +183,13 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                                   fecha: e.target.value ? fechaApiDesdeIso(e.target.value) : m.fecha,
                                 })
                               }
-                              className="text-sm border border-app-line rounded px-1.5 py-0.5"
+                              className="text-xs border border-app-line rounded px-1 py-0.5 w-32"
                             />
                           ) : (
                             m.fecha
                           )}
                         </td>
-                        <td className="py-2 pr-4 whitespace-nowrap">
+                        <td className="py-2 pr-3 whitespace-nowrap">
                           {edit ? (
                             <input
                               type="time"
@@ -200,14 +200,17 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                                   hora: e.target.value ? horaApiDesdeHms(e.target.value) : m.hora,
                                 })
                               }
-                              className="text-sm border border-app-line rounded px-1.5 py-0.5"
+                              className="text-xs border border-app-line rounded px-1 py-0.5 w-24"
                             />
                           ) : (
                             m.hora
                           )}
                         </td>
-                        <td className="py-2 pr-4 whitespace-nowrap text-app-muted">
-                          {m.matched ? 'intento real' : 'hora del turno'}
+                        <td
+                          className="py-2 pr-3 whitespace-nowrap text-app-muted"
+                          title={m.matched ? 'hora de un intento real' : 'hora del turno'}
+                        >
+                          {m.matched ? 'intento' : 'turno'}
                         </td>
                         <td className="py-2">
                           <select
@@ -215,7 +218,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                             onChange={(e) =>
                               setMotivos((prev) => new Map(prev).set(i, e.target.value))
                             }
-                            className="text-sm border border-app-line rounded px-2 py-1 w-full"
+                            className="text-xs border border-app-line rounded px-1.5 py-1 w-full"
                           >
                             {[...new Set([...MOTIVOS.filter((x) => x !== 'Otro'), motivoDe(m, i)])].map(
                               (op) => <option key={op}>{op}</option>
