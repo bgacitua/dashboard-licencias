@@ -70,6 +70,16 @@ El link del formulario de jefatura sale de `PUBLIC_URL`, el mismo que la
 plataforma usa para las alertas de contrato y las horas extras. Solo hace falta
 `ASISTENCIA_PUBLIC_BASE_URL` para apuntar a otro host; vacía, hereda aquella.
 
+Cada respuesta de jefatura se avisa por correo a `ASISTENCIA_RESPUESTAS_EMAIL`
+con los motivos por fecha y el comentario, que si no hay que ir a buscar a la
+base. Vacía = nadie recibe nada; la respuesta igual queda guardada. Si ese
+correo falla, se loguea y la jefatura igual ve el "respuesta registrada": su
+parte ya está hecha.
+
+```
+ASISTENCIA_RESPUESTAS_EMAIL=bgacitua@cramer.cl
+```
+
 Sin `ASISTENCIA_EXTERNAL_API_KEY` los endpoints devuelven 503 en vez de fallar
 al arrancar: una credencial faltante no puede tumbar el resto de la plataforma.
 

@@ -53,6 +53,11 @@ class AsistenciaSettings(BaseSettings):
     marcas_api_key_header: str = "token"
     recinto_keys: str = ""   # "obra_id:clave_recinto,obra_id:clave_recinto"
 
+    # Casilla que recibe un aviso por cada respuesta de jefatura. Vacía = nadie
+    # recibe nada: la respuesta igual queda guardada, solo que hay que ir a
+    # buscarla a la tabla.
+    respuestas_email: str = ""
+
     # Base del link del formulario de jefatura. Vacía = se usa PUBLIC_URL de la
     # plataforma, que ya arma los links de alertas de contrato y horas extras
     # hacia las mismas jefaturas. Solo se completa para apuntar a otro host.
