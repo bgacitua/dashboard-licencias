@@ -76,7 +76,7 @@ const Aviso = ({ estado }) => {
   )
 }
 
-const Inasistencias = ({ desde, hasta, obraId, obras }) => {
+const Inasistencias = ({ desde, hasta, obraId, obras, prefill }) => {
   // Modo importador: el reporte subido reemplaza la consulta a la API.
   const [importador, setImportador] = useState(false)
   const [reporte, setReporte] = useState(null)
@@ -536,6 +536,9 @@ const Inasistencias = ({ desde, hasta, obraId, obras }) => {
         onSeleccion={setSeleccion}
         idDeFila={(fila) => claveMorpho(fila)}
         filaSeleccionable={(row) => seleccionable(row.original)}
+        // Quien llega desde una notificación viene por un trabajador puntual:
+        // el rango y el recinto ya los dejó puestos la página.
+        filtroInicial={prefill?.rut || ''}
         vacio={
           importador && !reporte
             ? 'Sube un reporte para ver registros.'

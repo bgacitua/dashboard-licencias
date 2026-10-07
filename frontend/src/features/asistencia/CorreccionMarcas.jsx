@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 
 import IngresoManual from './IngresoManual'
 import Inasistencias from './Inasistencias'
@@ -19,8 +19,14 @@ const SUBTABS = [
   { id: 'manual', label: 'Ingreso Manual' },
 ]
 
-const CorreccionMarcas = ({ desde, hasta, obraId, obras }) => {
+const CorreccionMarcas = ({ desde, hasta, obraId, obras, prefillMarca }) => {
   const [sub, setSub] = useState('inasistencias')
+
+  // Una notificación "Olvidó marcar" nació de una fila de Inasistencias: se
+  // vuelve a ella, que es donde está el turno y el botón de registrar.
+  useEffect(() => {
+    if (prefillMarca) setSub('inasistencias')
+  }, [prefillMarca])
 
   return (
     <div>
@@ -46,7 +52,7 @@ const CorreccionMarcas = ({ desde, hasta, obraId, obras }) => {
       {/* Las tres montadas: cambiar de sub-pestaña no debe perder los archivos
           cargados ni la selección a medio hacer. */}
       <div hidden={sub !== 'inasistencias'}>
-        <Inasistencias desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
+        <Inasistencias desde={desde} hasta={hasta} obraId={obraId} obras={obras} prefill={prefillMarca} />
       </div>
       <div hidden={sub !== 'marcas-fallidas'}>
         <MarcasFallidas obraId={obraId} obras={obras} />

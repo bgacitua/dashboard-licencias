@@ -475,6 +475,9 @@ def listar_notificaciones(db: Db, todas: bool = Query(False)) -> dict:
 async def crear_permiso(
     token: str, fecha: str, db: Db, settings: Settings, usuario: Admin,
     tipo: str = Query("", description='permission_type_id de Buk; obligatorio en "Otro motivo"'),
+    application_date: str = Query(
+        "", description="Período en que Buk aplica el permiso. Vacío = el primer día de la racha"
+    ),
 ) -> dict:
     """Crea el permiso en Buk y da por gestionadas las fechas que cubre.
 
@@ -493,7 +496,8 @@ async def crear_permiso(
 
     racha = notificaciones.racha_de(db, token, fecha)
     ref = await permisos.crear(
-        n["rut"], racha, n["respuesta"], n["comentario"], settings, db, tipo=tipo
+        n["rut"], racha, n["respuesta"], n["comentario"], settings, db, tipo=tipo,
+        application_date=application_date,
     )
     # Solo después de que Buk acepta: si falla, la notificación sigue pendiente
     # y se puede reintentar.

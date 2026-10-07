@@ -117,17 +117,23 @@ def employee_id(db: Session, rut: str) -> int | None:
     ).scalar()
 
 
-def _payload(emp_id: int, fechas: list[str], tipo_id: int, paid: bool, comentario: str) -> dict:
+def _payload(emp_id: int, fechas: list[str], tipo_id: int, paid: bool, comentario: str,
+             application_date: str = "") -> dict:
     """Cuerpo del POST, según Absences::Permission::Request.
 
-    Se mandan solo los campos que esta integración conoce. `day_percent` y
-    `workday_stage` quedan fuera a propósito: en blanco Buk asume día completo,
-    que es lo que significa una inasistencia sin marcas.
+    `application_date` es el período en que Buk aplica el permiso. Por defecto
+    el primer día de la racha: la inasistencia pertenece al mes en que ocurrió,
+    aunque se gestione después. Se manda distinto cuando ese mes ya está
+    cerrado en remuneraciones y hay que llevarla al siguiente.
+
+    `day_percent` y `workday_stage` quedan fuera a propósito: en blanco Buk
+    asume día completo, que es lo que significa una inasistencia sin marcas.
     """
     return {
         "employee_id": emp_id,
         "start_date": min(fechas),    # yyyy-mm-dd
         "days_count": len(fechas),    # días corridos: la racha completa
+        "application_date": application_date or min(fechas),
         "paid": paid,
         "permission_type_id": tipo_id,
         "justification": (comentario or "Respuesta de jefatura")[:500],
@@ -137,6 +143,7 @@ def _payload(emp_id: int, fechas: list[str], tipo_id: int, paid: bool, comentari
 async def crear(
     rut: str, fechas: list[str], motivo: str, comentario: str,
     settings: AsistenciaSettings, db: Session | None = None, tipo: str = "",
+    application_date: str = "",
 ) -> str:
     """Crea UN permiso por la racha `fechas` y devuelve el id que entrega Buk.
 
@@ -178,7 +185,14 @@ async def crear(
                    "Buk no puede recibir el permiso.",
         )
 
-    cuerpo = _payload(emp_id, fechas, tipo_id, pagado(motivo, settings), comentario)
+    if application_date:
+        try:
+            date.fromisoformat(application_date)
+        except ValueError:
+            raise HTTPException(400, "La fecha de aplicación debe ser yyyy-mm-dd.")
+
+    cuerpo = _payload(emp_id, fechas, tipo_id, pagado(motivo, settings), comentario,
+                      application_date)
 
     if settings.dry_run:
         logger.warning("[asistencia/permisos] DRY_RUN: permiso NO creado: %s", cuerpo)
@@ -323,6 +337,17 @@ def _demo() -> None:
     cuerpo = _payload(7, ["2026-01-02", "2026-01-01"], 4, True, "c" * 900)
     assert cuerpo["days_count"] == 2, "la racha entera va en un permiso"
     assert cuerpo["start_date"] == "2026-01-01", "empieza en la primera fecha"
+    # Sin indicar nada, el permiso se aplica en el mes en que ocurrió.
+    assert cuerpo["application_date"] == "2026-01-01", cuerpo
+    assert _payload(7, ["2026-01-01"], 4, True, "", "2026-02-01")["application_date"] \
+        == "2026-02-01", "se puede llevar a otro período"
+
+    # Una fecha de aplicación ilegible se rechaza antes de llegar a Buk.
+    try:
+        asyncio.run(crear("1", uno, "Permiso pagado", "", cfg, db, application_date="01-2026"))
+        raise AssertionError("debía rechazar la fecha")
+    except HTTPException as exc:
+        assert exc.status_code == 400, exc
     assert cuerpo["employee_id"] == 7 and "rut" not in cuerpo, cuerpo
     assert len(cuerpo["justification"]) == 500, "la justificación va acotada"
     # Sin comentario igual viaja algo legible, no una cadena vacía.

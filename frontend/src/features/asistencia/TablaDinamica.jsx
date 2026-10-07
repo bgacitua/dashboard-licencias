@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -35,9 +35,16 @@ const TablaDinamica = ({
   onSeleccion,
   idDeFila,
   filaSeleccionable,
+  // Búsqueda precargada: quien llega desde otra pantalla ya sabe qué fila
+  // viene a buscar. Queda editable como cualquier otra búsqueda.
+  filtroInicial = '',
 }) => {
   const [sorting, setSorting] = useState([])
-  const [filtro, setFiltro] = useState('')
+  const [filtro, setFiltro] = useState(filtroInicial)
+
+  useEffect(() => {
+    if (filtroInicial) setFiltro(filtroInicial)
+  }, [filtroInicial])
 
   const cols = useMemo(
     () =>
