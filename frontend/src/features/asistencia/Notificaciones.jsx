@@ -4,6 +4,9 @@ import AsistenciaService from '../../services/asistencia.service'
 // Motivos que no generan permiso en Buk. "Olvidó marcar" se arregla
 // registrando la marca, que es otro flujo (Corrección de Marcas).
 const SIN_PERMISO = new Set(['Olvidó marcar'])
+// Motivos que pueden terminar en cualquiera de los dos lados: lo dice el
+// comentario de la jefatura, así que se ofrecen ambos y elige quien gestiona.
+const AMBOS = new Set(['Otro motivo'])
 // "Otro motivo" no tiene tipo fijo: lo dice el comentario, así que lo elige
 // quien gestiona. El backend igual lo exige.
 const PIDE_TIPO = new Set(['Otro motivo'])
@@ -11,6 +14,13 @@ const PIDE_TIPO = new Set(['Otro motivo'])
 // Lo que se crea en Buk no se puede deshacer desde acá, así que la ventana
 // para arrepentirse va antes de mandar, no después.
 const SEGUNDOS_DESHACER = 5
+
+// Cómo se cerró la notificación, tal como lo guarda el backend.
+const GESTION = {
+  permiso: 'permiso creado',
+  descartada: 'descartada',
+  marca: 'pasó a corrección de marcas',
+}
 
 const dmy = (iso) => (iso || '').split('-').reverse().join('-')
 
@@ -76,14 +86,19 @@ const Notificaciones = ({ onRegistrarMarca }) => {
   // token|fecha de la fila en curso: evita doble click sobre una escritura real.
   const [enCurso, setEnCurso] = useState('')
   const [tipos, setTipos] = useState({})
+  // Catálogo de Buk para el select: viene del backend, que es quien manda al
+  // crear. Si no carga, el select queda vacío y el backend igual exige el tipo.
+  const [tiposBuk, setTiposBuk] = useState([])
   // Fecha de aplicación por tramo; vacía = el backend usa el primer día.
   const [aplicacion, setAplicacion] = useState({})
   // Acción agendada que todavía se puede cancelar: {k, tramo, accion, segundos}.
   const [pendiente, setPendiente] = useState(null)
   const [aviso, setAviso] = useState(null)
 
-  const cargar = async (verTodas = todas) => {
-    setLoading(true)
+  // `silencioso` recarga sin vaciar la pantalla: después de gestionar, poner
+  // "Cargando…" en lugar de la lista mandaba la vista de vuelta al principio.
+  const cargar = async (verTodas = todas, silencioso = false) => {
+    if (!silencioso) setLoading(true)
     setError('')
     try {
       const data = await AsistenciaService.getNotificaciones(verTodas)
@@ -91,7 +106,7 @@ const Notificaciones = ({ onRegistrarMarca }) => {
     } catch (e) {
       setError(e?.response?.data?.detail || 'No se pudieron cargar las notificaciones.')
     } finally {
-      setLoading(false)
+      if (!silencioso) setLoading(false)
     }
   }
 
@@ -99,6 +114,12 @@ const Notificaciones = ({ onRegistrarMarca }) => {
     cargar(todas)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todas])
+
+  useEffect(() => {
+    AsistenciaService.getTiposPermiso()
+      .then((d) => setTiposBuk(d.tipos || []))
+      .catch(() => setTiposBuk([]))
+  }, [])
 
   const clave = (f) => `${f.token}|${f.fecha}`
 
@@ -127,7 +148,7 @@ const Notificaciones = ({ onRegistrarMarca }) => {
         for (const x of tramo) await AsistenciaService.descartarNotificacion(x.token, x.fecha)
         setAviso({ tono: 'ok', texto: `Descartado: ${tramo.length} fecha(s).` })
       }
-      await cargar()
+      await cargar(todas, true)
     } catch (e) {
       setError(e?.response?.data?.detail || 'No se pudo completar la acción.')
     } finally {
@@ -135,10 +156,37 @@ const Notificaciones = ({ onRegistrarMarca }) => {
     }
   }
 
+  // "Olvidó marcar" no genera permiso: se cierra acá y se sigue en Corrección
+  // de Marcas. Se marca el tramo antes de saltar para que no quede penando en
+  // el centro; si la marca después no se registra, se ve en esa pantalla, no
+  // acá. Sin cuenta regresiva: no escribe nada en Buk.
+  const registrarMarca = async (tramo, g) => {
+    const f = tramo[0]
+    setEnCurso(clave(f))
+    setError('')
+    try {
+      for (const x of tramo) await AsistenciaService.marcaRegistrada(x.token, x.fecha)
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'No se pudo cerrar la notificación.')
+      setEnCurso('')
+      return
+    }
+    setEnCurso('')
+    onRegistrarMarca({ rut: g.rut, fecha: f.fecha, obraId: g.obra_id })
+  }
+
   // Buk no deja deshacer lo creado, así que la ventana para arrepentirse va
   // antes de mandar: el botón queda en cuenta regresiva y recién al llegar a
   // cero sale el request. Cancelar es simplemente no mandarlo.
+  //
+  // Descartar no escribe en Buk y se revierte mirando "ya gestionadas", así
+  // que sale al tiro: esperar 5 segundos por fila hacía eterna una bandeja
+  // llena de cosas que solo hay que sacar del medio.
   const programar = (tramo, accion) => {
+    if (accion === 'descartar') {
+      gestionar(tramo, accion)
+      return
+    }
     const k = clave(tramo[0])
     setPendiente({ k, tramo, accion, segundos: SEGUNDOS_DESHACER })
   }
@@ -230,7 +278,7 @@ const Notificaciones = ({ onRegistrarMarca }) => {
                     <span className="text-app-ink font-medium">{f.respuesta}</span>
                     {f.gestion && (
                       <span className="text-app-muted">
-                        · {f.gestion === 'permiso' ? 'permiso creado' : 'descartada'}
+                        · {GESTION[f.gestion] || f.gestion}
                         {f.gestion_por && ` por ${f.gestion_por}`}
                         {f.buk_ref && ` · Buk ${f.buk_ref}`}
                       </span>
@@ -262,14 +310,17 @@ const Notificaciones = ({ onRegistrarMarca }) => {
                           </span>
                         )}
                         {PIDE_TIPO.has(f.respuesta) && (
-                          <input
-                            type="number"
-                            placeholder="N° tipo"
-                            title="permission_type_id de Buk (Listar tipos permisos)"
+                          <select
+                            title="Tipo de permiso en Buk"
                             value={tipos[clave(f)] || ''}
                             onChange={(e) => setTipos({ ...tipos, [clave(f)]: e.target.value })}
-                            className="text-xs border border-app-line rounded px-2 py-1 w-24"
-                          />
+                            className="text-xs border border-app-line rounded px-2 py-1"
+                          >
+                            <option value="">Tipo de permiso…</option>
+                            {tiposBuk.map((t) => (
+                              <option key={t.id} value={t.id}>{t.nombre}</option>
+                            ))}
+                          </select>
                         )}
                         {/* Esperando: un solo control, con lo que va a pasar y
                             cuánto queda para evitarlo. */}
@@ -302,7 +353,12 @@ const Notificaciones = ({ onRegistrarMarca }) => {
                                 />
                                 <button
                                   onClick={() => programar(tramo, 'permiso')}
-                                  disabled={!!pendiente}
+                                  // Sin tipo elegido el backend rechaza: mejor
+                                  // que el botón lo diga antes de mandar.
+                                  disabled={
+                                    !!pendiente ||
+                                    (PIDE_TIPO.has(f.respuesta) && !tipos[clave(f)])
+                                  }
                                   className="px-2.5 py-1 text-xs rounded bg-app-brand text-white
                                              disabled:opacity-40"
                                 >
@@ -312,15 +368,19 @@ const Notificaciones = ({ onRegistrarMarca }) => {
                             )}
                             {/* "Olvidó marcar" se arregla registrando la marca,
                                 no con un permiso: se salta directo a ese flujo
-                                con el RUT y la fecha ya puestos. */}
-                            {SIN_PERMISO.has(f.respuesta) && onRegistrarMarca && (
+                                con el RUT y la fecha ya puestos. En los motivos
+                                que admiten las dos salidas, esta queda como
+                                secundaria para no competir con el permiso. */}
+                            {(SIN_PERMISO.has(f.respuesta) || AMBOS.has(f.respuesta))
+                              && onRegistrarMarca && (
                               <button
-                                onClick={() =>
-                                  onRegistrarMarca({
-                                    rut: g.rut, fecha: f.fecha, obraId: g.obra_id,
-                                  })
+                                onClick={() => registrarMarca(tramo, g)}
+                                disabled={!!pendiente}
+                                className={
+                                  SIN_PERMISO.has(f.respuesta)
+                                    ? 'px-2.5 py-1 text-xs rounded bg-app-brand text-white disabled:opacity-40'
+                                    : 'px-2.5 py-1 text-xs rounded text-app-brand hover:bg-app-surface transition-colors disabled:opacity-40'
                                 }
-                                className="px-2.5 py-1 text-xs rounded bg-app-brand text-white"
                               >
                                 Registrar marca
                               </button>
