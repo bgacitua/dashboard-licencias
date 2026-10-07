@@ -35,7 +35,7 @@ from app.db.deps import get_db
 from app.services.email_service import send_email_graph
 from app.services.email_token_service import AuthRequiredError, get_access_token
 
-from .config import AsistenciaSettings
+from .config import AsistenciaSettings, settings as asistencia_settings
 
 OPCIONES = ["Olvidó marcar", "Permiso pagado", "Permiso sin goce", "Inasistencia",
             "Otro motivo"]
@@ -88,7 +88,7 @@ def crear(db: Session, obra_id: str, rut: str, nombre: str, jefatura: str, fecha
 
 def obtener(db: Session, token: str) -> dict | None:
     fila = db.execute(
-        text("""SELECT token, rut, nombre, jefatura, respondido_at
+        text("""SELECT token, obra_id, rut, nombre, jefatura, respondido_at
                 FROM app.asistencia_notificacion WHERE token = :token"""),
         {"token": token},
     ).mappings().first()
@@ -295,6 +295,85 @@ def cuerpo(nombre: str, rut: str, fechas: list[str], url: str) -> str:
 </table>"""
 
 
+def cuerpo_respuesta(
+    nombre: str, rut: str, jefatura: str, recinto: str,
+    respuestas: dict[str, str], comentario: str,
+) -> str:
+    """HTML del aviso interno con lo que respondió la jefatura.
+
+    Mismo estilo en tablas que el correo a jefatura: lo abre la misma gente en
+    el mismo Outlook.
+    """
+    filas = ''.join(
+        f'<tr>'
+        f'<td style="{_TEXTO};padding:4px 12px 4px 0;white-space:nowrap">'
+        f'{html.escape(dmy(f))}</td>'
+        f'<td style="{_TEXTO};padding:4px 0"><strong>{html.escape(motivo)}</strong></td>'
+        f'</tr>'
+        for f, motivo in sorted(respuestas.items())
+    )
+    bloque_comentario = (
+        f'<p style="{_TEXTO};margin:0 0 6px"><strong>Comentario</strong></p>'
+        f'<p style="{_TEXTO};margin:0 0 12px;white-space:pre-wrap">'
+        f'{html.escape(comentario)}</p>'
+    ) if comentario else (
+        f'<p style="{_TEXTO};margin:0 0 12px;color:#656d76">Sin comentario.</p>'
+    )
+    linea_recinto = (
+        f'<p style="{_TEXTO};margin:0 0 12px;color:#656d76">'
+        f'Recinto: {html.escape(recinto)}</p>'
+    ) if recinto else ""
+
+    return f"""<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+       style="background:#f6f8fa;padding:24px 12px">
+ <tr><td align="center">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560"
+         style="width:560px;max-width:560px;background:#ffffff;border:1px solid #d0d7de">
+   <tr><td style="padding:20px 24px;border-bottom:1px solid #d0d7de">
+     <p style="{_FUENTE_CORREO};font-size:17px;line-height:24px;color:#1f2328;
+               font-weight:bold;margin:0">Respuesta de jefatura</p>
+     <p style="{_FUENTE_CORREO};font-size:14px;line-height:20px;color:#656d76;margin:4px 0 0">
+       {html.escape(nombre or rut)} &middot; RUT {html.escape(rut)}</p>
+   </td></tr>
+   <tr><td style="padding:20px 24px">
+     <p style="{_TEXTO};margin:0 0 12px;color:#656d76">
+       Respondió: {html.escape(jefatura)}</p>
+     {linea_recinto}
+     <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+            style="margin:0 0 16px">{filas}</table>
+     {bloque_comentario}
+   </td></tr>
+  </table>
+ </td></tr>
+</table>"""
+
+
+def avisar_respuesta(n: dict, respuestas: dict[str, str], comentario: str,
+                     settings: AsistenciaSettings = asistencia_settings) -> None:
+    """Manda el aviso interno. Nunca interrumpe a la jefatura.
+
+    La respuesta ya está guardada: si el correo falla, lo que corresponde es
+    loguearlo, no devolverle un error a quien ya hizo su parte.
+    """
+    destino = settings.respuestas_email.strip()
+    if not destino:
+        return
+    recinto = next(
+        (o["nombre"] for o in settings.obras_list if o["id"] == (n.get("obra_id") or "")), ""
+    )
+    nombre = n["nombre"] or n["rut"]
+    asunto = f"Respuesta de jefatura — {nombre} ({len(respuestas)} día(s))"
+    try:
+        send_email_graph(
+            destino, "", asunto,
+            cuerpo_respuesta(n["nombre"], n["rut"], n["jefatura"], recinto,
+                             respuestas, comentario),
+        )
+    except Exception:
+        logger.exception("[asistencia/notificaciones] no se pudo avisar la respuesta de %s",
+                         n["jefatura"])
+
+
 async def notificar(
     req: NotificarRequest, db: Session, settings: AsistenciaSettings
 ) -> NotificarResponse:
@@ -478,6 +557,7 @@ async def responder_formulario(
         raise HTTPException(400, 'Indica el comentario al elegir "Otro motivo".')
 
     responder(db, token, respuestas, comentario)
+    await run_in_threadpool(avisar_respuesta, n, respuestas, comentario)
     return _pagina("Gracias",
                    "<div class=card__body><p class=ok>✓ Respuesta registrada</p>"
                    "<p class=nota>Gracias. Puedes cerrar esta ventana.</p></div>")
@@ -520,7 +600,46 @@ def _demo() -> None:
     _demo_correo_para_word()
 
     _demo_dry_run()
+    _demo_aviso_respuesta()
     print("ok")
+
+
+def _demo_aviso_respuesta() -> None:
+    """El aviso interno sale solo si hay casilla, y nunca rompe el formulario."""
+    aqui = globals()
+    n = {"obra_id": "36787", "rut": "1-9", "nombre": "Ana Soto", "jefatura": "jefe@x.cl"}
+    respuestas = {"2026-01-02": "Permiso pagado", "2026-01-01": "Olvidó marcar"}
+    enviados: list[tuple] = []
+
+    original = send_email_graph
+    aqui["send_email_graph"] = lambda *a, **k: enviados.append(a) or True
+    try:
+        # Sin casilla configurada no se manda nada.
+        avisar_respuesta(n, respuestas, "", AsistenciaSettings(_env_file=None))
+        assert enviados == [], enviados
+
+        cfg = AsistenciaSettings(_env_file=None, respuestas_email="bgacitua@cramer.cl",
+                                 obras="36787:Cramer")
+        avisar_respuesta(n, respuestas, "se avisó por teléfono", cfg)
+        assert len(enviados) == 1, enviados
+        destino, _cc, asunto, cuerpo_html = enviados[0]
+        assert destino == "bgacitua@cramer.cl", destino
+        assert "Ana Soto" in asunto and "2 día" in asunto, asunto
+        # El comentario es justo lo que hoy hay que ir a buscar a la base.
+        assert "se avisó por teléfono" in cuerpo_html, cuerpo_html
+        assert "Cramer" in cuerpo_html, "el recinto se resuelve desde obras"
+        # Fechas en dd-mm-yyyy y en orden, como el resto del módulo.
+        assert cuerpo_html.index("01-01-2026") < cuerpo_html.index("02-01-2026"), cuerpo_html
+        assert "2026-01-01" not in cuerpo_html, cuerpo_html
+
+        # Un correo caído no puede voltear una respuesta ya guardada.
+        def _explota(*_a, **_k):
+            raise RuntimeError("Graph caído")
+
+        aqui["send_email_graph"] = _explota
+        avisar_respuesta(n, respuestas, "", cfg)
+    finally:
+        aqui["send_email_graph"] = original
 
 
 def _demo_base_publica() -> None:
