@@ -261,6 +261,34 @@ const AsistenciaService = {
     return data
   },
 
+  // Centro de notificaciones: respuestas de jefatura y su gestión.
+  // `pendientes` viene siempre, aunque se pida el historial: es el número del
+  // círculo rojo.
+  getNotificaciones: async (todas = false) => {
+    const { data } = await axios.get(`${API_URL}/notificaciones`, {
+      headers: authHeaders(),
+      params: { todas },
+    })
+    return data
+  },
+
+  crearPermiso: async (token, fecha, tipo = '') => {
+    const { data } = await axios.post(
+      `${API_URL}/notificaciones/${token}/${fecha}/permiso`,
+      null,
+      { headers: authHeaders(), params: { tipo } }
+    )
+    return data
+  },
+
+  descartarNotificacion: async (token, fecha) => {
+    await axios.post(
+      `${API_URL}/notificaciones/${token}/${fecha}/descartar`,
+      null,
+      { headers: authHeaders() }
+    )
+  },
+
   getMorphoMarcas: async ({ desde, hasta }) => {
     const { data } = await axios.get(`${API_URL}/morpho-marcas`, {
       headers: authHeaders(),

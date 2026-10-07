@@ -141,6 +141,79 @@ def notificadas_por_clave(db: Session, desde: str, hasta: str) -> list[str]:
     return [f"{r['rut']}|{r['fecha'].isoformat()}" for r in filas]
 
 
+# === Centro de notificaciones ===
+# Una respuesta pesa hasta que se gestiona (permiso creado o descartada), no
+# hasta que alguien la abre: el contador mide trabajo pendiente.
+
+def pendientes(db: Session, incluir_gestionadas: bool = False, limite: int = 200) -> list[dict]:
+    """Respuestas de jefatura, una fila por fecha, la más reciente primero."""
+    filas = db.execute(
+        text("""SELECT n.token, n.obra_id, n.rut, n.nombre, n.jefatura, n.comentario,
+                       n.respondido_at, f.fecha, f.respuesta,
+                       f.gestion, f.gestion_at, f.gestion_por, f.buk_ref
+                FROM app.asistencia_notificacion_fecha f
+                JOIN app.asistencia_notificacion n ON n.token = f.token
+                WHERE f.respuesta <> ''
+                  AND (:todas OR f.gestion = '')
+                ORDER BY n.respondido_at DESC NULLS LAST, f.fecha
+                LIMIT :limite"""),
+        {"todas": incluir_gestionadas, "limite": limite},
+    ).mappings()
+    return [
+        {
+            "token": f["token"],
+            "fecha": f["fecha"].isoformat(),
+            "obra_id": f["obra_id"],
+            "rut": f["rut"],
+            "nombre": f["nombre"] or f["rut"],
+            "jefatura": f["jefatura"],
+            "comentario": f["comentario"],
+            "respuesta": f["respuesta"],
+            "respondido_at": f["respondido_at"].isoformat() if f["respondido_at"] else None,
+            "gestion": f["gestion"],
+            "gestion_at": f["gestion_at"].isoformat() if f["gestion_at"] else None,
+            "gestion_por": f["gestion_por"],
+            "buk_ref": f["buk_ref"],
+        }
+        for f in filas
+    ]
+
+
+def contar_pendientes(db: Session) -> int:
+    """El número del círculo rojo."""
+    return db.execute(
+        text("""SELECT count(*) FROM app.asistencia_notificacion_fecha
+                WHERE respuesta <> '' AND gestion = ''""")
+    ).scalar_one()
+
+
+def detalle(db: Session, token: str, fecha: str) -> dict | None:
+    """Una respuesta puntual. Fuente de verdad al crear el permiso: el motivo
+    que se manda a Buk sale de la base, no del cuerpo del request."""
+    f = db.execute(
+        text("""SELECT n.token, n.obra_id, n.rut, n.nombre, n.jefatura, n.comentario,
+                       f.fecha, f.respuesta, f.gestion
+                FROM app.asistencia_notificacion_fecha f
+                JOIN app.asistencia_notificacion n ON n.token = f.token
+                WHERE f.token = :token AND f.fecha = CAST(:fecha AS date)"""),
+        {"token": token, "fecha": fecha},
+    ).mappings().first()
+    return {**dict(f), "fecha": f["fecha"].isoformat()} if f else None
+
+
+def marcar_gestion(db: Session, token: str, fecha: str, gestion: str,
+                   por: str = "", buk_ref: str = "") -> None:
+    db.execute(
+        text("""UPDATE app.asistencia_notificacion_fecha
+                SET gestion = :gestion, gestion_at = :ts, gestion_por = :por,
+                    buk_ref = :buk_ref
+                WHERE token = :token AND fecha = CAST(:fecha AS date)"""),
+        {"gestion": gestion, "ts": datetime.now(timezone.utc), "por": por,
+         "buk_ref": buk_ref, "token": token, "fecha": fecha},
+    )
+    db.commit()
+
+
 def jefaturas_por_rut(db: Session, ruts: list[str]) -> dict[str, str]:
     """rut_sin_dv -> correo del jefe directo, para trabajadores activos.
 
