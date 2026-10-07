@@ -471,6 +471,18 @@ def listar_notificaciones(db: Db, todas: bool = Query(False)) -> dict:
     }
 
 
+@router.get("/notificaciones/tipos-permiso")
+def tipos_permiso() -> dict:
+    """Tipos de Buk para elegir a mano cuando el motivo no define uno.
+
+    Solo id y nombre: el `paid` y la ruta los resuelve el backend a partir del
+    id, así que el panel no tiene nada que decidir ahí.
+    """
+    return {
+        "tipos": [{"id": i, "nombre": t["nombre"]} for i, t in permisos.TIPOS_BUK.items()]
+    }
+
+
 @router.post("/notificaciones/{token}/{fecha}/permiso")
 async def crear_permiso(
     token: str, fecha: str, db: Db, settings: Settings, usuario: Admin,
@@ -514,6 +526,19 @@ def descartar_notificacion(token: str, fecha: str, db: Db, usuario: Admin) -> No
     if not n:
         raise HTTPException(404, "Esa respuesta no existe.")
     notificaciones.marcar_gestion(db, token, fecha, "descartada", por=usuario.username)
+
+
+@router.post("/notificaciones/{token}/{fecha}/marca-registrada", status_code=204)
+def marca_registrada(token: str, fecha: str, db: Db, usuario: Admin) -> None:
+    """Saca del centro un "olvidó marcar": se arregla en Corrección de Marcas.
+
+    No crea nada acá: el registro de la marca es otro flujo. Queda con gestión
+    propia y no como "descartada" para que el historial diga qué pasó.
+    """
+    n = notificaciones.detalle(db, token, fecha)
+    if not n:
+        raise HTTPException(404, "Esa respuesta no existe.")
+    notificaciones.marcar_gestion(db, token, fecha, "marca", por=usuario.username)
 
 
 @router.get("/respuestas-jefatura")

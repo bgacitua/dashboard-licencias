@@ -35,28 +35,30 @@ from .config import AsistenciaSettings
 # tiene su propio flujo en Corrección de Marcas.
 MOTIVOS_SIN_PERMISO = {"Olvidó marcar"}
 
-# Motivo del formulario -> (permission_type_id, paid), con los tipos del tenant
-# ("Listar tipos permisos"):
-#     4  permiso_con_goce  "Permiso con goce",       with_pay true
-#     3  permiso           "Permiso a descontar",    with_pay false
-#     2  ausencia          "Ausencia Injustificada", with_pay false
-# `paid` sigue al `with_pay` del tipo: mandar uno que lo contradiga es pedirle
-# a Buk un permiso que su propio tipo no admite. Los tres son time_measure
-# per_day, que es lo que corresponde a un día sin marcas.
-# Si allá cambian, se corrigen con ASISTENCIA_PERMISO_TIPOS sin tocar código.
-TIPOS_POR_DEFECTO = {
-    "Permiso pagado": (4, True),
-    "Permiso sin goce": (3, False),
-    "Inasistencia": (2, False),
-    # Sin tipo propio: el comentario de la jefatura dice qué es, así que lo
-    # elige quien gestiona desde el panel.
-    "Otro motivo": (None, False),
+# Los tipos del tenant ("Listar tipos permisos"), tal como están en Buk. Única
+# tabla: de acá salen el nombre que ve quien gestiona, el `paid` del cuerpo y
+# la ruta. `paid` sigue al `with_pay` del tipo y `kind` decide el endpoint
+# (/absences/permission o /absences/absence, mismo cuerpo); mandar un `paid`
+# que contradiga al tipo es pedirle a Buk un permiso que su tipo no admite.
+# Los tres son time_measure per_day, que es lo que corresponde a un día sin
+# marcas. Si allá cambian los ids, se corrigen acá y en ASISTENCIA_PERMISO_TIPOS.
+TIPOS_BUK = {
+    4: {"nombre": "Permiso con goce", "paid": True, "kind": "permiso"},
+    3: {"nombre": "Permiso a descontar", "paid": False, "kind": "permiso"},
+    2: {"nombre": "Ausencia injustificada", "paid": False, "kind": "ausencia"},
 }
 
-# El `kind` del tipo decide la ruta: los permisos van a /absences/permission y
-# las ausencias a /absences/absence, con el mismo cuerpo. Lo que se elige a
-# mano en el panel se manda como permiso, que es lo que ofrece ese campo.
-MOTIVOS_DE_AUSENCIA = {"Inasistencia"}
+# Motivo del formulario -> tipo con el que se crea. Lo que la jefatura responde
+# ya dice qué permiso corresponde, salvo "Otro motivo": ese no tiene un
+# significado fijo, así que el tipo lo elige quien gestiona desde el panel (o
+# se va por el lado de las marcas, que no es permiso).
+# Se puede corregir con ASISTENCIA_PERMISO_TIPOS sin tocar código.
+TIPOS_POR_DEFECTO = {
+    "Permiso pagado": 4,
+    "Permiso sin goce": 3,
+    "Inasistencia": 2,
+    "Otro motivo": None,
+}
 
 
 def rachas(fechas_motivo: list[tuple[str, str]]) -> list[list[str]]:
@@ -82,22 +84,27 @@ def rachas(fechas_motivo: list[tuple[str, str]]) -> list[list[str]]:
 
 def tipo_buk(motivo: str, settings: AsistenciaSettings) -> int | None:
     """permission_type_id para ese motivo, o None si hay que elegirlo a mano."""
-    return settings.permiso_tipos_map.get(motivo) or TIPOS_POR_DEFECTO.get(motivo, (None,))[0]
+    return settings.permiso_tipos_map.get(motivo) or TIPOS_POR_DEFECTO.get(motivo)
 
 
-def url_de(motivo: str, settings: AsistenciaSettings) -> str:
-    """Ruta según el kind del tipo: ausencia o permiso."""
+def url_de(tipo_id: int, settings: AsistenciaSettings) -> str:
+    """Ruta según el kind del tipo: ausencia o permiso.
+
+    Va por el tipo y no por el motivo: el que se elige a mano en el panel
+    también arrastra su kind, y una ausencia mandada a /permission la rechaza
+    Buk o, peor, la crea como otra cosa. Un tipo que no esté en la tabla se
+    manda como permiso, que es lo que ofrece ese campo.
+    """
     return (
-        settings.ausencias_api_url if motivo in MOTIVOS_DE_AUSENCIA
+        settings.ausencias_api_url
+        if TIPOS_BUK.get(tipo_id, {}).get("kind") == "ausencia"
         else settings.permisos_api_url
     ).strip()
 
 
-def pagado(motivo: str, settings: AsistenciaSettings) -> bool:
+def pagado(tipo_id: int) -> bool:
     """`paid` del contrato, que acompaña al `with_pay` del tipo usado."""
-    return settings.permiso_pagados_map.get(
-        motivo, TIPOS_POR_DEFECTO.get(motivo, (None, False))[1]
-    )
+    return bool(TIPOS_BUK.get(tipo_id, {}).get("paid", False))
 
 
 def employee_id(db: Session, rut: str) -> int | None:
@@ -191,14 +198,14 @@ async def crear(
         except ValueError:
             raise HTTPException(400, "La fecha de aplicación debe ser yyyy-mm-dd.")
 
-    cuerpo = _payload(emp_id, fechas, tipo_id, pagado(motivo, settings), comentario,
+    cuerpo = _payload(emp_id, fechas, tipo_id, pagado(tipo_id), comentario,
                       application_date)
 
     if settings.dry_run:
         logger.warning("[asistencia/permisos] DRY_RUN: permiso NO creado: %s", cuerpo)
         return "dry-run"
 
-    url = url_de(motivo, settings)
+    url = url_de(tipo_id, settings)
     token = (
         settings.permisos_api_key.get_secret_value()
         or settings.buk_api_key.get_secret_value()
@@ -238,7 +245,7 @@ async def crear(
     # constancia igual: la gestión no se pierde por no tener el rastro.
     ref = str(data.get("id") or data.get("data", {}).get("id") or "")
     logger.info("[asistencia/permisos] %s creada para %s desde %s por %d día(s) (ref %s)",
-                "ausencia" if motivo in MOTIVOS_DE_AUSENCIA else "permiso",
+                TIPOS_BUK.get(tipo_id, {}).get("kind", "permiso"),
                 rut, min(fechas), len(fechas), ref)
     return ref
 
@@ -322,17 +329,17 @@ def _demo() -> None:
         _env_file=None, permiso_tipos="Permiso pagado:99")) == 99
 
     # Cada kind por su ruta: el tipo 2 es kind "ausencia", no "permiso".
-    assert url_de("Inasistencia", cfg).endswith("/absences/absence"), url_de("Inasistencia", cfg)
-    assert url_de("Permiso pagado", cfg).endswith("/absences/permission")
-    assert url_de("Otro motivo", cfg).endswith("/absences/permission"), "el manual va como permiso"
+    assert url_de(2, cfg).endswith("/absences/absence"), url_de(2, cfg)
+    assert url_de(4, cfg).endswith("/absences/permission")
+    # Un tipo desconocido no puede terminar en la ruta de ausencias por error.
+    assert url_de(99, cfg).endswith("/absences/permission")
 
-    # `paid` tiene que coincidir con el with_pay del tipo que se manda.
-    assert pagado("Permiso pagado", cfg) is True      # id 4, with_pay true
-    assert pagado("Permiso sin goce", cfg) is False   # id 3, with_pay false
-    assert pagado("Inasistencia", cfg) is False       # id 2, with_pay false
-    # Salvo que el .env diga otra cosa para un motivo puntual.
-    assert pagado("Otro motivo", AsistenciaSettings(
-        _env_file=None, permiso_pagados="Otro motivo:true")) is True
+    # `paid` tiene que coincidir con el with_pay del tipo que se manda, lo haya
+    # puesto el motivo o quien gestiona desde el panel.
+    assert pagado(4) is True      # con goce,     with_pay true
+    assert pagado(3) is False     # a descontar,  with_pay false
+    assert pagado(2) is False     # ausencia,     with_pay false
+    assert pagado(99) is False, "un tipo que no conocemos no se manda como pagado"
 
     cuerpo = _payload(7, ["2026-01-02", "2026-01-01"], 4, True, "c" * 900)
     assert cuerpo["days_count"] == 2, "la racha entera va en un permiso"

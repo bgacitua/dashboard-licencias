@@ -64,10 +64,6 @@ class AsistenciaSettings(BaseSettings):
     # (4 con goce, 3 a descontar, 2 ausencia). Solo hace falta si allá cambian.
     # Formato: "Permiso pagado:4,Permiso sin goce:3,Inasistencia:2".
     permiso_tipos: str = ""
-    # Excepciones al `paid` que ya implica cada motivo. Solo hace falta para
-    # "Otro motivo", que no tiene un significado fijo.
-    # Formato: "Otro motivo:true".
-    permiso_pagados: str = ""
 
     # Casilla que recibe un aviso por cada respuesta de jefatura. Vacía = nadie
     # recibe nada: la respuesta igual queda guardada, solo que hay que ir a
@@ -149,16 +145,6 @@ class AsistenciaSettings(BaseSettings):
             motivo, _, tipo = item.strip().partition(":")
             if motivo.strip() and tipo.strip().isdigit():
                 out[motivo.strip()] = int(tipo)
-        return out
-
-    @property
-    def permiso_pagados_map(self) -> dict[str, bool]:
-        """Motivo del formulario -> `paid`, para los casos que no son obvios."""
-        out: dict[str, bool] = {}
-        for item in self.permiso_pagados.split(","):
-            motivo, _, valor = item.strip().partition(":")
-            if motivo.strip() and valor.strip():
-                out[motivo.strip()] = valor.strip().lower() in ("1", "true", "si", "sí")
         return out
 
     @property

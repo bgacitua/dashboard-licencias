@@ -281,6 +281,21 @@ const AsistenciaService = {
     return data
   },
 
+  getTiposPermiso: async () => {
+    const { data } = await axios.get(`${API_URL}/notificaciones/tipos-permiso`, {
+      headers: authHeaders(),
+    })
+    return data
+  },
+
+  marcaRegistrada: async (token, fecha) => {
+    await axios.post(
+      `${API_URL}/notificaciones/${token}/${fecha}/marca-registrada`,
+      null,
+      { headers: authHeaders() }
+    )
+  },
+
   descartarNotificacion: async (token, fecha) => {
     await axios.post(
       `${API_URL}/notificaciones/${token}/${fecha}/descartar`,

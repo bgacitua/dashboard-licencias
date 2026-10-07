@@ -145,6 +145,12 @@ def notificadas_por_clave(db: Session, desde: str, hasta: str) -> list[str]:
 # Una respuesta pesa hasta que se gestiona (permiso creado o descartada), no
 # hasta que alguien la abre: el contador mide trabajo pendiente.
 
+# El centro arrastraba respuestas viejas que ya se resolvieron fuera del
+# sistema. Nada anterior a esta fecha se muestra ni cuenta: las filas siguen en
+# la tabla, esto solo las esconde.
+DESDE = "2026-09-21"
+
+
 def pendientes(db: Session, incluir_gestionadas: bool = False, limite: int = 200) -> list[dict]:
     """Respuestas de jefatura, una fila por fecha, la más reciente primero."""
     filas = db.execute(
@@ -154,10 +160,11 @@ def pendientes(db: Session, incluir_gestionadas: bool = False, limite: int = 200
                 FROM app.asistencia_notificacion_fecha f
                 JOIN app.asistencia_notificacion n ON n.token = f.token
                 WHERE f.respuesta <> ''
+                  AND f.fecha >= CAST(:desde AS date)
                   AND (:todas OR f.gestion = '')
                 ORDER BY n.respondido_at DESC NULLS LAST, f.fecha
                 LIMIT :limite"""),
-        {"todas": incluir_gestionadas, "limite": limite},
+        {"todas": incluir_gestionadas, "limite": limite, "desde": DESDE},
     ).mappings()
     return [
         {
@@ -183,7 +190,9 @@ def contar_pendientes(db: Session) -> int:
     """El número del círculo rojo."""
     return db.execute(
         text("""SELECT count(*) FROM app.asistencia_notificacion_fecha
-                WHERE respuesta <> '' AND gestion = ''""")
+                WHERE respuesta <> '' AND gestion = ''
+                  AND fecha >= CAST(:desde AS date)"""),
+        {"desde": DESDE},
     ).scalar_one()
 
 
