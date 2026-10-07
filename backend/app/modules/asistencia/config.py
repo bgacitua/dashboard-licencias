@@ -54,14 +54,20 @@ class AsistenciaSettings(BaseSettings):
     recinto_keys: str = ""   # "obra_id:clave_recinto,obra_id:clave_recinto"
 
     # === Permisos en Buk (centro de notificaciones) ===
-    # Vacía = el botón "Crear permiso" responde 503 y el permiso se carga a mano
-    # en Buk; el resto del panel funciona igual. Falta confirmar el contrato del
-    # endpoint contra https://<empresa>.buk.cl/api/v1/es/api_docs.
-    permisos_api_url: str = ""
+    # La URL no es secreto y es la misma siempre: va acá y no en el .env, que
+    # solo aporta el token. Vaciarla apaga el botón (503) sin tocar el resto.
+    permisos_api_url: str = "https://cramer.buk.cl/api/v1/chile/absences/permission"
+    # Los tipos kind="ausencia" van por su propia ruta, con el mismo cuerpo.
+    ausencias_api_url: str = "https://cramer.buk.cl/api/v1/chile/absences/absence"
     permisos_api_key: SecretStr = SecretStr("")  # vacío => usa buk_api_key
-    # Motivo del formulario -> tipo de permiso en Buk, para corregir los códigos
-    # sin tocar código. Formato: "Permiso pagado:CODIGO,Permiso sin goce:CODIGO".
+    # Override de los permission_type_id que trae permisos.TIPOS_POR_DEFECTO
+    # (4 con goce, 3 a descontar, 2 ausencia). Solo hace falta si allá cambian.
+    # Formato: "Permiso pagado:4,Permiso sin goce:3,Inasistencia:2".
     permiso_tipos: str = ""
+    # Excepciones al `paid` que ya implica cada motivo. Solo hace falta para
+    # "Otro motivo", que no tiene un significado fijo.
+    # Formato: "Otro motivo:true".
+    permiso_pagados: str = ""
 
     # Casilla que recibe un aviso por cada respuesta de jefatura. Vacía = nadie
     # recibe nada: la respuesta igual queda guardada, solo que hay que ir a
@@ -132,13 +138,27 @@ class AsistenciaSettings(BaseSettings):
         return out
 
     @property
-    def permiso_tipos_map(self) -> dict[str, str]:
-        """Motivo del formulario -> tipo de permiso en Buk."""
-        out: dict[str, str] = {}
+    def permiso_tipos_map(self) -> dict[str, int]:
+        """Motivo del formulario -> permission_type_id de Buk.
+
+        Un id no numérico se ignora: mejor que el panel pida elegirlo a mano a
+        que Buk reciba basura y cree el permiso equivocado.
+        """
+        out: dict[str, int] = {}
         for item in self.permiso_tipos.split(","):
             motivo, _, tipo = item.strip().partition(":")
-            if motivo.strip() and tipo.strip():
-                out[motivo.strip()] = tipo.strip()
+            if motivo.strip() and tipo.strip().isdigit():
+                out[motivo.strip()] = int(tipo)
+        return out
+
+    @property
+    def permiso_pagados_map(self) -> dict[str, bool]:
+        """Motivo del formulario -> `paid`, para los casos que no son obvios."""
+        out: dict[str, bool] = {}
+        for item in self.permiso_pagados.split(","):
+            motivo, _, valor = item.strip().partition(":")
+            if motivo.strip() and valor.strip():
+                out[motivo.strip()] = valor.strip().lower() in ("1", "true", "si", "sí")
         return out
 
     @property

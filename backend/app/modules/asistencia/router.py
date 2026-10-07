@@ -474,9 +474,13 @@ def listar_notificaciones(db: Db, todas: bool = Query(False)) -> dict:
 @router.post("/notificaciones/{token}/{fecha}/permiso")
 async def crear_permiso(
     token: str, fecha: str, db: Db, settings: Settings, usuario: Admin,
-    tipo: str = Query("", description='Tipo de permiso en Buk; obligatorio en "Otro motivo"'),
+    tipo: str = Query("", description='permission_type_id de Buk; obligatorio en "Otro motivo"'),
 ) -> dict:
-    """Crea el permiso en Buk y da la respuesta por gestionada.
+    """Crea el permiso en Buk y da por gestionadas las fechas que cubre.
+
+    `fecha` identifica la racha, no el permiso: Buk cuenta días corridos, así
+    que las fechas consecutivas con el mismo motivo entran en un solo permiso y
+    todas quedan gestionadas con la misma referencia.
 
     Escribe en Buk de verdad: igual que las marcas, queda en el sistema real y
     no se puede deshacer desde acá. El motivo sale de la base, no del request.
@@ -487,15 +491,16 @@ async def crear_permiso(
     if n["gestion"]:
         raise HTTPException(409, f"Ya estaba gestionada ({n['gestion']}).")
 
+    racha = notificaciones.racha_de(db, token, fecha)
     ref = await permisos.crear(
-        n["rut"], n["fecha"], n["respuesta"], n["comentario"], settings, tipo=tipo
+        n["rut"], racha, n["respuesta"], n["comentario"], settings, db, tipo=tipo
     )
     # Solo después de que Buk acepta: si falla, la notificación sigue pendiente
     # y se puede reintentar.
     notificaciones.marcar_gestion(
-        db, token, fecha, "permiso", por=usuario.username, buk_ref=ref
+        db, token, racha, "permiso", por=usuario.username, buk_ref=ref
     )
-    return {"ok": True, "buk_ref": ref, "dry_run": settings.dry_run}
+    return {"ok": True, "buk_ref": ref, "fechas": racha, "dry_run": settings.dry_run}
 
 
 @router.post("/notificaciones/{token}/{fecha}/descartar", status_code=204)

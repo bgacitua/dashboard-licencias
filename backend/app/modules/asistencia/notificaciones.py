@@ -201,15 +201,35 @@ def detalle(db: Session, token: str, fecha: str) -> dict | None:
     return {**dict(f), "fecha": f["fecha"].isoformat()} if f else None
 
 
-def marcar_gestion(db: Session, token: str, fecha: str, gestion: str,
+def racha_de(db: Session, token: str, fecha: str) -> list[str]:
+    """Fechas sin gestionar que entran en el mismo permiso que `fecha`.
+
+    Buk cuenta días corridos: las consecutivas con el mismo motivo son un
+    permiso de N días. Las ya gestionadas no participan, así no se vuelve a
+    cubrir una fecha que ya tiene permiso.
+    """
+    from .permisos import rachas
+
+    filas = db.execute(
+        text("""SELECT fecha, respuesta FROM app.asistencia_notificacion_fecha
+                WHERE token = :token AND respuesta <> '' AND gestion = ''"""),
+        {"token": token},
+    ).mappings()
+    grupos = rachas([(f["fecha"].isoformat(), f["respuesta"]) for f in filas])
+    return next((g for g in grupos if fecha in g), [fecha])
+
+
+def marcar_gestion(db: Session, token: str, fechas: str | list[str], gestion: str,
                    por: str = "", buk_ref: str = "") -> None:
+    """Marca una fecha o toda una racha con la misma referencia de Buk."""
+    lista = [fechas] if isinstance(fechas, str) else fechas
     db.execute(
         text("""UPDATE app.asistencia_notificacion_fecha
                 SET gestion = :gestion, gestion_at = :ts, gestion_por = :por,
                     buk_ref = :buk_ref
                 WHERE token = :token AND fecha = CAST(:fecha AS date)"""),
-        {"gestion": gestion, "ts": datetime.now(timezone.utc), "por": por,
-         "buk_ref": buk_ref, "token": token, "fecha": fecha},
+        [{"gestion": gestion, "ts": datetime.now(timezone.utc), "por": por,
+          "buk_ref": buk_ref, "token": token, "fecha": f} for f in lista],
     )
     db.commit()
 
