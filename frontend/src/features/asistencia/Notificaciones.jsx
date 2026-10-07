@@ -30,6 +30,27 @@ const formatearRut = (cuerpo) => {
   return `${n.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}-${dv}`
 }
 
+// Buk cuenta días corridos: las fechas consecutivas con el mismo motivo son un
+// solo permiso de N días, y un hueco en el calendario abre otro. Mismo corte
+// que hace el backend, que es quien manda al crear.
+export const rachas = (fechas) => {
+  const grupos = []
+  let previa = null
+  let motivo = null
+  for (const f of [...fechas].sort((a, b) => a.fecha.localeCompare(b.fecha))) {
+    // En UTC a propósito: con hora local, el día del cambio de horario dura 23
+    // o 25 horas y la racha se cortaría sola dos veces al año.
+    const dia = new Date(`${f.fecha}T00:00:00Z`)
+    const sigue =
+      previa && f.respuesta === motivo && (dia - previa) === 86400000
+    if (sigue) grupos[grupos.length - 1].push(f)
+    else grupos.push([f])
+    previa = dia
+    motivo = f.respuesta
+  }
+  return grupos
+}
+
 // Una tarjeta por aviso (token): un trabajador con todas sus fechas juntas, que
 // es como salió el correo. El orden de la API ya viene por respuesta más
 // reciente; agrupar con un Map lo conserva.
@@ -72,7 +93,10 @@ const Notificaciones = () => {
 
   const clave = (f) => `${f.token}|${f.fecha}`
 
-  const gestionar = async (f, accion) => {
+  // `tramo` son las fechas de una racha: el permiso lo arma el backend a
+  // partir de la primera, pero descartar sí hay que pedirlo fecha por fecha.
+  const gestionar = async (tramo, accion) => {
+    const f = tramo[0]
     setEnCurso(clave(f))
     setError('')
     try {
@@ -80,7 +104,7 @@ const Notificaciones = () => {
         const r = await AsistenciaService.crearPermiso(f.token, f.fecha, tipos[clave(f)] || '')
         if (r.dry_run) setError('DRY_RUN: el permiso NO se creó en Buk, solo se registró acá.')
       } else {
-        await AsistenciaService.descartarNotificacion(f.token, f.fecha)
+        for (const x of tramo) await AsistenciaService.descartarNotificacion(x.token, x.fecha)
       }
       await cargar()
     } catch (e) {
@@ -152,31 +176,34 @@ const Notificaciones = () => {
                 <p className="mt-1 text-xs text-app-ink whitespace-pre-wrap">“{g.comentario}”</p>
               )}
 
-              {/* Las acciones abajo, una línea por fecha pendiente: el permiso
-                  se crea por fecha, no por aviso. */}
+              {/* Las acciones abajo, una línea por racha: el permiso cubre los
+                  días corridos del mismo motivo, no cada fecha por separado. */}
               {g.fechas.some((f) => !f.gestion) && (
                 <div className="mt-2 space-y-1.5">
-                  {g.fechas
-                    .filter((f) => !f.gestion)
-                    .map((f) => (
+                  {rachas(g.fechas.filter((f) => !f.gestion)).map((tramo) => {
+                    const f = tramo[0]
+                    return (
                       <div key={clave(f)} className="flex flex-wrap items-center gap-1.5">
                         {g.fechas.length > 1 && (
-                          <span className="text-xs text-app-muted tabular-nums w-20">
-                            {dmy(f.fecha)}
+                          <span className="text-xs text-app-muted tabular-nums">
+                            {tramo.length > 1
+                              ? `${dmy(f.fecha)} a ${dmy(tramo[tramo.length - 1].fecha)} (${tramo.length}d)`
+                              : dmy(f.fecha)}
                           </span>
                         )}
                         {PIDE_TIPO.has(f.respuesta) && (
                           <input
-                            type="text"
-                            placeholder="Tipo en Buk"
+                            type="number"
+                            placeholder="N° tipo"
+                            title="permission_type_id de Buk (Listar tipos permisos)"
                             value={tipos[clave(f)] || ''}
                             onChange={(e) => setTipos({ ...tipos, [clave(f)]: e.target.value })}
-                            className="text-xs border border-app-line rounded px-2 py-1 w-28"
+                            className="text-xs border border-app-line rounded px-2 py-1 w-24"
                           />
                         )}
                         {!SIN_PERMISO.has(f.respuesta) && (
                           <button
-                            onClick={() => gestionar(f, 'permiso')}
+                            onClick={() => gestionar(tramo, 'permiso')}
                             disabled={enCurso === clave(f)}
                             className="px-2.5 py-1 text-xs rounded bg-app-brand text-white disabled:opacity-40"
                           >
@@ -184,14 +211,15 @@ const Notificaciones = () => {
                           </button>
                         )}
                         <button
-                          onClick={() => gestionar(f, 'descartar')}
+                          onClick={() => gestionar(tramo, 'descartar')}
                           disabled={enCurso === clave(f)}
                           className="px-2.5 py-1 text-xs border border-app-line rounded hover:bg-white disabled:opacity-40"
                         >
                           Descartar
                         </button>
                       </div>
-                    ))}
+                    )
+                  })}
                 </div>
               )}
             </li>

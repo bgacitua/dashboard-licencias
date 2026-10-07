@@ -60,4 +60,66 @@ const orden = agrupar([
 ])
 assert.deepEqual(orden.map((g) => g.token), ['z', 'a'])
 
+// Mismo corte que hace el backend: días corridos del mismo motivo.
+const rachas = (fechas) => {
+  const grupos = []
+  let previa = null
+  let motivo = null
+  for (const f of [...fechas].sort((a, b) => a.fecha.localeCompare(b.fecha))) {
+    const dia = new Date(`${f.fecha}T00:00:00Z`)
+    const sigue = previa && f.respuesta === motivo && dia - previa === 86400000
+    if (sigue) grupos[grupos.length - 1].push(f)
+    else grupos.push([f])
+    previa = dia
+    motivo = f.respuesta
+  }
+  return grupos
+}
+
+const tramos = (items) => rachas(items).map((g) => g.map((f) => f.fecha))
+
+assert.deepEqual(
+  tramos([
+    { fecha: '2026-01-01', respuesta: 'Permiso pagado' },
+    { fecha: '2026-01-02', respuesta: 'Permiso pagado' },
+  ]),
+  [['2026-01-01', '2026-01-02']],
+  'consecutivas con el mismo motivo van en un permiso',
+)
+assert.deepEqual(
+  tramos([
+    { fecha: '2026-01-01', respuesta: 'Permiso pagado' },
+    { fecha: '2026-01-03', respuesta: 'Permiso pagado' },
+  ]),
+  [['2026-01-01'], ['2026-01-03']],
+  'un hueco abre otro permiso',
+)
+assert.deepEqual(
+  tramos([
+    { fecha: '2026-01-01', respuesta: 'Permiso pagado' },
+    { fecha: '2026-01-02', respuesta: 'Permiso sin goce' },
+  ]),
+  [['2026-01-01'], ['2026-01-02']],
+  'cambiar de motivo también corta',
+)
+// Cruce de mes y de año: la resta de fechas no se confunde con el calendario.
+assert.deepEqual(
+  tramos([
+    { fecha: '2025-12-31', respuesta: 'p' },
+    { fecha: '2026-01-01', respuesta: 'p' },
+  ]),
+  [['2025-12-31', '2026-01-01']],
+)
+// Cambio de horario en Chile (2026-09-06): en hora local ese día dura 23 h y
+// la racha se cortaría sola. Por eso el cálculo va en UTC.
+assert.deepEqual(
+  tramos([
+    { fecha: '2026-09-05', respuesta: 'p' },
+    { fecha: '2026-09-06', respuesta: 'p' },
+    { fecha: '2026-09-07', respuesta: 'p' },
+  ]),
+  [['2026-09-05', '2026-09-06', '2026-09-07']],
+)
+assert.deepEqual(tramos([]), [])
+
 console.log('ok')
