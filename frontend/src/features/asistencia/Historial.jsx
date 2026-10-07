@@ -45,7 +45,7 @@ const Historial = ({ desde, hasta }) => {
         <button
           onClick={() => descargarCsv(rows, COLUMNAS, 'historial')}
           disabled={!rows.length}
-          className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+          className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40"
         >
           Exportar CSV
         </button>

@@ -33,7 +33,7 @@ const HORA_POR_DEFECTO = '17:00:00'
 // La selección masiva es por hoja, para no mandar cientos de marcas de un click.
 const POR_HOJA = 50
 
-const boton = 'px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40'
+const boton = 'px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40'
 const campo = 'text-sm border border-app-line rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-app-ink'
 
 const MarcasFallidas = ({ obraId, obras }) => {

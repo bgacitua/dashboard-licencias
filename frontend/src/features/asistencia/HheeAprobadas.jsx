@@ -203,14 +203,14 @@ const HheeAprobadas = () => {
 
         <button onClick={refrescar} disabled={!listo || ocupado}
                 title="Trae de Buk lo que cambió en el periodo y lo guarda."
-                className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40">
+                className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40">
           {refrescando || corriendo ? 'Actualizando desde Buk…' : 'Actualizar desde Buk'}
         </button>
 
         <button onClick={exportar}
                 title="Exporta el detalle completo: una fila por cambio de estado."
                 disabled={ocupado || !rows.length}
-                className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40">
+                className="ml-auto px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40">
           Exportar XLSX
         </button>
       </div>

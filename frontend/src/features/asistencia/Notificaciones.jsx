@@ -182,10 +182,11 @@ const Notificaciones = ({ onRegistrarMarca }) => {
         </label>
         <button
           onClick={() => cargar()}
-          className="ml-auto p-1.5 text-app-outline hover:text-app-brand hover:bg-app-surface rounded-full transition-colors"
+          className="ml-auto w-7 h-7 grid place-items-center text-app-muted hover:text-app-ink
+                     hover:bg-app-surface rounded-full transition-colors"
           title="Actualizar"
         >
-          <span className="material-symbols-outlined text-lg">refresh</span>
+          <span className="material-symbols-outlined text-base leading-none">refresh</span>
         </button>
       </div>
 
@@ -275,7 +276,7 @@ const Notificaciones = ({ onRegistrarMarca }) => {
                         {pendiente?.k === clave(f) ? (
                           <button
                             onClick={cancelar}
-                            className="px-2.5 py-1 text-xs rounded border border-app-brand
+                            className="px-2.5 py-1 text-xs rounded
                                        text-app-brand bg-app-surface animate-pulse"
                           >
                             {pendiente.accion === 'permiso' ? 'Creando' : 'Descartando'} en{' '}
@@ -327,7 +328,7 @@ const Notificaciones = ({ onRegistrarMarca }) => {
                             <button
                               onClick={() => programar(tramo, 'descartar')}
                               disabled={!!pendiente}
-                              className="px-2.5 py-1 text-xs border border-app-line rounded
+                              className="px-2.5 py-1 text-xs rounded
                                          hover:bg-white disabled:opacity-40"
                             >
                               Descartar

@@ -156,7 +156,7 @@ const HheeAlertas = () => {
           onClick={refrescar}
           disabled={refrescando}
           title="Vuelve a consultar Buk ahora. Tarda ~12 s por recinto."
-          className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+          className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40"
         >
           {refrescando ? 'Actualizando…' : 'Actualizar datos'}
         </button>
@@ -164,7 +164,7 @@ const HheeAlertas = () => {
         <button
           onClick={() => descargarCsv(rows, COLUMNAS, 'hhee_alertas')}
           disabled={loading || !rows.length}
-          className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+          className="ml-auto px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40"
         >
           Exportar CSV
         </button>

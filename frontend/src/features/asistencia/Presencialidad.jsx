@@ -154,7 +154,7 @@ const Informe = ({ obraId, grupo }) => {
         <button
           onClick={calcular}
           disabled={calculando || !desde || !hasta}
-          className="px-3 py-1.5 text-sm rounded border border-app-brand/40 text-app-brand hover:bg-white disabled:opacity-40"
+          className="px-3 py-1.5 text-sm rounded text-app-brand hover:bg-app-surface transition-colors disabled:opacity-40"
         >
           {calculando ? 'Calculando…' : 'Calcular y guardar tramo'}
         </button>
@@ -172,7 +172,7 @@ const Informe = ({ obraId, grupo }) => {
         <button
           onClick={() => descargarCsv(rows, COLUMNAS, `${grupo.archivo}_${mes}`)}
           disabled={!rows.length}
-          className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+          className="ml-auto px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40"
         >
           Exportar CSV
         </button>
@@ -210,10 +210,10 @@ const Presencialidad = ({ obraId }) => {
           <button
             key={g.id}
             onClick={() => setGrupoId(g.id)}
-            className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+            className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
               grupoId === g.id
-                ? 'border-app-brand/40 text-app-brand bg-white/80'
-                : 'border-transparent text-app-muted hover:text-app-ink hover:bg-white/50'
+                ? 'text-app-brand bg-white/80'
+                : 'text-app-muted hover:text-app-ink hover:bg-white/50'
             }`}
           >
             {g.label}

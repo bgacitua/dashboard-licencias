@@ -144,7 +144,7 @@ const Reportes = () => {
 
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <button onClick={() => setModal(true)}
-                className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface transition-colors">
+                className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors transition-colors">
           Cargar atrasos
         </button>
         <span className="text-sm text-app-muted">
@@ -161,16 +161,16 @@ const Reportes = () => {
           {ocupado ? 'Generando…' : simulando ? 'Simular cierre' : 'Generar'}
         </button>
         <button onClick={() => descargar(false)} disabled={!listo || ocupado || simulando}
-                className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40">
+                className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40">
           Descargar .xlsx
         </button>
         <button onClick={() => descargar(true)} disabled={!listo || ocupado || simulando}
-                className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40">
+                className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40">
           Descargar JC_.xlsx
         </button>
         {simulando && (
           <button onClick={descargarSimulacion} disabled={!data || ocupado}
-                  className="px-3 py-1.5 text-sm border border-amber-400 text-amber-900 rounded hover:bg-amber-50 disabled:opacity-40">
+                  className="px-3 py-1.5 text-sm text-amber-900 rounded hover:bg-amber-50 transition-colors disabled:opacity-40">
             Descargar simulación
           </button>
         )}

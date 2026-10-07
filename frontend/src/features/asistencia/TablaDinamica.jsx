@@ -181,14 +181,14 @@ const TablaDinamica = ({
             <button
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
-              className="px-3 py-1 border border-app-line rounded disabled:opacity-40"
+              className="px-3 py-1 rounded hover:bg-app-surface transition-colors disabled:opacity-40"
             >
               Anterior
             </button>
             <button
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
-              className="px-3 py-1 border border-app-line rounded disabled:opacity-40"
+              className="px-3 py-1 rounded hover:bg-app-surface transition-colors disabled:opacity-40"
             >
               Siguiente
             </button>
