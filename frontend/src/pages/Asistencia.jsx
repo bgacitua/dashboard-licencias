@@ -20,7 +20,6 @@ const VISTAS = [
   { id: 'recinto-trabajador', label: 'Recinto por Trabajador', rango: false },
   { id: 'historial', label: 'Historial', rango: true, propia: true },
   { id: 'auditoria', label: 'Auditoría de Marcas', rango: true },
-  { id: 'notificaciones', label: 'Notificaciones', rango: false, propia: true },
 ]
 
 // Cada medio minuto: las respuestas llegan de a una y por correo, así que el
@@ -35,8 +34,8 @@ const haceDias = (n) => {
 }
 
 // El contador del círculo rojo. Se refresca solo y, además, cada vez que se
-// cambia de pestaña: al salir de Notificaciones hay que reflejar lo gestionado.
-const usePendientes = (vista) => {
+// abre o cierra el panel: al cerrarlo hay que reflejar lo que se gestionó.
+const usePendientes = (panel) => {
   const [n, setN] = useState(0)
 
   useEffect(() => {
@@ -52,12 +51,50 @@ const usePendientes = (vista) => {
       vivo = false
       clearInterval(id)
     }
-  }, [vista])
+  }, [panel])
 
   return n
 }
 
+// Panel de la campana. Overlay y no pestaña: se abre sobre lo que se estaba
+// mirando y se cierra con Escape o clickeando fuera, como cualquier dropdown.
+const PanelNotificaciones = ({ onClose }) => {
+  useEffect(() => {
+    const esc = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-30 bg-black/20 flex justify-end"
+      onClick={onClose}
+      role="presentation"
+    >
+      <aside
+        className="w-full max-w-xl h-full bg-white shadow-xl overflow-y-auto p-6"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Respuestas de jefatura"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-app-ink">Respuestas de jefatura</h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-app-outline hover:text-app-ink hover:bg-app-surface rounded-full"
+            aria-label="Cerrar"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <Notificaciones />
+      </aside>
+    </div>
+  )
+}
+
 const Asistencia = () => {
+  const [panel, setPanel] = useState(false)
   const [vista, setVista] = useState('marcajes')
   const [desde, setDesde] = useState(haceDias(7))
   const [hasta, setHasta] = useState(hoy())
@@ -65,7 +102,7 @@ const Asistencia = () => {
 
   const obras = useObras()
   const actual = VISTAS.find((v) => v.id === vista)
-  const pendientes = usePendientes(vista)
+  const pendientes = usePendientes(panel)
   // Las vistas sin rango ignoran las fechas: no las mandamos para no romper su
   // clave de caché en el backend.
   const { rows, columns, descartados, loading, error, recargar } = useVista(
@@ -84,12 +121,42 @@ const Asistencia = () => {
           <span className="text-app-ink font-medium">Asistencia</span>
         </header>
 
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-app-ink mb-1">Control de Asistencia</h1>
-          <p className="text-app-muted">
-            Marcajes, auditoría e inasistencias del personal de obra.
-          </p>
+        <div className="mb-8 flex items-start gap-4">
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold text-app-ink mb-1">Control de Asistencia</h1>
+            <p className="text-app-muted">
+              Marcajes, auditoría e inasistencias del personal de obra.
+            </p>
+          </div>
+
+          {/* La campana vive acá y no en una pestaña: las respuestas de
+              jefatura llegan solas, no son una vista que uno vaya a consultar.
+              El panel se abre encima para no perder la tabla que se miraba. */}
+          <button
+            onClick={() => setPanel(true)}
+            className="relative p-2 text-app-outline hover:text-app-brand hover:bg-app-surface
+                       rounded-full transition-colors"
+            title="Respuestas de jefatura"
+            aria-label={
+              pendientes
+                ? `Notificaciones: ${pendientes} sin gestionar`
+                : 'Notificaciones'
+            }
+          >
+            <span className="material-symbols-outlined">notifications</span>
+            {pendientes > 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 min-w-[1.25rem] h-5 px-1 rounded-full
+                           bg-red-600 text-white text-xs font-bold
+                           flex items-center justify-center"
+              >
+                {pendientes > 99 ? '99+' : pendientes}
+              </span>
+            )}
+          </button>
         </div>
+
+        {panel && <PanelNotificaciones onClose={() => setPanel(false)} />}
 
         <div className="bg-white rounded-xl border border-app-line p-6">
           {/* La barra se queda arriba al scrollear una tabla larga; el blur es
@@ -109,16 +176,6 @@ const Asistencia = () => {
                 }`}
               >
                 {v.label}
-                {v.id === 'notificaciones' && pendientes > 0 && (
-                  <span
-                    className="absolute -top-1 -right-1 min-w-[1.25rem] h-5 px-1 rounded-full
-                               bg-red-600 text-white text-xs font-bold
-                               flex items-center justify-center"
-                    aria-label={`${pendientes} respuestas sin gestionar`}
-                  >
-                    {pendientes > 99 ? '99+' : pendientes}
-                  </span>
-                )}
               </button>
             ))}
           </div>
@@ -188,8 +245,6 @@ const Asistencia = () => {
             <CorreccionMarcas desde={desde} hasta={hasta} obraId={obraId} obras={obras} />
           ) : vista === 'historial' ? (
             <Historial desde={desde} hasta={hasta} />
-          ) : vista === 'notificaciones' ? (
-            <Notificaciones />
           ) : (
           <TablaDinamica
             rows={rows}
