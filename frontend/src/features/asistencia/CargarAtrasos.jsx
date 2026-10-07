@@ -44,7 +44,7 @@ const Fila = ({ recinto, estado, onArchivo, onQuitar }) => {
           <input ref={ref} type="file" accept=".xls,.xlsx,.csv" className="hidden"
                  onChange={(e) => onArchivo(recinto, e.target.files?.[0])} />
           <button onClick={() => ref.current?.click()}
-                  className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface transition-colors">
+                  className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors transition-colors">
             Cargar archivo
           </button>
         </>

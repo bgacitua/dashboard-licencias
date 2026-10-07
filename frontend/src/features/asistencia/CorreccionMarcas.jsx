@@ -38,10 +38,10 @@ const CorreccionMarcas = ({ desde, hasta, obraId, obras, prefillMarca }) => {
           <button
             key={t.id}
             onClick={() => setSub(t.id)}
-            className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+            className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
               sub === t.id
-                ? 'border-app-brand/40 text-app-brand bg-white/80'
-                : 'border-transparent text-app-muted hover:text-app-ink hover:bg-white/50'
+                ? 'text-app-brand bg-white/80'
+                : 'text-app-muted hover:text-app-ink hover:bg-white/50'
             }`}
           >
             {t.label}

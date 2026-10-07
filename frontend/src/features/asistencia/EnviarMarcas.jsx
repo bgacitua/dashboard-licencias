@@ -258,7 +258,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
               <button
                 onClick={cerrar}
                 disabled={enviando}
-                className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+                className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40"
               >
                 {resultado ? 'Cerrar' : 'Cancelar'}
               </button>

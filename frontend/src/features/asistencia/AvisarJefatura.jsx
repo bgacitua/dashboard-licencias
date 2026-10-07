@@ -141,7 +141,7 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
         onClick={() => setAbierto(true)}
         disabled={!rows.length}
         title="Envía un correo por trabajador con todas sus fechas"
-        className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+        className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40"
       >
         ✉ Avisar a jefatura{rows.length ? ` (${rows.length})` : ''}
       </button>
@@ -267,7 +267,7 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
               {resultado?.previews?.length > 0 && (
                 <button
                   onClick={() => descargarPreview(resultado.previews, { obra, desde, hasta })}
-                  className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface"
+                  className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors"
                 >
                   Descargar vista previa (HTML)
                 </button>
@@ -275,7 +275,7 @@ const AvisarJefatura = ({ rows, obraId, obra, desde, hasta, nombres, onEnviado }
               <button
                 onClick={cerrar}
                 disabled={enviando}
-                className="px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+                className="px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40"
               >
                 {resultado ? 'Cerrar' : 'Cancelar'}
               </button>

@@ -81,10 +81,11 @@ const PanelNotificaciones = ({ onClose, onRegistrarMarca }) => {
           <h2 className="text-lg font-bold text-app-ink">Respuestas de jefatura</h2>
           <button
             onClick={onClose}
-            className="p-2 text-app-outline hover:text-app-ink hover:bg-app-surface rounded-full"
+            className="w-7 h-7 grid place-items-center text-app-muted hover:text-app-ink
+                       hover:bg-app-surface rounded-full transition-colors"
             aria-label="Cerrar"
           >
-            <span className="material-symbols-outlined">close</span>
+            <span className="material-symbols-outlined text-base leading-none">close</span>
           </button>
         </div>
         <Notificaciones onRegistrarMarca={onRegistrarMarca} />
@@ -186,10 +187,10 @@ const Asistencia = () => {
               <button
                 key={v.id}
                 onClick={() => setVista(v.id)}
-                className={`relative px-4 py-2 text-sm font-medium rounded-xl border transition-colors ${
+                className={`relative px-4 py-2 text-sm font-medium rounded-xl transition-colors ${
                   vista === v.id
-                    ? 'border-app-brand/40 text-app-brand bg-app-surface'
-                    : 'border-transparent text-app-muted hover:text-app-ink hover:bg-app-surface/60'
+                    ? 'text-app-brand bg-app-surface'
+                    : 'text-app-muted hover:text-app-ink hover:bg-app-surface/60'
                 }`}
               >
                 {v.label}
@@ -251,7 +252,7 @@ const Asistencia = () => {
             <button
               onClick={() => descargarCsv(rows, columns, vista)}
               disabled={loading || !rows.length}
-              className="ml-auto px-3 py-1.5 text-sm border border-app-line rounded hover:bg-app-surface disabled:opacity-40"
+              className="ml-auto px-3 py-1.5 text-sm rounded text-app-ink hover:bg-app-surface transition-colors disabled:opacity-40"
             >
               Exportar CSV
             </button>
