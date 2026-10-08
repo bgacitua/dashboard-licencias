@@ -409,12 +409,16 @@ class CreditosService:
         credito.estado = FIRMADO if not _firmas_activas(credito) else DOCUMENTO_SUBIDO
         self.db.commit()
 
-        # Las firmas se configuran acá y no al iniciar el flujo: la subida ya deja
-        # el documento firmable por el trabajador, y si alcanza a firmarlo antes
-        # BUK rechaza el PUT con "No se puede reasignar las firmas de este
-        # documento porque ya está firmado".
-        if credito.firmas_requeridas.get("legal_agent_sign"):
-            await self._configurar_firmas(credito)
+        # Las firmas se configuran y se disparan acá, no en un paso aparte: la
+        # subida ya deja el documento firmable por el trabajador, y si alcanza a
+        # firmarlo antes BUK rechaza el PUT con "No se puede reasignar las firmas
+        # de este documento porque ya está firmado".
+        if _firmas_activas(credito):
+            if credito.firmas_requeridas.get("legal_agent_sign"):
+                await self._configurar_firmas(credito)
+            await _buk("POST", f"/docs/{file_id}/signatures/process")
+            credito.estado = FIRMA_EN_PROCESO
+            self.db.commit()
 
         self.db.refresh(credito)
         return credito
@@ -458,22 +462,6 @@ class CreditosService:
                 f"El documento se subió (id {credito.buk_file_id}) pero falló "
                 f"configurar las firmas: {e}"
             )
-
-    async def iniciar_firma(self, credito: Credito) -> Credito:
-        if not credito.buk_file_id:
-            raise CreditoFlowError("Primero debes subir el documento a BUK")
-        if not _firmas_activas(credito):
-            raise CreditoFlowError(
-                "Este crédito no requiere firmas; carga el crédito directamente"
-            )
-
-        _validar_segundo_representante(credito)
-        # Las firmas ya quedaron configuradas al subir el documento.
-        await _buk("POST", f"/docs/{credito.buk_file_id}/signatures/process")
-        credito.estado = FIRMA_EN_PROCESO
-        self.db.commit()
-        self.db.refresh(credito)
-        return credito
 
     async def verificar_firma(self, credito: Credito) -> Dict[str, Any]:
         if not credito.buk_file_id:

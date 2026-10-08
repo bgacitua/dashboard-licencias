@@ -128,7 +128,7 @@ async def previsualizar_pagare(
     )
 
 
-# Paso 1: generar el pagaré y subirlo a BUK
+# Paso 1: generar el pagaré, subirlo a BUK y disparar el flujo de firma
 @router.post("/{credito_id}/documento", response_model=CreditoResponse)
 async def subir_documento(
     credito_id: int,
@@ -140,19 +140,7 @@ async def subir_documento(
     return await _ejecutar(service.subir_documento(credito))
 
 
-# Paso 2: disparar el flujo de firma
-@router.post("/{credito_id}/firma", response_model=CreditoResponse)
-async def iniciar_firma(
-    credito_id: int,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role(ROLES)),
-):
-    service = CreditosService(db)
-    credito = _get_credito(service, credito_id)
-    return await _ejecutar(service.iniciar_firma(credito))
-
-
-# Paso 3: revisar si el documento ya está firmado
+# Paso 2: revisar si el documento ya está firmado
 @router.get("/{credito_id}/firma", response_model=EstadoFirmaResponse)
 async def verificar_firma(
     credito_id: int,
@@ -164,7 +152,7 @@ async def verificar_firma(
     return await _ejecutar(service.verificar_firma(credito))
 
 
-# Paso 4: cargar el crédito en BUK
+# Paso 3: cargar el crédito en BUK
 @router.post("/{credito_id}/credito-buk", response_model=CreditoResponse)
 async def crear_credito_buk(
     credito_id: int,
