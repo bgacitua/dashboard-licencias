@@ -23,7 +23,8 @@ Panel (/tickets/admin)    require_module("tickets")
 ## Regla de acoplamiento
 
 Imports hacia fuera de la carpeta: `require_module`, `get_current_active_user`,
-`settings.JWT_SECRET_KEY`, `PUBLIC_URL`, `ALERTS_N8N_CA_BUNDLE` y los tamaños
+`settings.JWT_SECRET_KEY`, `PUBLIC_URL`, `ALERTS_N8N_CA_BUNDLE`,
+`AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` (calendario) y los tamaños
 del pool, `app.core.rate_limit`, `logger`,
 `get_db` (panel), `SessionLocal` (portal) y `Base`. En el
 frontend: `SidebarLayout`, `getAuthHeaders` y el builder compartido.
@@ -51,6 +52,33 @@ plano; si n8n falla, la cuenta queda igual y el error va al log.
 - `ticket_estado`: el admin pasa un ticket a en curso, rechazado o cerrado;
   `para` = quien lo pidió. Trae `ticket` = `{id, tipo, fecha_servicio, estado,
   comentario}`. Volver a pendiente no avisa.
+
+## Reservas de sala (Outlook)
+
+El usuario no escribe la fecha: elige una de sus reservas de sala, leídas del
+calendario con Microsoft Graph (`calendario.py`). De la reserva salen la fecha
+y el bloque horario del servicio.
+
+- **Permiso de aplicación.** `Calendars.Read.All` sobre la app de Azure de la
+  plataforma, con `client_credentials` y el token cacheado en memoria. Es otro
+  token que el de los correos (`app/services/email_token_service.py`), que es
+  delegado y solo trae `Mail.Send`. Comparte las credenciales `AZURE_*`.
+- **Qué cuenta como reserva de sala.** El evento tiene una ubicación de tipo
+  `conferenceRoom` o un invitado de tipo `resource` (el buzón de la sala).
+  Una reunión sin sala no sirve como bloque y no se ofrece; una que cruza la
+  medianoche tampoco, porque no define a qué día pertenece el servicio.
+- **La reserva se copia, no se referencia.** Fecha, horario, sala y asunto
+  quedan escritos en `tickets.tickets` y en cada versión. Mover la reunión en
+  Outlook después no mueve lo ya pedido, igual que el plazo congelado.
+  `reserva_id` queda solo para rastrear de qué evento salió.
+- **Se revalida al guardar.** El navegador manda el id y nada más: la fecha y
+  el bloque los relee el backend de Graph al crear o al proponer un cambio,
+  dentro de la misma ventana (`TICKETS_RESERVAS_DIAS`) que muestra el portal.
+- **Si Graph se cae.** El portal responde 503 con un mensaje propio y no se
+  puede pedir nada nuevo. Los tickets ya ingresados se siguen viendo y
+  atendiendo: el panel lee lo guardado, no el calendario.
+- **Tickets anteriores.** Las columnas van NULL: los que se pidieron antes de
+  la integración no tienen bloque y se muestran solo con su fecha.
 
 ## Decisiones
 
@@ -95,6 +123,7 @@ TICKETS_DOMINIOS=cramer.cl
 TICKETS_SESION_HORAS=12
 TICKETS_RESET_HORAS=24
 TICKETS_ARCHIVO_MAX_MB=3
+TICKETS_RESERVAS_DIAS=30
 ```
 
 ## Migración
@@ -102,6 +131,8 @@ TICKETS_ARCHIVO_MAX_MB=3
 ```
 psql -d rh_cramer -f backend/migrations/022_create_tickets_module.sql
 psql -d rh_cramer -v ON_ERROR_STOP=1 -f backend/migrations/023_tickets_a_esquema_propio.sql
+# ... y en orden hasta la última:
+psql -d rh_cramer -v ON_ERROR_STOP=1 -f backend/migrations/029_tickets_reservas_outlook.sql
 ```
 
 La 022 creó las tablas como `app.tk_*`; la 023 las borra (solo si están
