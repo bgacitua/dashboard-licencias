@@ -4,7 +4,7 @@ import re
 import secrets
 import unicodedata
 from copy import deepcopy
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import HTTPException
 import pytz
@@ -209,23 +209,36 @@ def _reserva_validada(usuario: TkUsuario, reserva_id: str) -> dict:
     return reserva
 
 
-def _campos_de_reserva(reserva: dict) -> dict:
+def _campos_de_reserva(reserva: dict, inicio: time, fin: time) -> dict:
+    """Lo que se escribe en el ticket y en la versión: el bloque reservado y,
+    dentro de él, el tramo pedido. El tramo se valida acá y no solo en el
+    navegador, porque el bloque lo pone Graph y el tramo lo pone el usuario."""
+    if inicio >= fin:
+        raise HTTPException(400, "La hora de término tiene que ser posterior a la de inicio.")
+    if inicio < reserva["hora_inicio"] or fin > reserva["hora_fin"]:
+        bloque = f'{reserva["hora_inicio"]:%H:%M} y {reserva["hora_fin"]:%H:%M}'
+        raise HTTPException(400, f"El horario del servicio tiene que estar entre {bloque}, que es tu reserva.")
     return {
         "fecha_servicio": reserva["fecha"],
         "hora_inicio": reserva["hora_inicio"],
         "hora_fin": reserva["hora_fin"],
+        "servicio_inicio": inicio,
+        "servicio_fin": fin,
         "reserva_id": reserva["id"],
         "reserva_asunto": reserva["asunto"],
         "reserva_sala": reserva["sala"],
     }
 
 
-def crear_ticket(db: Session, usuario: TkUsuario, tipo_id: int, reserva_id: str, datos: dict, ip: str) -> int:
+def crear_ticket(
+    db: Session, usuario: TkUsuario, tipo_id: int, reserva_id: str,
+    inicio: time, fin: time, datos: dict, ip: str,
+) -> int:
     tipo = db.get(TkTipo, tipo_id)
     if not tipo or not tipo.activo:
         raise HTTPException(404, "Ese tipo de solicitud no está disponible.")
     reserva = _reserva_validada(usuario, reserva_id)
-    campos = _campos_de_reserva(reserva)
+    campos = _campos_de_reserva(reserva, inicio, fin)
     plazo = _validar_plazo(tipo, reserva["fecha"])
     ticket = TkTicket(
         tipo_id=tipo.id, usuario_id=usuario.id, plazo=plazo, version_actual=1, **campos,
@@ -242,10 +255,20 @@ def crear_ticket(db: Session, usuario: TkUsuario, tipo_id: int, reserva_id: str,
 
 def _horario_aviso(ticket: TkTicket) -> dict:
     """Bloque y sala para el correo. Los tickets anteriores a la integración no
-    lo tienen, y n8n ya trata los campos nulos como ausentes."""
+    lo tienen, y n8n ya trata los campos nulos como ausentes.
+
+    `hora_*` es la reserva completa y `servicio_*` lo que se pidió dentro: el
+    correo necesita las dos, porque quien atiende llega al tramo, no a la hora
+    en que empieza la reunión.
+    """
+    def hhmm(t):
+        return t.strftime("%H:%M") if t else None
+
     return {
-        "hora_inicio": ticket.hora_inicio.strftime("%H:%M") if ticket.hora_inicio else None,
-        "hora_fin": ticket.hora_fin.strftime("%H:%M") if ticket.hora_fin else None,
+        "servicio_inicio": hhmm(ticket.servicio_inicio),
+        "servicio_fin": hhmm(ticket.servicio_fin),
+        "hora_inicio": hhmm(ticket.hora_inicio),
+        "hora_fin": hhmm(ticket.hora_fin),
         "sala": ticket.reserva_sala,
         "reserva": ticket.reserva_asunto,
     }
@@ -281,7 +304,8 @@ def propuesta_pendiente(db: Session, ticket_id: int) -> TkVersion | None:
 
 
 def proponer_cambio(
-    db: Session, usuario: TkUsuario, ticket_id: int, reserva_id: str, datos: dict, version: int, ip: str
+    db: Session, usuario: TkUsuario, ticket_id: int, reserva_id: str,
+    inicio: time, fin: time, datos: dict, version: int, ip: str,
 ) -> dict:
     """Guarda un cambio del usuario como propuesta. No rige: el ticket sigue en
     su versión vigente hasta que el administrador la apruebe.
@@ -312,7 +336,7 @@ def proponer_cambio(
     ).scalar() or 0) + 1
     db.add(TkVersion(
         ticket_id=ticket_id, version=siguiente, datos=datos, ip=ip,
-        costo=costo_de(db, tipo, datos), estado="propuesta", **_campos_de_reserva(reserva),
+        costo=costo_de(db, tipo, datos), estado="propuesta", **_campos_de_reserva(reserva, inicio, fin),
     ))
     try:
         db.commit()
@@ -343,6 +367,7 @@ def resolver_propuesta(db: Session, ticket_id: int, aprobar: bool, autor: str) -
         # Con la versión pasan también la reserva y su bloque horario: el
         # cambio pudo haber movido el servicio a otra reunión.
         for campo in ("fecha_servicio", "hora_inicio", "hora_fin",
+                      "servicio_inicio", "servicio_fin",
                       "reserva_id", "reserva_asunto", "reserva_sala"):
             setattr(ticket, campo, getattr(propuesta, campo))
         ticket.plazo = _plazo(db.get(TkTipo, ticket.tipo_id), propuesta.fecha_servicio)
@@ -359,7 +384,8 @@ def resolver_propuesta(db: Session, ticket_id: int, aprobar: bool, autor: str) -
 
 _SELECT_TICKETS = """
     SELECT t.id, t.tipo_id, tp.nombre AS tipo, t.estado, t.fecha_servicio, t.plazo,
-           t.hora_inicio, t.hora_fin, t.reserva_asunto, t.reserva_sala,
+           t.hora_inicio, t.hora_fin, t.servicio_inicio, t.servicio_fin,
+           t.reserva_asunto, t.reserva_sala,
            t.version_actual, t.version_vista_admin, t.created_at, t.updated_at,
            t.plazo_emergencia,
            EXISTS (SELECT 1 FROM tickets.versiones v

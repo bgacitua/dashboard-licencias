@@ -252,6 +252,36 @@ def test_reserva_de_sala():
     print("ok  reserva de sala")
 
 
+def test_tramo_del_servicio():
+    """El tramo pedido tiene que caber en la reserva, y ser un tramo."""
+    from fastapi import HTTPException
+    from app.modules.tickets.service import _campos_de_reserva
+
+    reserva = {
+        "id": "AAA", "asunto": "Comité", "sala": "Auditorio",
+        "fecha": date(2026, 10, 22), "hora_inicio": time(15, 30), "hora_fin": time(16, 30),
+        "multidia": False,
+    }
+
+    campos = _campos_de_reserva(reserva, time(15, 30), time(16, 0))
+    # El bloque de la reserva y el tramo pedido se guardan por separado.
+    assert (campos["hora_inicio"], campos["hora_fin"]) == (time(15, 30), time(16, 30))
+    assert (campos["servicio_inicio"], campos["servicio_fin"]) == (time(15, 30), time(16, 0))
+
+    def rechaza(inicio, fin):
+        try:
+            _campos_de_reserva(reserva, inicio, fin)
+        except HTTPException as e:
+            return e.status_code == 400
+        return False
+
+    assert rechaza(time(15, 0), time(16, 0))   # empieza antes de la reserva
+    assert rechaza(time(16, 0), time(17, 0))   # termina después
+    assert rechaza(time(16, 0), time(16, 0))   # no es un tramo
+    assert rechaza(time(16, 0), time(15, 45))  # al revés
+    print("ok  tramo del servicio")
+
+
 if __name__ == "__main__":
     test_plazo()
     test_editable()
@@ -267,3 +297,4 @@ if __name__ == "__main__":
     test_plazo_de_emergencia()
     test_una_propuesta_a_la_vez()
     test_reserva_de_sala()
+    test_tramo_del_servicio()
