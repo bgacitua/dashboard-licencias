@@ -36,6 +36,10 @@ export default function PortalSolicitud() {
     // Tramo pedido dentro de la reserva, como 'HH:MM' porque es lo que entra y
     // sale de <input type="time">.
     const [tramo, setTramo] = useState({ inicio: '', fin: '' });
+    // 'reserva' elige reunión y horario; 'formulario' responde. Dos pasos y no
+    // una página larga: son dos decisiones distintas y mezclarlas hacía que la
+    // reservación —que es lo que manda— quedara perdida arriba del formulario.
+    const [paso, setPaso] = useState('reserva');
     const [errorReservas, setErrorReservas] = useState('');
     const [error, setError] = useState('');
     const [aviso, setAviso] = useState('');
@@ -120,6 +124,24 @@ export default function PortalSolicitud() {
             : alReves ? 'La hora de término tiene que ser posterior a la de inicio.'
                 : fueraDelBloque ? `El horario tiene que quedar dentro de tu reserva (${bloque(reserva)}).`
                     : vencido ? 'El plazo para esa fecha ya venció. Elige otra reserva.' : '';
+
+    // Un ticket ya enviado se abre en su formulario: la reservación está
+    // tomada y volver a elegirla es la excepción, no el primer paso.
+    useEffect(() => {
+        if (ticket) setPaso('formulario');
+    }, [ticket]);
+
+    const irAlFormulario = () => {
+        if (traba) { setError(traba); return; }
+        setPaso('formulario');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const volverAReservas = () => {
+        if (sucio && !window.confirm('Tienes respuestas sin guardar. ¿Volver a elegir la reservación?')) return;
+        setPaso('reserva');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     const model = useMemo(() => {
         if (!tipo) return null;
@@ -318,8 +340,38 @@ export default function PortalSolicitud() {
                 </div>
             )}
 
-            {!soloLectura && tipo && (
-                <section className="mb-4 rounded-2xl border border-slate-200 bg-white px-5 py-5" aria-live="polite">
+            {/* Dos pasos, dos rótulos. Sin esto el salto de la grilla al
+                formulario parece que la página se hubiera ido a otra parte. */}
+            {!soloLectura && !ticket && tipo && (
+                <ol className="mb-4 flex items-center gap-3 text-sm">
+                    {[['reserva', 'Reservación'], ['formulario', 'Solicitud']].map(([clave, rotulo], i) => {
+                        const activo = paso === clave;
+                        const hecho = clave === 'reserva' && paso === 'formulario';
+                        return (
+                            <li key={clave} className="flex items-center gap-3">
+                                {i > 0 && <span aria-hidden className="h-px w-6 bg-slate-300" />}
+                                <span className={`flex items-center gap-2 transition-colors ${
+                                    activo ? 'font-medium text-slate-900' : 'text-slate-500'
+                                }`}>
+                                    <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs transition-all duration-200 ${
+                                        hecho ? 'bg-blue-600 text-white'
+                                            : activo ? 'bg-blue-600 text-white ring-4 ring-blue-100'
+                                                : 'bg-slate-200 text-slate-600'
+                                    }`}>
+                                        {hecho
+                                            ? <span className="material-symbols-outlined text-sm">check</span>
+                                            : i + 1}
+                                    </span>
+                                    {rotulo}
+                                </span>
+                            </li>
+                        );
+                    })}
+                </ol>
+            )}
+
+            {!soloLectura && paso === 'reserva' && tipo && (
+                <section className="animate-entra mb-4 rounded-2xl border border-slate-200 bg-white px-5 py-5" aria-live="polite">
                     <h2 className="text-lg font-semibold text-slate-900">Mis reservaciones</h2>
                     <p className="mt-1 text-sm text-slate-500">
                         Elige la reunión para la que necesitas el servicio.
@@ -338,7 +390,7 @@ export default function PortalSolicitud() {
                     {/* Sin reservaciones no hay nada que pedir: el formulario no
                         se muestra y esto es lo único que queda en pantalla. */}
                     {reservas?.length === 0 && !errorReservas && (
-                        <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                        <div className="animate-entra mt-4 flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
                             <span className="material-symbols-outlined text-4xl text-slate-400">event_busy</span>
                             <p className="text-sm font-medium text-slate-800">
                                 No tienes reservaciones previas. Haz una reservación y vuelve a intentarlo.
@@ -351,10 +403,13 @@ export default function PortalSolicitud() {
 
                     {!!reservas?.length && (
                         <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                            {reservas.map((r) => {
+                            {reservas.map((r, i) => {
                                 const elegida = r.id === reservaId;
                                 return (
-                                    <li key={r.id}>
+                                    // Entran escalonadas: la grilla se arma sola
+                                    // de arriba abajo en vez de aparecer entera.
+                                    <li key={r.id} className="animate-entra"
+                                        style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}>
                                         {/* Botón y no radio: la tarjeta entera es
                                             el área de clic y el estado lo lleva
                                             aria-pressed. */}
@@ -362,14 +417,18 @@ export default function PortalSolicitud() {
                                             type="button"
                                             onClick={() => alElegirReserva(r)}
                                             aria-pressed={elegida}
-                                            className={`flex w-full flex-col gap-1 rounded-xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                                            className={`flex w-full flex-col gap-1 rounded-xl border px-4 py-3 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
                                                 elegida
-                                                    ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
-                                                    : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                                    ? 'border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-500'
+                                                    : 'border-slate-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm'
                                             }`}
                                         >
                                             <span className="flex items-center gap-2">
-                                                <span className={`material-symbols-outlined text-base ${elegida ? 'text-blue-600' : 'text-slate-400'}`}>
+                                                {/* key distinta por estado: así el
+                                                    ícono se monta de nuevo y la
+                                                    animación de marca se ve. */}
+                                                <span key={elegida ? 'ok' : 'no'}
+                                                    className={`material-symbols-outlined text-base ${elegida ? 'animate-marca text-blue-600' : 'text-slate-400'}`}>
                                                     {elegida ? 'check_circle' : 'meeting_room'}
                                                 </span>
                                                 <span className="font-medium text-slate-900">{r.sala}</span>
@@ -392,7 +451,7 @@ export default function PortalSolicitud() {
                     {/* El tramo aparece recién con una reserva elegida: antes no
                         hay rango contra el cual acotarlo. */}
                     {reserva && (
-                        <div className="mt-5 border-t border-slate-200 pt-4">
+                        <div className="animate-entra mt-5 border-t border-slate-200 pt-4">
                             <p className="text-sm font-medium text-slate-800">
                                 Horario del servicio <span className="text-red-600">*</span>
                             </p>
@@ -441,13 +500,46 @@ export default function PortalSolicitud() {
                     {traba && !vencido && (
                         <p className="mt-3 text-xs text-slate-500">{traba}</p>
                     )}
+
+                    {/* El paso al formulario es explícito: elegir una reunión no
+                        es lo mismo que estar listo para pedir. */}
+                    {!!reservas?.length && (
+                        <button
+                            type="button"
+                            onClick={irAlFormulario}
+                            disabled={!!traba}
+                            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition-all duration-200 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
+                        >
+                            Continuar al formulario
+                            <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                        </button>
+                    )}
                 </section>
             )}
 
-            {/* Sin reserva elegida no se muestra el formulario: llenarlo para
-                después descubrir que no hay dónde pedirlo es trabajo perdido. */}
-            {model && (soloLectura || reservaId) && (
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
+            {/* Recién con la reservación tomada aparece el formulario. Arriba
+                queda el resumen, que es lo único que hay que recordar de acá. */}
+            {paso === 'formulario' && !soloLectura && reserva && (
+                <div className="animate-entra-lateral mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
+                    <span className="material-symbols-outlined text-blue-700">event_available</span>
+                    <span className="text-sm text-slate-800">
+                        <span className="font-medium">{reserva.sala}</span>
+                        {' · '}{fechaCorta(reserva.fecha)}
+                        {' · '}{tramo.inicio}–{tramo.fin}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={volverAReservas}
+                        className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-blue-700 transition-colors hover:bg-blue-100"
+                    >
+                        <span className="material-symbols-outlined text-base">edit_calendar</span>
+                        Cambiar
+                    </button>
+                </div>
+            )}
+
+            {model && (soloLectura || paso === 'formulario') && (
+                <div className="animate-entra-lateral overflow-hidden rounded-2xl border border-slate-200">
                     <Survey model={model} />
                 </div>
             )}

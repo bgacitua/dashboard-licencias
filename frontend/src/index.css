@@ -68,6 +68,12 @@
   --color-app-on: #2f7d4f;
 
   --font-app: "Inter", system-ui, sans-serif;
+
+  /* Animaciones de entrada (utilidades animate-*). Los keyframes están más
+     abajo, junto al bloque que las apaga con prefers-reduced-motion. */
+  --animate-entra: app-entra 0.28s ease-out both;
+  --animate-entra-lateral: app-entra-lateral 0.28s ease-out both;
+  --animate-marca: app-marca 0.22s ease-out;
   --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
@@ -244,7 +250,29 @@ table, th, td, .tabular-nums {
   color: inherit;
 }
 
-/* Motion pequeño e intencional */
+/* ---------------------------------------------------------------------------
+   Motion pequeño e intencional.
+   Entradas cortas y en una sola dirección: nada rebota, nada gira. El bloque
+   de prefers-reduced-motion de más abajo las apaga todas de una vez, así que
+   agregar una animación acá no obliga a acordarse de la accesibilidad.
+   --------------------------------------------------------------------------- */
+@keyframes app-entra {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes app-entra-lateral {
+  from { opacity: 0; transform: translateX(0.75rem); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Confirma una elección sin mover la tarjeta de lugar. */
+@keyframes app-marca {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
