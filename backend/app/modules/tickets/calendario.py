@@ -81,31 +81,22 @@ def _instante(dia: date, hora: time) -> datetime:
     return _zona().localize(datetime.combine(dia, hora))
 
 
-def _es_reserva_de_sala(evento: dict) -> bool:
-    """Una reserva de sala es un evento con una sala dentro.
+def _salas(evento: dict) -> list[str]:
+    """Las salas del evento: sus `locations` de tipo `conferenceRoom`.
 
-    Graph la marca de dos maneras según cómo se creó: como ubicación de tipo
-    `conferenceRoom`, o como invitado de tipo `resource` (el buzón de la sala).
-    Con cualquiera de las dos alcanza; un evento sin ninguna es una reunión
-    normal y no sirve para pedir un servicio.
+    Es la única señal que se mira. El texto libre de `location` no sirve —una
+    reunión de Teams también lo trae— y el buzón de la sala entre los invitados
+    tampoco: cuando se reserva de verdad, Graph la promueve a `locations`.
     """
-    if any(u.get("locationType") == "conferenceRoom" for u in evento.get("locations") or []):
-        return True
-    return any(a.get("type") == "resource" for a in evento.get("attendees") or [])
-
-
-def _sala(evento: dict) -> str:
-    salas = [
-        u.get("displayName") for u in evento.get("locations") or []
+    return [
+        u["displayName"] for u in evento.get("locations") or []
         if u.get("locationType") == "conferenceRoom" and u.get("displayName")
     ]
-    if salas:
-        return ", ".join(salas)
-    recursos = [
-        (a.get("emailAddress") or {}).get("name") for a in evento.get("attendees") or []
-        if a.get("type") == "resource"
-    ]
-    return ", ".join(r for r in recursos if r) or (evento.get("location") or {}).get("displayName") or "Sala"
+
+
+def _es_reserva_de_sala(evento: dict) -> bool:
+    """Sin sala no hay bloque que ofrecer: es una reunión cualquiera."""
+    return bool(_salas(evento))
 
 
 def _reserva(evento: dict) -> dict:
@@ -119,7 +110,7 @@ def _reserva(evento: dict) -> dict:
     return {
         "id": evento["id"],
         "asunto": (evento.get("subject") or "Sin asunto")[:200],
-        "sala": _sala(evento)[:200],
+        "sala": ", ".join(_salas(evento))[:200],
         "fecha": date.fromisoformat(inicio[:10]),
         "hora_inicio": time.fromisoformat(inicio[11:19]),
         "hora_fin": time.fromisoformat(fin[11:19]),
@@ -139,7 +130,7 @@ def reservas(email: str, desde: date, hasta: date) -> list[dict]:
             params={
                 "startDateTime": inicio.isoformat(),
                 "endDateTime": fin.isoformat(),
-                "$select": "id,subject,start,end,location,locations,attendees,isCancelled",
+                "$select": "id,subject,start,end,locations,isCancelled",
                 "$orderby": "start/dateTime",
                 "$top": 100,
             },

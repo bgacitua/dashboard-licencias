@@ -63,10 +63,13 @@ y el bloque horario del servicio.
   plataforma, con `client_credentials` y el token cacheado en memoria. Es otro
   token que el de los correos (`app/services/email_token_service.py`), que es
   delegado y solo trae `Mail.Send`. Comparte las credenciales `AZURE_*`.
-- **Qué cuenta como reserva de sala.** El evento tiene una ubicación de tipo
-  `conferenceRoom` o un invitado de tipo `resource` (el buzón de la sala).
-  Una reunión sin sala no sirve como bloque y no se ofrece; una que cruza la
-  medianoche tampoco, porque no define a qué día pertenece el servicio.
+- **Qué cuenta como reserva de sala.** El evento tiene una `locations` de tipo
+  `conferenceRoom`, y de ahí sale el nombre de la sala. Es la única señal que
+  se mira: el texto libre de `location` lo trae también una reunión de Teams, y
+  el buzón de la sala entre los invitados no agrega nada, porque al reservar de
+  verdad Graph la promueve a `locations`. Una reunión sin sala no sirve como
+  bloque y no se ofrece; una que cruza la medianoche tampoco, porque no define
+  a qué día pertenece el servicio.
 - **La reserva se copia, no se referencia.** Fecha, horario, sala y asunto
   quedan escritos en `tickets.tickets` y en cada versión. Mover la reunión en
   Outlook después no mueve lo ya pedido, igual que el plazo congelado.

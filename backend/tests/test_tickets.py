@@ -208,45 +208,47 @@ def test_una_propuesta_a_la_vez():
 
 def test_reserva_de_sala():
     """Qué evento de Outlook cuenta como reserva de sala y cómo se parte."""
-    from app.modules.tickets.calendario import _es_reserva_de_sala, _reserva, _sala
+    from app.modules.tickets.calendario import _es_reserva_de_sala, _reserva
 
-    con_ubicacion = {
+    con_sala = {
         "id": "AAA", "subject": "Comité",
         "locations": [{"displayName": "Sala Andes", "locationType": "conferenceRoom"}],
         "start": {"dateTime": "2026-10-20T09:30:00.0000000"},
         "end": {"dateTime": "2026-10-20T11:00:00.0000000"},
     }
-    con_recurso = {
+    cruza_medianoche = {
         "id": "BBB", "subject": "Inducción",
-        "location": {"displayName": "Sala Andes"},
-        "attendees": [
-            {"type": "required", "emailAddress": {"name": "Alguien"}},
-            {"type": "resource", "emailAddress": {"name": "Sala Lircay"}},
-        ],
+        "locations": [{"displayName": "Sala Lircay", "locationType": "conferenceRoom"}],
         "start": {"dateTime": "2026-10-21T23:00:00.0000000"},
         "end": {"dateTime": "2026-10-22T01:00:00.0000000"},
     }
-    reunion_normal = {
-        "id": "CCC", "subject": "1:1",
-        "locations": [{"displayName": "Microsoft Teams", "locationType": "default"}],
-        "attendees": [{"type": "required", "emailAddress": {"name": "Alguien"}}],
+    # Teams trae ubicación y hasta `location.displayName`, pero no es una sala.
+    teams = {
+        "id": "CCC", "subject": "Webinar",
+        "location": {"displayName": "Reunión de Microsoft Teams"},
+        "locations": [{"displayName": "Reunión de Microsoft Teams", "locationType": "default"}],
         "start": {"dateTime": "2026-10-20T09:00:00.0000000"},
         "end": {"dateTime": "2026-10-20T09:30:00.0000000"},
     }
+    # Invitar el buzón de la sala sin que Graph la promueva a `locations` no basta.
+    solo_recurso = {
+        "id": "DDD", "subject": "1:1",
+        "attendees": [{"type": "resource", "emailAddress": {"name": "Sala Lircay"}}],
+        "start": {"dateTime": "2026-10-20T15:00:00.0000000"},
+        "end": {"dateTime": "2026-10-20T16:00:00.0000000"},
+    }
 
-    assert _es_reserva_de_sala(con_ubicacion) is True
-    assert _es_reserva_de_sala(con_recurso) is True
-    # Sin sala no hay bloque que ofrecer: es una reunión cualquiera.
-    assert _es_reserva_de_sala(reunion_normal) is False
+    assert _es_reserva_de_sala(con_sala) is True
+    # Sin una sala en `locations` no hay bloque que ofrecer.
+    assert _es_reserva_de_sala(teams) is False
+    assert _es_reserva_de_sala(solo_recurso) is False
 
-    # El buzón de la sala gana sobre el texto libre de `location`.
-    assert _sala(con_recurso) == "Sala Lircay"
-
-    r = _reserva(con_ubicacion)
+    r = _reserva(con_sala)
+    assert r["sala"] == "Sala Andes"
     assert (r["fecha"], r["hora_inicio"], r["hora_fin"]) == (date(2026, 10, 20), time(9, 30), time(11, 0))
     assert r["multidia"] is False
     # Cruzar la medianoche no define el día del servicio: queda marcada.
-    assert _reserva(con_recurso)["multidia"] is True
+    assert _reserva(cruza_medianoche)["multidia"] is True
     print("ok  reserva de sala")
 
 
