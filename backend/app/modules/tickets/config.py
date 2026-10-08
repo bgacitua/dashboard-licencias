@@ -32,6 +32,11 @@ class TicketsSettings(BaseSettings):
 
     zona: str = "America/Santiago"
 
+    # Días hacia adelante que se muestran del calendario de Outlook al pedir un
+    # servicio. Es también la ventana contra la que se valida la reserva al
+    # guardar: fuera de ella la solicitud se rechaza.
+    reservas_dias: int = 30
+
     # Webhook de n8n que manda los correos de las cuentas (aviso de registro al
     # admin, aprobación y rechazo al usuario). La pone quien despliega, no un
     # admin desde el panel, así que no necesita allowlist. Vacío = sin correos.
