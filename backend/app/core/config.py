@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
 
+    # Rol de solo lectura sobre rh_cramer (rh_cramer_ro). No lo usa la app: es
+    # para consultas manuales en desarrollo, donde la base es la misma de
+    # producción y un UPDATE mal escrito no tiene vuelta atrás. Vacío = sin
+    # credencial RO configurada; get_readonly_database_url() avisa en vez de
+    # caer de vuelta al usuario de escritura.
+    DB_RO_USER: str = ""
+    DB_RO_PASSWORD: str = ""
+
     # === Base de Datos Marcas: SQL Server MorphoManager ===
     MARCAS_DB_SERVER: str
     MARCAS_DB_USER: str
@@ -174,6 +182,28 @@ def get_database_url() -> str:
     password_encoded = quote_plus(settings.DB_PASSWORD)
     return (
         f"postgresql+psycopg2://{settings.DB_USER}:{password_encoded}"
+        f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+    )
+
+
+def get_readonly_database_url() -> str:
+    """URL de conexión de solo lectura para PostgreSQL (rh_cramer).
+
+    Para consultas manuales y scripts de diagnóstico, no para la app: los
+    endpoints que escriben (auth, formularios, tickets) necesitan el usuario
+    de get_database_url().
+
+    Falla si no hay credencial configurada en vez de caer al usuario de
+    escritura: un fallback silencioso convertiría "consulta segura" en
+    "conexión con permisos completos" sin que nadie lo note.
+    """
+    if not settings.DB_RO_USER or not settings.DB_RO_PASSWORD:
+        raise RuntimeError(
+            "DB_RO_USER/DB_RO_PASSWORD no configurados en .env."
+        )
+    password_encoded = quote_plus(settings.DB_RO_PASSWORD)
+    return (
+        f"postgresql+psycopg2://{settings.DB_RO_USER}:{password_encoded}"
         f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
     )
 
