@@ -77,6 +77,10 @@ y el bloque horario del servicio.
   pero quien decide es el backend, y además hay un CHECK en la tabla.
   Sin reservaciones no se muestra el formulario: la página queda en el aviso
   de que hay que reservar primero.
+- **Dos pasos en una página.** Primero reservación y horario, después el
+  formulario, con un rótulo arriba que dice en cuál se está. No son dos rutas:
+  la reservación elegida vive en el estado, y una URL aparte la perdería en
+  cada recarga. Un ticket ya enviado abre directo en su formulario.
 - **La reserva se copia, no se referencia.** Fecha, horario, sala y asunto
   quedan escritos en `tickets.tickets` y en cada versión. Mover la reunión en
   Outlook después no mueve lo ya pedido, igual que el plazo congelado.
