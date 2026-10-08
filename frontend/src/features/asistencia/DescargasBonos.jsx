@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 
 import { descargarBonoEspecial } from './bonoEspecial'
 import { prepararColMov, prepararContratista } from './bonosAdicionales'
+import { useDialogo } from '../../components/Dialogos'
 
 /**
  * Las tres descargas de bono que salen del dataset de Marcajes.
@@ -31,20 +32,26 @@ const Desplegable = ({ label, disabled, children }) => (
 )
 
 const DescargasBonos = ({ rows, desde, hasta }) => {
+  const { confirmar } = useDialogo()
   const [periodo, setPeriodo] = useState({ desde: '', hasta: '' })
   const [mes, setMes] = useState('')
   const [aviso, setAviso] = useState(null)
 
   const sinDatos = !rows.length
 
-  const bajar = (preparado) => {
+  const bajar = async (preparado) => {
     if (!preparado.ok) {
       setAviso({ tipo: 'error', msg: preparado.mensaje })
       return
     }
-    if (preparado.confirmar && !window.confirm(
-      `El periodo pedido no está cubierto por lo consultado: ${preparado.confirmar}.\n¿Descargar igual?`
-    )) return
+    if (preparado.confirmar) {
+      const ok = await confirmar({
+        titulo: 'Periodo fuera de lo consultado',
+        mensaje: `El periodo pedido no está cubierto por lo consultado: ${preparado.confirmar}.`,
+        textoConfirmar: 'Descargar igual',
+      })
+      if (!ok) return
+    }
     preparado.descargar()
     setAviso(null)
   }
