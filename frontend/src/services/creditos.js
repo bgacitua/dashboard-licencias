@@ -30,8 +30,6 @@ export const eliminarCredito = (id) => request(`/${id}`, { method: "DELETE" });
 
 export const subirDocumento = (id) => request(`/${id}/documento`, { method: "POST" });
 
-export const iniciarFirma = (id) => request(`/${id}/firma`, { method: "POST" });
-
 export const verificarFirma = (id) => request(`/${id}/firma`);
 
 export const crearCreditoBuk = (id) => request(`/${id}/credito-buk`, { method: "POST" });

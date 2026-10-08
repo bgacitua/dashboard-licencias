@@ -70,6 +70,14 @@ def _firmas_activas(credito) -> Dict[str, bool]:
     }
 
 
+def _validar_segundo_representante(credito) -> None:
+    if (credito.firmas_requeridas or {}).get("second_legal_agent_sign"):
+        raise CreditoFlowError(
+            "La firma del segundo representante legal no está soportada: "
+            "no hay person_id configurado para ese firmante."
+        )
+
+
 def _slug(texto: str) -> str:
     """Texto apto para nombre de archivo: sin tildes ni caracteres raros."""
     sin_tildes = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
@@ -361,6 +369,7 @@ class CreditosService:
     async def subir_documento(self, credito: Credito) -> Credito:
         if credito.buk_file_id and not credito.firmas_requeridas.get("_opciones", {}).get("overwrite"):
             raise CreditoFlowError("El documento ya fue subido. Marca 'sobreescribir' para reemplazarlo.")
+        _validar_segundo_representante(credito)
 
         opciones = credito.firmas_requeridas.get("_opciones", {})
         params = {
@@ -400,6 +409,17 @@ class CreditosService:
         credito.estado = FIRMADO if not _firmas_activas(credito) else DOCUMENTO_SUBIDO
         self.db.commit()
 
+        # Las firmas se configuran y se disparan acá, no en un paso aparte: la
+        # subida ya deja el documento firmable por el trabajador, y si alcanza a
+        # firmarlo antes BUK rechaza el PUT con "No se puede reasignar las firmas
+        # de este documento porque ya está firmado".
+        if _firmas_activas(credito):
+            if credito.firmas_requeridas.get("legal_agent_sign"):
+                await self._configurar_firmas(credito)
+            await _buk("POST", f"/docs/{file_id}/signatures/process")
+            credito.estado = FIRMA_EN_PROCESO
+            self.db.commit()
+
         self.db.refresh(credito)
         return credito
 
@@ -413,6 +433,9 @@ class CreditosService:
 
         Solo se llama cuando firma el representante legal: si firma únicamente
         el trabajador, el flag de la subida ya alcanza y este PUT sobra.
+
+        Corre inmediatamente después de subir el documento. BUK rechaza el PUT
+        una vez que alguien firmó, y la subida ya habilita al trabajador.
 
         El orden de firma sale del orden de la lista. BUK rechaza position, y
         reviewer_id no se usa en ningún paso.
@@ -439,27 +462,6 @@ class CreditosService:
                 f"El documento se subió (id {credito.buk_file_id}) pero falló "
                 f"configurar las firmas: {e}"
             )
-
-    async def iniciar_firma(self, credito: Credito) -> Credito:
-        if not credito.buk_file_id:
-            raise CreditoFlowError("Primero debes subir el documento a BUK")
-        if not _firmas_activas(credito):
-            raise CreditoFlowError(
-                "Este crédito no requiere firmas; carga el crédito directamente"
-            )
-
-        if credito.firmas_requeridas.get("second_legal_agent_sign"):
-            raise CreditoFlowError(
-                "La firma del segundo representante legal no está soportada: "
-                "no hay person_id configurado para ese firmante."
-            )
-        if credito.firmas_requeridas.get("legal_agent_sign"):
-            await self._configurar_firmas(credito)
-        await _buk("POST", f"/docs/{credito.buk_file_id}/signatures/process")
-        credito.estado = FIRMA_EN_PROCESO
-        self.db.commit()
-        self.db.refresh(credito)
-        return credito
 
     async def verificar_firma(self, credito: Credito) -> Dict[str, Any]:
         if not credito.buk_file_id:

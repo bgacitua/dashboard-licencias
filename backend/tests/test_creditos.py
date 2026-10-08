@@ -73,6 +73,12 @@ def _texto_pdf(credito, empleado) -> str:
     return " ".join(re.findall(r"\((.*?)\) *Tj", raw))
 
 
+def _con_segundo_agente():
+    c = _FakeCredito()
+    c.firmas_requeridas = {**c.firmas_requeridas, "second_legal_agent_sign": True}
+    return c
+
+
 def _raises(fn, mensaje):
     try:
         asyncio.run(fn())
@@ -84,9 +90,8 @@ def _raises(fn, mensaje):
 def demo():
     service = CreditosService(_FakeDb())
 
-    # No se puede iniciar la firma sin documento subido
+    # No se puede revisar la firma sin documento subido
     c = _FakeCredito()
-    _raises(lambda: service.iniciar_firma(c), "iniciar_firma debe fallar sin buk_file_id")
     _raises(lambda: service.verificar_firma(c), "verificar_firma debe fallar sin buk_file_id")
 
     # No se puede crear el crédito en BUK si el documento no está firmado
@@ -158,7 +163,6 @@ def demo():
     }
     c = _FakeCredito(buk_file_id=999, estado=FIRMADO, firmas_requeridas=sin_firmas)
     assert _firmas_activas(c) == {}, _firmas_activas(c)
-    _raises(lambda: service.iniciar_firma(c), "iniciar_firma debe fallar si no se requieren firmas")
     assert _firmas_activas(_FakeCredito()) == {"employee_sign": True, "legal_agent_sign": True}
 
     # Un crédito ya cargado en BUK no se borra desde el dashboard
@@ -242,8 +246,15 @@ def demo():
     import app.services.creditos_service as CS
     real_buk, CS._buk = CS._buk, _fake_buk
     try:
-        c = _FakeCredito(buk_file_id=86134, estado=DOCUMENTO_SUBIDO)
-        asyncio.run(svc.iniciar_firma(c))
+        # El PUT va en la subida, antes de que el trabajador pueda firmar: si se
+        # deja para después, BUK lo rechaza con "No se puede reasignar las
+        # firmas de este documento porque ya está firmado". El proceso de firma
+        # se dispara en la misma subida.
+        c = _FakeCredito()
+        svc.generar_pdf = lambda cr: _async(b"%PDF")
+        svc._buk_empleado = lambda cr, *a, **kw: _async({"employee_file": {"id": 86134}})
+        asyncio.run(svc.subir_documento(c))
+        assert c.buk_file_id == 86134, c.buk_file_id
         assert c.estado == FIRMA_EN_PROCESO, c.estado
         put = [l for l in llamadas if l[0] == "PUT"]
         assert len(put) == 1, llamadas
@@ -254,21 +265,33 @@ def demo():
             {"signature_type": "employee_signature"},
             {"signature_type": "legal_agent_signature",
              "person_id": LEGAL_AGENT_PERSON_ID}]}, put[0][2]
+        # El PUT va antes del proceso: configurar después de firmar no se puede
         assert [l[0] for l in llamadas] == ["PUT", "POST"], llamadas
         assert llamadas[-1][1] == "/docs/86134/signatures/process", llamadas
 
-        # Solo trabajador: no hay PUT, se va derecho a iniciar el proceso
+        # Solo trabajador: no hay PUT, se sube y se dispara el proceso directo
         llamadas.clear()
-        c = _FakeCredito(buk_file_id=86135, estado=DOCUMENTO_SUBIDO)
+        c = _FakeCredito()
         c.firmas_requeridas = {**c.firmas_requeridas, "legal_agent_sign": False}
-        asyncio.run(svc.iniciar_firma(c))
+        svc._buk_empleado = lambda cr, *a, **kw: _async({"employee_file": {"id": 86135}})
+        asyncio.run(svc.subir_documento(c))
         assert [l[0] for l in llamadas] == ["POST"], llamadas
+        assert c.estado == FIRMA_EN_PROCESO, c.estado
+
+        # Sin firmas no se toca el flujo de firma: queda listo para el crédito
+        llamadas.clear()
+        c = _FakeCredito()
+        c.firmas_requeridas = {**c.firmas_requeridas,
+                               "employee_sign": False, "legal_agent_sign": False}
+        svc._buk_empleado = lambda cr, *a, **kw: _async({"employee_file": {"id": 86136}})
+        asyncio.run(svc.subir_documento(c))
+        assert llamadas == [], llamadas
+        assert c.estado == FIRMADO, c.estado
 
         # El segundo representante legal falla explícito, sin tocar BUK
         llamadas.clear()
-        c = _FakeCredito(buk_file_id=86136, estado=DOCUMENTO_SUBIDO)
-        c.firmas_requeridas = {**c.firmas_requeridas, "second_legal_agent_sign": True}
-        _raises(lambda: svc.iniciar_firma(c), "second_legal_agent_sign debe fallar")
+        _raises(lambda: svc.subir_documento(_con_segundo_agente()),
+                "second_legal_agent_sign debe fallar antes de subir")
         assert llamadas == [], llamadas
     finally:
         CS._buk = real_buk
