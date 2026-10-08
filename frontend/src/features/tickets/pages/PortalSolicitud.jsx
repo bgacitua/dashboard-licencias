@@ -8,13 +8,13 @@ import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
 import {
-    comentarTicket, crearTicket, editarTicket, fechaHora, miTicket, plazoPara, tiposPortal,
+    bloque, bloqueYSala, comentarTicket, crearTicket, editarTicket, fechaCorta, fechaHora, miTicket,
+    plazoPara, reservasPortal, tiposPortal,
 } from '../services/tickets';
 
-const hoyIso = () => {
-    const d = new Date();
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-};
+/** 'mar 21 oct · 09:30–11:00 · Sala Andes — Comité' */
+const etiquetaReserva = (r) =>
+    `${fechaCorta(r.fecha)} · ${bloque(r)} · ${r.sala}${r.asunto ? ` — ${r.asunto}` : ''}`;
 
 /**
  * Una sola página para pedir y para ver o editar lo pedido:
@@ -31,7 +31,10 @@ export default function PortalSolicitud() {
 
     const [tipo, setTipo] = useState(null);
     const [ticket, setTicket] = useState(null);
-    const [fecha, setFecha] = useState('');
+    // La fecha ya no se escribe: sale de la reserva de sala elegida.
+    const [reservas, setReservas] = useState(null);
+    const [reservaId, setReservaId] = useState('');
+    const [errorReservas, setErrorReservas] = useState('');
     const [error, setError] = useState('');
     const [aviso, setAviso] = useState('');
     const [recarga, setRecarga] = useState(0);
@@ -48,23 +51,45 @@ export default function PortalSolicitud() {
                 // definición no hay formulario, pero sí estado y conversación.
                 setTipo(tp || { id: buscado, nombre: tk?.tipo || 'Solicitud', definicion: { pages: [] }, tema: null });
                 setTicket(tk);
-                setFecha(tk?.fecha_servicio || '');
                 if (!tp && !tk) setError('Ese tipo de solicitud no está disponible.');
             })
             .catch((e) => setError(manejar(e)));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tipoId, id, recarga]);
 
+    // El calendario se consulta solo si hay algo que elegir: abrir un ticket
+    // cerrado no tiene por qué pegarle a Outlook. Su error va aparte del
+    // general, porque Graph puede fallar sin que nada más de la página esté mal.
+    const hayQueElegir = id ? !!ticket?.editable : true;
+    useEffect(() => {
+        if (!hayQueElegir || reservas) return;
+        setErrorReservas('');
+        reservasPortal()
+            .then(setReservas)
+            .catch((e) => { setReservas([]); setErrorReservas(manejar(e)); });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hayQueElegir]);
+
+    // Al abrir un ticket, queda elegida su reserva si todavía está en el
+    // calendario. Si ya pasó o la borraron, el select parte vacío: pedir un
+    // cambio obliga a elegir otra, que es justo lo que se quiere.
+    useEffect(() => {
+        if (!ticket || !reservas) return;
+        setReservaId(reservas.some((r) => r.id === ticket.reserva_id) ? ticket.reserva_id : '');
+    }, [ticket, reservas]);
+
     const propuesta = ticket?.propuesta || null;
     // Con un cambio esperando respuesta el formulario se congela: otro
     // encima dejaría al administrador resolviendo algo ya viejo.
     const soloLectura = !!ticket && !ticket.editable;
+    const reserva = (reservas || []).find((r) => r.id === reservaId) || null;
+    const fecha = reserva?.fecha || '';
     const plazo = !soloLectura && fecha && tipo ? plazoPara(tipo, fecha) : null;
     const vencido = !!plazo && plazo <= new Date();
     // Por qué no se puede enviar todavía, o '' si sí se puede.
-    const traba = soloLectura ? '' : !fecha
-        ? 'Elige la fecha del servicio para poder enviar.'
-        : vencido ? 'El plazo para esa fecha ya venció. Elige otra.' : '';
+    const traba = soloLectura ? '' : !reservaId
+        ? 'Elige la reserva de sala para la que pides el servicio.'
+        : vencido ? 'El plazo para esa fecha ya venció. Elige otra reserva.' : '';
 
     const model = useMemo(() => {
         if (!tipo) return null;
@@ -93,12 +118,12 @@ export default function PortalSolicitud() {
             setAviso('');
             try {
                 if (ticket) {
-                    await editarTicket(ticket.id, { fecha_servicio: fecha, datos: sender.data, version: ticket.version_actual });
+                    await editarTicket(ticket.id, { reserva_id: reservaId, datos: sender.data, version: ticket.version_actual });
                     setAviso('Solicitud de cambio enviada. Rige la versión anterior hasta que el administrador la apruebe.');
                     setSucio(false);
                     setRecarga((n) => n + 1);
                 } else {
-                    const r = await crearTicket({ tipo_id: tipo.id, fecha_servicio: fecha, datos: sender.data });
+                    const r = await crearTicket({ tipo_id: tipo.id, reserva_id: reservaId, datos: sender.data });
                     opciones.showSaveSuccess('Solicitud enviada.');
                     setSucio(false);
                     navigate(`/tickets/t/${r.id}`, { replace: true, state: { creada: true } });
@@ -117,7 +142,7 @@ export default function PortalSolicitud() {
             model.onCompleting.remove(alCompletar);
             model.onComplete.remove(alGuardar);
         };
-    }, [model, fecha, traba, ticket, tipo, soloLectura, navigate, manejar]);
+    }, [model, reservaId, traba, ticket, tipo, soloLectura, navigate, manejar]);
 
     // El botón de enviar queda apagado mientras falte la fecha o el plazo esté
     // vencido: es preferible a dejar llenar todo y rebotar al final. Si una
@@ -240,23 +265,51 @@ export default function PortalSolicitud() {
 
             {tipo && (
                 <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-5 py-4">
-                    <label htmlFor="tk-fecha" className="block text-sm font-medium text-slate-800">
-                        Fecha del servicio <span className="text-red-600">*</span>
+                    <label htmlFor="tk-reserva" className="block text-sm font-medium text-slate-800">
+                        Reserva de sala <span className="text-red-600">*</span>
                     </label>
-                    <input
-                        id="tk-fecha"
-                        type="date"
-                        min={hoyIso()}
-                        disabled={soloLectura}
-                        value={fecha}
-                        onChange={(e) => { setFecha(e.target.value); setError(''); }}
+                    <p className="mt-1 text-xs text-slate-500">
+                        El servicio se pide para una reunión que ya tengas agendada: de ahí salen
+                        la fecha y el bloque horario.
+                    </p>
+                    <select
+                        id="tk-reserva"
+                        disabled={soloLectura || !reservas?.length}
+                        value={reservaId}
+                        onChange={(e) => { setReservaId(e.target.value); setError(''); }}
                         aria-invalid={!!traba}
-                        className={`mt-2 rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 disabled:bg-slate-50 ${
+                        className={`mt-2 w-full max-w-xl rounded-xl border bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 disabled:bg-slate-50 ${
                             traba
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
                                 : 'border-slate-300 focus:border-blue-500 focus:ring-blue-200'
                         }`}
-                    />
+                    >
+                        <option value="">
+                            {reservas === null ? 'Buscando tus reservas…' : 'Elige una reserva…'}
+                        </option>
+                        {(reservas || []).map((r) => (
+                            <option key={r.id} value={r.id}>{etiquetaReserva(r)}</option>
+                        ))}
+                    </select>
+
+                    {/* El ticket guarda una copia de la reserva: si la movieron
+                        en Outlook, lo pedido sigue donde quedó. Por eso se
+                        muestra lo guardado y no lo que dice el calendario hoy. */}
+                    {ticket?.hora_inicio && (
+                        <p className="mt-2 text-xs text-slate-600">
+                            Lo pedido rige para {fechaCorta(ticket.fecha_servicio)} · {bloqueYSala(ticket)}
+                            {ticket.reserva_asunto ? ` — ${ticket.reserva_asunto}` : ''}
+                        </p>
+                    )}
+                    {errorReservas && (
+                        <p className="mt-2 text-xs text-red-600" role="alert">{errorReservas}</p>
+                    )}
+                    {reservas?.length === 0 && !errorReservas && (
+                        <p className="mt-2 text-xs text-slate-500">
+                            No tienes reservas de sala próximas en tu calendario. Agenda la reunión
+                            en Outlook y vuelve a esta página.
+                        </p>
+                    )}
                     {plazo && (
                         <p className={`mt-2 text-xs ${vencido ? 'text-red-600' : 'text-slate-500'}`}>
                             {vencido

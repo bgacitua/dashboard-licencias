@@ -47,6 +47,10 @@ export const ingresar = async (email, password) => {
 export const yo = () => portal('/me');
 export const cambiarClave = (actual, nueva) => portal('/password', { method: 'POST', body: { actual, nueva } });
 export const tiposPortal = () => portal('/tipos');
+// Reservas de sala del usuario en Outlook: son los bloques sobre los que se
+// puede pedir un servicio. Cada llamada va a Microsoft, así que se pide una
+// vez al abrir el formulario y no en cada tecla.
+export const reservasPortal = () => portal('/reservas');
 export const misTickets = () => portal('/tickets');
 export const miTicket = (id) => portal(`/tickets/${id}`);
 export const crearTicket = (datos) => portal('/tickets', { method: 'POST', body: datos });
@@ -115,6 +119,14 @@ export const fechaCorta = (iso) =>
 
 export const fechaHora = (iso) =>
     iso ? new Date(iso).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+
+/** 'HH:MM a HH:MM' del bloque reservado, o '' si el ticket no tiene reserva
+ *  (los anteriores a la integración con Outlook). */
+export const bloque = (t) =>
+    t?.hora_inicio && t?.hora_fin ? `${`${t.hora_inicio}`.slice(0, 5)}–${`${t.hora_fin}`.slice(0, 5)}` : '';
+
+/** Bloque y sala en una línea, para pegar después de la fecha. */
+export const bloqueYSala = (t) => [bloque(t), t?.reserva_sala].filter(Boolean).join(' · ');
 
 /** Plazo de un tipo para una fecha, igual que el backend (logica.calcular_plazo). */
 export const plazoPara = (tipo, fechaIso) => {

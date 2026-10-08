@@ -12,18 +12,24 @@ import {
     columnas, detalleCosto, etiquetas, filasExport, money, mostrar, titulos, totalDe,
 } from '../respuestas';
 import {
-    ESTADOS, abrirEmergencia, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets,
+    ESTADOS, abrirEmergencia, bloqueYSala, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets,
     listarTipos, resolverPropuesta, verTicket,
 } from '../services/tickets';
 
 const control = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-/** Campos que cambiaron entre dos versiones (la fecha del servicio incluida). */
+/** Fecha, bloque y sala de una versión en una línea, para comparar y mostrar.
+ *  Van juntos porque salen de la misma reserva: cambiar de reunión los mueve a
+ *  los tres de una vez y como tres líneas de diff se leería peor. */
+const bloqueDe = (v) =>
+    [fechaCorta(v.fecha_servicio), bloqueYSala(v), v.reserva_asunto].filter(Boolean).join(' · ');
+
+/** Campos que cambiaron entre dos versiones (la reserva del servicio incluida). */
 export const diferencias = (actual, anterior) => {
     if (!anterior) return [];
     const salida = [];
-    if (actual.fecha_servicio !== anterior.fecha_servicio) {
-        salida.push({ campo: '__fecha', antes: anterior.fecha_servicio, ahora: actual.fecha_servicio });
+    if (bloqueDe(actual) !== bloqueDe(anterior)) {
+        salida.push({ campo: '__fecha', antes: bloqueDe(anterior), ahora: bloqueDe(actual) });
     }
     const claves = new Set([...Object.keys(actual.datos || {}), ...Object.keys(anterior.datos || {})]);
     for (const k of claves) {
@@ -122,7 +128,7 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
                             {propuestos.map((c) => (
                                 <li key={c.campo}>
                                     <span className="font-medium">
-                                        {c.campo === '__fecha' ? 'Fecha del servicio' : nombres[c.campo] || c.campo}:
+                                        {c.campo === '__fecha' ? 'Reserva del servicio' : nombres[c.campo] || c.campo}:
                                     </span>{' '}
                                     <span className="line-through opacity-60">{mostrar(c.antes, etqs)}</span>
                                     {' → '}{mostrar(c.ahora, etqs)}
@@ -149,7 +155,7 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
                 <div className="flex flex-wrap items-center gap-3">
                     <span className="font-mono text-lg font-semibold">#{t.id}</span>
                     <Estado estado={t.estado} />
-                    <span className="text-sm text-gray-600">{t.tipo} · {fechaCorta(t.fecha_servicio)}</span>
+                    <span className="text-sm text-gray-600">{t.tipo} · {bloqueDe(t)}</span>
                 </div>
                 <p className="mt-2 text-sm text-gray-600">
                     {t.usuario} · {t.email}
@@ -206,7 +212,7 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
                 </div>
                 {version && (
                     <p className="mt-1 text-xs text-gray-500">
-                        v{version.version} enviada el {fechaHora(version.created_at)} · servicio {fechaCorta(version.fecha_servicio)}
+                        v{version.version} enviada el {fechaHora(version.created_at)} · servicio {bloqueDe(version)}
                     </p>
                 )}
                 {cambios.length > 0 && (
@@ -215,7 +221,7 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
                         <ul className="mt-1 space-y-1 text-sm text-amber-900">
                             {cambios.map((c) => (
                                 <li key={c.campo}>
-                                    <span className="font-medium">{c.campo === '__fecha' ? 'Fecha del servicio' : nombres[c.campo] || c.campo}:</span>{' '}
+                                    <span className="font-medium">{c.campo === '__fecha' ? 'Reserva del servicio' : nombres[c.campo] || c.campo}:</span>{' '}
                                     <span className="line-through opacity-60">{mostrar(c.antes)}</span> → {mostrar(c.ahora)}
                                 </li>
                             ))}
@@ -363,7 +369,7 @@ export default function AdminTickets() {
                                 <th className="px-3 py-2 font-medium">N°</th>
                                 <th className="px-3 py-2 font-medium">Solicitante</th>
                                 <th className="px-3 py-2 font-medium">Estado</th>
-                                <th className="px-3 py-2 font-medium">Fecha servicio</th>
+                                <th className="px-3 py-2 font-medium">Reserva</th>
                                 <th className="px-3 py-2 text-right font-medium">Costo</th>
                                 {cols.map((c) => (
                                     <th key={c.name} className="px-3 py-2 font-medium">{c.title}</th>
@@ -379,7 +385,7 @@ export default function AdminTickets() {
                                     <td className="px-3 py-2 font-mono text-gray-500">#{t.id}</td>
                                     <td className="px-3 py-2">{t.usuario || t.email}</td>
                                     <td className="px-3 py-2"><Estado estado={t.estado} /></td>
-                                    <td className="px-3 py-2 whitespace-nowrap">{fechaCorta(t.fecha_servicio)}</td>
+                                    <td className="px-3 py-2 whitespace-nowrap">{bloqueDe(t)}</td>
                                     <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums"
                                         title={detalleCosto(t)}>
                                         {money(totalDe(t))}
@@ -424,7 +430,7 @@ export default function AdminTickets() {
                                 <span className="w-12 font-mono text-sm text-gray-500">#{t.id}</span>
                                 <span className="min-w-0 flex-1">
                                     <span className="block truncate text-sm font-medium text-gray-900">{t.usuario || t.email}</span>
-                                    <span className="text-xs text-gray-500">{t.tipo} · {fechaCorta(t.fecha_servicio)}</span>
+                                    <span className="text-xs text-gray-500">{t.tipo} · {bloqueDe(t)}</span>
                                 </span>
                                 {t.modificado && (
                                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
