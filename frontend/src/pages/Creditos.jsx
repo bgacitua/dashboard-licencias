@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SidebarLayout from '../components/SidebarLayout';
 import {
   listarCreditos, buscarTrabajadores, crearCredito, actualizarCredito, eliminarCredito,
-  subirDocumento, iniciarFirma, verificarFirma, crearCreditoBuk,
+  subirDocumento, verificarFirma, crearCreditoBuk,
   verificarCreditoBuk, abrirPagare,
 } from '../services/creditos';
 import { aNumero, soloDecimal, redondear, avisoRedondeo } from '../features/creditos/montos';
@@ -34,7 +34,7 @@ const primerDia = (anio, mes) => `${anio}-${String(mes).padStart(2, '0')}-01`;
 // Estado del flujo → etiqueta, color y siguiente acción disponible
 const ESTADOS = {
   borrador:         { label: 'Borrador',          color: 'bg-app-surface text-app-muted',   accion: 'documento' },
-  documento_subido: { label: 'Documento subido',  color: 'bg-app-surface text-app-brand',     accion: 'firma' },
+  documento_subido: { label: 'Documento subido',  color: 'bg-app-surface text-app-brand',     accion: 'verificar-firma' },
   firma_en_proceso: { label: 'Firma en proceso',  color: 'bg-yellow-100 text-yellow-700', accion: 'verificar-firma' },
   firmado:          { label: 'Firmado',           color: 'bg-app-surface text-app-brand', accion: 'credito' },
   credito_creado:   { label: 'Crédito creado',    color: 'bg-green-100 text-green-700',   accion: 'verificar-credito' },
@@ -42,10 +42,32 @@ const ESTADOS = {
 
 const ACCIONES = {
   'documento':         { label: 'Subir documento',  icon: 'upload_file', fn: subirDocumento },
-  'firma':             { label: 'Iniciar firma',    icon: 'draw',        fn: iniciarFirma },
-  'verificar-firma':   { label: 'Verificar firma',  icon: 'fact_check',  fn: verificarFirma },
+  'verificar-firma':   { label: 'Revisar firmas',   icon: 'draw',        fn: verificarFirma },
   'credito':           { label: 'Crear crédito',    icon: 'payments',    fn: crearCreditoBuk },
   'verificar-credito': { label: 'Verificar en BUK', icon: 'check_circle', fn: verificarCreditoBuk },
+};
+
+// Los tres firmantes que maneja BUK, en el orden en que firman. El segundo
+// representante legal no está soportado (no hay person_id), pero se lista igual
+// para que el estado del documento se lea completo.
+const FIRMANTES = [
+  ['employee_sign', 'Trabajador'],
+  ['legal_agent_sign', 'Representante legal'],
+  ['second_legal_agent_sign', 'Segundo representante legal'],
+];
+
+// Estado de cada firma en el modal: lo que requiere el crédito cruzado con lo
+// que devuelve BUK. Sin el flag marcado la firma no aplica a este documento.
+const estadoFirma = (requerida, firma) => {
+  if (!requerida) return { label: 'No aplica', icon: 'remove', color: 'text-app-outline' };
+  if (firma?.status === 'signed') return { label: 'Firmada', icon: 'check_circle', color: 'text-green-600' };
+  return { label: 'Pendiente', icon: 'schedule', color: 'text-yellow-600' };
+};
+
+const fmtFecha = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return isNaN(d) ? iso : d.toLocaleString('es-CL');
 };
 
 // Flags de firma marcados en el crédito (los apagados y _opciones no cuentan)
@@ -55,7 +77,7 @@ const requiereFirma = (c) => ['employee_sign', 'legal_agent_sign']
 // Sin ninguna firma marcada el paso de firma no existe: se carga el crédito directo
 const accionDe = (c) => {
   const accion = ESTADOS[c.estado]?.accion;
-  return accion === 'firma' && !requiereFirma(c) ? 'credito' : accion;
+  return accion === 'verificar-firma' && !requiereFirma(c) ? 'credito' : accion;
 };
 
 const FORM_INICIAL = {
@@ -94,6 +116,8 @@ const Creditos = () => {
   const [saving, setSaving] = useState(false);
   const [sugerencias, setSugerencias] = useState([]);
   const [accionEnCurso, setAccionEnCurso] = useState(null);
+  // { credito, firmado, firmas_requeridas, firmas_estado } del último "Revisar firmas"
+  const [firmas, setFirmas] = useState(null);
 
   // Estilos compartidos del formulario y las acciones primarias de la página.
   const inputClass = 'w-full h-9 rounded-lg border border-app-line px-3 text-[13px] text-app-ink placeholder:text-app-outline focus:outline-none focus:border-app-ink focus:ring-1 focus:ring-app-ink';
@@ -211,9 +235,7 @@ const Creditos = () => {
     try {
       const res = await accion.fn(credito.id);
       if (claveAccion === 'verificar-firma') {
-        alert(res.firmado
-          ? 'Documento firmado. Ya puedes crear el crédito en BUK.'
-          : `Aún faltan firmas.\n${JSON.stringify(res.firmas_estado, null, 2)}`);
+        setFirmas({ ...res, credito });
       } else if (claveAccion === 'verificar-credito') {
         alert(`Crédito en BUK:\n${JSON.stringify(res, null, 2)}`);
       }
@@ -364,6 +386,50 @@ const Creditos = () => {
             )}
           </div>
         </div>
+
+        {firmas && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-[0_4px_20px_rgba(0,0,0,0.15)]">
+              <div className="border-b border-app-line px-6 py-4">
+                <h2 className="text-base font-semibold text-app-ink">Estado de las firmas</h2>
+                <p className="mt-0.5 text-[13px] text-app-muted">
+                  {firmas.credito.nombre_trabajador} · documento {firmas.credito.buk_file_id}
+                </p>
+              </div>
+
+              <div className="divide-y divide-app-line px-6">
+                {FIRMANTES.map(([clave, label]) => {
+                  const est = estadoFirma(firmas.firmas_requeridas?.[clave], firmas.firmas_estado?.[clave]);
+                  const fecha = fmtFecha(firmas.firmas_estado?.[clave]?.signed_at);
+                  return (
+                    <div key={clave} className="flex items-center justify-between gap-4 py-3">
+                      <div>
+                        <p className="text-[13px] font-medium text-app-ink">{label}</p>
+                        {fecha && <p className="text-xs text-app-outline">{fecha}</p>}
+                      </div>
+                      <span className={`flex items-center gap-1.5 text-[13px] font-medium ${est.color}`}>
+                        <span className="material-symbols-outlined text-[18px]">{est.icon}</span>
+                        {est.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-app-line bg-app-surface px-6 py-3">
+                <p className="text-[13px] text-app-muted">
+                  {firmas.firmado
+                    ? 'Documento firmado: ya puedes crear el crédito en BUK.'
+                    : 'Faltan firmas. Vuelve a revisar más tarde.'}
+                </p>
+                <button type="button" onClick={() => setFirmas(null)}
+                  className="h-9 shrink-0 rounded-lg border border-app-line bg-white px-4 text-[13px] font-medium text-app-muted transition-colors hover:border-app-ink hover:text-app-ink">
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {modal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
