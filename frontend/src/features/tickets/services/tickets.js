@@ -128,6 +128,16 @@ export const bloque = (t) =>
 /** Bloque y sala en una línea, para pegar después de la fecha. */
 export const bloqueYSala = (t) => [bloque(t), t?.reserva_sala].filter(Boolean).join(' · ');
 
+/** El tramo pedido, 'HH:MM–HH:MM'. Los tickets anteriores a que se eligiera un
+ *  tramo ocupaban la reserva entera, así que para ellos cae en el bloque. */
+export const tramoDe = (t) =>
+    t?.servicio_inicio && t?.servicio_fin
+        ? `${`${t.servicio_inicio}`.slice(0, 5)}–${`${t.servicio_fin}`.slice(0, 5)}`
+        : bloque(t);
+
+/** Tramo y sala en una línea, que es como se lista un ticket. */
+export const tramoYSala = (t) => [tramoDe(t), t?.reserva_sala].filter(Boolean).join(' · ');
+
 /** Plazo de un tipo para una fecha, igual que el backend (logica.calcular_plazo). */
 export const plazoPara = (tipo, fechaIso) => {
     if (!tipo?.hora_limite || !fechaIso) return null;

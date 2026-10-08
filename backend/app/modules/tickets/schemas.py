@@ -162,7 +162,23 @@ class ReservaOut(BaseModel):
 # La fecha y el bloque horario no vienen del navegador: salen de la reserva de
 # sala que el usuario eligió, releída de Graph al guardar. Mandar solo el id
 # evita tener que confiar en una fecha que el cliente podría cambiar.
-class TicketIn(BaseModel):
+class TramoIn(BaseModel):
+    """El tramo que el usuario pide dentro de su reserva. Que caiga dentro del
+    bloque lo decide el backend contra Graph; acá solo se exige que sea un
+    tramo y no un instante ni un rango al revés."""
+
+    servicio_inicio: time
+    servicio_fin: time
+
+    @field_validator("servicio_fin")
+    @classmethod
+    def _orden(cls, v: time, info) -> time:
+        if info.data.get("servicio_inicio") and v <= info.data["servicio_inicio"]:
+            raise ValueError("La hora de término tiene que ser posterior a la de inicio.")
+        return v
+
+
+class TicketIn(TramoIn):
     tipo_id: int
     reserva_id: str = Field(..., min_length=1, max_length=600)
     datos: dict
@@ -170,7 +186,7 @@ class TicketIn(BaseModel):
     _v = field_validator("datos")(_datos_acotados)
 
 
-class TicketEdit(BaseModel):
+class TicketEdit(TramoIn):
     reserva_id: str = Field(..., min_length=1, max_length=600)
     datos: dict
     # La versión que el usuario tenía abierta. Si otra pestaña guardó entre
@@ -196,6 +212,8 @@ class VersionOut(BaseModel):
     fecha_servicio: date
     hora_inicio: time | None = None
     hora_fin: time | None = None
+    servicio_inicio: time | None = None
+    servicio_fin: time | None = None
     reserva_asunto: str | None = None
     reserva_sala: str | None = None
     datos: dict
@@ -228,6 +246,8 @@ class TicketResumen(BaseModel):
     # integración con Outlook.
     hora_inicio: time | None = None
     hora_fin: time | None = None
+    servicio_inicio: time | None = None
+    servicio_fin: time | None = None
     reserva_asunto: str | None = None
     reserva_sala: str | None = None
     plazo: datetime

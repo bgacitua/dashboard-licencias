@@ -96,7 +96,10 @@ def mi_ticket(ticket_id: int, usuario: UsuarioPortal, db: Db) -> dict:
 @portal.post("/tickets", status_code=201)
 def crear(datos: TicketIn, request: Request, usuario: UsuarioPortal, db: Db) -> dict:
     check_rate_limit(f"tk-crear:{usuario.id}", 30, 3600)
-    tid = service.crear_ticket(db, usuario, datos.tipo_id, datos.reserva_id, datos.datos, client_ip(request))
+    tid = service.crear_ticket(
+        db, usuario, datos.tipo_id, datos.reserva_id,
+        datos.servicio_inicio, datos.servicio_fin, datos.datos, client_ip(request),
+    )
     return {"id": tid}
 
 
@@ -108,7 +111,8 @@ def editar(
     """Envía un cambio. No rige: queda como propuesta hasta que el admin la
     apruebe, así nadie altera por su cuenta algo que ya se está preparando."""
     aviso = service.proponer_cambio(
-        db, usuario, ticket_id, datos.reserva_id, datos.datos, datos.version, client_ip(request)
+        db, usuario, ticket_id, datos.reserva_id, datos.servicio_inicio, datos.servicio_fin,
+        datos.datos, datos.version, client_ip(request),
     )
     # El cambio no rige hasta que alguien lo mire, así que el aviso al admin es
     # parte del flujo, no una cortesía: sin él la solicitud queda esperando.

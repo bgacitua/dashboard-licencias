@@ -63,6 +63,11 @@ class TkTicket(Base):
     # se mueve solo. NULL en los tickets anteriores a la integración.
     hora_inicio = Column(Time)
     hora_fin = Column(Time)
+    # Tramo que el usuario pidió dentro del bloque reservado. Puede ser más
+    # corto que la reunión: el café llega a las 15:30 de una reserva que va
+    # de 15:00 a 17:00.
+    servicio_inicio = Column(Time)
+    servicio_fin = Column(Time)
     reserva_id = Column(Text)
     reserva_asunto = Column(String(200))
     reserva_sala = Column(String(200))
@@ -90,6 +95,8 @@ class TkVersion(Base):
     # reunión, y recién rige cuando el administrador lo aprueba.
     hora_inicio = Column(Time)
     hora_fin = Column(Time)
+    servicio_inicio = Column(Time)
+    servicio_fin = Column(Time)
     reserva_id = Column(Text)
     reserva_asunto = Column(String(200))
     reserva_sala = Column(String(200))
