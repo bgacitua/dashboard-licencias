@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
 
@@ -8,7 +8,7 @@ import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
 import {
-    bloque, comentarTicket, crearTicket, editarTicket, fechaCorta, fechaHora, miTicket,
+    bloque, crearTicket, editarTicket, fechaCorta, fechaHora, miTicket,
     plazoPara, reservasPortal, tiposPortal, tramoDe,
 } from '../services/tickets';
 
@@ -22,12 +22,7 @@ const hhmm = (t) => `${t || ''}`.slice(0, 5);
  */
 export default function PortalSolicitud() {
     const { tipoId, id } = useParams();
-    const navigate = useNavigate();
-    const location = useLocation();
     const manejar = useSesionPortal();
-    // Lo deja crearTicket al navegar al ticket recién hecho.
-    const reciencreada = !!location.state?.creada;
-
     const [tipo, setTipo] = useState(null);
     const [ticket, setTicket] = useState(null);
     // La fecha ya no se escribe: sale de la reserva de sala elegida.
@@ -40,6 +35,9 @@ export default function PortalSolicitud() {
     // una página larga: son dos decisiones distintas y mezclarlas hacía que la
     // reservación —que es lo que manda— quedara perdida arriba del formulario.
     const [paso, setPaso] = useState('reserva');
+    // Datos de la solicitud recién enviada. Con esto la página deja de ser un
+    // formulario y pasa a ser el acuse: mensaje del admin, resumen y salida.
+    const [enviada, setEnviada] = useState(null);
     const [errorReservas, setErrorReservas] = useState('');
     const [error, setError] = useState('');
     const [aviso, setAviso] = useState('');
@@ -184,7 +182,13 @@ export default function PortalSolicitud() {
                     });
                     opciones.showSaveSuccess('Solicitud enviada.');
                     setSucio(false);
-                    navigate(`/tickets/t/${r.id}`, { replace: true, state: { creada: true } });
+                    // No se navega al ticket: survey-core acaba de pasar a su
+                    // página final —el mensaje que escribió el admin— y navegar
+                    // lo borraba de pantalla antes de que alcanzara a leerse.
+                    // Desde acá se vuelve al inicio; los cambios se piden
+                    // después, desde el historial.
+                    setEnviada({ id: r.id, reserva, tramo });
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
             } catch (e) {
                 // Vuelve el formulario a edición con lo escrito, para corregir
@@ -200,7 +204,7 @@ export default function PortalSolicitud() {
             model.onCompleting.remove(alCompletar);
             model.onComplete.remove(alGuardar);
         };
-    }, [model, reservaId, tramo, traba, ticket, tipo, soloLectura, navigate, manejar]);
+    }, [model, reservaId, tramo, traba, ticket, tipo, soloLectura, manejar]);
 
     // El botón de enviar queda apagado mientras falte la fecha o el plazo esté
     // vencido: es preferible a dejar llenar todo y rebotar al final. Si una
@@ -244,25 +248,25 @@ export default function PortalSolicitud() {
         // en la página entera, el resto del viewport resuelve el mismo color.
         <PortalLayout ancho={ticket ? 'max-w-6xl' : 'max-w-3xl'}
             estilo={model ? { ...model.themeVariables, background: 'var(--sjs2-color-utility-body)' } : undefined}>
-            <Link to="/tickets" onClick={alSalir}
-                className="mb-4 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
-                <span className="material-symbols-outlined text-lg">arrow_back</span>
-                Mis solicitudes
-            </Link>
+            {/* Enviada la solicitud, la salida es el botón de abajo: dos formas
+                de volver a lo mismo en una pantalla de acuse sobran. */}
+            {!enviada && (
+                <Link to="/tickets" onClick={alSalir}
+                    className="mb-4 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
+                    <span className="material-symbols-outlined text-lg">arrow_back</span>
+                    Mis solicitudes
+                </Link>
+            )}
 
             {/* Con ticket: seguimiento en una columna fija a la izquierda. En
                 pantallas chicas no cabe al lado y baja después del formulario. */}
             <div className={ticket ? 'flex flex-col gap-6 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start' : ''}>
             {ticket && (
                 <aside className="order-last lg:sticky lg:top-20 lg:order-none lg:h-[calc(100vh-9rem)]">
-                    <Conversacion
-                        columna
-                        eventos={ticket.eventos}
-                        onEnviar={async (texto) => {
-                            await comentarTicket(ticket.id, texto).catch((e) => { throw new Error(manejar(e)); });
-                            setRecarga((n) => n + 1);
-                        }}
-                    />
+                    {/* Sin onEnviar: el usuario del portal recibe el seguimiento,
+                        no conversa. Lo que tenga que decir va en una solicitud
+                        de cambio, que es lo que el administrador resuelve. */}
+                    <Conversacion columna eventos={ticket.eventos} />
                 </aside>
             )}
             <div className="min-w-0">
@@ -303,21 +307,6 @@ export default function PortalSolicitud() {
                 </div>
             )}
 
-            {reciencreada && ticket && (
-                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-green-200 bg-green-50 px-5 py-4"
-                    role="status">
-                    <span className="material-symbols-outlined text-green-700">check_circle</span>
-                    <div>
-                        <p className="text-sm font-medium text-green-900">
-                            Solicitud #{ticket.id} registrada.
-                        </p>
-                        <p className="mt-1 text-sm text-green-800">
-                            Te avisaremos por correo cuando cambie de estado.
-                        </p>
-                    </div>
-                </div>
-            )}
-
             {aviso && <p className="mb-4 rounded-xl bg-green-50 px-4 py-3 text-sm text-green-800">{aviso}</p>}
             {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{error}</p>}
 
@@ -342,7 +331,7 @@ export default function PortalSolicitud() {
 
             {/* Dos pasos, dos rótulos. Sin esto el salto de la grilla al
                 formulario parece que la página se hubiera ido a otra parte. */}
-            {!soloLectura && !ticket && tipo && (
+            {!soloLectura && !ticket && !enviada && tipo && (
                 <ol className="mb-4 flex items-center gap-3 text-sm">
                     {[['reserva', 'Reservación'], ['formulario', 'Solicitud']].map(([clave, rotulo], i) => {
                         const activo = paso === clave;
@@ -370,7 +359,7 @@ export default function PortalSolicitud() {
                 </ol>
             )}
 
-            {!soloLectura && paso === 'reserva' && tipo && (
+            {!soloLectura && !enviada && paso === 'reserva' && tipo && (
                 <section className="animate-entra mb-4 rounded-2xl border border-slate-200 bg-white px-5 py-5" aria-live="polite">
                     <h2 className="text-lg font-semibold text-slate-900">Mis reservaciones</h2>
                     <p className="mt-1 text-sm text-slate-500">
@@ -519,7 +508,7 @@ export default function PortalSolicitud() {
 
             {/* Recién con la reservación tomada aparece el formulario. Arriba
                 queda el resumen, que es lo único que hay que recordar de acá. */}
-            {paso === 'formulario' && !soloLectura && reserva && (
+            {paso === 'formulario' && !soloLectura && !enviada && reserva && (
                 <div className="animate-entra-lateral mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
                     <span className="material-symbols-outlined text-blue-700">event_available</span>
                     <span className="text-sm text-slate-800">
@@ -538,9 +527,36 @@ export default function PortalSolicitud() {
                 </div>
             )}
 
+            {/* Enviada, el modelo sigue montado a propósito: la página final que
+                muestra es el mensaje que configuró el admin en el tipo. */}
             {model && (soloLectura || paso === 'formulario') && (
                 <div className="animate-entra-lateral overflow-hidden rounded-2xl border border-slate-200">
                     <Survey model={model} />
+                </div>
+            )}
+
+            {enviada && (
+                <div className="animate-entra mt-4">
+                    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+                        <p className="text-sm font-medium text-slate-800">
+                            Lo que pediste · Solicitud #{enviada.id}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                            {fechaCorta(enviada.reserva.fecha)} · {enviada.tramo.inicio}–{enviada.tramo.fin}
+                            {' · '}{enviada.reserva.sala}
+                            {enviada.reserva.asunto ? ` — ${enviada.reserva.asunto}` : ''}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                            Dentro de tu reserva de {bloque(enviada.reserva)}
+                        </p>
+                    </div>
+                    <Link
+                        to="/tickets"
+                        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition-all duration-200 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 sm:w-auto"
+                    >
+                        <span className="material-symbols-outlined text-lg">home</span>
+                        Volver al inicio
+                    </Link>
                 </div>
             )}
             </div>
