@@ -284,6 +284,12 @@ const CrearFiniquito = () => {
       company: "Carlos Cramer Productos Aromáticos S.A.C.I.",
     },
     {
+      id: "gbenavides",
+      name: "Gonzalo Benavides Villar",
+      title: "Gerente de Ingeniería y Medio Ambiente",
+      company: "Carlos Cramer Productos Aromáticos S.A.C.I.",
+    },
+    {
       id: "ccisternas",
       name: "Claudia Cisternas Flores",
       title: "Líder de Administración de Personal",
