@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import AdminMarco from '../components/AdminMarco';
 import { estadoUsuario, fechaHora, listarUsuarios, resetUsuario } from '../services/tickets';
+import { useDialogo } from '../../../components/Dialogos';
 
 const ESTADO = {
     pendiente: 'bg-amber-100 text-amber-800',
@@ -11,6 +12,7 @@ const ESTADO = {
 };
 
 export default function AdminUsuarios() {
+    const { confirmar } = useDialogo();
     const [usuarios, setUsuarios] = useState([]);
     const [busqueda, setBusqueda] = useState('');
     const [error, setError] = useState('');
@@ -36,11 +38,16 @@ export default function AdminUsuarios() {
         }
     };
 
-    const reset = (u) => {
-        if (!window.confirm(
-            `Se borrará la contraseña de ${u.email}. Durante las próximas 24 horas podrá volver a crear su cuenta ` +
-            'con una contraseña nueva; hasta entonces no podrá ingresar. ¿Continuar?'
-        )) return;
+    const reset = async (u) => {
+        const ok = await confirmar({
+            titulo: 'Resetear cuenta',
+            mensaje:
+                `Se borrará la contraseña de ${u.email}. Durante las próximas 24 horas podrá volver a crear su cuenta ` +
+                'con una contraseña nueva; hasta entonces no podrá ingresar.',
+            textoConfirmar: 'Resetear',
+            destructivo: true,
+        });
+        if (!ok) return;
         accion(() => resetUsuario(u.id));
     };
 

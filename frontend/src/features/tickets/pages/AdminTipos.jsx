@@ -12,6 +12,7 @@ import { columnas } from '../respuestas';
 import {
     actualizarTipo, crearTipo, eliminarTipo, listarServicios, listarTipos, subirImagen,
 } from '../services/tickets';
+import { useDialogo } from '../../../components/Dialogos';
 
 const input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 const label = 'mb-1 block text-xs font-medium text-gray-600';
@@ -22,6 +23,7 @@ const nuevoTipo = () => ({
 });
 
 export default function AdminTipos() {
+    const { confirmar } = useDialogo();
     const [tipos, setTipos] = useState([]);
     // El catálogo se inyecta al builder: el form-builder compartido no sabe
     // de tickets, igual que con subirImagen.
@@ -45,8 +47,16 @@ export default function AdminTipos() {
     };
     const definicion = actual?.definicion || definicionVacia();
 
-    const abrir = (t) => {
-        if (sucio && !window.confirm('Hay cambios sin guardar en este tipo. ¿Descartarlos?')) return;
+    const abrir = async (t) => {
+        if (sucio) {
+            const ok = await confirmar({
+                titulo: 'Cambios sin guardar',
+                mensaje: 'Hay cambios sin guardar en este tipo. ¿Descartarlos?',
+                textoConfirmar: 'Descartar',
+                destructivo: true,
+            });
+            if (!ok) return;
+        }
         setActual(t ? { ...t, hora_limite: String(t.hora_limite).slice(0, 5) } : nuevoTipo());
         setSeccion('formulario');
         setMensaje('');
@@ -68,7 +78,13 @@ export default function AdminTipos() {
     };
 
     const borrar = async () => {
-        if (!window.confirm(`Se eliminará el tipo "${actual.nombre}". ¿Continuar?`)) return;
+        const ok = await confirmar({
+            titulo: 'Eliminar tipo',
+            mensaje: `Se eliminará el tipo "${actual.nombre}".`,
+            textoConfirmar: 'Eliminar',
+            destructivo: true,
+        });
+        if (!ok) return;
         try {
             await eliminarTipo(actual.id);
             setActual(null);
