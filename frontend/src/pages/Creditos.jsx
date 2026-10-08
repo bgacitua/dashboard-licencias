@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SidebarLayout from '../components/SidebarLayout';
+import { useDialogo } from '../components/Dialogos';
 import {
   listarCreditos, buscarTrabajadores, crearCredito, actualizarCredito, eliminarCredito,
   subirDocumento, verificarFirma, crearCreditoBuk,
@@ -106,6 +107,7 @@ const fmtMonto = (v, moneda) =>
   moneda === 'uf' ? `UF ${v}` : `$${Number(v).toLocaleString('es-CL')}`;
 
 const Creditos = () => {
+  const { confirmar, avisar } = useDialogo();
   const [creditos, setCreditos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -195,10 +197,10 @@ const Creditos = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.employee_id) return alert('Selecciona un trabajador de la lista.');
+    if (!form.employee_id) return avisar('Selecciona un trabajador de la lista.');
     const amount = aNumero(form.amount);
     if (amount === null || amount <= 0)
-      return alert('El valor de la cuota debe ser un número mayor que 0. Se puede escribir con coma o con punto.');
+      return avisar('El valor de la cuota debe ser un número mayor que 0. Se puede escribir con coma o con punto.');
     setSaving(true);
     const payload = {
       ...form,
@@ -223,7 +225,7 @@ const Creditos = () => {
       setForm(FORM_INICIAL);
       await cargar();
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     } finally {
       setSaving(false);
     }
@@ -237,23 +239,29 @@ const Creditos = () => {
       if (claveAccion === 'verificar-firma') {
         setFirmas({ ...res, credito });
       } else if (claveAccion === 'verificar-credito') {
-        alert(`Crédito en BUK:\n${JSON.stringify(res, null, 2)}`);
+        avisar('Crédito verificado en BUK', { tipo: 'ok', detalle: JSON.stringify(res, null, 2) });
       }
       await cargar();
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     } finally {
       setAccionEnCurso(null);
     }
   };
 
   const handleEliminar = async (credito) => {
-    if (!confirm(`¿Eliminar el crédito "${credito.nombre}" de ${credito.nombre_trabajador}?`)) return;
+    const ok = await confirmar({
+      titulo: 'Eliminar crédito',
+      mensaje: `Se eliminará el crédito "${credito.nombre}" de ${credito.nombre_trabajador}.`,
+      textoConfirmar: 'Eliminar',
+      destructivo: true,
+    });
+    if (!ok) return;
     try {
       await eliminarCredito(credito.id);
       await cargar();
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     }
   };
 
@@ -339,7 +347,7 @@ const Creditos = () => {
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-2">
                               <button
-                                onClick={() => abrirPagare(c.id).catch(e => alert(e.message))}
+                                onClick={() => abrirPagare(c.id).catch(e => avisar(e.message))}
                                 title={c.buk_file_id
                                   ? 'Ver documento en BUK (con las firmas)'
                                   : 'Vista previa del pagaré'}
