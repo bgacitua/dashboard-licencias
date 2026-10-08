@@ -58,6 +58,14 @@ class TkTicket(Base):
     usuario_id = Column(Integer, ForeignKey("tickets.usuarios.id"), nullable=False)
     estado = Column(String(20), nullable=False, default="pendiente")
     fecha_servicio = Column(Date, nullable=False)
+    # Bloque horario de la reserva de sala que originó la solicitud. Es una
+    # copia congelada: si después mueven la reunión en Outlook, lo ya pedido no
+    # se mueve solo. NULL en los tickets anteriores a la integración.
+    hora_inicio = Column(Time)
+    hora_fin = Column(Time)
+    reserva_id = Column(Text)
+    reserva_asunto = Column(String(200))
+    reserva_sala = Column(String(200))
     plazo = Column(TZ, nullable=False)
     # La versión que rige. Puede no ser la última: una propuesta pendiente
     # lleva un número mayor y no cuenta hasta que el admin la apruebe.
@@ -78,6 +86,13 @@ class TkVersion(Base):
     ticket_id = Column(Integer, ForeignKey("tickets.tickets.id", ondelete="CASCADE"), nullable=False)
     version = Column(Integer, nullable=False)
     fecha_servicio = Column(Date, nullable=False)
+    # La reserva viaja con la versión: un cambio puede mover el servicio a otra
+    # reunión, y recién rige cuando el administrador lo aprueba.
+    hora_inicio = Column(Time)
+    hora_fin = Column(Time)
+    reserva_id = Column(Text)
+    reserva_asunto = Column(String(200))
+    reserva_sala = Column(String(200))
     datos = Column(JSONB, nullable=False)
     # Costo calculado al guardar esta versión, con las tarifas de ese momento.
     # No se recalcula: un reporte emitido no puede moverse porque cambie un
