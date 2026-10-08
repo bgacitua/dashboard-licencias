@@ -11,7 +11,7 @@ survey-core que el admin arma en el builder compartido
 Portal (/tickets)         cuenta propia del módulo, NO la de la plataforma
   /tickets/ingresar        registro (correo @cramer.cl en la nómina) + login
   /tickets                 tipos disponibles + mis solicitudes
-  /tickets/nueva/:tipo     fecha del servicio + formulario
+  /tickets/nueva/:tipo     reserva de sala + horario del servicio + formulario
   /tickets/t/:id           ver / editar (si pendiente y en plazo) / conversar
 
 Panel (/tickets/admin)    require_module("tickets")
@@ -70,6 +70,13 @@ y el bloque horario del servicio.
   verdad Graph la promueve a `locations`. Una reunión sin sala no sirve como
   bloque y no se ofrece; una que cruza la medianoche tampoco, porque no define
   a qué día pertenece el servicio.
+- **El servicio va dentro de la reserva.** Elegida la reunión, el usuario dice
+  desde y hasta qué hora necesita el servicio (`servicio_inicio` /
+  `servicio_fin`), que puede ser más corto que el bloque: café a las 15:30 en
+  una reserva de 15:00 a 17:00. El navegador acota el reloj con `min`/`max`,
+  pero quien decide es el backend, y además hay un CHECK en la tabla.
+  Sin reservaciones no se muestra el formulario: la página queda en el aviso
+  de que hay que reservar primero.
 - **La reserva se copia, no se referencia.** Fecha, horario, sala y asunto
   quedan escritos en `tickets.tickets` y en cada versión. Mover la reunión en
   Outlook después no mueve lo ya pedido, igual que el plazo congelado.
@@ -135,7 +142,7 @@ TICKETS_RESERVAS_DIAS=30
 psql -d rh_cramer -f backend/migrations/022_create_tickets_module.sql
 psql -d rh_cramer -v ON_ERROR_STOP=1 -f backend/migrations/023_tickets_a_esquema_propio.sql
 # ... y en orden hasta la última:
-psql -d rh_cramer -v ON_ERROR_STOP=1 -f backend/migrations/029_tickets_reservas_outlook.sql
+psql -d rh_cramer -v ON_ERROR_STOP=1 -f backend/migrations/030_tickets_horario_del_servicio.sql
 ```
 
 La 022 creó las tablas como `app.tk_*`; la 023 las borra (solo si están
