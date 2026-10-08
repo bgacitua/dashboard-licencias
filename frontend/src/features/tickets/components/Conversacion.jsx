@@ -60,6 +60,14 @@ export default function Conversacion({ eventos = [], onEnviar, lado = 'usuario',
                 })}
                 {eventos.length === 0 && <li className="text-sm text-slate-500">Sin mensajes todavía.</li>}
             </ol>
+            {/* Sin onEnviar no hay dónde escribir: es el caso del portal, donde
+                el seguimiento se recibe y no se contesta. */}
+            {!onEnviar && (
+                <p className="mt-4 border-t border-slate-200 pt-3 text-xs text-slate-500">
+                    Acá te avisamos cómo avanza tu solicitud. No hace falta que respondas.
+                </p>
+            )}
+            {onEnviar && (
             <form onSubmit={enviar} className="mt-4 flex gap-2">
                 <input
                     className="flex-1 rounded-xl border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
@@ -74,6 +82,7 @@ export default function Conversacion({ eventos = [], onEnviar, lado = 'usuario',
                     Enviar
                 </button>
             </form>
+            )}
             {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         </section>
     );

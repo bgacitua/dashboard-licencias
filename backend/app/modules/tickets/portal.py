@@ -15,7 +15,7 @@ from . import service
 from .auth import UsuarioPortal, crear_token, db_portal
 from .models import TkArchivo, TkTipo
 from .schemas import (
-    CambioClaveIn, ComentarioIn, LoginIn, MeOut, RegistroIn, ReservaOut, SesionOut, TicketDetalle,
+    CambioClaveIn, LoginIn, MeOut, RegistroIn, ReservaOut, SesionOut, TicketDetalle,
     TicketEdit, TicketIn, TicketResumen, TipoOut,
 )
 
@@ -121,13 +121,6 @@ def editar(
         aviso["usuario"], service.url_portal("/tickets/admin"), ticket=aviso["ticket"],
     )
     return {"id": ticket_id, "version": aviso["ticket"]["version"], "propuesta": True}
-
-
-@portal.post("/tickets/{ticket_id}/comentarios", status_code=204)
-def comentar(ticket_id: int, datos: ComentarioIn, usuario: UsuarioPortal, db: Db) -> None:
-    check_rate_limit(f"tk-coment:{usuario.id}", 30, 3600)
-    service.detalle_ticket(db, ticket_id, usuario_id=usuario.id)  # 404 si no es suyo
-    service.comentar(db, ticket_id, datos.texto, usuario.nombre or usuario.email, es_admin=False)
 
 
 @archivos.get("/archivos/{archivo_id}")

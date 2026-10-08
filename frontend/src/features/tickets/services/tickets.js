@@ -55,7 +55,6 @@ export const misTickets = () => portal('/tickets');
 export const miTicket = (id) => portal(`/tickets/${id}`);
 export const crearTicket = (datos) => portal('/tickets', { method: 'POST', body: datos });
 export const editarTicket = (id, datos) => portal(`/tickets/${id}`, { method: 'PUT', body: datos });
-export const comentarTicket = (id, texto) => portal(`/tickets/${id}/comentarios`, { method: 'POST', body: { texto } });
 
 // === Panel ===
 
