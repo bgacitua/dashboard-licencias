@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
-import { ESTADOS, fechaCorta, fechaHora, misTickets, tiposPortal } from '../services/tickets';
+import { ESTADOS, bloqueYSala, fechaCorta, fechaHora, misTickets, tiposPortal } from '../services/tickets';
 
 const reglaPlazo = (t) =>
     t.dias_anticipacion === 0
@@ -113,7 +113,10 @@ export default function PortalInicio() {
                             <Link to={`/tickets/t/${t.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-slate-50">
                                 <span className="w-14 font-mono text-sm text-slate-500">#{t.id}</span>
                                 <span className="min-w-32 flex-1 font-medium text-slate-900">{t.tipo}</span>
-                                <span className="text-sm text-slate-600">{fechaCorta(t.fecha_servicio)}</span>
+                                <span className="text-sm text-slate-600">
+                                    {fechaCorta(t.fecha_servicio)}
+                                    {bloqueYSala(t) && ` · ${bloqueYSala(t)}`}
+                                </span>
                                 <Estado estado={t.estado} />
                                 <span className="w-full text-xs text-slate-500 sm:w-48 sm:text-right">
                                     {t.editable ? `Editable hasta ${fechaHora(t.plazo)}` : t.version_actual > 1 ? `Versión ${t.version_actual}` : ''}

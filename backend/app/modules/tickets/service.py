@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings as app_settings
 from app.core.logging_config import logger
 
+from . import calendario
 from .auth import HASH_SEÑUELO, pwd
 from .config import settings
 from .logica import (
@@ -181,23 +182,73 @@ def _validar_plazo(tipo: TkTipo, fecha: date) -> datetime:
     return plazo
 
 
-def crear_ticket(db: Session, usuario: TkUsuario, tipo_id: int, fecha: date, datos: dict, ip: str) -> int:
+# === Reservas de sala ===
+
+def ventana_reservas() -> tuple[date, date]:
+    """Desde hoy hasta el tope configurado. Es lo que el portal muestra y, por
+    lo mismo, lo único que se acepta al guardar: una reserva de la semana
+    pasada no es un bloque disponible para pedir un servicio."""
+    hoy = ahora().astimezone(pytz.timezone(settings.zona)).date()
+    return hoy, hoy + timedelta(days=settings.reservas_dias)
+
+
+def reservas_de(usuario: TkUsuario) -> list[dict]:
+    desde, hasta = ventana_reservas()
+    # Una reserva que cruza la medianoche no define un bloque de un día: no se
+    # ofrece, para no tener que decidir después a qué día pertenece el servicio.
+    return [r for r in calendario.reservas(usuario.email, desde, hasta) if not r["multidia"]]
+
+
+def _reserva_validada(usuario: TkUsuario, reserva_id: str) -> dict:
+    """Relee la reserva en Graph al guardar. La fecha y el horario salen de acá
+    y no del navegador: el cliente solo manda el id."""
+    desde, hasta = ventana_reservas()
+    reserva = calendario.buscar_reserva(usuario.email, reserva_id, desde, hasta)
+    if not reserva or reserva["multidia"]:
+        raise HTTPException(400, "Esa reserva de sala ya no está en tu calendario. Recarga y elige otra.")
+    return reserva
+
+
+def _campos_de_reserva(reserva: dict) -> dict:
+    return {
+        "fecha_servicio": reserva["fecha"],
+        "hora_inicio": reserva["hora_inicio"],
+        "hora_fin": reserva["hora_fin"],
+        "reserva_id": reserva["id"],
+        "reserva_asunto": reserva["asunto"],
+        "reserva_sala": reserva["sala"],
+    }
+
+
+def crear_ticket(db: Session, usuario: TkUsuario, tipo_id: int, reserva_id: str, datos: dict, ip: str) -> int:
     tipo = db.get(TkTipo, tipo_id)
     if not tipo or not tipo.activo:
         raise HTTPException(404, "Ese tipo de solicitud no está disponible.")
-    plazo = _validar_plazo(tipo, fecha)
+    reserva = _reserva_validada(usuario, reserva_id)
+    campos = _campos_de_reserva(reserva)
+    plazo = _validar_plazo(tipo, reserva["fecha"])
     ticket = TkTicket(
-        tipo_id=tipo.id, usuario_id=usuario.id, fecha_servicio=fecha, plazo=plazo,
-        version_actual=1,
+        tipo_id=tipo.id, usuario_id=usuario.id, plazo=plazo, version_actual=1, **campos,
     )
     db.add(ticket)
     db.flush()
     db.add(TkVersion(
-        ticket_id=ticket.id, version=1, fecha_servicio=fecha, datos=datos, ip=ip,
-        costo=costo_de(db, tipo, datos),
+        ticket_id=ticket.id, version=1, datos=datos, ip=ip,
+        costo=costo_de(db, tipo, datos), **campos,
     ))
     db.commit()
     return ticket.id
+
+
+def _horario_aviso(ticket: TkTicket) -> dict:
+    """Bloque y sala para el correo. Los tickets anteriores a la integración no
+    lo tienen, y n8n ya trata los campos nulos como ausentes."""
+    return {
+        "hora_inicio": ticket.hora_inicio.strftime("%H:%M") if ticket.hora_inicio else None,
+        "hora_fin": ticket.hora_fin.strftime("%H:%M") if ticket.hora_fin else None,
+        "sala": ticket.reserva_sala,
+        "reserva": ticket.reserva_asunto,
+    }
 
 
 def _aviso_de(db: Session, ticket: TkTicket, extra: dict) -> dict:
@@ -214,6 +265,7 @@ def _aviso_de(db: Session, ticket: TkTicket, extra: dict) -> dict:
         "ticket": {
             "id": ticket.id, "tipo": tipo.nombre if tipo else "Solicitud",
             "fecha_servicio": ticket.fecha_servicio.isoformat(), "estado": ticket.estado,
+            **_horario_aviso(ticket),
             **extra,
         },
     }
@@ -229,7 +281,7 @@ def propuesta_pendiente(db: Session, ticket_id: int) -> TkVersion | None:
 
 
 def proponer_cambio(
-    db: Session, usuario: TkUsuario, ticket_id: int, fecha: date, datos: dict, version: int, ip: str
+    db: Session, usuario: TkUsuario, ticket_id: int, reserva_id: str, datos: dict, version: int, ip: str
 ) -> dict:
     """Guarda un cambio del usuario como propuesta. No rige: el ticket sigue en
     su versión vigente hasta que el administrador la apruebe.
@@ -248,18 +300,19 @@ def proponer_cambio(
         raise HTTPException(409, "El ticket cambió desde que lo abriste. Recarga la página y vuelve a intentarlo.")
 
     tipo = db.get(TkTipo, ticket.tipo_id)
+    reserva = _reserva_validada(usuario, reserva_id)
     # Con una emergencia abierta no se revalida la fecha contra la regla del
     # tipo: el administrador ya autorizó salirse de ella para este ticket.
     if not ticket.plazo_emergencia or ahora() >= ticket.plazo_emergencia:
-        _validar_plazo(tipo, fecha)
+        _validar_plazo(tipo, reserva["fecha"])
 
     siguiente = (db.execute(
         text("SELECT COALESCE(MAX(version), 0) FROM tickets.versiones WHERE ticket_id = :id"),
         {"id": ticket_id},
     ).scalar() or 0) + 1
     db.add(TkVersion(
-        ticket_id=ticket_id, version=siguiente, fecha_servicio=fecha, datos=datos, ip=ip,
-        costo=costo_de(db, tipo, datos), estado="propuesta",
+        ticket_id=ticket_id, version=siguiente, datos=datos, ip=ip,
+        costo=costo_de(db, tipo, datos), estado="propuesta", **_campos_de_reserva(reserva),
     ))
     try:
         db.commit()
@@ -287,7 +340,11 @@ def resolver_propuesta(db: Session, ticket_id: int, aprobar: bool, autor: str) -
     propuesta.resuelta_at = ahora()
     if aprobar:
         ticket.version_actual = propuesta.version
-        ticket.fecha_servicio = propuesta.fecha_servicio
+        # Con la versión pasan también la reserva y su bloque horario: el
+        # cambio pudo haber movido el servicio a otra reunión.
+        for campo in ("fecha_servicio", "hora_inicio", "hora_fin",
+                      "reserva_id", "reserva_asunto", "reserva_sala"):
+            setattr(ticket, campo, getattr(propuesta, campo))
         ticket.plazo = _plazo(db.get(TkTipo, ticket.tipo_id), propuesta.fecha_servicio)
         ticket.updated_at = ahora()
     db.commit()
@@ -302,6 +359,7 @@ def resolver_propuesta(db: Session, ticket_id: int, aprobar: bool, autor: str) -
 
 _SELECT_TICKETS = """
     SELECT t.id, t.tipo_id, tp.nombre AS tipo, t.estado, t.fecha_servicio, t.plazo,
+           t.hora_inicio, t.hora_fin, t.reserva_asunto, t.reserva_sala,
            t.version_actual, t.version_vista_admin, t.created_at, t.updated_at,
            t.plazo_emergencia,
            EXISTS (SELECT 1 FROM tickets.versiones v
@@ -433,7 +491,8 @@ def cambiar_estado(db: Session, ticket_id: int, estado: str, comentario: str | N
         "usuario": {"nombre": u.nombre, "rut": u.rut, "email": u.email},
         "ticket": {
             "id": ticket.id, "tipo": tipo.nombre if tipo else "Solicitud",
-            "fecha_servicio": ticket.fecha_servicio.isoformat(), "estado": estado, "comentario": comentario,
+            "fecha_servicio": ticket.fecha_servicio.isoformat(), "estado": estado,
+            "comentario": comentario, **_horario_aviso(ticket),
         },
     }
 

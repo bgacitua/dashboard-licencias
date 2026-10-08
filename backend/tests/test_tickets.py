@@ -206,6 +206,50 @@ def test_una_propuesta_a_la_vez():
     print("ok  una propuesta a la vez")
 
 
+def test_reserva_de_sala():
+    """Qué evento de Outlook cuenta como reserva de sala y cómo se parte."""
+    from app.modules.tickets.calendario import _es_reserva_de_sala, _reserva, _sala
+
+    con_ubicacion = {
+        "id": "AAA", "subject": "Comité",
+        "locations": [{"displayName": "Sala Andes", "locationType": "conferenceRoom"}],
+        "start": {"dateTime": "2026-10-20T09:30:00.0000000"},
+        "end": {"dateTime": "2026-10-20T11:00:00.0000000"},
+    }
+    con_recurso = {
+        "id": "BBB", "subject": "Inducción",
+        "location": {"displayName": "Sala Andes"},
+        "attendees": [
+            {"type": "required", "emailAddress": {"name": "Alguien"}},
+            {"type": "resource", "emailAddress": {"name": "Sala Lircay"}},
+        ],
+        "start": {"dateTime": "2026-10-21T23:00:00.0000000"},
+        "end": {"dateTime": "2026-10-22T01:00:00.0000000"},
+    }
+    reunion_normal = {
+        "id": "CCC", "subject": "1:1",
+        "locations": [{"displayName": "Microsoft Teams", "locationType": "default"}],
+        "attendees": [{"type": "required", "emailAddress": {"name": "Alguien"}}],
+        "start": {"dateTime": "2026-10-20T09:00:00.0000000"},
+        "end": {"dateTime": "2026-10-20T09:30:00.0000000"},
+    }
+
+    assert _es_reserva_de_sala(con_ubicacion) is True
+    assert _es_reserva_de_sala(con_recurso) is True
+    # Sin sala no hay bloque que ofrecer: es una reunión cualquiera.
+    assert _es_reserva_de_sala(reunion_normal) is False
+
+    # El buzón de la sala gana sobre el texto libre de `location`.
+    assert _sala(con_recurso) == "Sala Lircay"
+
+    r = _reserva(con_ubicacion)
+    assert (r["fecha"], r["hora_inicio"], r["hora_fin"]) == (date(2026, 10, 20), time(9, 30), time(11, 0))
+    assert r["multidia"] is False
+    # Cruzar la medianoche no define el día del servicio: queda marcada.
+    assert _reserva(con_recurso)["multidia"] is True
+    print("ok  reserva de sala")
+
+
 if __name__ == "__main__":
     test_plazo()
     test_editable()
@@ -220,3 +264,4 @@ if __name__ == "__main__":
     test_calcular_costo()
     test_plazo_de_emergencia()
     test_una_propuesta_a_la_vez()
+    test_reserva_de_sala()
