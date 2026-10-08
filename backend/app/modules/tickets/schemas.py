@@ -143,18 +143,35 @@ class ServicioDetalle(ServicioOut):
     precios: list[PrecioOut] = []
 
 
+# === Reservas de sala (Outlook) ===
+
+class ReservaOut(BaseModel):
+    """Una reserva del calendario del usuario. No se guarda: se lee de Graph
+    cada vez y es lo que el portal ofrece como bloque para pedir el servicio."""
+
+    id: str
+    asunto: str
+    sala: str
+    fecha: date
+    hora_inicio: time
+    hora_fin: time
+
+
 # === Tickets ===
 
+# La fecha y el bloque horario no vienen del navegador: salen de la reserva de
+# sala que el usuario eligió, releída de Graph al guardar. Mandar solo el id
+# evita tener que confiar en una fecha que el cliente podría cambiar.
 class TicketIn(BaseModel):
     tipo_id: int
-    fecha_servicio: date
+    reserva_id: str = Field(..., min_length=1, max_length=600)
     datos: dict
 
     _v = field_validator("datos")(_datos_acotados)
 
 
 class TicketEdit(BaseModel):
-    fecha_servicio: date
+    reserva_id: str = Field(..., min_length=1, max_length=600)
     datos: dict
     # La versión que el usuario tenía abierta. Si otra pestaña guardó entre
     # medio, se rechaza en vez de pisar esa versión en silencio.
@@ -177,6 +194,10 @@ class VersionOut(BaseModel):
 
     version: int
     fecha_servicio: date
+    hora_inicio: time | None = None
+    hora_fin: time | None = None
+    reserva_asunto: str | None = None
+    reserva_sala: str | None = None
     datos: dict
     costo: dict | None = None
     # 'vigente' (llegó a aplicarse) | 'propuesta' (espera respuesta) |
@@ -203,6 +224,12 @@ class TicketResumen(BaseModel):
     tipo: str
     estado: str
     fecha_servicio: date
+    # Bloque de la reserva que rige. None en los tickets anteriores a la
+    # integración con Outlook.
+    hora_inicio: time | None = None
+    hora_fin: time | None = None
+    reserva_asunto: str | None = None
+    reserva_sala: str | None = None
     plazo: datetime
     editable: bool
     version_actual: int

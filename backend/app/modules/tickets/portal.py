@@ -15,7 +15,7 @@ from . import service
 from .auth import UsuarioPortal, crear_token, db_portal
 from .models import TkArchivo, TkTipo
 from .schemas import (
-    CambioClaveIn, ComentarioIn, LoginIn, MeOut, RegistroIn, SesionOut, TicketDetalle,
+    CambioClaveIn, ComentarioIn, LoginIn, MeOut, RegistroIn, ReservaOut, SesionOut, TicketDetalle,
     TicketEdit, TicketIn, TicketResumen, TipoOut,
 )
 
@@ -73,6 +73,16 @@ def tipos(_: UsuarioPortal, db: Db) -> list[dict]:
     )
 
 
+@portal.get("/reservas", response_model=list[ReservaOut])
+def reservas(usuario: UsuarioPortal) -> list[dict]:
+    """Las reservas de sala del usuario, leídas de Outlook. Son los bloques
+    sobre los que puede pedir un servicio: no hay fecha a mano."""
+    # Cada llamada es un request a Graph: el freno es para no convertir un
+    # refresco a repetición en tráfico contra Microsoft.
+    check_rate_limit(f"tk-reservas:{usuario.id}", 60, 3600)
+    return service.reservas_de(usuario)
+
+
 @portal.get("/tickets", response_model=list[TicketResumen])
 def mis_tickets(usuario: UsuarioPortal, db: Db) -> list[dict]:
     return service.listar_tickets(db, usuario_id=usuario.id)
@@ -86,7 +96,7 @@ def mi_ticket(ticket_id: int, usuario: UsuarioPortal, db: Db) -> dict:
 @portal.post("/tickets", status_code=201)
 def crear(datos: TicketIn, request: Request, usuario: UsuarioPortal, db: Db) -> dict:
     check_rate_limit(f"tk-crear:{usuario.id}", 30, 3600)
-    tid = service.crear_ticket(db, usuario, datos.tipo_id, datos.fecha_servicio, datos.datos, client_ip(request))
+    tid = service.crear_ticket(db, usuario, datos.tipo_id, datos.reserva_id, datos.datos, client_ip(request))
     return {"id": tid}
 
 
@@ -98,7 +108,7 @@ def editar(
     """Envía un cambio. No rige: queda como propuesta hasta que el admin la
     apruebe, así nadie altera por su cuenta algo que ya se está preparando."""
     aviso = service.proponer_cambio(
-        db, usuario, ticket_id, datos.fecha_servicio, datos.datos, datos.version, client_ip(request)
+        db, usuario, ticket_id, datos.reserva_id, datos.datos, datos.version, client_ip(request)
     )
     # El cambio no rige hasta que alguien lo mire, así que el aviso al admin es
     # parte del flujo, no una cortesía: sin él la solicitud queda esperando.
