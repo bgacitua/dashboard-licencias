@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import SidebarLayout from '../components/SidebarLayout';
 import { getToken } from '../services/auth';
+import { useDialogo } from '../components/Dialogos';
 
 const API = '/api/v1/seleccion';
 
@@ -157,6 +158,7 @@ function CandidatoModal({ candidato, onClose, onSaved }) {
 }
 
 function DetalleCandidato({ candidato, onClose, onEdit, onDelete }) {
+  const { avisar } = useDialogo();
   const [descargando, setDescargando] = useState(false);
 
   const descargarCarta = async () => {
@@ -174,7 +176,7 @@ function DetalleCandidato({ candidato, onClose, onEdit, onDelete }) {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      alert('Error al descargar la carta de oferta.');
+      avisar('Error al descargar la carta de oferta.');
     } finally {
       setDescargando(false);
     }
@@ -252,6 +254,7 @@ function DetalleCandidato({ candidato, onClose, onEdit, onDelete }) {
 }
 
 export default function Seleccion() {
+  const { confirmar, avisar } = useDialogo();
   const [candidatos, setCandidatos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -286,7 +289,13 @@ export default function Seleccion() {
   };
 
   const handleDelete = async (candidato) => {
-    if (!window.confirm(`¿Eliminar a ${candidato.nombre}?`)) return;
+    const ok = await confirmar({
+      titulo: 'Eliminar candidato',
+      mensaje: `Se eliminará a ${candidato.nombre}.`,
+      textoConfirmar: 'Eliminar',
+      destructivo: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`${API}/${candidato.id}`, {
         method: 'DELETE',
@@ -297,7 +306,7 @@ export default function Seleccion() {
       setSeleccionado(null);
       cargar();
     } catch {
-      alert('Error al eliminar el candidato.');
+      avisar('Error al eliminar el candidato.');
     }
   };
 

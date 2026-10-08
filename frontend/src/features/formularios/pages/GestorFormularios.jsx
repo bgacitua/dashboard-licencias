@@ -7,11 +7,13 @@ import {
     eliminarFormulario,
     listarFormularios,
 } from '../services/formularios';
+import { useDialogo } from '../../../components/Dialogos';
 
 const fecha = (valor) =>
     valor ? new Date(valor).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
 export default function GestorFormularios() {
+    const { confirmar } = useDialogo();
     const navigate = useNavigate();
     const [formularios, setFormularios] = useState([]);
     const [busqueda, setBusqueda] = useState('');
@@ -53,9 +55,15 @@ export default function GestorFormularios() {
 
     const borrar = async (f) => {
         const aviso = f.respuestas
-            ? `Se eliminará "${f.titulo}" y sus ${f.respuestas} respuesta(s). Esto no se puede deshacer. ¿Continuar?`
-            : `Se eliminará "${f.titulo}". ¿Continuar?`;
-        if (!window.confirm(aviso)) return;
+            ? `Se eliminará "${f.titulo}" y sus ${f.respuestas} respuesta(s). Esto no se puede deshacer.`
+            : `Se eliminará "${f.titulo}".`;
+        const ok = await confirmar({
+            titulo: 'Eliminar formulario',
+            mensaje: aviso,
+            textoConfirmar: 'Eliminar',
+            destructivo: true,
+        });
+        if (!ok) return;
         setError('');
         try {
             await eliminarFormulario(f.id);

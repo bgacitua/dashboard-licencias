@@ -14,12 +14,14 @@ import {
   syncToBuk,
   abrirAutorizacionMicrosoft,
 } from '../services/contractAlerts';
+import { useDialogo } from '../components/Dialogos';
 
 const buildPatchPreview = (row) => ({
   contractType: row.response === 'indefinido' ? 'Indefinido' : 'Plazo Fijo',
 });
 
 const ContractAlerts = () => {
+  const { confirmar, avisar } = useDialogo();
   const [alerts, setAlerts] = useState([]);
   const [grouped, setGrouped] = useState([]);
   const [stats, setStats] = useState(null);
@@ -217,9 +219,11 @@ const ContractAlerts = () => {
   const handleSendAlerts = async () => {
     if (selectedBosses.length === 0) return;
 
-    const confirmed = window.confirm(
-      `¿Enviar alertas a ${selectedBosses.length} jefe(s) seleccionados?\n\nEsta acción enviará correos vía Outlook.`
-    );
+    const confirmed = await confirmar({
+      titulo: 'Enviar alertas',
+      mensaje: `Se enviarán alertas a ${selectedBosses.length} jefe(s) seleccionados.\n\nEsta acción enviará correos vía Outlook.`,
+      textoConfirmar: 'Enviar',
+    });
     if (!confirmed) return;
 
     setSending(true);
@@ -1047,7 +1051,7 @@ const ContractAlerts = () => {
                         await abrirAutorizacionMicrosoft();
                         setAuthRequired(false);
                       } catch (e) {
-                        alert(e.message);
+                        avisar(e.message);
                       }
                     }}
                     className="flex items-center gap-1.5 px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-xs font-semibold transition-colors whitespace-nowrap"

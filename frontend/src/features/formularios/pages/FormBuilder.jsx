@@ -6,6 +6,7 @@ import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
 
 import TextareaBuffer from '../../../components/form-builder/TextareaBuffer';
+import { useDialogo } from '../../../components/Dialogos';
 import { aCompletedHtml, deCompletedHtml, definicionVacia } from '../../../components/form-builder/tipos';
 import useEditorDefinicion from '../../../components/form-builder/useEditorDefinicion';
 import {
@@ -22,6 +23,7 @@ const slugificar = (texto) =>
         .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
 
 export default function FormBuilder() {
+    const { confirmar } = useDialogo();
     const [formularios, setFormularios] = useState([]);
     const [actual, setActual] = useState(null);       // formulario en edición
     const [vista, setVista] = useState('editor');     // editor | preview
@@ -91,7 +93,13 @@ export default function FormBuilder() {
 
     const borrar = async () => {
         if (!actual?.id) return;
-        if (!window.confirm(`Se eliminará "${actual.titulo}" y todas sus respuestas. ¿Continuar?`)) return;
+        const ok = await confirmar({
+            titulo: 'Eliminar formulario',
+            mensaje: `Se eliminará "${actual.titulo}" y todas sus respuestas.`,
+            textoConfirmar: 'Eliminar',
+            destructivo: true,
+        });
+        if (!ok) return;
         await eliminarFormulario(actual.id);
         setActual(null);
         recargar();

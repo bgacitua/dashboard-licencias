@@ -7,8 +7,10 @@ import {
   enviarSolicitudes,
   getJefaturas,
 } from "../services/overtime";
+import { useDialogo } from "../components/Dialogos";
 
 const HorasExtras = () => {
+  const { confirmar } = useDialogo();
   const [weekStart, setWeekStart] = useState("");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,15 +58,19 @@ const HorasExtras = () => {
   };
 
   // Reenviar invalida el link anterior de cada jefatura destinataria: se confirma siempre.
-  const enviarSolicitudesConAviso = () => {
+  const enviarSolicitudesConAviso = async () => {
     const jefe = jefaturas.find((j) => j.boss_rut === bossRut);
     const destino = bossRut
       ? `a ${jefe?.boss_name || bossRut}`
       : `a las ${jefaturas.length || "todas las"} jefaturas`;
-    if (!window.confirm(
-      `Se enviará un correo nuevo ${destino}. El link anterior dejará de funcionar ` +
-      `(las selecciones ya guardadas se mantienen). ¿Continuar?`
-    )) return;
+    const ok = await confirmar({
+      titulo: "Enviar solicitudes",
+      mensaje:
+        `Se enviará un correo nuevo ${destino}. El link anterior dejará de funcionar ` +
+        `(las selecciones ya guardadas se mantienen).`,
+      textoConfirmar: "Enviar",
+    });
+    if (!ok) return;
     accion(
       () => enviarSolicitudes(bossRut || undefined),
       bossRut ? "Solicitud reenviada" : "Solicitudes enviadas",

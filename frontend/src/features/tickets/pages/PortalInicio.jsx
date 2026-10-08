@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
+import { useDialogo } from '../../../components/Dialogos';
 import { ESTADOS, fechaCorta, fechaHora, misTickets, tiposPortal, tramoYSala } from '../services/tickets';
 
 const reglaPlazo = (t) =>
@@ -19,6 +20,7 @@ export function Estado({ estado }) {
 }
 
 export default function PortalInicio() {
+    const { confirmar } = useDialogo();
     const manejar = useSesionPortal();
     const navigate = useNavigate();
     const [tipos, setTipos] = useState([]);
@@ -42,18 +44,16 @@ export default function PortalInicio() {
     // Una tarjeta siempre crea una solicitud nueva. Si ya hay una en curso del
     // mismo tipo se avisa, porque lo más probable es que la quiera abrir y no
     // duplicarla; si de verdad necesita otra, sigue pudiendo.
-    const abrirTipo = (e, tipo) => {
+    const abrirTipo = async (e, tipo) => {
         const abierta = enCurso.find((t) => t.tipo_id === tipo.id);
         if (!abierta) return;
         e.preventDefault();
-        const otra = window.confirm(
-            [
-                `Ya tienes la solicitud #${abierta.id} en curso para ${tipo.nombre}.`,
-                '',
-                'Aceptar: crear una solicitud nueva.',
-                'Cancelar: abrir la que ya tienes.',
-            ].join('\n'),
-        );
+        const otra = await confirmar({
+            titulo: 'Ya tienes una solicitud en curso',
+            mensaje: `La solicitud #${abierta.id} para ${tipo.nombre} sigue abierta.`,
+            textoConfirmar: 'Crear una nueva',
+            textoCancelar: 'Abrir la que tengo',
+        });
         navigate(otra ? `/tickets/nueva/${tipo.id}` : `/tickets/t/${abierta.id}`);
     };
 

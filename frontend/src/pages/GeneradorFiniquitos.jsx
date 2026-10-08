@@ -6,6 +6,7 @@ import Docxtemplater from 'docxtemplater';
 import SidebarLayout from '../components/SidebarLayout';
 import FiniquitosService from '../services/finiquitos.service';
 import { getCompanyDetails } from './CrearFiniquito';
+import { useDialogo } from '../components/Dialogos';
 
 const ITEMS_PER_PAGE = 50;
 
@@ -18,6 +19,7 @@ const MOTIVOS_SALIDA = {
 };
 
 const GeneradorFiniquitos = () => {
+  const { avisar } = useDialogo();
   const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -198,13 +200,13 @@ const GeneradorFiniquitos = () => {
         fechaSalida,
         motivo: motivoSalida,
       });
-      alert("Correo de salida enviado.");
+      avisar("Correo de salida enviado.", { tipo: "ok" });
       fetchProcesos();
       setSelectedRut(null);
       setFechaSalida("");
     } catch (err) {
       console.error("Error al enviar el correo de salida:", err);
-      alert(err?.response?.data?.detail || err?.message || String(err));
+      avisar(err?.response?.data?.detail || err?.message || String(err));
     } finally {
       setEnviando(false);
     }
@@ -263,7 +265,7 @@ const GeneradorFiniquitos = () => {
       setDocBlob(generados);
     } catch (err) {
       console.error("Error al generar documentos:", err);
-      alert(err?.message || String(err));
+      avisar(err?.message || String(err));
     } finally {
       setGenerando(false);
     }
