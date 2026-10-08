@@ -12,17 +12,17 @@ import {
     columnas, detalleCosto, etiquetas, filasExport, money, mostrar, titulos, totalDe,
 } from '../respuestas';
 import {
-    ESTADOS, abrirEmergencia, bloqueYSala, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets,
-    listarTipos, resolverPropuesta, verTicket,
+    ESTADOS, abrirEmergencia, bloque, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets,
+    listarTipos, resolverPropuesta, tramoDe, tramoYSala, verTicket,
 } from '../services/tickets';
 
 const control = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-/** Fecha, bloque y sala de una versión en una línea, para comparar y mostrar.
- *  Van juntos porque salen de la misma reserva: cambiar de reunión los mueve a
- *  los tres de una vez y como tres líneas de diff se leería peor. */
+/** Fecha, tramo pedido y sala de una versión en una línea, para comparar y
+ *  mostrar. Van juntos porque salen de la misma reserva: cambiar de reunión los
+ *  mueve a los tres de una vez y como tres líneas de diff se leería peor. */
 const bloqueDe = (v) =>
-    [fechaCorta(v.fecha_servicio), bloqueYSala(v), v.reserva_asunto].filter(Boolean).join(' · ');
+    [fechaCorta(v.fecha_servicio), tramoYSala(v), v.reserva_asunto].filter(Boolean).join(' · ');
 
 /** Campos que cambiaron entre dos versiones (la reserva del servicio incluida). */
 export const diferencias = (actual, anterior) => {
@@ -156,6 +156,11 @@ function Detalle({ id, tipos, onCambio, slotSeguimiento }) {
                     <span className="font-mono text-lg font-semibold">#{t.id}</span>
                     <Estado estado={t.estado} />
                     <span className="text-sm text-gray-600">{t.tipo} · {bloqueDe(t)}</span>
+                    {/* El tramo pedido puede ser más corto que la reunión: quien
+                        atiende necesita ver los dos para saber si cabe. */}
+                    {bloque(t) && bloque(t) !== tramoDe(t) && (
+                        <span className="text-xs text-gray-500">reserva {bloque(t)}</span>
+                    )}
                 </div>
                 <p className="mt-2 text-sm text-gray-600">
                     {t.usuario} · {t.email}
