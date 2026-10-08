@@ -8,6 +8,7 @@ import { sufijoCuotas } from "../lib/descuentos";
 import FiniquitosService from "../services/finiquitos.service";
 import EmployeesService from "../services/employees.service";
 import { getLicenciasByRut } from "../services/licencias";
+import { useDialogo } from "../components/Dialogos";
 
 import {
   parsePeriodo,
@@ -215,6 +216,7 @@ export function getCompanyDetails(empresaRaw) {
 }
 
 const CrearFiniquito = () => {
+  const { confirmar, avisar } = useDialogo();
   const { rut } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1222,11 +1224,11 @@ const CrearFiniquito = () => {
     try {
       // Validar que se hayan completado los campos requeridos
       if (!lastDayWork) {
-        alert("Por favor seleccione la fecha de término del contrato");
+        avisar("Por favor seleccione la fecha de término del contrato");
         return;
       }
       if (!terminationReason) {
-        alert("Por favor seleccione la causal de término");
+        avisar("Por favor seleccione la causal de término");
         return;
       }
 
@@ -1403,7 +1405,7 @@ const CrearFiniquito = () => {
       persistirProceso(finiquitoData, "carta", Math.round(totalSettlement));
     } catch (err) {
       console.error("Error al generar finiquito:", err);
-      alert("Ocurrió un error al generar el finiquito. Revise la consola para más detalles.");
+      avisar("Ocurrió un error al generar el finiquito. Revise la consola para más detalles.");
     }
   };
 
@@ -1411,11 +1413,11 @@ const CrearFiniquito = () => {
   const handleDownloadWord = async () => {
     try {
       if (!employee) {
-        alert("No hay datos de empleado para generar el documento.");
+        avisar("No hay datos de empleado para generar el documento.");
         return;
       }
       if (!lastDayWork) {
-        alert("Por favor seleccione la fecha de término del contrato");
+        avisar("Por favor seleccione la fecha de término del contrato");
         return;
       }
 
@@ -1695,7 +1697,7 @@ const CrearFiniquito = () => {
         { cache: "no-store" },
       );
       if (!templateResponse.ok) {
-        alert(
+        avisar(
           `No se pudo cargar la plantilla Word (${templateUrl}). Asegúrate de que exista en /public.`,
         );
         return;
@@ -1710,7 +1712,7 @@ const CrearFiniquito = () => {
         (bytes[2] === 0x03 || bytes[2] === 0x05) &&
         (bytes[3] === 0x04 || bytes[3] === 0x06);
       if (!isZip) {
-        alert(
+        avisar(
           "La plantilla no parece ser un archivo .docx válido. Abre 'Formato Renuncia Voluntaria.doc' en Word y guárdala como 'Formato Renuncia Voluntaria.docx' (formato Word 2007+).",
         );
         return;
@@ -1751,7 +1753,7 @@ const CrearFiniquito = () => {
         );
       }
       const msg = err?.message || String(err);
-      alert(
+      avisar(
         `Ocurrió un error al generar el documento Word: ${msg}. Revisa la consola para más detalles.`,
       );
     }
@@ -2729,9 +2731,14 @@ const CrearFiniquito = () => {
                               {bonus.type === "custom" && (
                                 <button
                                   className="text-app-outline hover:text-red-500 transition-colors"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (
-                                      confirm("¿Eliminar este item manual?")
+                                      await confirmar({
+                                        titulo: "Eliminar item manual",
+                                        mensaje: "Se quitará este item del cálculo.",
+                                        textoConfirmar: "Eliminar",
+                                        destructivo: true,
+                                      })
                                     ) {
                                       const newCustomAdditions = {
                                         ...variableCustomAdditions,
