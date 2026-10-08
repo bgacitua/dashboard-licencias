@@ -77,6 +77,18 @@ y el bloque horario del servicio.
   pero quien decide es el backend, y además hay un CHECK en la tabla.
   Sin reservaciones no se muestra el formulario: la página queda en el aviso
   de que hay que reservar primero.
+- **Al enviar no se navega.** La página se queda mostrando la página final de
+  survey-core —el mensaje que el admin escribió en el tipo (`completedHtml`)—,
+  el resumen de lo pedido y un botón al inicio. Antes se saltaba al ticket
+  recién creado y el mensaje del admin se veía menos de un segundo.
+- **El seguimiento no se contesta desde el portal.** `Conversacion` sin
+  `onEnviar` no dibuja el campo de texto, y el endpoint de comentarios del
+  portal no existe: la regla está en el backend y no solo en la pantalla. Lo
+  que el usuario tenga que decir va en una solicitud de cambio, que es lo que
+  el administrador resuelve.
+- **Dos puertas.** Las tarjetas del inicio son para pedir algo nuevo —y avisan
+  si ya hay una solicitud en curso de ese tipo antes de crear otra—; el
+  historial es para revisar lo pedido y mandar solicitudes de modificación.
 - **Dos pasos en una página.** Primero reservación y horario, después el
   formulario, con un rótulo arriba que dice en cuál se está. No son dos rutas:
   la reservación elegida vive en el estado, y una URL aparte la perdería en
