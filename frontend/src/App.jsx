@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { DialogoProvider } from './components/Dialogos';
 
 // Componente de loading para Suspense
 const LoadingSpinner = () => (
@@ -57,6 +58,7 @@ const AdminServicios = lazy(() => import('./features/tickets/pages/AdminServicio
 function App() {
   return (
     <AuthProvider>
+      <DialogoProvider>
       <Router>
         <div className="App">
           <Suspense fallback={<LoadingSpinner />}>
@@ -342,6 +344,7 @@ function App() {
           </Suspense>
         </div>
       </Router>
+      </DialogoProvider>
     </AuthProvider>
   );
 }
