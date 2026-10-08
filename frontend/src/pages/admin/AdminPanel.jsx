@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SidebarLayout from '../../components/SidebarLayout';
 import { getToken } from '../../services/auth';
+import { useDialogo } from '../../components/Dialogos';
 
 const API_URL = '/api/v1';
 
@@ -159,6 +160,7 @@ function ModalActions({ onCancel, submitLabel = 'Guardar', danger = false }) {
 // ─── main component ──────────────────────────────────────────────────────────
 
 const AdminPanel = () => {
+    const { confirmar } = useDialogo();
     const [users, setUsers] = useState([]);
     const [roles, setRoles] = useState([]);
     const [modules, setModules] = useState([]);
@@ -229,10 +231,16 @@ const AdminPanel = () => {
     // el boton queda deshabilitado mientras responde.
     const toggleVigilancia = async () => {
         const prender = !vigilancia?.activa;
-        if (prender && !window.confirm(
-            'Activar vuelve a congelar el target con los montos actuales de BUK y borra ' +
-            'los descuadres ya registrados de este periodo. ¿Continuar?'
-        )) return;
+        if (prender) {
+            const ok = await confirmar({
+                titulo: 'Activar vigilancia',
+                mensaje: 'Activar vuelve a congelar el target con los montos actuales de BUK y borra ' +
+                    'los descuadres ya registrados de este periodo.',
+                textoConfirmar: 'Activar',
+                destructivo: true,
+            });
+            if (!ok) return;
+        }
         setTabError('');
         setVigilanciaBusy(true);
         try {
@@ -304,7 +312,12 @@ const AdminPanel = () => {
     };
 
     const handleResendInvite = async (userId, username) => {
-        if (!confirm(`¿Reenviar invitación a "${username}"? El enlace anterior dejará de funcionar.`)) return;
+        const ok = await confirmar({
+            titulo: 'Reenviar invitación',
+            mensaje: `Se enviará una invitación nueva a "${username}". El enlace anterior dejará de funcionar.`,
+            textoConfirmar: 'Reenviar',
+        });
+        if (!ok) return;
         setTabError('');
         try {
             const res = await fetch(`${API_URL}/admin/users/${userId}/send-invite`, {
@@ -317,7 +330,13 @@ const AdminPanel = () => {
     };
 
     const handleToggleActive = async (userId, currentActive) => {
-        if (!confirm(`¿Confirmas ${currentActive ? 'desactivar' : 'activar'} este usuario?`)) return;
+        const ok = await confirmar({
+            titulo: currentActive ? 'Desactivar usuario' : 'Activar usuario',
+            mensaje: `¿Confirmas ${currentActive ? 'desactivar' : 'activar'} este usuario?`,
+            textoConfirmar: currentActive ? 'Desactivar' : 'Activar',
+            destructivo: currentActive,
+        });
+        if (!ok) return;
         setTabError('');
         try {
             const res = await fetch(`${API_URL}/admin/users/${userId}`, {
