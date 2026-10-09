@@ -133,18 +133,26 @@ class DesvinculacionRepository:
 
         DISTINCT ON porque un RUT puede tener más de una fila en rh.employees;
         se toma la contratación más reciente.
+
+        El RUT se compara normalizado (sin puntos ni guion, en minúsculas) a los
+        dos lados: `rh.employees.rut` viene de BUK como xx.xxx.xxx-x, pero el que
+        llega al endpoint sale del listado de finiquitos sin puntos. Con el match
+        exacto anterior la consulta no devolvía fila y el aviso paralelo se
+        saltaba en silencio.
         """
         row = self.db.execute(
             text("""
-                SELECT DISTINCT ON (e.rut)
+                SELECT DISTINCT ON (lower(regexp_replace(e.rut, '[^0-9kK]', '', 'g')))
                     e.full_name        AS nombre_trabajador,
                     e.rut              AS rut_trabajador,
                     e.contract_type    AS contract_type,
                     a.first_level_name AS empresa
                 FROM rh.employees AS e
                 LEFT JOIN rh.areas AS a ON a.id = e.area_id
-                WHERE e.rut = :rut
-                ORDER BY e.rut, e.active_since DESC NULLS LAST
+                WHERE lower(regexp_replace(e.rut, '[^0-9kK]', '', 'g'))
+                    = lower(regexp_replace(:rut, '[^0-9kK]', '', 'g'))
+                ORDER BY lower(regexp_replace(e.rut, '[^0-9kK]', '', 'g')),
+                         e.active_since DESC NULLS LAST
             """),
             {"rut": rut},
         ).mappings().first()
