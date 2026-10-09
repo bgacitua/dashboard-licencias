@@ -224,16 +224,17 @@ def enviar_correo_salida_personal(
     if not enviado:
         raise HTTPException(status_code=502, detail="El correo no pudo enviarse")
 
-    # Aviso paralelo a otra casilla; no bloquea el flujo si falla.
+    # Aviso paralelo a otra casilla; no bloquea el flujo si falla, pero su
+    # resultado viaja en la respuesta: sin eso un paralelo caído es invisible.
     from app.services.correo_salida_paralelo import enviar_correo_salida_paralelo
 
-    enviar_correo_salida_paralelo(db, rut, data.fecha_salida)
+    paralelo = enviar_correo_salida_paralelo(db, rut, data.fecha_salida)
 
     # El aviso puede mandarse sin haber guardado el formulario: si no hay proceso, se crea.
     proceso = DesvinculacionService(db).registrar_correo_salida(
         rut, data, created_by=current_user.username
     )
-    return {"enviado": True, "proceso": proceso}
+    return {"enviado": True, "paralelo": paralelo, "proceso": proceso}
 
 
 @router.get("/{rut}", response_model=List[FiniquitoItemResponse])
