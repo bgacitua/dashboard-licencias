@@ -180,7 +180,7 @@ export default function PortalSolicitud() {
                         tipo_id: tipo.id, reserva_id: reservaId,
                         servicio_inicio: tramo.inicio, servicio_fin: tramo.fin, datos: sender.data,
                     });
-                    opciones.showSaveSuccess('Solicitud enviada.');
+                    opciones.showSaveSuccess('Gracias por completar la encuesta');
                     setSucio(false);
                     // No se navega al ticket: survey-core acaba de pasar a su
                     // página final —el mensaje que escribió el admin— y navegar
