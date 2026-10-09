@@ -34,9 +34,12 @@ from app.core.config import settings  # noqa: E402
 from app.db.session import readonly_session  # noqa: E402
 from app.services.correo_salida_paralelo import enviar_correo_salida_paralelo  # noqa: E402
 
-# Ventana del bug: PR #73 (deploy del paralelo) hasta PR #112 (fix del RUT).
+# Ventana del bug: desde el PR #73 (deploy del paralelo) hasta que el fix del
+# RUT (PR #112) quedó efectivamente corriendo en la VPS. `hasta` es exclusivo y
+# va holgado a propósito: un proceso de más en el listado se descarta mirando,
+# uno de menos no se entera nadie.
 DESDE_POR_DEFECTO = "2026-10-02"
-HASTA_POR_DEFECTO = "2026-10-09"
+HASTA_POR_DEFECTO = "2026-10-11"
 
 
 def limpiar_rut(valor: str) -> str:
