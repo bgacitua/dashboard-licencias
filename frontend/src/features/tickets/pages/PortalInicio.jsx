@@ -42,19 +42,19 @@ export default function PortalInicio() {
     const lista = vista === 'curso' ? enCurso : historial;
 
     // Una tarjeta siempre crea una solicitud nueva. Si ya hay una en curso del
-    // mismo tipo se avisa, porque lo más probable es que la quiera abrir y no
-    // duplicarla; si de verdad necesita otra, sigue pudiendo.
+    // mismo tipo se pregunta; responder que no deja al usuario donde estaba,
+    // que es la salida que antes faltaba (las dos opciones navegaban).
     const abrirTipo = async (e, tipo) => {
         const abierta = enCurso.find((t) => t.tipo_id === tipo.id);
         if (!abierta) return;
         e.preventDefault();
         const otra = await confirmar({
-            titulo: 'Ya tienes una solicitud en curso',
-            mensaje: `La solicitud #${abierta.id} para ${tipo.nombre} sigue abierta.`,
-            textoConfirmar: 'Crear una nueva',
-            textoCancelar: 'Abrir la que tengo',
+            titulo: 'Tienes una solicitud en curso',
+            mensaje: `La solicitud #${abierta.id} para ${tipo.nombre} sigue abierta. ¿Quieres crear una nueva?`,
+            textoConfirmar: 'Sí',
+            textoCancelar: 'No',
         });
-        navigate(otra ? `/tickets/nueva/${tipo.id}` : `/tickets/t/${abierta.id}`);
+        if (otra) navigate(`/tickets/nueva/${tipo.id}`);
     };
 
     return (
