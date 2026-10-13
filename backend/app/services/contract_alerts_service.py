@@ -17,6 +17,19 @@ from app.core.logging_config import logger
 # registro en la DB (sincronización manual fuera del sistema).
 BUK_SYNC_ENABLED = False
 
+# Vigencia del link de respuesta, contada desde el último envío. Corta la
+# ventana en que un token filtrado (correo reenviado, logs) sigue sirviendo.
+# Si vence, el recordatorio emite uno nuevo.
+TOKEN_TTL_HORAS = 72
+
+VALID_ANSWERS = {"indefinido", "plazo_fijo", "no_renovar"}
+
+ANSWER_LABELS = {
+    "indefinido": "Renovar - Contrato Indefinido",
+    "plazo_fijo": "Renovar - Plazo Fijo",
+    "no_renovar": "No Renovar",
+}
+
 
 class ContractAlertsService:
     def __init__(self, db: Session):
@@ -349,32 +362,36 @@ class ContractAlertsService:
     def get_tracking(self) -> List[Dict[str, Any]]:
         return self.tracking.get_all_tracking()
 
-    def _decode_token(self, token: str) -> Optional[dict]:
-        """Decodifica JWT. Retorna None si inválido, {} si es UUID legacy (sin payload)."""
-        from app.core.security import decode_response_token
-        import re
-        uuid_pattern = re.compile(
-            r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE
-        )
-        if uuid_pattern.match(token):
-            logger.info(f"[token] UUID legacy detectado, omitiendo validación JWT")
-            return {}  # token legacy válido pero sin payload JWT
-        return decode_response_token(token)  # None si JWT inválido
+    def _lookup_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Resuelve el token opaco contra la BD. None si no existe o caducó.
 
-    def preview_respond(
-        self, token: str, answer: str,
-        ip: Optional[str] = None, user_agent: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Retorna datos del registro para mostrar página de confirmación. No guarda."""
-        valid_answers = {"indefinido", "plazo_fijo", "no_renovar"}
-        if answer not in valid_answers:
-            return {"ok": False, "error": "Respuesta inválida"}
-        jwt_payload = self._decode_token(token)
-        if jwt_payload is None:
-            return {"ok": False, "error": "Link inválido o corrupto"}
+        No hay nada que validar criptográficamente: el token no lleva datos. La
+        única fuente de verdad es la fila. Caduca a las TOKEN_TTL_HORAS del
+        último envío; un recordatorio emite token nuevo y reabre la ventana.
+        """
         record = self.tracking.get_by_token(token)
         if not record:
-            return {"ok": False, "error": "Token no válido"}
+            return None
+        emitido = record.get("last_followup_at") or record.get("first_sent_at")
+        if emitido and datetime.now(emitido.tzinfo) - emitido > timedelta(hours=TOKEN_TTL_HORAS):
+            logger.info(f"[token] caducado para tracking_id={record.get('id')}")
+            return None
+        return record
+
+    def preview_respond(
+        self, token: str, answer: Optional[str] = None,
+        ip: Optional[str] = None, user_agent: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Retorna datos del registro para mostrar página de confirmación. No guarda.
+
+        `answer` ya no viene en el link del correo: la elige la persona en la
+        página. Se sigue aceptando para no romper links viejos en tránsito.
+        """
+        if answer is not None and answer not in VALID_ANSWERS:
+            return {"ok": False, "error": "Respuesta inválida"}
+        record = self._lookup_token(token)
+        if not record:
+            return {"ok": False, "error": "Link inválido o vencido"}
         self.tracking.log_event(
             tracking_id=record["id"],
             event_type="link_opened",
@@ -387,32 +404,21 @@ class ContractAlertsService:
             "record": record,
             "answer": answer,
             "already_answered": bool(record.get("response")),
-            "token_boss_email": jwt_payload.get("boss_email", ""),
+            "token_boss_email": record.get("boss_email", ""),
         }
 
     def respond(
         self, token: str, answer: str,
         responder_ip: str = None, user_agent: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Registra respuesta confirmada. Verifica JWT, guarda respuesta, envía email de confirmación."""
-        valid_answers = {"indefinido", "plazo_fijo", "no_renovar"}
-        if answer not in valid_answers:
+        """Registra respuesta confirmada. Valida token contra BD y envía email de confirmación."""
+        if answer not in VALID_ANSWERS:
             return {"ok": False, "error": "Respuesta inválida"}
-        jwt_payload = self._decode_token(token)
-        if jwt_payload is None:
-            return {"ok": False, "error": "Link inválido o corrupto"}
-        record = self.tracking.get_by_token(token)
+        record = self._lookup_token(token)
         if not record:
-            return {"ok": False, "error": "Token no válido"}
+            return {"ok": False, "error": "Link inválido o vencido"}
         if record.get("response"):
             return {"ok": True, "already_answered": True, "record": record}
-        # Auditar mismatch boss_email solo en tokens JWT (no legacy)
-        token_boss_email = jwt_payload.get("boss_email", "")
-        if token_boss_email and token_boss_email != record.get("boss_email", ""):
-            logger.warning(
-                f"[respond] Mismatch boss_email: token={token_boss_email} "
-                f"db={record.get('boss_email')} employee={record.get('employee_name')} ip={responder_ip}"
-            )
         self.tracking.log_event(
             tracking_id=record["id"],
             event_type="confirm_submitted",
@@ -424,6 +430,11 @@ class ContractAlertsService:
         if ok:
             self._send_confirmation_email(record, answer)
             return {"ok": True, "already_answered": False, "record": record, "answer": answer}
+        # No actualizó: o hubo error, o otro request respondió entremedio. En
+        # ambos casos la fila manda; releerla evita pisar una decisión ajena.
+        actual = self.tracking.get_by_token(token)
+        if actual and actual.get("response"):
+            return {"ok": True, "already_answered": True, "record": actual}
         return {"ok": False, "error": "Error al guardar respuesta"}
 
     def _send_confirmation_email(self, record: Dict[str, Any], answer: str) -> None:
@@ -433,11 +444,7 @@ class ContractAlertsService:
         boss_name = record.get("boss_name", "")
         employee_name = record.get("employee_name", "")
         alert_date = record.get("alert_date", "")
-        answer_label = {
-            "indefinido": "Renovar - Contrato Indefinido",
-            "plazo_fijo": "Renovar - Plazo Fijo",
-            "no_renovar": "No Renovar",
-        }.get(answer, answer)
+        answer_label = ANSWER_LABELS.get(answer, answer)
         color = T.C.DANGER if answer == "no_renovar" else T.C.OK
         body = f"""
             <p style="{T.P}">Hola <strong>{boss_name}</strong>,</p>
@@ -786,12 +793,13 @@ def _generate_email_html(
             token = (token_map or {}).get(rut_empleado, "")
 
             if token and public_url:
-                base = f"{public_url}/api/v1/contract-alerts/respond?token={token}&answer="
-                renovar_answer = "indefinido" if emp["tipo_alerta"] == "INDEFINIDO" else "plazo_fijo"
+                # Un solo link, sin la decisión dentro: abrirlo no registra nada.
+                # La elección se hace en la página y se manda por POST, para que
+                # ningún escáner de correo ni prefetch pueda responder por el jefe.
+                link = f"{public_url}/api/v1/contract-alerts/respond?token={token}"
                 renovar_cell = f"""
                     <td style="{T.TD}{fila_bg}">
-                        {T.button(f'{base}{renovar_answer}', '✓ Renovar', T.C.OK, small=True)}
-                        {T.button(f'{base}no_renovar', '✗ No Renovar', T.C.DANGER, small=True)}
+                        {T.button(link, 'Responder', T.C.PRIMARY, small=True)}
                     </td>
                 """
             else:
