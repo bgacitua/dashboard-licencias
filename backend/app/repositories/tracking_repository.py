@@ -23,17 +23,13 @@ class TrackingRepository:
     ) -> Optional[str]:
         """
         Crea o actualiza registro de seguimiento.
-        Retorna el response_token JWT como string.
+        Retorna el response_token opaco como string.
         """
         from app.core.security import create_response_token
 
-        # Generar JWT firmado con datos del jefe y empleado
-        new_token = create_response_token(
-            employee_id=employee_id,
-            rut=rut,
-            boss_email=boss_email,
-            alert_date=str(alert_date),
-        )
+        # Token aleatorio, sin datos del empleado dentro. Se rota en cada envío
+        # (también en los recordatorios), así que el link viejo deja de servir.
+        new_token = create_response_token()
 
         query = text("""
             INSERT INTO app.contract_alert_tracking (
@@ -87,7 +83,7 @@ class TrackingRepository:
                 TO_CHAR(alert_date, 'YYYY-MM-DD') AS alert_date,
                 alert_type, alert_reason,
                 response_token,
-                first_sent_at, response, responded_at,
+                first_sent_at, last_followup_at, response, responded_at,
                 buk_synced
             FROM app.contract_alert_tracking
             WHERE response_token = :token
@@ -110,9 +106,13 @@ class TrackingRepository:
               AND response IS NULL
         """)
         try:
-            self.db.execute(query, {"token": token, "response": response, "responder_ip": responder_ip})
+            result = self.db.execute(
+                query, {"token": token, "response": response, "responder_ip": responder_ip}
+            )
             self.db.commit()
-            return True
+            # 0 filas = otro request ganó la carrera y ya dejó una respuesta.
+            # El WHERE response IS NULL es lo que hace el consumo único.
+            return result.rowcount == 1
         except Exception as e:
             self.db.rollback()
             logger.error(f"Error set_response: {e}")

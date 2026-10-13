@@ -2,7 +2,7 @@ import urllib.parse
 from html import escape
 from threading import Lock
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
@@ -19,7 +19,7 @@ from app.core.security import (
 from app.db.deps import get_db
 from app.models.auth import Usuario
 from app.services import web_pages as W
-from app.services.contract_alerts_service import ContractAlertsService
+from app.services.contract_alerts_service import ANSWER_LABELS, ContractAlertsService
 from app.services.email_templates import C
 from app.services.email_token_service import (
     AuthRequiredError,
@@ -42,7 +42,7 @@ router = APIRouter()
 # Rutas que se abren sin sesión en la plataforma. `router` se incluye en api.py
 # con Depends(get_current_user); estas cuelgan de `publico`, que se incluye sin
 # esa dependencia. Lo que las protege es el token firmado del enlace
-# (decode_response_token) o, en el OAuth, el propio consentimiento de Microsoft.
+# (opaco, validado contra BD) o, en el OAuth, el propio consentimiento de Microsoft.
 # Solo agregar aquí una ruta que un externo DEBE poder abrir sin cuenta.
 publico = APIRouter()
 
@@ -276,31 +276,43 @@ def get_tracking(
     return service.get_tracking()
 
 
+# El token va en la URL; estas cabeceras evitan que se lo lleve el Referer a un
+# tercero o quede en una caché compartida.
+_SIN_RASTRO = {"Referrer-Policy": "no-referrer", "Cache-Control": "no-store"}
+
+
+def _html(contenido: str, status_code: int = 200) -> HTMLResponse:
+    return HTMLResponse(content=contenido, status_code=status_code, headers=_SIN_RASTRO)
+
+
 @publico.get("/respond", response_class=HTMLResponse)
-def respond_preview(token: str, answer: str, request: Request, db: Session = Depends(get_db)):
-    """Muestra página de confirmación. No guarda aún."""
+def respond_preview(
+    token: str,
+    request: Request,
+    answer: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Muestra la página donde la jefatura elige y confirma. No guarda nada.
+
+    GET sin efectos a propósito: un escáner de enlaces o el prefetch del correo
+    pueden abrirla sin que nadie haya decidido nada. La decisión sale de aquí
+    por POST.
+    """
     ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
     service = ContractAlertsService(db)
     result = service.preview_respond(token, answer, ip=ip, user_agent=user_agent)
 
     if not result.get("ok"):
-        return HTMLResponse(content=_respond_html(False, error_msg=result.get("error", "Error desconocido")), status_code=400)
+        return _html(_respond_html(False, error_msg=result.get("error", "Error desconocido")), 400)
 
     record = result.get("record", {})
     if result.get("already_answered"):
-        return HTMLResponse(content=_respond_html(True, already_answered=True, record=record))
+        return _html(_respond_html(True, already_answered=True, record=record))
 
-    answer_label = {
-        "indefinido": "Renovar - Contrato Indefinido",
-        "plazo_fijo": "Renovar - Plazo Fijo",
-        "no_renovar": "No Renovar",
-    }.get(answer, answer)
-
-    token_boss_email = result.get("token_boss_email", "")
-    return HTMLResponse(content=_confirm_html(
-        token=token, answer=answer, answer_label=answer_label,
-        record=record, token_boss_email=token_boss_email,
+    return _html(_confirm_html(
+        token=token, record=record,
+        token_boss_email=result.get("token_boss_email", ""),
     ))
 
 
@@ -325,29 +337,30 @@ def _auto_sync_buk(tracking_id: int) -> None:
 
 @publico.post("/respond/confirm", response_class=HTMLResponse)
 def respond_confirm(
-    token: str,
-    answer: str,
     request: Request,
     background_tasks: BackgroundTasks,
+    token: str = Form(...),
+    answer: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    """Guarda la respuesta confirmada por la jefatura."""
+    """Guarda la respuesta confirmada por la jefatura.
+
+    Token y decisión van en el body del formulario, no en la URL: así no quedan
+    en logs de proxy, historial ni Referer. No lleva token CSRF porque el propio
+    `token` es el secreto y no hay cookie de sesión que un tercero pueda montar.
+    """
     responder_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
     service = ContractAlertsService(db)
     result = service.respond(token, answer, responder_ip=responder_ip, user_agent=user_agent)
 
     if not result.get("ok"):
-        return HTMLResponse(content=_respond_html(False, error_msg=result.get("error", "Error desconocido")), status_code=400)
+        return _html(_respond_html(False, error_msg=result.get("error", "Error desconocido")), 400)
 
     record = result.get("record", {})
     already = result.get("already_answered", False)
     final_answer = result.get("answer") or record.get("response")
-    answer_label = {
-        "indefinido": "Renovar - Contrato Indefinido",
-        "plazo_fijo": "Renovar - Plazo Fijo",
-        "no_renovar": "No Renovar",
-    }.get(final_answer, "")
+    answer_label = ANSWER_LABELS.get(final_answer, "")
 
     # Renovación automática: solo en la primera respuesta y si es de renovación.
     if not already and final_answer in ("indefinido", "plazo_fijo") and record.get("id"):
@@ -358,7 +371,7 @@ def respond_confirm(
             f"record_id={record.get('id')}"
         )
 
-    return HTMLResponse(content=_respond_html(True, already_answered=already, answer_label=answer_label, record=record))
+    return _html(_respond_html(True, already_answered=already, answer_label=answer_label, record=record))
 
 
 @router.post("/followup")
@@ -386,32 +399,46 @@ def sync_buk(
     return result
 
 
-def _confirm_html(token: str, answer: str, answer_label: str, record: dict, token_boss_email: str = "") -> str:
+def _confirm_html(token: str, record: dict, token_boss_email: str = "") -> str:
+    """Página donde la jefatura elige la decisión y la manda por POST.
+
+    La decisión no viene del link: se elige aquí. Cada opción es su propio
+    formulario con el token en un campo oculto, así nada queda en la URL.
+    """
     employee_name = record.get("employee_name", "")
     boss_name = record.get("boss_name", "")
     alert_date = record.get("alert_date", "")
     directed_to = (f'<p class="fine">Este link fue enviado a: '
                    f'<strong>{escape(token_boss_email)}</strong></p>') if token_boss_email else ""
-    confirm_url = f"/api/v1/contract-alerts/respond/confirm?token={token}&answer={answer}"
-    color = C.DANGER if answer == "no_renovar" else C.OK
-    icon = "✗" if answer == "no_renovar" else "✓"
+    confirm_url = "/api/v1/contract-alerts/respond/confirm"
+
+    # En INDEFINIDO la renovación solo puede ser indefinida; en el resto, plazo fijo.
+    renovar = "indefinido" if record.get("alert_type") == "INDEFINIDO" else "plazo_fijo"
+    opciones = [(renovar, ANSWER_LABELS[renovar], ""), ("no_renovar", "No Renovar", " danger")]
+
+    botones = "".join(
+        f"""
+        <form method="post" action="{confirm_url}" style="display:inline">
+          <input type="hidden" name="token" value="{escape(token)}">
+          <input type="hidden" name="answer" value="{valor}">
+          <button type="submit" class="btn{clase}" style="margin:0 8px 8px 0">{etiqueta}</button>
+        </form>"""
+        for valor, etiqueta, clase in opciones
+    )
+
     cuerpo = f"""
         <p class="muted">Hola <strong>{escape(boss_name)}</strong>,</p>
-        <p class="muted">Estás a punto de registrar la siguiente decisión:</p>
+        <p class="muted">Registra tu decisión para este contrato:</p>
         <div class="datos">
           <p><strong>Empleado:</strong> {escape(employee_name)}</p>
           <p><strong>Vencimiento:</strong> {alert_date}</p>
-          <p style="color:{color};font-weight:bold"><strong>Decisión:</strong> {answer_label}</p>
         </div>
         {directed_to}
-        <p class="fine" style="margin-bottom:24px">Esta acción quedará registrada y no podrá
+        <p class="fine" style="margin-bottom:24px">La decisión quedará registrada y no podrá
            modificarse. Recibirás un correo de confirmación.</p>
-        <form method="post" action="{confirm_url}" style="display:inline">
-          <button type="submit" class="btn{' danger' if answer == 'no_renovar' else ''}"
-                  style="margin-right:8px">Confirmar</button>
-        </form>
+        {botones}
         <a href="javascript:window.close()" class="btn ghost">Cancelar</a>"""
-    return W.status_page(icon, "Confirmar decisión", cuerpo)
+    return W.status_page("✓", "Registrar decisión", cuerpo)
 
 
 def _respond_html(

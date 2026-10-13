@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import threading
 import time
+import secrets
 import uuid
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -164,28 +165,16 @@ def get_current_active_user(
     return current_user
 
 
-def create_response_token(employee_id: int, rut: str, boss_email: str, alert_date: str) -> str:
-    """JWT con expiración de 15 días para links de respuesta en correos de alertas de contratos."""
-    data = {
-        "token_type": "contract_response",
-        "employee_id": employee_id,
-        "rut": rut,
-        "boss_email": boss_email,
-        "alert_date": alert_date,
-        "jti": str(uuid.uuid4()),
-    }
-    return create_access_token(data, expires_delta=timedelta(days=15))
+def create_response_token() -> str:
+    """Token opaco para los links de respuesta de alertas de contratos.
 
-
-def decode_response_token(token: str) -> Optional[dict]:
-    """Decodifica token de respuesta. Retorna payload o None si inválido o expirado."""
-    try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-        if payload.get("token_type") != "contract_response":
-            return None
-        return payload
-    except JWTError:
-        return None
+    Aleatorio y sin payload: la URL viaja por correo, logs de proxy, historial y
+    header Referer, así que no puede llevar RUT ni correos dentro (el payload de
+    un JWT es base64, no cifrado). Los datos se resuelven en BD por este token,
+    que es UNIQUE en app.contract_alert_tracking.response_token. La vigencia la
+    da la BD (ver TOKEN_TTL_HORAS en contract_alerts_service), no el token.
+    """
+    return secrets.token_urlsafe(32)
 
 
 def create_oauth_state_token(username: str) -> str:
