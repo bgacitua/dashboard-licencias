@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SidebarLayout from '../../components/SidebarLayout';
 import { getToken } from '../../services/auth';
 import { useDialogo } from '../../components/Dialogos';
+import { PASSWORD_PATTERN, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../../lib/passwordPolicy';
 
 const API_URL = '/api/v1';
 
@@ -54,11 +55,6 @@ function FieldGroup({ label, children }) {
         </div>
     );
 }
-
-// Espeja app/schemas/auth.py: 12+ caracteres con minúscula, mayúscula y número.
-// pattern + title = validación nativa del navegador, sin JS propio.
-const PASSWORD_PATTERN = '(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}';
-const PASSWORD_HINT = 'Al menos 12 caracteres, una minúscula, una mayúscula y un número.';
 
 // El 422 de FastAPI trae `detail` como lista de errores; el 400 como string.
 async function errorDetail(res, fallback) {
@@ -885,7 +881,7 @@ const AdminPanel = () => {
 
                             {!newUser.send_invite && (
                                 <FieldGroup label="Contraseña *">
-                                    <InputField type="password" required={!newUser.send_invite} value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="Mínimo 12 caracteres" minLength={12} pattern={PASSWORD_PATTERN} title={PASSWORD_HINT} />
+                                    <InputField type="password" required={!newUser.send_invite} value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder={`Mínimo ${PASSWORD_MIN_LENGTH} caracteres`} minLength={PASSWORD_MIN_LENGTH} pattern={PASSWORD_PATTERN} title={PASSWORD_HINT} />
                                     <p className="mt-1 text-xs text-app-muted">{PASSWORD_HINT}</p>
                                 </FieldGroup>
                             )}
@@ -935,11 +931,11 @@ const AdminPanel = () => {
                         <form onSubmit={handleChangePassword} className="space-y-4">
                             <FieldGroup label="Nueva Contraseña *">
                                 <InputField
-                                    type="password" required minLength={12}
+                                    type="password" required minLength={PASSWORD_MIN_LENGTH}
                                     pattern={PASSWORD_PATTERN} title={PASSWORD_HINT}
                                     value={passwordData.newPassword}
                                     onChange={e => setPasswordData({...passwordData, newPassword: e.target.value})}
-                                    placeholder="Mínimo 12 caracteres"
+                                    placeholder={`Mínimo ${PASSWORD_MIN_LENGTH} caracteres`}
                                 />
                                 <p className="mt-1 text-xs text-app-muted">{PASSWORD_HINT}</p>
                             </FieldGroup>

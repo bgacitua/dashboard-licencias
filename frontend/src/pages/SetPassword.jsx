@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import AuthShell from '../components/AuthShell';
-
-// Espeja app/schemas/auth.py: 12+ caracteres con minúscula, mayúscula y número.
-const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}$/;
-const PASSWORD_HINT = 'La contraseña debe tener al menos 12 caracteres, una minúscula, una mayúscula y un número.';
+import { esPasswordValida, PASSWORD_HINT, PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy';
 
 const SetPassword = () => {
     const [searchParams] = useSearchParams();
@@ -24,7 +21,7 @@ const SetPassword = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setErrorMsg('');
-        if (!PASSWORD_RE.test(password)) return setErrorMsg(PASSWORD_HINT);
+        if (!esPasswordValida(password)) return setErrorMsg(PASSWORD_HINT);
         if (password !== confirm) return setErrorMsg('Las contraseñas no coinciden.');
 
         setStatus('loading');
@@ -84,10 +81,10 @@ const SetPassword = () => {
                                 id="new-password"
                                 type={showPassword ? 'text' : 'password'}
                                 required
-                                minLength={12}
+                                minLength={PASSWORD_MIN_LENGTH}
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
-                                placeholder="Mínimo 12 caracteres"
+                                placeholder={`Mínimo ${PASSWORD_MIN_LENGTH} caracteres`}
                                 autoComplete="new-password"
                                 className={`${inputClass} pl-3 pr-11`}
                             />
