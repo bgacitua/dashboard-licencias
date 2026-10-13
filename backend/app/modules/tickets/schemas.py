@@ -145,6 +145,13 @@ class ServicioDetalle(ServicioOut):
 
 # === Reservas de sala (Outlook) ===
 
+class TramoOut(BaseModel):
+    """Un rango horario dentro de una reserva."""
+
+    inicio: time
+    fin: time
+
+
 class ReservaOut(BaseModel):
     """Una reserva del calendario del usuario. No se guarda: se lee de Graph
     cada vez y es lo que el portal ofrece como bloque para pedir el servicio."""
@@ -155,6 +162,10 @@ class ReservaOut(BaseModel):
     fecha: date
     hora_inicio: time
     hora_fin: time
+    # Lo que el usuario ya pidió en esa sala ese día, y lo que le queda libre.
+    # Dos servicios suyos no pueden pisarse; ver el README del módulo.
+    ocupados: list[TramoOut] = []
+    libres: list[TramoOut] = []
 
 
 # === Tickets ===

@@ -230,6 +230,35 @@ def _campos_de_reserva(reserva: dict, inicio: time, fin: time) -> dict:
     }
 
 
+def reservas_con_disponibilidad(db: Session, usuario: TkUsuario) -> list[dict]:
+    """Las reservas del usuario, cada una con lo que ya pidió y lo que le queda.
+
+    Va pegado a `/reservas` y no en un endpoint aparte: el portal ya pide esta
+    lista para armar la grilla, y separarlo obligaba a un segundo viaje para
+    pintar la misma tarjeta. `libres` es lo que el formulario ofrece; `ocupados`
+    es para poder decir por qué el resto no está.
+    """
+    reservas = reservas_de(usuario)
+    salidas = []
+    for r in reservas:
+        campos = {
+            "fecha_servicio": r["fecha"], "reserva_id": r["id"], "reserva_sala": r["sala"],
+        }
+        ocupados = _tramos_ocupados(db, usuario.id, campos)
+        # Los tramos de otras salas del mismo día no cuentan: la consulta ya
+        # filtra por sala, así que acá solo queda recortar contra este bloque.
+        dentro = [t for t in ocupados if se_solapan(r["hora_inicio"], r["hora_fin"], *t)]
+        salidas.append({
+            **r,
+            "ocupados": [{"inicio": a, "fin": b} for a, b in sorted(dentro)],
+            "libres": [
+                {"inicio": a, "fin": b}
+                for a, b in huecos_libres(r["hora_inicio"], r["hora_fin"], dentro)
+            ],
+        })
+    return salidas
+
+
 def _tramos_ocupados(
     db: Session, usuario_id: int, campos: dict, *, excluir_ticket: int | None = None,
 ) -> list[tuple[time, time]]:

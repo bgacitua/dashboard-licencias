@@ -74,13 +74,17 @@ def tipos(_: UsuarioPortal, db: Db) -> list[dict]:
 
 
 @portal.get("/reservas", response_model=list[ReservaOut])
-def reservas(usuario: UsuarioPortal) -> list[dict]:
+def reservas(usuario: UsuarioPortal, db: Db) -> list[dict]:
     """Las reservas de sala del usuario, leídas de Outlook. Son los bloques
-    sobre los que puede pedir un servicio: no hay fecha a mano."""
+    sobre los que puede pedir un servicio: no hay fecha a mano.
+
+    Cada una viene con `ocupados` y `libres`: lo que el usuario ya pidió en
+    esa sala ese día y lo que le queda, para que el formulario no deje elegir
+    un horario que el backend va a rebotar."""
     # Cada llamada es un request a Graph: el freno es para no convertir un
     # refresco a repetición en tráfico contra Microsoft.
     check_rate_limit(f"tk-reservas:{usuario.id}", 60, 3600)
-    return service.reservas_de(usuario)
+    return service.reservas_con_disponibilidad(db, usuario)
 
 
 @portal.get("/tickets", response_model=list[TicketResumen])
