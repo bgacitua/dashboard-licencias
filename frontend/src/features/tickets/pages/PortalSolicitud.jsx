@@ -9,8 +9,8 @@ import CarruselNoticias from '../components/CarruselNoticias';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
 import {
-    bloque, crearTicket, editarTicket, fechaCorta, fechaHora, miTicket,
-    plazoPara, reservasPortal, tiposPortal, tramoDe,
+    bloque, cabeEnLibres, crearTicket, editarTicket, fechaCorta, fechaHora, mayorHueco,
+    miTicket, plazoPara, reservasPortal, tiposPortal, tramoDe, tramoTexto,
 } from '../services/tickets';
 
 /** 'HH:MM:SS' o 'HH:MM' -> 'HH:MM', que es lo que quiere <input type="time">. */
@@ -90,8 +90,16 @@ export default function PortalSolicitud() {
         setReservaId(r.id);
         setError('');
         const suyo = ticket && ticket.reserva_id === r.id && ticket.servicio_inicio;
-        setTramo(suyo
-            ? { inicio: hhmm(ticket.servicio_inicio), fin: hhmm(ticket.servicio_fin) }
+        if (suyo) {
+            setTramo({ inicio: hhmm(ticket.servicio_inicio), fin: hhmm(ticket.servicio_fin) });
+            return;
+        }
+        // Con algo ya pedido en esa sala, se propone el hueco libre más largo y
+        // no el bloque entero: proponer un horario que el backend va a rebotar
+        // obliga a corregir algo que el portal ya sabía.
+        const hueco = mayorHueco(r);
+        setTramo(hueco
+            ? { inicio: hhmm(hueco.inicio), fin: hhmm(hueco.fin) }
             : { inicio: hhmm(r.hora_inicio), fin: hhmm(r.hora_fin) });
     };
 
@@ -115,6 +123,16 @@ export default function PortalSolicitud() {
     const fueraDelBloque = !!reserva && !!tramo.inicio && !!tramo.fin
         && (tramo.inicio < hhmm(reserva.hora_inicio) || tramo.fin > hhmm(reserva.hora_fin));
     const alReves = !!tramo.inicio && !!tramo.fin && tramo.fin <= tramo.inicio;
+    // Lo que el usuario ya pidió en esa sala ese día lo manda el backend con la
+    // reserva. Al editar, el tramo del propio ticket no cuenta como ocupado:
+    // es justo el que se está moviendo.
+    const libres = (reserva?.libres || []).concat(
+        ticket && ticket.reserva_id === reserva?.id && ticket.servicio_inicio
+            ? [{ inicio: ticket.servicio_inicio, fin: ticket.servicio_fin }]
+            : [],
+    );
+    const pisado = !!reserva && !!tramo.inicio && !!tramo.fin && !alReves && !fueraDelBloque
+        && !cabeEnLibres(libres, tramo.inicio, tramo.fin);
 
     // Por qué no se puede enviar todavía, o '' si sí se puede.
     const traba = soloLectura ? '' : !reservaId
@@ -122,7 +140,10 @@ export default function PortalSolicitud() {
         : !tramo.inicio || !tramo.fin ? 'Indica desde y hasta qué hora necesitas el servicio.'
             : alReves ? 'La hora de término tiene que ser posterior a la de inicio.'
                 : fueraDelBloque ? `El horario tiene que quedar dentro de tu reserva (${bloque(reserva)}).`
-                    : vencido ? 'El plazo para esa fecha ya venció. Elige otra reserva.' : '';
+                    : pisado ? (reserva.libres?.length
+                        ? `Ya pediste un servicio que se pisa con ese horario. Te queda libre ${reserva.libres.map(tramoTexto).join(' y ')}.`
+                        : 'Ya pediste servicios para toda esa reserva. Elige otra reservación.')
+                        : vencido ? 'El plazo para esa fecha ya venció. Elige otra reserva.' : '';
 
     // Un ticket ya enviado se abre en su formulario: la reservación está
     // tomada y volver a elegirla es la excepción, no el primer paso.
@@ -443,6 +464,16 @@ export default function PortalSolicitud() {
                                             {r.asunto && (
                                                 <span className="truncate text-xs text-slate-500" title={r.asunto}>
                                                     {r.asunto}
+                                                </span>
+                                            )}
+                                            {/* Lo ya pedido se dice en la tarjeta: enterarse recién
+                                                al elegir la hora es enterarse tarde. */}
+                                            {!!r.ocupados?.length && (
+                                                <span className={`text-xs ${r.libres?.length ? 'text-amber-700' : 'text-red-600'}`}>
+                                                    Ya pediste {r.ocupados.map(tramoTexto).join(' y ')}
+                                                    {r.libres?.length
+                                                        ? ` · Libre ${r.libres.map(tramoTexto).join(' y ')}`
+                                                        : ' · Sin horario libre'}
                                                 </span>
                                             )}
                                         </button>

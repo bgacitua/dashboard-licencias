@@ -19,8 +19,8 @@ from . import calendario
 from .auth import HASH_SEÑUELO, pwd
 from .config import settings
 from .logica import (
-    calcular_costo, calcular_plazo, editable, id_de_servicio, mime_de_imagen,
-    plazo_efectivo, servicios_respondidos,
+    ESTADOS_QUE_OCUPAN, calcular_costo, calcular_plazo, editable, huecos_libres,
+    id_de_servicio, mime_de_imagen, plazo_efectivo, se_solapan, servicios_respondidos,
 )
 from .models import (
     TkArchivo, TkEvento, TkServicio, TkServicioPrecio, TkTicket, TkTipo, TkUsuario, TkVersion,
@@ -230,6 +230,90 @@ def _campos_de_reserva(reserva: dict, inicio: time, fin: time) -> dict:
     }
 
 
+def reservas_con_disponibilidad(db: Session, usuario: TkUsuario) -> list[dict]:
+    """Las reservas del usuario, cada una con lo que ya pidió y lo que le queda.
+
+    Va pegado a `/reservas` y no en un endpoint aparte: el portal ya pide esta
+    lista para armar la grilla, y separarlo obligaba a un segundo viaje para
+    pintar la misma tarjeta. `libres` es lo que el formulario ofrece; `ocupados`
+    es para poder decir por qué el resto no está.
+    """
+    reservas = reservas_de(usuario)
+    salidas = []
+    for r in reservas:
+        campos = {
+            "fecha_servicio": r["fecha"], "reserva_id": r["id"], "reserva_sala": r["sala"],
+        }
+        ocupados = _tramos_ocupados(db, usuario.id, campos)
+        # Los tramos de otras salas del mismo día no cuentan: la consulta ya
+        # filtra por sala, así que acá solo queda recortar contra este bloque.
+        dentro = [t for t in ocupados if se_solapan(r["hora_inicio"], r["hora_fin"], *t)]
+        salidas.append({
+            **r,
+            "ocupados": [{"inicio": a, "fin": b} for a, b in sorted(dentro)],
+            "libres": [
+                {"inicio": a, "fin": b}
+                for a, b in huecos_libres(r["hora_inicio"], r["hora_fin"], dentro)
+            ],
+        })
+    return salidas
+
+
+def _tramos_ocupados(
+    db: Session, usuario_id: int, campos: dict, *, excluir_ticket: int | None = None,
+) -> list[tuple[time, time]]:
+    """Lo que el usuario ya pidió ese día en esa sala, como tramos.
+
+    La sala manda sobre la reserva: dos reuniones distintas en la misma sala y
+    el mismo día siguen siendo el mismo espacio físico, y el servicio se sirve
+    ahí. Si el ticket es viejo y no guardó sala, se cae al id de la reserva.
+
+    No se miran las propuestas de cambio sin aprobar: todavía no rigen, y
+    bloquear con algo que el admin puede rechazar dejaría el horario tomado por
+    nada.
+    """
+    q = db.query(TkTicket.servicio_inicio, TkTicket.servicio_fin).filter(
+        TkTicket.usuario_id == usuario_id,
+        TkTicket.fecha_servicio == campos["fecha_servicio"],
+        TkTicket.estado.in_(ESTADOS_QUE_OCUPAN),
+        TkTicket.servicio_inicio.isnot(None),
+        TkTicket.servicio_fin.isnot(None),
+    )
+    sala = campos.get("reserva_sala")
+    q = q.filter(TkTicket.reserva_sala == sala) if sala else q.filter(
+        TkTicket.reserva_id == campos["reserva_id"])
+    if excluir_ticket:
+        q = q.filter(TkTicket.id != excluir_ticket)
+    return [(r.servicio_inicio, r.servicio_fin) for r in q.all()]
+
+
+def _validar_sin_solape(
+    db: Session, usuario_id: int, campos: dict, *, excluir_ticket: int | None = None,
+) -> None:
+    """Un mismo usuario no puede pedir dos servicios encima en la misma sala.
+
+    Es por usuario y no por sala: el que reservó es quien recibe el servicio, y
+    dos personas distintas en la misma sala son dos pedidos legítimos.
+    """
+    inicio, fin = campos["servicio_inicio"], campos["servicio_fin"]
+    ocupados = _tramos_ocupados(db, usuario_id, campos, excluir_ticket=excluir_ticket)
+    choques = [t for t in ocupados if se_solapan(inicio, fin, *t)]
+    if not choques:
+        return
+    tomado = ", ".join(f"{a:%H:%M} a {b:%H:%M}" for a, b in sorted(choques))
+    libres = huecos_libres(campos["hora_inicio"], campos["hora_fin"], ocupados)
+    queda = (
+        " Dentro de esa reserva te queda libre " +
+        " y ".join(f"{a:%H:%M} a {b:%H:%M}" for a, b in libres) + "."
+        if libres else " Ya no queda horario libre en esa reserva."
+    )
+    raise HTTPException(
+        409,
+        f"Ya pediste un servicio de {tomado} ese día en {campos.get('reserva_sala') or 'esa sala'}."
+        + queda,
+    )
+
+
 def crear_ticket(
     db: Session, usuario: TkUsuario, tipo_id: int, reserva_id: str,
     inicio: time, fin: time, datos: dict, ip: str,
@@ -239,6 +323,7 @@ def crear_ticket(
         raise HTTPException(404, "Ese tipo de solicitud no está disponible.")
     reserva = _reserva_validada(usuario, reserva_id)
     campos = _campos_de_reserva(reserva, inicio, fin)
+    _validar_sin_solape(db, usuario.id, campos)
     plazo = _validar_plazo(tipo, reserva["fecha"])
     ticket = TkTicket(
         tipo_id=tipo.id, usuario_id=usuario.id, plazo=plazo, version_actual=1, **campos,
@@ -330,13 +415,18 @@ def proponer_cambio(
     if not ticket.plazo_emergencia or ahora() >= ticket.plazo_emergencia:
         _validar_plazo(tipo, reserva["fecha"])
 
+    campos = _campos_de_reserva(reserva, inicio, fin)
+    # El ticket que se está cambiando no se choca consigo mismo: su tramo
+    # vigente es justo el que se quiere mover.
+    _validar_sin_solape(db, usuario.id, campos, excluir_ticket=ticket_id)
+
     siguiente = (db.execute(
         text("SELECT COALESCE(MAX(version), 0) FROM tickets.versiones WHERE ticket_id = :id"),
         {"id": ticket_id},
     ).scalar() or 0) + 1
     db.add(TkVersion(
         ticket_id=ticket_id, version=siguiente, datos=datos, ip=ip,
-        costo=costo_de(db, tipo, datos), estado="propuesta", **_campos_de_reserva(reserva, inicio, fin),
+        costo=costo_de(db, tipo, datos), estado="propuesta", **campos,
     ))
     try:
         db.commit()

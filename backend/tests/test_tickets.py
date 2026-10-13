@@ -9,7 +9,8 @@ from datetime import date, datetime, time, timedelta, timezone
 from app.modules.tickets.config import TicketsSettings
 from app.modules.tickets.logica import (
     aviso_de_cambio, calcular_costo, calcular_plazo, cantidad_de, clave_jwt, editable,
-    id_de_servicio, mime_de_imagen, plazo_efectivo, servicios_respondidos,
+    huecos_libres, id_de_servicio, mime_de_imagen, plazo_efectivo, se_solapan,
+    servicios_respondidos,
 )
 
 
@@ -282,6 +283,41 @@ def test_tramo_del_servicio():
     print("ok  tramo del servicio")
 
 
+
+def test_tramos_que_se_pisan():
+    """Dos servicios del mismo usuario no pueden compartir horario."""
+    # Pedido: 12:00 a 13:00. Lo que choca y lo que no.
+    assert se_solapan(time(12, 30), time(13, 0), time(12, 0), time(13, 0))
+    assert se_solapan(time(11, 0), time(12, 30), time(12, 0), time(13, 0))
+    # Tocarse en el borde no es pisarse: uno termina donde el otro empieza.
+    assert not se_solapan(time(10, 0), time(12, 0), time(12, 0), time(13, 0))
+    assert not se_solapan(time(13, 0), time(14, 0), time(12, 0), time(13, 0))
+    # Uno contenido en el otro, en los dos sentidos.
+    assert se_solapan(time(12, 15), time(12, 30), time(12, 0), time(13, 0))
+    assert se_solapan(time(10, 0), time(14, 0), time(12, 0), time(13, 0))
+    print("ok  tramos que se pisan")
+
+
+def test_lo_que_queda_libre():
+    """El mensaje de error dice dónde sí se puede pedir, no solo qué choca."""
+    bloque = (time(10, 0), time(13, 0))
+    # El caso del ejemplo: con 12:00-13:00 tomado, queda 10:00 a 12:00.
+    assert huecos_libres(*bloque, [(time(12, 0), time(13, 0))]) == [(time(10, 0), time(12, 0))]
+    # Un tramo al medio parte el bloque en dos huecos.
+    assert huecos_libres(*bloque, [(time(11, 0), time(12, 0))]) == [
+        (time(10, 0), time(11, 0)), (time(12, 0), time(13, 0)),
+    ]
+    # Desordenados y superpuestos entre ellos: se funden, no se cuentan dos veces.
+    assert huecos_libres(*bloque, [(time(12, 0), time(13, 0)), (time(11, 30), time(12, 30))]) == [
+        (time(10, 0), time(11, 30)),
+    ]
+    # Bloque entero tomado: no queda nada que ofrecer.
+    assert huecos_libres(*bloque, [(time(9, 0), time(14, 0))]) == []
+    # Sin nada pedido, el bloque completo está libre.
+    assert huecos_libres(*bloque, []) == [bloque]
+    print("ok  lo que queda libre")
+
+
 if __name__ == "__main__":
     test_plazo()
     test_editable()
@@ -298,3 +334,5 @@ if __name__ == "__main__":
     test_una_propuesta_a_la_vez()
     test_reserva_de_sala()
     test_tramo_del_servicio()
+    test_tramos_que_se_pisan()
+    test_lo_que_queda_libre()
