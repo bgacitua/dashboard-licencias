@@ -1,0 +1,57 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f8f9fa; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .group-title { background: #2e43ff; width: fit-content; color: white; font-weight: bold; font-size: 1.1em; border: 2px solid #adb5bd; margin-top: 30px; padding: 15px 0; text-align: center; }
+        .alerta-tabla { width: fit-content; border-collapse: collapse; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ccc; }
+        .alerta-tabla th, .alerta-tabla td { padding: 6px 25px; text-align: left; border: 1px solid #ddd; }
+        .alerta-tabla th { font-weight: bold; }
+        .alerta-tabla tr:nth-child(odd) { background: #fff; }
+        .alerta-tabla tr:nth-child(even) { background: #f8f9fa; }
+        .jefe-info { background: #f7f8f8; padding: 15px; border-radius: 6px; margin-bottom: 25px; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 2px solid #dee2e6; text-align: center; color: #6c757d; font-size: 14px; }
+    </style></head><body><div class="container">
+    <div class="jefe-info">
+        <p>Buenos días Carolina Pérez:</p>
+        <p>Junto con saludar, notificamos los siguientes vencimientos de contrato:</p>
+        <p>(*) Haga clic en el botón correspondiente para indicar su decisión de renovación.</p>
+        <p>Por favor contestar a la brevedad, por motivos de cierre de mes.</p>
+    </div>
+        <h3 class="group-title">Renovación a Indefinido</h3>
+        <table class="alerta-tabla">
+            <thead><tr>
+                <th style="width:35%">Empleado</th>
+                <th style="width:25%">Cargo</th>
+                <th style="width:15%">Fecha Vencimiento</th>
+                <th style="width:25%">Renovar (*)</th>
+            </tr></thead><tbody>
+            <tr>
+                <td><strong>Juan Muñoz Soto</strong></td>
+                <td>Analista de Operaciones</td>
+                <td>20-05-2026</td>
+                <td style="padding:4px 8px">
+                    <a href="http://personas.cramer.cl/api/v1/contract-alerts/respond?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiY29udHJhY3RfcmVzcG9uc2UiLCJlbXBsb3llZV9pZCI6MTAwMSwicnV0IjoiMTIuMzQ1LjY3OC05IiwiYm9zc19lbWFpbCI6ImNhcm9saW5hLnBlcmV6QGNyYW1lci5jbCIsImFsZXJ0X2RhdGUiOiIyMDI2LTA1LTIwIiwianRpIjoiMDFlOTkyMjgtNWFjYi00MGUwLWJhOTAtNGZlZmU4ZmM5N2U1In0.HyeMFBMmDpn7SzKUeudgSeq4gHP-oVTvOjSlRHmqqM4&answer=indefinido" style="display:inline-block;margin:2px;padding:4px 8px;background:#16a34a;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✓ Renovar</a>
+                    <a href="http://personas.cramer.cl/api/v1/contract-alerts/respond?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiY29udHJhY3RfcmVzcG9uc2UiLCJlbXBsb3llZV9pZCI6MTAwMSwicnV0IjoiMTIuMzQ1LjY3OC05IiwiYm9zc19lbWFpbCI6ImNhcm9saW5hLnBlcmV6QGNyYW1lci5jbCIsImFsZXJ0X2RhdGUiOiIyMDI2LTA1LTIwIiwianRpIjoiMDFlOTkyMjgtNWFjYi00MGUwLWJhOTAtNGZlZmU4ZmM5N2U1In0.HyeMFBMmDpn7SzKUeudgSeq4gHP-oVTvOjSlRHmqqM4&answer=no_renovar" style="display:inline-block;margin:2px;padding:4px 8px;background:#dc2626;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✗ No Renovar</a>
+                </td>
+            </tr></tbody></table>
+        <h3 class="group-title">Segundo Plazo</h3>
+        <table class="alerta-tabla">
+            <thead><tr>
+                <th style="width:35%">Empleado</th>
+                <th style="width:25%">Cargo</th>
+                <th style="width:15%">Fecha Vencimiento</th>
+                <th style="width:25%">Renovar (*)</th>
+            </tr></thead><tbody>
+            <tr>
+                <td><strong>Ana Torres Vidal</strong></td>
+                <td>Ejecutiva Comercial</td>
+                <td>25-05-2026</td>
+                <td style="padding:4px 8px">
+                    <a href="http://personas.cramer.cl/api/v1/contract-alerts/respond?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiY29udHJhY3RfcmVzcG9uc2UiLCJlbXBsb3llZV9pZCI6MTAwMiwicnV0IjoiOS44NzYuNTQzLTIiLCJib3NzX2VtYWlsIjoiY2Fyb2xpbmEucGVyZXpAY3JhbWVyLmNsIiwiYWxlcnRfZGF0ZSI6IjIwMjYtMDUtMjAiLCJqdGkiOiJiYWFjMjNjZi0zY2ViLTRmZjUtYWIxNS01YTc2NThhODkzMzkifQ.w3AlrmAMDHBkspbF_lQZKE9_oKQqkvhsU0b9K5vJ_ac&answer=plazo_fijo" style="display:inline-block;margin:2px;padding:4px 8px;background:#16a34a;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✓ Renovar</a>
+                    <a href="http://personas.cramer.cl/api/v1/contract-alerts/respond?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiY29udHJhY3RfcmVzcG9uc2UiLCJlbXBsb3llZV9pZCI6MTAwMiwicnV0IjoiOS44NzYuNTQzLTIiLCJib3NzX2VtYWlsIjoiY2Fyb2xpbmEucGVyZXpAY3JhbWVyLmNsIiwiYWxlcnRfZGF0ZSI6IjIwMjYtMDUtMjAiLCJqdGkiOiJiYWFjMjNjZi0zY2ViLTRmZjUtYWIxNS01YTc2NThhODkzMzkifQ.w3AlrmAMDHBkspbF_lQZKE9_oKQqkvhsU0b9K5vJ_ac&answer=no_renovar" style="display:inline-block;margin:2px;padding:4px 8px;background:#dc2626;color:white;text-decoration:none;border-radius:4px;font-size:11px;font-weight:bold;">✗ No Renovar</a>
+                </td>
+            </tr></tbody></table>
+    <div class="footer">
+        <p>Correo generado por el Sistema de Alertas de Contratos</p>
+        <hr><small>Para consultas, contacte al área de Recursos Humanos o responda este correo.</small>
+    </div></div></body></html>
