@@ -4,8 +4,7 @@ import 'survey-core/survey-core.css';
 
 import { CampoImagen } from '../../../components/form-builder/PanelPropiedades';
 import { TEMA_DEFECTO, crearModelo } from '../../../components/form-builder/tema';
-import { aCompletedHtml, deCompletedHtml, definicionVacia } from '../../../components/form-builder/tipos';
-import TextareaBuffer from '../../../components/form-builder/TextareaBuffer';
+import { definicionVacia } from '../../../components/form-builder/tipos';
 import Lienzo from '../builder/Lienzo';
 import AdminMarco from '../components/AdminMarco';
 import { columnas } from '../respuestas';
@@ -212,19 +211,9 @@ export default function AdminTipos() {
                                         </span>
                                         <CampoImagen valor={actual.portada_url} onChange={(v) => set({ portada_url: v })} subirImagen={subirImagen} />
                                     </div>
-                                    <div className="sm:col-span-2">
-                                        <label className={label} htmlFor="tk-final">Mensaje al enviar</label>
-                                        <TextareaBuffer
-                                            key={actual.id ?? 'nuevo'}
-                                            id="tk-final"
-                                            rows={2}
-                                            className={input}
-                                            valor={deCompletedHtml(definicion.completedHtml)}
-                                            normalizar={(texto) => deCompletedHtml(aCompletedHtml(texto))}
-                                            onChange={(texto) => set({ definicion: { ...definicion, completedHtml: aCompletedHtml(texto) } })}
-                                            placeholder="Vacío = el mensaje por defecto."
-                                        />
-                                    </div>
+                                    {/* El mensaje al enviar ya no se configura acá:
+                                        la pantalla de acuse es el carrusel de
+                                        features/tickets/noticias.js. */}
                                     <label className="flex items-center gap-2 text-sm text-gray-700">
                                         <input type="checkbox" checked={actual.activo} onChange={(e) => set({ activo: e.target.checked })} />
                                         Activo (visible en el portal)
