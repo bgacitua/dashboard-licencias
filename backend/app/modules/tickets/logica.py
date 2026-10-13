@@ -170,3 +170,41 @@ def calcular_costo(datos: dict, tarifas: dict, pregunta_cantidad: str | None) ->
     if not lineas:
         return None
     return {"total": sum(l["subtotal"] for l in lineas), "lineas": lineas}
+
+
+# Estados que siguen ocupando el horario. Un ticket rechazado no se va a
+# servir, así que libera su tramo; cerrado sí ocupa, porque ya se sirvió.
+ESTADOS_QUE_OCUPAN = ("pendiente", "en_curso", "cerrado")
+
+
+def se_solapan(a_inicio: time, a_fin: time, b_inicio: time, b_fin: time) -> bool:
+    """Si dos tramos comparten aunque sea un minuto.
+
+    Los extremos no cuentan como choque: un servicio que termina 12:00 y otro
+    que arranca 12:00 conviven, que es como la gente parte el bloque.
+    """
+    return a_inicio < b_fin and b_inicio < a_fin
+
+
+def huecos_libres(
+    bloque_inicio: time, bloque_fin: time, ocupados: list[tuple[time, time]],
+) -> list[tuple[time, time]]:
+    """Lo que queda sin pedir dentro del bloque reservado, en orden.
+
+    Sirve para el mensaje de error: decir "ya tienes algo de 12:00 a 13:00" no
+    ayuda tanto como decir en qué rango sí se puede pedir. Los tramos ocupados
+    pueden venir desordenados y superponerse entre ellos.
+    """
+    libres = []
+    cursor = bloque_inicio
+    for inicio, fin in sorted(ocupados):
+        if fin <= cursor:  # ya cubierto por un tramo anterior
+            continue
+        if inicio > cursor:
+            libres.append((cursor, min(inicio, bloque_fin)))
+        cursor = max(cursor, fin)
+        if cursor >= bloque_fin:
+            break
+    if cursor < bloque_fin:
+        libres.append((cursor, bloque_fin))
+    return [(a, b) for a, b in libres if a < b]

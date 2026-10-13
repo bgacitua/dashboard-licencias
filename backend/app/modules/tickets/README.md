@@ -70,6 +70,17 @@ y el bloque horario del servicio.
   verdad Graph la promueve a `locations`. Una reunión sin sala no sirve como
   bloque y no se ofrece; una que cruza la medianoche tampoco, porque no define
   a qué día pertenece el servicio.
+- **Un horario, un servicio.** El mismo usuario no puede pedir dos servicios
+  que se pisen el mismo día en la misma sala: pedido el almuerzo de 12:00 a
+  13:00 en la Sala 1, en esa reserva de 10:00 a 13:00 solo le queda 10:00 a
+  12:00, y el error se lo dice así, con el hueco libre y no solo con el choque.
+  La llave es la **sala**, no la reserva: dos reuniones distintas en la misma
+  sala son el mismo espacio. Tocarse en el borde no es pisarse (12:00 cierra
+  uno y abre el otro). Un ticket rechazado libera su tramo; pendiente, en curso
+  y cerrado lo ocupan. Las propuestas de cambio sin aprobar no bloquean: todavía
+  no rigen. Es por usuario y no por sala, porque quien reservó es quien recibe
+  el servicio. Reglas puras en `logica.py` (`se_solapan`, `huecos_libres`),
+  aplicadas en `service.py` al crear y al pedir un cambio.
 - **El servicio va dentro de la reserva.** Elegida la reunión, el usuario dice
   desde y hasta qué hora necesita el servicio (`servicio_inicio` /
   `servicio_fin`), que puede ser más corto que el bloque: café a las 15:30 en
