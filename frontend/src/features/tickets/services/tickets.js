@@ -119,6 +119,16 @@ export const fechaCorta = (iso) =>
 export const fechaHora = (iso) =>
     iso ? new Date(iso).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
+/** 'HH:MM:SS' o 'HH:MM' -> 'HH:MM'. */
+const hhmm = (t) => `${t || ''}`.slice(0, 5);
+
+/** Minutos que dura un tramo, para comparar huecos. */
+const minutos = (t) => {
+    const [hi, mi] = hhmm(t.inicio).split(':').map(Number);
+    const [hf, mf] = hhmm(t.fin).split(':').map(Number);
+    return (hf * 60 + mf) - (hi * 60 + mi);
+};
+
 /** 'HH:MM a HH:MM' del bloque reservado, o '' si el ticket no tiene reserva
  *  (los anteriores a la integración con Outlook). */
 export const bloque = (t) =>
@@ -148,3 +158,19 @@ export const plazoPara = (tipo, fechaIso) => {
     // solo el aviso previo — el que decide es el backend.
     return d;
 };
+
+/** 'HH:MM a HH:MM' de un tramo de `ocupados` / `libres` de una reserva. */
+export const tramoTexto = (t) => `${hhmm(t.inicio)} a ${hhmm(t.fin)}`;
+
+/** El hueco libre más largo de una reserva, que es el que se propone al
+ *  elegirla. Sin `libres` (reserva sin nada pedido) cae al bloque entero. */
+export const mayorHueco = (reserva) => {
+    const libres = reserva?.libres || [];
+    if (!libres.length) return null;
+    return libres.reduce((a, b) => (minutos(b) > minutos(a) ? b : a));
+};
+
+/** Si un tramo pedido cae entero dentro de alguno de los huecos libres.
+ *  Misma regla que el backend: tocarse en el borde no es pisarse. */
+export const cabeEnLibres = (libres, inicio, fin) =>
+    (libres || []).some((l) => hhmm(l.inicio) <= inicio && fin <= hhmm(l.fin));
