@@ -1,0 +1,26 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Confirmar decisión</title></head>
+<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;
+             height:100vh;margin:0;background:#f8f9fa">
+  <div style="text-align:center;padding:40px;background:white;border-radius:12px;
+              box-shadow:0 2px 10px rgba(0,0,0,.1);max-width:440px;width:90%">
+    <div style="font-size:48px">✓</div>
+    <h2 style="color:#1e293b;margin:16px 0 8px">Confirmar decisión</h2>
+    <p style="color:#475569;margin:8px 0">Hola <strong>Carolina Pérez</strong>,</p>
+    <p style="color:#475569;margin:8px 0">Estás a punto de registrar la siguiente decisión:</p>
+    <div style="background:#f1f5f9;border-radius:8px;padding:16px;margin:20px 0;text-align:left">
+      <p style="margin:4px 0;color:#334155"><strong>Empleado:</strong> Juan Muñoz Soto</p>
+      <p style="margin:4px 0;color:#334155"><strong>Vencimiento:</strong> 20-05-2026</p>
+      <p style="margin:4px 0;color:#16a34a;font-weight:bold"><strong>Decisión:</strong> Renovar - Contrato Indefinido</p>
+    </div>
+    <p style="color:#64748b;font-size:13px">Este link fue enviado a: <strong>carolina.perez@cramer.cl</strong></p>
+    <p style="color:#94a3b8;font-size:13px;margin-bottom:24px">Esta acción quedará registrada y no podrá modificarse. Recibirás un correo de confirmación.</p>
+    <form method="post" action="http://personas.cramer.cl/api/v1/contract-alerts/respond/confirm?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiY29udHJhY3RfcmVzcG9uc2UiLCJlbXBsb3llZV9pZCI6MTAwMSwicnV0IjoiMTIuMzQ1LjY3OC05IiwiYm9zc19lbWFpbCI6ImNhcm9saW5hLnBlcmV6QGNyYW1lci5jbCIsImFsZXJ0X2RhdGUiOiIyMDI2LTA1LTIwIiwianRpIjoiMDFlOTkyMjgtNWFjYi00MGUwLWJhOTAtNGZlZmU4ZmM5N2U1In0.HyeMFBMmDpn7SzKUeudgSeq4gHP-oVTvOjSlRHmqqM4&answer=indefinido" style="display:inline">
+      <button type="submit" style="background:#16a34a;color:white;border:none;padding:10px 28px;
+              border-radius:6px;font-size:15px;font-weight:bold;cursor:pointer;margin-right:8px">
+        Confirmar
+      </button>
+    </form>
+    <a href="javascript:void(0)" style="display:inline-block;padding:10px 28px;border:1px solid #cbd5e1;
+            border-radius:6px;font-size:15px;color:#64748b;text-decoration:none">Cancelar</a>
+  </div>
+</body></html>
