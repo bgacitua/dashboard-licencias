@@ -5,6 +5,7 @@ import 'survey-core/survey-core.css';
 
 import { crearModelo } from '../../../components/form-builder/tema';
 import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
+import CarruselNoticias from '../components/CarruselNoticias';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
 import {
@@ -527,9 +528,9 @@ export default function PortalSolicitud() {
                 </div>
             )}
 
-            {/* Enviada, el modelo sigue montado a propósito: la página final que
-                muestra es el mensaje que configuró el admin en el tipo. */}
-            {model && (soloLectura || paso === 'formulario') && (
+            {/* Enviada, el formulario se desmonta: en su lugar va el carrusel
+                de noticias, que reemplaza a la página final de survey-core. */}
+            {model && !enviada && (soloLectura || paso === 'formulario') && (
                 <div className="animate-entra-lateral overflow-hidden rounded-2xl border border-slate-200">
                     <Survey model={model} />
                 </div>
@@ -537,7 +538,8 @@ export default function PortalSolicitud() {
 
             {enviada && (
                 <div className="animate-entra mt-4">
-                    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+                    <CarruselNoticias />
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-5 py-4">
                         <p className="text-sm font-medium text-slate-800">
                             Lo que pediste · Solicitud #{enviada.id}
                         </p>
