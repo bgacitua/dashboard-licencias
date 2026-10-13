@@ -39,6 +39,31 @@ def test_usa_la_plantilla_compartida(monkeypatch):
     check_outlook_safe(html)  # el correo anterior no pasaba esto
 
 
+def test_reset_no_dice_que_la_cuenta_es_nueva(monkeypatch):
+    """A quien ya usaba el sistema no se le manda el correo de bienvenida."""
+    enviados = _capturar(monkeypatch)
+
+    _servicio()._send_invite_email("jperez@cramer.cl", "Juan Pérez", "tok123", es_reset=True)
+
+    html = enviados["html"]
+    assert "Se creó tu cuenta" not in html and "Bienvenido" not in html
+    assert "Restablece tu contraseña" in html
+    assert "Restablece" in enviados["subject"]
+    # Sin esta frase el usuario cree que quedó bloqueado hasta abrir el enlace.
+    assert "sigue funcionando hasta que uses el enlace" in html
+    assert f"{INVITE_TTL_HORAS} horas" in html
+    check_outlook_safe(html)
+
+
+def test_alta_sigue_siendo_bienvenida(monkeypatch):
+    enviados = _capturar(monkeypatch)
+
+    _servicio()._send_invite_email("jperez@cramer.cl", "Juan Pérez", "tok123")
+
+    assert "Se creó tu cuenta" in enviados["html"]
+    assert "Activa tu cuenta" in enviados["subject"]
+
+
 def test_sin_sesion_de_microsoft_es_runtime_error(monkeypatch):
     """create_user y resend_invite dependen de RuntimeError para marcar la falla."""
     _capturar(monkeypatch, resultado=AuthRequiredError("sin sesión"))

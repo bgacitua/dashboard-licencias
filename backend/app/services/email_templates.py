@@ -180,30 +180,48 @@ FOOTER_APP = "Plataforma de Personas - Uso Interno"
 
 
 def invite_email(display_name: str, invite_url: str, min_chars: int,
-                 expira_horas: int = 48) -> str:
-    """Correo de bienvenida con el enlace para establecer la contraseña.
+                 expira_horas: int = 48, es_reset: bool = False) -> str:
+    """Correo con el enlace para establecer la contraseña.
+
+    Dos encuadres, un solo enlace: `es_reset=False` es el alta de la cuenta y
+    `es_reset=True` el restablecimiento que pide el admin para alguien que ya
+    la venía usando. A ese no se le puede decir que su cuenta se acaba de
+    crear, y además necesita saber que la contraseña vieja sigue sirviendo
+    hasta que abra el enlace; si no, cree que quedó fuera del sistema.
 
     Los requisitos de la contraseña van en el correo a propósito: quien recibe
     esto elige una antes de abrir el enlace, y enterarse del mínimo recién al
     enviar el formulario obliga a pensarla dos veces.
     """
+    if es_reset:
+        intro = ("Un administrador generó un enlace para que definas una "
+                 "contraseña nueva en la Plataforma de Personas:")
+        cta = "Crear contraseña nueva"
+        titulo = "Restablece tu contraseña"
+        preview = "Enlace para definir una contraseña nueva."
+        # El enlace no revoca nada por sí solo: recién al canjearlo cambia el
+        # hash. Decirlo evita el ticket de "no puedo entrar" de quien lo ignora.
+        cierre = ("Tu contraseña actual sigue funcionando hasta que uses el enlace. "
+                  "Si no pediste esto, ignora el mensaje y avisa al administrador.")
+    else:
+        intro = ("Se creó tu cuenta en la Plataforma de Personas. "
+                 "Establece tu contraseña para activarla:")
+        cta = "Establecer contraseña"
+        titulo = "Bienvenido/a a la Plataforma de Personas"
+        preview = "Establece tu contraseña para activar tu cuenta."
+        cierre = "Si no esperabas este mensaje, ignóralo."
+
     cuerpo = (
         f'<p style="{P}">Hola <strong>{display_name}</strong>,</p>'
-        f'<p style="{P}">Se creó tu cuenta en la Plataforma de Personas. '
-        f"Establece tu contraseña para activarla:</p>"
+        f'<p style="{P}">{intro}</p>'
         f'<p style="{_F};margin:0 0 24px;text-align:center">'
-        f"{button(invite_url, 'Establecer contraseña')}</p>"
+        f"{button(invite_url, cta)}</p>"
         f'<p style="{MUTED}">La contraseña necesita al menos {min_chars} caracteres, '
         f"una minúscula, una mayúscula y un número.</p>"
         f'<p style="{MUTED}">El enlace expira en <strong>{expira_horas} horas</strong>. '
-        f"Si no esperabas este mensaje, ignóralo.</p>"
+        f"{cierre}</p>"
     )
-    return email_shell(
-        "Bienvenido/a a la Plataforma de Personas",
-        cuerpo,
-        footer=FOOTER_APP,
-        preview="Establece tu contraseña para activar tu cuenta.",
-    )
+    return email_shell(titulo, cuerpo, footer=FOOTER_APP, preview=preview)
 
 
 def user_created_email(username: str, email: str, nombre: str, rol: str,

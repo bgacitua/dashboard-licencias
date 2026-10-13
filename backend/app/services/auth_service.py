@@ -181,7 +181,10 @@ class AuthService:
         user.invite_token = self._hash_invite_token(token)
         user.invite_token_expires_at = datetime.utcnow() + timedelta(hours=INVITE_TTL_HORAS)
         self.repository.db.commit()
-        self._send_invite_email(user.email, user.nombre_completo or user.username, token)
+        # Quien ya entró alguna vez no está activando una cuenta nueva: le llega
+        # el correo de restablecimiento, no el de bienvenida.
+        self._send_invite_email(user.email, user.nombre_completo or user.username, token,
+                                es_reset=user.last_login is not None)
 
     def resend_invite(self, user_id: int) -> bool:
         """Regenera y reenvía invitación a un usuario existente. Retorna False si no existe."""
@@ -212,7 +215,8 @@ class AuthService:
         logger.info(f"Contraseña establecida via invitación: {user.username}")
         return True
 
-    def _send_invite_email(self, to_email: str, display_name: str, token: str) -> None:
+    def _send_invite_email(self, to_email: str, display_name: str, token: str,
+                           es_reset: bool = False) -> None:
         """Envía el correo de invitación con el enlace para establecer contraseña.
 
         La plantilla vive en email_templates.invite_email y el envío en
@@ -225,11 +229,13 @@ class AuthService:
 
         invite_url = f"{settings.PUBLIC_URL or 'http://localhost:5173'}/set-password?token={token}"
         html_body = invite_email(display_name, invite_url, PASSWORD_MIN_LENGTH,
-                                 expira_horas=INVITE_TTL_HORAS)
+                                 expira_horas=INVITE_TTL_HORAS, es_reset=es_reset)
+        asunto = ("Restablece tu contraseña - Plataforma de Personas" if es_reset
+                  else "Activa tu cuenta - Plataforma de Personas")
 
         try:
             enviado = send_email_graph(
-                to=to_email, cc="", subject="Activa tu cuenta - Plataforma de Personas",
+                to=to_email, cc="", subject=asunto,
                 html_body=html_body,
             )
         except AuthRequiredError as e:

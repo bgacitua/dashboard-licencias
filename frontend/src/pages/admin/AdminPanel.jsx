@@ -307,11 +307,16 @@ const AdminPanel = () => {
         } catch (err) { setTabError(err.message); }
     };
 
-    const handleResendInvite = async (userId, username) => {
+    // `pendiente` distingue los dos usos del mismo correo: invitar a una cuenta
+    // nueva y mandarle a un usuario ya activo el enlace para rehacer su
+    // contraseña. El endpoint es el mismo, solo cambia el texto.
+    const handleResendInvite = async (userId, username, pendiente) => {
         const ok = await confirmar({
-            titulo: 'Reenviar invitación',
-            mensaje: `Se enviará una invitación nueva a "${username}". El enlace anterior dejará de funcionar.`,
-            textoConfirmar: 'Reenviar',
+            titulo: pendiente ? 'Reenviar invitación' : 'Enviar enlace para crear contraseña',
+            mensaje: pendiente
+                ? `Se enviará una invitación nueva a "${username}". El enlace anterior dejará de funcionar.`
+                : `Se enviará a "${username}" un enlace para que cree una contraseña nueva. Su contraseña actual sigue funcionando hasta que use el enlace.`,
+            textoConfirmar: 'Enviar',
         });
         if (!ok) return;
         setTabError('');
@@ -610,10 +615,10 @@ const AdminPanel = () => {
                                                             className="p-2 text-app-outline hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors">
                                                             <span className="material-symbols-outlined text-[18px]">key</span>
                                                         </button>
-                                                        {user.email && !user.last_login && (
+                                                        {user.email && (
                                                             <button
-                                                                onClick={() => handleResendInvite(user.id, user.username)}
-                                                                title="Reenviar invitación"
+                                                                onClick={() => handleResendInvite(user.id, user.username, user.invite_pending)}
+                                                                title={user.invite_pending ? 'Reenviar invitación' : 'Enviar enlace para crear contraseña'}
                                                                 className="p-2 text-app-outline hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                                                             >
                                                                 <span className="material-symbols-outlined text-[18px]">forward_to_inbox</span>
