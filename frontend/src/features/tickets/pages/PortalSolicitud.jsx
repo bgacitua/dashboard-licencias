@@ -126,9 +126,23 @@ export default function PortalSolicitud() {
 
     // Un ticket ya enviado se abre en su formulario: la reservación está
     // tomada y volver a elegirla es la excepción, no el primer paso.
+    //
+    // Salvo que haya traba —tramo vacío, o su reserva ya no está en el
+    // calendario—: eso apaga el botón de enviar y solo se arregla en el paso
+    // de reservación, así que abrir en el formulario dejaba al usuario
+    // editando campos sin que el botón se encendiera nunca.
     useEffect(() => {
-        if (ticket) setPaso('formulario');
-    }, [ticket]);
+        if (!ticket) return;
+        // Sin nada que elegir (solo lectura) o antes de que llegue el
+        // calendario, el formulario es lo único que hay que mostrar.
+        if (soloLectura) { setPaso('formulario'); return; }
+        if (!reservas) return;
+        setPaso(traba ? 'reserva' : 'formulario');
+        // `traba` decide el paso de entrada, no se vigila después: en el
+        // formulario no hay nada que la cambie y suscribirse devolvería al
+        // usuario a la grilla mientras escribe.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ticket, reservas, soloLectura]);
 
     const irAlFormulario = () => {
         if (traba) { setError(traba); return; }
@@ -524,6 +538,25 @@ export default function PortalSolicitud() {
                     >
                         <span className="material-symbols-outlined text-base">edit_calendar</span>
                         Cambiar
+                    </button>
+                </div>
+            )}
+
+            {/* El botón de enviar está apagado y la razón no se ve desde acá:
+                lo que la destraba vive en el paso de reservación. Sin esto el
+                usuario editaba campos esperando que el botón se encendiera. */}
+            {paso === 'formulario' && !soloLectura && !enviada && traba && (
+                <div className="animate-entra mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4"
+                    role="status">
+                    <span className="material-symbols-outlined text-amber-700">error_outline</span>
+                    <span className="text-sm text-amber-900">{traba}</span>
+                    <button
+                        type="button"
+                        onClick={volverAReservas}
+                        className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-amber-900 transition-colors hover:bg-amber-100"
+                    >
+                        <span className="material-symbols-outlined text-base">edit_calendar</span>
+                        Elegir reservación
                     </button>
                 </div>
             )}
