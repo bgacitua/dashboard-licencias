@@ -77,10 +77,11 @@ y el bloque horario del servicio.
   pero quien decide es el backend, y además hay un CHECK en la tabla.
   Sin reservaciones no se muestra el formulario: la página queda en el aviso
   de que hay que reservar primero.
-- **Al enviar no se navega.** La página se queda mostrando la página final de
-  survey-core —el mensaje que el admin escribió en el tipo (`completedHtml`)—,
-  el resumen de lo pedido y un botón al inicio. Antes se saltaba al ticket
-  recién creado y el mensaje del admin se veía menos de un segundo.
+- **Al enviar no se navega.** La página se queda mostrando el carrusel de
+  noticias (`frontend/src/features/tickets/noticias.js`), el resumen de lo
+  pedido y un botón al inicio. Antes se saltaba al ticket recién creado y el
+  acuse se veía menos de un segundo. El mensaje final por tipo
+  (`completedHtml`) ya no se configura: el carrusel lo reemplazó.
 - **El seguimiento no se contesta desde el portal.** `Conversacion` sin
   `onEnviar` no dibuja el campo de texto, y el endpoint de comentarios del
   portal no existe: la regla está en el backend y no solo en la pantalla. Lo
