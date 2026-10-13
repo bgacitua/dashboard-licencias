@@ -21,19 +21,22 @@ export function esPasswordValida(password) {
   return new RegExp(`^(?:${PASSWORD_PATTERN})$`).test(password ?? '')
 }
 
-if (process.argv?.[1]?.endsWith('passwordPolicy.js')) {
-  const assert = (await import('node:assert/strict')).default
+// `globalThis.process?.` y el assert inline, no 'node:assert': este módulo lo
+// importa la app, así que todo lo de acá termina en el bundle. Un import de
+// node: se vuelve top-level await y rompe el build.
+if (globalThis.process?.argv?.[1]?.endsWith('passwordPolicy.js')) {
+  const a = (cond, msg) => { if (!cond) throw new Error('FAIL: ' + msg) }
 
   // El bug original: una contraseña válida sin la letra "d" era rechazada.
-  assert.equal(esPasswordValida('ContrasenaLarga1'), true)
-  assert.equal(esPasswordValida('Dosdosdosdos1'), true)
+  a(esPasswordValida('ContrasenaLarga1'), 'válida sin la letra d')
+  a(esPasswordValida('Dosdosdosdos1'), 'válida con d')
 
-  assert.equal(esPasswordValida('Corta1aaaaa'), false, 'menos de 12')
-  assert.equal(esPasswordValida('contrasenalarga1'), false, 'sin mayúscula')
-  assert.equal(esPasswordValida('CONTRASENALARGA1'), false, 'sin minúscula')
-  assert.equal(esPasswordValida('ContrasenaLarga'), false, 'sin número')
-  assert.equal(esPasswordValida(''), false)
-  assert.equal(esPasswordValida(null), false)
+  a(!esPasswordValida('Corta1aaaaa'), 'menos de 12')
+  a(!esPasswordValida('contrasenalarga1'), 'sin mayúscula')
+  a(!esPasswordValida('CONTRASENALARGA1'), 'sin minúscula')
+  a(!esPasswordValida('ContrasenaLarga'), 'sin número')
+  a(!esPasswordValida(''), 'vacía')
+  a(!esPasswordValida(null), 'null')
 
   console.log('passwordPolicy ok')
 }
