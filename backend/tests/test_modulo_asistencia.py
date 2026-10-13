@@ -53,23 +53,107 @@ def test_flag_encendido_monta_las_lecturas():
     assert esperadas <= set(rutas), esperadas - set(rutas)
 
 
-def test_lo_unico_que_escribe_en_buk_es_marcas():
+def test_el_allowlist_de_escrituras_esta_al_dia():
     """Buk no tiene ambiente de pruebas: cada escritura nueva debe ser deliberada.
 
-    Los POST de /reportes son cálculo (reciben el archivo de atrasos ya parseado)
-    y /operaciones escribe solo en la base de la plataforma.
-
-    /hhee/refrescar dispara el barrido del contenedor hhee-scrapping. Contra
-    Buk ese barrido solo LEE (listarExcesosPaginados); lo que escribe es
-    app.hhee_alertas, en la base de la plataforma. Por eso cuenta como local.
+    Este test no decide si la ruta toca Buk (de eso se encarga el de dry_run);
+    exige que nadie agregue un verbo de escritura sin declarar acá qué escribe.
+    Si falla, la pregunta no es "cómo lo hago pasar" sino "esta ruta escribe en
+    Buk y, si lo hace, pasa por dry_run".
     """
     from app.modules.asistencia.router import router
+
+    # ruta -> por qué existe y, sobre todo, DÓNDE escribe.
+    deliberadas = {
+        # ESCRIBE EN BUK (irreversible): manda las marcas al sistema real.
+        # Gateada por rol admin (dependencies propias) y por dry_run.
+        "/marcas": "crea marcas en Buk",
+        # ESCRIBE EN BUK (irreversible): crea el permiso del trabajador.
+        # Rol admin y el mismo dry_run que /marcas. El motivo sale de la base,
+        # no del request: el token del enlace no alcanza para elegir qué crear.
+        "/notificaciones/{token}/{fecha}/permiso": "crea un permiso en Buk",
+        # LOCAL: solo marca la respuesta como gestionada en app.asistencia_*.
+        "/notificaciones/{token}/{fecha}/descartar": "marca gestión local",
+        # LOCAL: idem, deja constancia de que la marca se arregla en otro flujo
+        # (Corrección de Marcas) en vez de quedar como "descartada".
+        "/notificaciones/{token}/{fecha}/marca-registrada": "marca gestión local",
+        # LOCAL: calcula el tramo de presencialidad y lo guarda en la base de la
+        # plataforma. De Buk y de Morpho solo lee. Es idempotente por tramo.
+        "/presencialidad/calcular": "calcula y guarda presencialidad local",
+        # LOCAL respecto de Buk: dispara el job diario de ausencias. Contra Buk
+        # solo LEE; lo que persiste son las rachas avisadas, en la base de la
+        # plataforma. POST y rol admin porque manda un correo real.
+        "/ausencias-consecutivas/correr": "corre el job de ausencias (correo)",
+    }
+    # Prefijos ya auditados como cálculo puro o escritura local, y que crecen
+    # seguido: /reportes solo calcula sobre lo que recibe en el cuerpo (el
+    # frontend parsea el archivo de atrasos), /operaciones y /notificar-jefatura
+    # escriben en la base de la plataforma, y /hhee dispara el barrido del
+    # contenedor hhee-scrapping, que contra Buk solo LEE.
     locales = ("/reportes/", "/operaciones", "/notificar-jefatura", "/hhee/")
     escrituras = {
         r.path for r in router.routes
         if r.methods - {"GET"} and not r.path.startswith(locales)
     }
-    assert escrituras == {"/marcas"}, escrituras
+    assert escrituras == set(deliberadas), escrituras ^ set(deliberadas)
+
+
+def test_toda_escritura_saliente_pasa_por_dry_run():
+    """Lo que de verdad importa: ningún POST/PUT/PATCH/DELETE hacia la red sale
+    sin haber consultado antes settings.dry_run en la misma función.
+
+    El allowlist de rutas se queda atrás con cada endpoint nuevo; esto no: mira
+    el código del módulo entero, así que una escritura saliente nueva —venga de
+    un endpoint, de un job o de un helper— tiene que traer su guard o rompe acá.
+    """
+    import ast
+    from pathlib import Path
+
+    escrituras_http = {"post", "put", "patch", "delete"}
+    # Funciones que hoy escriben hacia afuera. Está acá para que sumar una sea
+    # un cambio visible en el test, no para validar el guard (eso es sin_guard).
+    conocidas = {("marcas.py", "registrar"), ("permisos.py", "crear")}
+
+    encontradas: set[tuple[str, str]] = set()
+    sin_guard: list[str] = []
+
+    for archivo in sorted(Path("app/modules/asistencia").rglob("*.py")):
+        arbol = ast.parse(archivo.read_text(encoding="utf-8"))
+        for fn in ast.walk(arbol):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            # Solo el cuerpo: los decoradores (@router.post) también cuelgan
+            # del FunctionDef y no son llamadas a la red.
+            cuerpo = [n for st in fn.body for n in ast.walk(st)]
+            # Línea de la primera consulta a dry_run dentro de la función.
+            guard = min(
+                (n.lineno for n in cuerpo
+                 if isinstance(n, ast.Attribute) and n.attr == "dry_run"),
+                default=None,
+            )
+            for n in cuerpo:
+                # cli.post(...) / client.post(...): la llamada a la red, sobre
+                # un cliente httpx que vive en una variable local.
+                es_llamada = (
+                    isinstance(n, ast.Call)
+                    and isinstance(n.func, ast.Attribute)
+                    and n.func.attr in escrituras_http
+                    and isinstance(n.func.value, ast.Name)
+                )
+                if not es_llamada:
+                    continue
+                encontradas.add((archivo.name, fn.name))
+                if guard is None or guard > n.lineno:
+                    sin_guard.append(f"{archivo.name}:{n.lineno} en {fn.name}()")
+
+    assert not sin_guard, (
+        "escritura saliente sin pasar antes por settings.dry_run: "
+        + ", ".join(sin_guard)
+    )
+    assert encontradas == conocidas, (
+        "cambió el conjunto de funciones que escriben hacia afuera: "
+        f"{encontradas ^ conocidas}"
+    )
 
 
 def test_las_tablas_del_historial_estan_en_la_migracion():
@@ -150,7 +234,8 @@ def test_router_exige_el_modulo():
 if __name__ == "__main__":
     test_flag_apagado_no_monta_ni_importa_el_router()
     test_flag_encendido_monta_las_lecturas()
-    test_lo_unico_que_escribe_en_buk_es_marcas()
+    test_el_allowlist_de_escrituras_esta_al_dia()
+    test_toda_escritura_saliente_pasa_por_dry_run()
     test_las_tablas_del_historial_estan_en_la_migracion()
     test_registrar_marcas_exige_rol_ademas_del_modulo()
     test_el_formulario_de_jefatura_es_publico()
