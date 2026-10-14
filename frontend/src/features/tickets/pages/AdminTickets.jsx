@@ -296,9 +296,14 @@ function Detalle({ id, tipos, onCambio }) {
                                 v{verVersion}{verVersion === t.version_actual ? ' · vigente' : ''}
                             </span>
                         </div>
-                        <dl className="mt-4 divide-y divide-gray-100 border-t border-gray-100">
+                        {/* Sin líneas divisorias: lo que separa una respuesta de la
+                            siguiente es el realce al pasar por encima, que además
+                            acompaña la lectura en un formulario largo. El -mx-2 con
+                            px-2 deja que la banda respire sin mover la grilla. */}
+                        <dl className="mt-4">
                             {resumen.map((c) => (
-                                <div key={c.name} className="grid grid-cols-1 gap-x-6 py-2.5 sm:grid-cols-[14rem_minmax(0,1fr)]">
+                                <div key={c.name}
+                                    className="-mx-2 grid grid-cols-1 gap-x-6 rounded-lg px-2 py-2.5 transition-colors hover:bg-gray-50 sm:grid-cols-[14rem_minmax(0,1fr)]">
                                     <dt className="text-sm text-gray-600">
                                         {c.title}
                                         {c.fueraDelFormulario && (
@@ -624,8 +629,10 @@ export default function AdminTickets() {
                                         </span>
                                         <span className="min-w-0 flex-1">
                                             <span className="flex items-start justify-between gap-2">
+                                                {/* Número, servicio y sala juntos: es con lo que se
+                                                    identifica una solicitud al buscarla en la lista. */}
                                                 <span className="truncate text-sm font-medium text-gray-900">
-                                                    {encabezadoDe(t)}
+                                                    <span className="font-mono text-gray-500">#{t.id}</span> · {encabezadoDe(t)}
                                                 </span>
                                                 {/* La columna es angosta: sin esto "En curso" se parte
                                                     en dos líneas y la tarjeta queda más alta. */}
@@ -633,8 +640,13 @@ export default function AdminTickets() {
                                                     <Estado estado={t.estado} />
                                                 </span>
                                             </span>
+                                            {/* Solicitante y horario en una línea cada uno: compartiendo
+                                                una sola, un nombre largo se comía el horario. */}
                                             <span className="mt-0.5 block truncate text-xs text-gray-500">
-                                                #{t.id} · {tramoDe(t) || '—'} · {t.usuario || t.email}
+                                                {t.usuario || t.email}
+                                            </span>
+                                            <span className="mt-0.5 block truncate text-xs text-gray-500">
+                                                {tramoDe(t) || '—'}
                                             </span>
                                             {t.modificado && (
                                                 <span className="mt-1 block text-xs font-medium text-amber-700">
