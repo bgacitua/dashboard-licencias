@@ -8,8 +8,8 @@ import {
     columnas, detalleCosto, etiquetas, filasExport, money, mostrar, resumenCampos, titulos, totalDe,
 } from '../respuestas';
 import {
-    ESTADOS, abrirEmergencia, bloque, cambiarEstado, comentarAdmin, fechaCorta, fechaHora, listarTickets,
-    listarTipos, resolverPropuesta, tramoDe, tramoYSala, verTicket,
+    ESTADOS, abrirEmergencia, bloque, cambiarEstado, comentarAdmin, diaMes, encabezadoDe, fechaCorta,
+    fechaHora, listarTickets, listarTipos, resolverPropuesta, tramoDe, tramoYSala, verTicket,
 } from '../services/tickets';
 
 const control = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-700';
@@ -35,20 +35,6 @@ export const diferencias = (actual, anterior) => {
     }
     return salida;
 };
-
-/** Fecha del servicio partida en día / mes, para el bloque de la tarjeta. */
-const diaMes = (iso) => {
-    if (!iso) return { dia: '—', mes: '', semana: '' };
-    const d = new Date(`${iso}`.length === 10 ? `${iso}T12:00:00` : iso);
-    return {
-        semana: d.toLocaleDateString('es-CL', { weekday: 'short' }).replace('.', ''),
-        dia: d.toLocaleDateString('es-CL', { day: '2-digit' }),
-        mes: d.toLocaleDateString('es-CL', { month: 'short' }).replace('.', ''),
-    };
-};
-
-/** Primer título visible de la tarjeta: el servicio y dónde se presta. */
-const encabezadoDe = (t) => [t.tipo, t.reserva_sala].filter(Boolean).join(' · ');
 
 /** La acción principal que toca según en qué estado está la solicitud.
  *  Sin estado siguiente (rechazado, cerrado) se ofrece reabrir.
