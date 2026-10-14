@@ -624,8 +624,10 @@ export default function AdminTickets() {
                                         </span>
                                         <span className="min-w-0 flex-1">
                                             <span className="flex items-start justify-between gap-2">
+                                                {/* Número, servicio y sala juntos: es con lo que se
+                                                    identifica una solicitud al buscarla en la lista. */}
                                                 <span className="truncate text-sm font-medium text-gray-900">
-                                                    {encabezadoDe(t)}
+                                                    <span className="font-mono text-gray-500">#{t.id}</span> · {encabezadoDe(t)}
                                                 </span>
                                                 {/* La columna es angosta: sin esto "En curso" se parte
                                                     en dos líneas y la tarjeta queda más alta. */}
@@ -633,8 +635,13 @@ export default function AdminTickets() {
                                                     <Estado estado={t.estado} />
                                                 </span>
                                             </span>
+                                            {/* Solicitante y horario en una línea cada uno: compartiendo
+                                                una sola, un nombre largo se comía el horario. */}
                                             <span className="mt-0.5 block truncate text-xs text-gray-500">
-                                                #{t.id} · {tramoDe(t) || '—'} · {t.usuario || t.email}
+                                                {t.usuario || t.email}
+                                            </span>
+                                            <span className="mt-0.5 block truncate text-xs text-gray-500">
+                                                {tramoDe(t) || '—'}
                                             </span>
                                             {t.modificado && (
                                                 <span className="mt-1 block text-xs font-medium text-amber-700">
