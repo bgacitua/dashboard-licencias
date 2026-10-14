@@ -103,83 +103,88 @@ export default function PortalInicio() {
     };
 
     return (
-        <PortalLayout ancho="max-w-6xl">
-            {/* El encabezado va ancho y, debajo, dos columnas: las tarjetas a la
-                izquierda y las gestiones a la derecha, arrancando a la altura de
-                la primera fila de tarjetas. En pantalla chica la columna cae
-                debajo, que es donde se la espera al hacer scroll. */}
-            <section>
-                <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Nueva solicitud</h1>
-                <p className="mt-1 text-sm text-slate-500">Elige qué necesitas pedir.</p>
-                {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        <PortalLayout ancho="max-w-7xl">
+            {/* Dos columnas que comparten filas: arriba los dos encabezados, abajo
+                las tarjetas y el panel. Alinear por filas y no a ojo con márgenes
+                es lo que mantiene "Tus próximas gestiones" a la altura de "Nueva
+                solicitud" y la tarjeta a la de la primera fila de servicios,
+                aunque el subtítulo cambie de largo o aparezca un error.
 
-                <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        {tipos.map((t) => (
-                            <Link
-                                key={t.id}
-                                to={`/tickets/nueva/${t.id}`}
-                                onClick={(e) => abrirTipo(e, t)}
-                                className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-                            >
-                                <div
-                                    className="h-36 bg-cover bg-center"
-                                    style={portada(t)
-                                        ? { backgroundImage: `url("${encodeURI(portada(t))}")` }
-                                        : { background: `linear-gradient(135deg, ${t.tema?.color || '#2563eb'}, #0f172a)` }}
-                                />
-                                <div className="p-4">
-                                    <h2 className="font-semibold text-slate-900 group-hover:text-blue-700">{t.nombre}</h2>
-                                    {t.descripcion && <p className="mt-1 line-clamp-2 text-sm text-slate-600">{t.descripcion}</p>}
-                                    <p className="mt-3 flex items-center gap-1 text-xs text-slate-500">
-                                        <span className="material-symbols-outlined text-sm">schedule</span>
-                                        {reglaPlazo(t)}
-                                    </p>
-                                </div>
-                            </Link>
-                        ))}
-                        {tipos.length === 0 && !error && (
-                            <p className="text-sm text-slate-500">Todavía no hay tipos de solicitud disponibles.</p>
+                En pantalla chica no hay columnas, así que el orden se fuerza:
+                encabezado, tarjetas, y recién después las gestiones. */}
+            <section className="grid gap-x-12 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+                <div className="order-1 lg:order-none">
+                    <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Nueva solicitud</h1>
+                    <p className="mt-1 text-sm text-slate-500">Elige qué necesitas pedir.</p>
+                    {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+                </div>
+
+                <h2 className="order-3 mt-10 text-2xl font-semibold tracking-tight text-slate-900 lg:order-none lg:mt-0">
+                    Tus próximas gestiones
+                </h2>
+
+                <div className="order-2 mt-5 grid gap-5 sm:grid-cols-2 lg:order-none">
+                    {tipos.map((t) => (
+                        <Link
+                            key={t.id}
+                            to={`/tickets/nueva/${t.id}`}
+                            onClick={(e) => abrirTipo(e, t)}
+                            className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+                        >
+                            <div
+                                className="h-36 bg-cover bg-center"
+                                style={portada(t)
+                                    ? { backgroundImage: `url("${encodeURI(portada(t))}")` }
+                                    : { background: `linear-gradient(135deg, ${t.tema?.color || '#2563eb'}, #0f172a)` }}
+                            />
+                            <div className="p-4">
+                                <h3 className="font-semibold text-slate-900 group-hover:text-blue-700">{t.nombre}</h3>
+                                {t.descripcion && <p className="mt-1 line-clamp-2 text-sm text-slate-600">{t.descripcion}</p>}
+                                <p className="mt-3 flex items-center gap-1 text-xs text-slate-500">
+                                    <span className="material-symbols-outlined text-sm">schedule</span>
+                                    {reglaPlazo(t)}
+                                </p>
+                            </div>
+                        </Link>
+                    ))}
+                    {tipos.length === 0 && !error && (
+                        <p className="text-sm text-slate-500">Todavía no hay tipos de solicitud disponibles.</p>
+                    )}
+                </div>
+
+                {/* Pegado al hacer scroll: la lista de tarjetas puede ser larga y
+                    lo que uno ya tiene pedido conviene tenerlo a la vista. */}
+                <div className="order-4 mt-3 lg:order-none lg:mt-5 lg:sticky lg:top-20">
+                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                        <ul className="divide-y divide-slate-100">
+                            {proximas.map((t) => <Gestion key={t.id} ticket={t} />)}
+                            {proximas.length === 0 && (
+                                <li className="px-4 py-8 text-center text-sm text-slate-500">
+                                    No tienes gestiones pendientes.
+                                </li>
+                            )}
+                        </ul>
+
+                        {/* El historial no desaparece, pero tampoco compite: lo que
+                            importa acá es lo que todavía va a pasar. */}
+                        {historial.length > 0 && (
+                            <div className="border-t border-slate-100">
+                                <button type="button" onClick={() => setVerHistorial((v) => !v)}
+                                    aria-expanded={verHistorial}
+                                    className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-slate-600 transition-colors hover:bg-slate-50">
+                                    <span>{verHistorial ? 'Ocultar historial' : `Ver historial (${historial.length})`}</span>
+                                    <span aria-hidden className="material-symbols-outlined text-lg">
+                                        {verHistorial ? 'expand_less' : 'expand_more'}
+                                    </span>
+                                </button>
+                                {verHistorial && (
+                                    <ul className="animate-entra max-h-96 divide-y divide-slate-100 overflow-y-auto border-t border-slate-100">
+                                        {historial.map((t) => <Gestion key={t.id} ticket={t} />)}
+                                    </ul>
+                                )}
+                            </div>
                         )}
                     </div>
-
-                    {/* Pegada al hacer scroll: la lista de tarjetas puede ser larga
-                        y lo que uno ya tiene pedido conviene tenerlo a la vista. */}
-                    <aside className="lg:sticky lg:top-20">
-                        <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                            Tus próximas gestiones
-                        </h2>
-                        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                            <ul className="divide-y divide-slate-100">
-                                {proximas.map((t) => <Gestion key={t.id} ticket={t} />)}
-                                {proximas.length === 0 && (
-                                    <li className="px-4 py-8 text-center text-sm text-slate-500">
-                                        No tienes gestiones pendientes.
-                                    </li>
-                                )}
-                            </ul>
-
-                            {/* El historial no desaparece, pero tampoco compite: lo
-                                que importa acá es lo que todavía va a pasar. */}
-                            {historial.length > 0 && (
-                                <div className="border-t border-slate-100">
-                                    <button type="button" onClick={() => setVerHistorial((v) => !v)}
-                                        aria-expanded={verHistorial}
-                                        className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-slate-600 transition-colors hover:bg-slate-50">
-                                        <span>{verHistorial ? 'Ocultar historial' : `Ver historial (${historial.length})`}</span>
-                                        <span aria-hidden className="material-symbols-outlined text-lg">
-                                            {verHistorial ? 'expand_less' : 'expand_more'}
-                                        </span>
-                                    </button>
-                                    {verHistorial && (
-                                        <ul className="animate-entra max-h-96 divide-y divide-slate-100 overflow-y-auto border-t border-slate-100">
-                                            {historial.map((t) => <Gestion key={t.id} ticket={t} />)}
-                                        </ul>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </aside>
                 </div>
             </section>
         </PortalLayout>
