@@ -160,6 +160,25 @@ export const tramoDe = (t) =>
 /** Tramo y sala en una línea, que es como se lista un ticket. */
 export const tramoYSala = (t) => [tramoDe(t), t?.reserva_sala].filter(Boolean).join(' · ');
 
+/** Fecha del servicio partida en día / mes, para el bloque de la tarjeta.
+ *  Lo usan la lista del panel y la del portal: el mismo ítem a los dos lados. */
+export const diaMes = (iso) => {
+    if (!iso) return { dia: '—', mes: '', semana: '' };
+    const d = new Date(`${iso}`.length === 10 ? `${iso}T12:00:00` : iso);
+    return {
+        semana: d.toLocaleDateString('es-CL', { weekday: 'short' }).replace('.', ''),
+        dia: d.toLocaleDateString('es-CL', { day: '2-digit' }),
+        mes: d.toLocaleDateString('es-CL', { month: 'short' }).replace('.', ''),
+    };
+};
+
+/** Primer título visible de la tarjeta: el servicio y dónde se presta. */
+export const encabezadoDe = (t) => [t.tipo, t.reserva_sala].filter(Boolean).join(' · ');
+
+/** Cuándo ocurre el servicio, como clave ordenable. Sirve para listar de lo más
+ *  cercano a lo más lejano sin depender del orden en que vino del servidor. */
+export const cuandoOcurre = (t) => `${t.fecha_servicio || ''}T${`${t.servicio_inicio || '00:00'}`.slice(0, 5)}`;
+
 /** Plazo de un tipo para una fecha, igual que el backend (logica.calcular_plazo). */
 export const plazoPara = (tipo, fechaIso) => {
     if (!tipo?.hora_limite || !fechaIso) return null;
