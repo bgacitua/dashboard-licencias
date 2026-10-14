@@ -30,7 +30,7 @@ export default function AdminMarco({ children, acciones }) {
                                 to={to}
                                 end
                                 className={({ isActive }) => `-mb-px border-b-2 px-4 py-2.5 text-sm font-medium ${
-                                    isActive ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'
+                                    isActive ? 'border-red-800 text-red-900' : 'border-transparent text-gray-500 hover:text-gray-800'
                                 }`}
                             >
                                 {label}
