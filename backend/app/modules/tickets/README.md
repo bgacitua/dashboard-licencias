@@ -12,13 +12,61 @@ Portal (/tickets)         cuenta propia del módulo, NO la de la plataforma
   /tickets/ingresar        registro (correo @cramer.cl en la nómina) + login
   /tickets                 tipos disponibles + mis solicitudes
   /tickets/nueva/:tipo     reserva de sala + horario del servicio + formulario
-  /tickets/t/:id           ver / editar (si pendiente y en plazo) / conversar
+  /tickets/t/:id           ver / pedir cambio (si abierta y en plazo) /
+                           cancelar (si abierta) / conversar
 
 Panel (/tickets/admin)    require_module("tickets")
   /tickets/admin           solicitudes, versiones con diff, estado, comentarios
   /tickets/admin/tipos     builder, plazo y apariencia de cada tipo
   /tickets/admin/usuarios  activar, desactivar, restablecer clave
 ```
+
+## Estados de una solicitud
+
+```
+pendiente ──(el admin la toma)──> en_curso ──(pasa el día)──> cerrado
+    │                                 │
+    └────(el usuario modifica)───> en_revision ──(resuelta)──> en_curso
+    │                                 │
+    └─────────────────────────────────┴──> cancelado (el usuario se baja)
+                                      └──> rechazado (el admin, con motivo)
+```
+
+- **El panel pone cuatro.** `pendiente`, `en_curso`, `rechazado` y `cerrado`
+  (`logica.ESTADOS_ADMIN`). Los otros dos no son botones suyos: `cancelado` es
+  del usuario final y `en_revision` la mueve el flujo de cambios. El schema lo
+  limita y `service.cambiar_estado` lo vuelve a decir, porque al service
+  también se entra desde el job.
+- **`en_revision` la enciende la solicitud de cambio.** Hasta ahora la
+  propuesta pendiente vivía solo en `tickets.versiones` y el estado no decía
+  nada: en el panel había que abrir el ticket para enterarse. Al resolverla
+  —apruebe o rechace— la solicitud queda `en_curso`, no vuelve a la cola de
+  pendientes: el administrador ya la tomó. Mientras el cambio espera, el estado
+  no se puede mover a otro estado abierto; primero se resuelve.
+- **Se puede pedir un cambio también en curso.** Antes solo estando
+  `pendiente`. Que el administrador la haya tomado no cierra la puerta, porque
+  lo que el usuario manda es una propuesta y es él quien la resuelve. El plazo
+  del tipo sigue mandando.
+- **`cancelado` y `rechazado` no son lo mismo.** Se bajó el solicitante o lo
+  bajó el administrador. En el reporte no da igual, así que son dos estados y
+  no uno con un matiz en el historial. Una solicitud cancelada no se reabre
+  desde el panel: reabrirla sería decidir por el usuario, y pedir de nuevo es
+  crear otra.
+- **Cancelar no tiene plazo.** Mientras la solicitud siga abierta
+  (`logica.ESTADOS_ABIERTOS`), el botón está. Si quedaba menos de
+  `TICKETS_CANCELACION_HORAS` para el inicio del servicio, el ticket queda
+  marcado en `cancelacion_tardia` porque el casino lo cobra igual. **La
+  política no es pública para el usuario final**: el portal no la nombra y
+  `_resumen` saca el campo de todo lo que no sea el panel. Donde sí aparece es
+  en el detalle, en la tabla y en la columna "Cancelación tardía" del Excel,
+  que es donde se decide qué se cobra. Vacía en lo que no se canceló: un "No"
+  ahí diría que canceló a tiempo.
+- **El cierre es automático al día siguiente.** Un barrido diario
+  (`cierre.py`, a `TICKETS_CIERRE_HORA`) cierra todo lo que siga abierto con la
+  fecha de servicio ya pasada. Un día después y no el mismo día: mientras el
+  día corre, el servicio todavía puede estar ocurriendo. Cerrar a mano antes
+  sigue siendo lo normal; esto es la red para que el panel no acumule
+  pendientes de hace semanas. Lo cancelado y lo rechazado no se tocan.
 
 ## Regla de acoplamiento
 
@@ -41,7 +89,7 @@ El backend no manda correos: hace POST a `TICKETS_N8N_WEBHOOK_URL` (Bearer
 plano; si n8n falla, la cuenta queda igual y el error va al log.
 
 ```json
-{"evento": "usuario_registrado | usuario_aprobado | usuario_rechazado | ticket_estado",
+{"evento": "usuario_registrado | usuario_aprobado | usuario_rechazado | ticket_estado | ticket_cancelado",
  "para": ["..."], "usuario": {"nombre": "", "rut": "", "email": ""},
  "link": "https://…", "motivo": null, "ticket": null}
 ```
@@ -52,6 +100,11 @@ plano; si n8n falla, la cuenta queda igual y el error va al log.
 - `ticket_estado`: el admin pasa un ticket a en curso, rechazado o cerrado;
   `para` = quien lo pidió. Trae `ticket` = `{id, tipo, fecha_servicio, estado,
   comentario}`. Volver a pendiente no avisa.
+- `ticket_cancelado`: el usuario final se bajó de su solicitud; `para` =
+  `TICKETS_ADMIN_EMAILS`, porque el que tiene que enterarse —y a tiempo, para
+  no preparar el servicio— es quien atiende. Trae `motivo` dentro de `ticket`
+  y `cancelacion_tardia`, que es lo que le dice al administrador si esto se
+  cobra igual. Al usuario no se le manda nada: canceló él.
 
 ## Reservas de sala (Outlook)
 
@@ -76,8 +129,9 @@ y el bloque horario del servicio.
   12:00, y el error se lo dice así, con el hueco libre y no solo con el choque.
   La llave es la **sala**, no la reserva: dos reuniones distintas en la misma
   sala son el mismo espacio. Tocarse en el borde no es pisarse (12:00 cierra
-  uno y abre el otro). Un ticket rechazado libera su tramo; pendiente, en curso
-  y cerrado lo ocupan. Las propuestas de cambio sin aprobar no bloquean: todavía
+  uno y abre el otro). Un ticket rechazado o cancelado libera su tramo;
+  pendiente, en curso, en revisión y cerrado lo ocupan —el que está en revisión
+  porque lo que rige mientras tanto es su versión vigente—. Las propuestas de cambio sin aprobar no bloquean: todavía
   no rigen. Es por usuario y no por sala, porque quien reservó es quien recibe
   el servicio. Reglas puras en `logica.py` (`se_solapan`, `huecos_libres`),
   aplicadas en `service.py` al crear y al pedir un cambio.
@@ -139,9 +193,10 @@ y el bloque horario del servicio.
   marca el ticket como modificado en el panel hasta que el admin lo abre.
 - **Plazo congelado.** Se calcula al crear o editar (`fecha_servicio -
   dias_anticipacion` a `hora_limite`, hora de Chile) y se guarda. Cambiar la
-  regla del tipo no mueve lo ya pedido. La edición es un UPDATE condicional
-  (`estado = 'pendiente' AND plazo > NOW() AND version_actual = :v`), que es lo
-  que decide si el admin cambia el estado en el mismo instante.
+  regla del tipo no mueve lo ya pedido. Pedir un cambio exige solicitud abierta
+  y editable (`logica.editable`: pendiente o en curso, dentro de plazo y sin
+  otra propuesta esperando) más `version_actual = :v`, que es lo que decide si
+  el admin toca el ticket en el mismo instante.
 - **Imágenes en Postgres.** `tickets.archivos`, con tope de `TICKETS_ARCHIVO_MAX_MB`,
   tipo detectado por firma (PNG, JPG, GIF, WebP; SVG no) y servidas sin sesión
   por un id aleatorio de 128 bits, porque las pide un `<img>`.
@@ -162,6 +217,9 @@ TICKETS_SESION_HORAS=12
 TICKETS_RESET_HORAS=24
 TICKETS_ARCHIVO_MAX_MB=3
 TICKETS_RESERVAS_DIAS=30
+TICKETS_CANCELACION_HORAS=24
+TICKETS_CIERRE_HORA=3
+TICKETS_CIERRE_MINUTO=0
 ```
 
 ## Migración
@@ -170,7 +228,7 @@ TICKETS_RESERVAS_DIAS=30
 psql -d rh_cramer -f backend/migrations/022_create_tickets_module.sql
 psql -d rh_cramer -v ON_ERROR_STOP=1 -f backend/migrations/023_tickets_a_esquema_propio.sql
 # ... y en orden hasta la última:
-psql -d rh_cramer -v ON_ERROR_STOP=1 -f backend/migrations/030_tickets_horario_del_servicio.sql
+psql -d rh_cramer -v ON_ERROR_STOP=1 -f backend/migrations/031_tickets_estados_de_la_solicitud.sql
 ```
 
 La 022 creó las tablas como `app.tk_*`; la 023 las borra (solo si están
