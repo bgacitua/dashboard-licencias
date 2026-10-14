@@ -280,10 +280,15 @@ table, th, td, .tabular-nums {
 /* Respira mientras algo espera una decisión: la lista del panel marca así las
    solicitudes con un cambio sin resolver. Es la única animación que se repite, y
    se gana la excepción a la regla de arriba porque no decora: señala trabajo
-   pendiente, y deja de llamar la atención en cuanto alguien lo resuelve. */
+   pendiente, y deja de llamar la atención en cuanto alguien lo resuelve.
+
+   Va en box-shadow y no en border: rodea la tarjeta entera sin empujar el
+   contenido medio píxel ni pelear con el borde lateral que marca la selección
+   ni con las divisiones de la lista. `inset` para que el halo quede dentro y no
+   lo recorte el overflow-hidden del contenedor. */
 @keyframes app-respira {
-  0%, 100% { border-color: var(--color-amber-300); }
-  50%      { border-color: var(--color-amber-600); }
+  0%, 100% { box-shadow: inset 0 0 0 1.5px var(--color-amber-300); }
+  50%      { box-shadow: inset 0 0 0 2.5px var(--color-amber-600); }
 }
 
 @media (prefers-reduced-motion: reduce) {
