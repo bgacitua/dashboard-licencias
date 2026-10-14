@@ -64,6 +64,20 @@ export const mostrar = (v, etqs = {}) => {
   return typeof t === 'object' ? JSON.stringify(t) : String(t)
 }
 
+/**
+ * Las preguntas a mostrar en el resumen de una respuesta: las de la definición
+ * en su orden, y al final lo que traen los datos pero el formulario ya no
+ * pregunta. Sin esa cola, editar el tipo escondería respuestas ya enviadas.
+ */
+export function resumenCampos(definicion, datos) {
+  const cols = columnas(definicion)
+  const enDefinicion = new Set(cols.map((c) => c.name))
+  const sobrantes = Object.keys(datos || {})
+    .filter((k) => !enDefinicion.has(k))
+    .map((k) => ({ name: k, title: k, fueraDelFormulario: true }))
+  return [...cols, ...sobrantes]
+}
+
 /** El total congelado del ticket, o null si esa versión no tiene costo. */
 export const totalDe = (t) => (t?.costo?.total ?? null)
 
@@ -147,6 +161,15 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
   eq(mostrar(''), '—')
   eq(mostrar(0), '0')
   eq(mostrar(false), 'false')
+
+  // Resumen: el orden del formulario, y lo que ya no se pregunta va al final.
+  eq(resumenCampos(def, { a: 'Hola', viejo: 1 }), [
+    { name: 'a', title: 'Nombre' }, { name: 'b', title: 'Servicios' }, { name: 'c', title: 'c' },
+    { name: 'viejo', title: 'viejo', fueraDelFormulario: true },
+  ])
+  // Sin datos son solo las preguntas; sin definición, solo lo respondido.
+  eq(resumenCampos(def, {}), columnas(def))
+  eq(resumenCampos(undefined, { x: 1 }), [{ name: 'x', title: 'x', fueraDelFormulario: true }])
 
   // Opciones del catálogo: lo guardado es el value, se muestra el texto.
   const defSrv = {
