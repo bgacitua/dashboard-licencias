@@ -37,6 +37,17 @@ class TicketsSettings(BaseSettings):
     # guardar: fuera de ella la solicitud se rechaza.
     reservas_dias: int = 30
 
+    # Horas de anticipación bajo las cuales cancelar ya se cobra. No impide
+    # cancelar: solo marca el ticket para el panel y el reporte. La política no
+    # se le muestra al usuario final, por pedido del negocio.
+    cancelacion_horas: int = 24
+
+    # Hora del barrido que cierra las solicitudes cuyo día de servicio ya pasó,
+    # en `zona`. De madrugada: a esa hora no queda nadie atendiendo y el panel
+    # amanece con el día anterior ya ordenado.
+    cierre_hora: int = 3
+    cierre_minuto: int = 0
+
     # Webhook de n8n que manda los correos de las cuentas (aviso de registro al
     # admin, aprobación y rechazo al usuario). La pone quien despliega, no un
     # admin desde el panel, así que no necesita allowlist. Vacío = sin correos.

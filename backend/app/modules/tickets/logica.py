@@ -7,7 +7,27 @@ from datetime import date, datetime, time, timedelta
 
 import pytz
 
-ESTADOS = ("pendiente", "en_curso", "rechazado", "cerrado")
+# El recorrido de una solicitud:
+#
+#   pendiente ──(el admin la toma)──> en_curso ──(pasa el día)──> cerrado
+#       │                                 │
+#       └────(el usuario modifica)───> en_revision ──(resuelta)──> en_curso
+#       │                                 │
+#       └─────────────────────────────────┴──> cancelado (el usuario se baja)
+#                                         └──> rechazado (el admin, con motivo)
+#
+# `en_revision` no la pone nadie a mano: la enciende la solicitud de cambio y
+# la apaga el administrador al resolverla, apruebe o rechace.
+ESTADOS = ("pendiente", "en_curso", "en_revision", "cancelado", "rechazado", "cerrado")
+
+# Los que el administrador puede poner desde el panel. `cancelado` es del
+# usuario final y `en_revision` la mueve el flujo de cambios: ninguno de los
+# dos es un botón del panel, o el estado diría algo que no pasó.
+ESTADOS_ADMIN = ("pendiente", "en_curso", "rechazado", "cerrado")
+
+# Una solicitud que todavía puede moverse. Son las que el usuario puede
+# cancelar y las que el cierre automático alcanza; el resto ya terminó.
+ESTADOS_ABIERTOS = ("pendiente", "en_curso", "en_revision")
 
 
 def calcular_plazo(fecha_servicio: date, dias: int, hora: time, zona: str) -> datetime:
@@ -33,14 +53,63 @@ def editable(
 ) -> bool:
     """Si el usuario puede proponer un cambio.
 
-    Solo lo pendiente y dentro de plazo. En curso, rechazado o cerrado ya es del
-    admin: tocarlo cambiaría algo que otro está atendiendo. Y con una propuesta
-    esperando respuesta no se admite otra, o el admin estaría resolviendo una
-    mientras la siguiente ya la dejó vieja.
+    Pendiente o en curso, y dentro de plazo. Que ya se esté atendiendo no le
+    cierra la puerta: el cambio no entra solo, se lo manda al administrador
+    para que decida. Cancelado, rechazado y cerrado no se tocan, porque ahí la
+    solicitud ya terminó. Y con una propuesta esperando respuesta no se admite
+    otra —el ticket está en `en_revision`, que no es editable— o el admin
+    estaría resolviendo una mientras la siguiente ya la dejó vieja.
     """
     if propuesta_pendiente:
         return False
-    return estado == "pendiente" and ahora < plazo_efectivo(plazo, emergencia)
+    return estado in ("pendiente", "en_curso") and ahora < plazo_efectivo(plazo, emergencia)
+
+
+def cancelable(estado: str) -> bool:
+    """Si el usuario final puede bajarse de la solicitud.
+
+    Sin plazo de por medio, a propósito: cancelar tarde se cobra, pero eso es
+    cosa del casino y del reporte, no un motivo para dejar a alguien amarrado a
+    un servicio que ya no necesita. Ver `cancelacion_tardia`.
+    """
+    return estado in ESTADOS_ABIERTOS
+
+
+def inicio_del_evento(
+    fecha_servicio: date, servicio_inicio: time | None, zona: str,
+) -> datetime:
+    """Cuándo empieza lo que se pidió, con zona.
+
+    Sin tramo guardado —los tickets anteriores a la integración con Outlook— se
+    toma el comienzo del día del servicio: es lo más temprano que pudo ser, y al
+    medir una anticipación conviene quedarse corto antes que cobrar de más.
+    """
+    return pytz.timezone(zona).localize(
+        datetime.combine(fecha_servicio, servicio_inicio or time(0, 0))
+    )
+
+
+def cancelacion_tardia(
+    fecha_servicio: date, servicio_inicio: time | None, ahora: datetime, zona: str,
+    horas: int = 24,
+) -> bool:
+    """Si cancelar a esta hora cae dentro de la ventana que el casino cobra.
+
+    No bloquea nada: es una marca para el panel y el reporte. La política no se
+    le muestra al usuario final, así que esto no tiene que llegar al portal.
+    """
+    return ahora > inicio_del_evento(fecha_servicio, servicio_inicio, zona) - timedelta(hours=horas)
+
+
+def cierra_automaticamente(estado: str, fecha_servicio: date, hoy: date) -> bool:
+    """Si al correr el barrido de `hoy` esta solicitud ya puede darse por
+    cerrada: el día del servicio quedó atrás y nadie la cerró a mano.
+
+    Un día después y no el mismo día: el servicio se presta hasta el final de
+    su jornada, y cerrarlo mientras todavía puede estar ocurriendo dejaría el
+    panel mintiendo.
+    """
+    return estado in ESTADOS_ABIERTOS and fecha_servicio < hoy
 
 
 # Firmas de los formatos que se aceptan. SVG queda fuera a propósito: es XML con
@@ -172,9 +241,11 @@ def calcular_costo(datos: dict, tarifas: dict, pregunta_cantidad: str | None) ->
     return {"total": sum(l["subtotal"] for l in lineas), "lineas": lineas}
 
 
-# Estados que siguen ocupando el horario. Un ticket rechazado no se va a
-# servir, así que libera su tramo; cerrado sí ocupa, porque ya se sirvió.
-ESTADOS_QUE_OCUPAN = ("pendiente", "en_curso", "cerrado")
+# Estados que siguen ocupando el horario. Rechazado y cancelado no se van a
+# servir, así que liberan su tramo; cerrado sí ocupa, porque ya se sirvió. Uno
+# en revisión también: lo que rige mientras tanto es su versión vigente, y esa
+# sigue en pie pase lo que pase con el cambio.
+ESTADOS_QUE_OCUPAN = ("pendiente", "en_curso", "en_revision", "cerrado")
 
 
 def se_solapan(a_inicio: time, a_fin: time, b_inicio: time, b_fin: time) -> bool:

@@ -15,8 +15,8 @@ from . import service
 from .auth import UsuarioPortal, crear_token, db_portal
 from .models import TkArchivo, TkTipo
 from .schemas import (
-    CambioClaveIn, LoginIn, MeOut, RegistroIn, ReservaOut, SesionOut, TicketDetalle,
-    TicketEdit, TicketIn, TicketResumen, TipoOut,
+    CambioClaveIn, CancelacionIn, LoginIn, MeOut, RegistroIn, ReservaOut, SesionOut,
+    TicketDetalle, TicketEdit, TicketIn, TicketResumen, TipoOut,
 )
 
 portal = APIRouter(prefix="/portal", tags=["tickets-portal"])
@@ -125,6 +125,25 @@ def editar(
         aviso["usuario"], service.url_portal("/tickets/admin"), ticket=aviso["ticket"],
     )
     return {"id": ticket_id, "version": aviso["ticket"]["version"], "propuesta": True}
+
+
+@portal.post("/tickets/{ticket_id}/cancelar", status_code=204)
+def cancelar(
+    ticket_id: int, datos: CancelacionIn, usuario: UsuarioPortal, db: Db,
+    tareas: BackgroundTasks,
+) -> None:
+    """El usuario se baja de su solicitud.
+
+    Sin plazo y sin advertencia de cobro: la política de cancelación no es
+    pública para el usuario final, así que el portal no la nombra ni devuelve
+    la marca. Quien tiene que enterarse —y a tiempo— es el administrador, que
+    es quien deja de preparar el servicio.
+    """
+    aviso = service.cancelar_ticket(db, usuario, ticket_id, datos.motivo)
+    tareas.add_task(
+        service.notificar, "ticket_cancelado", service.settings.admin_emails_list,
+        aviso["usuario"], service.url_portal("/tickets/admin"), ticket=aviso["ticket"],
+    )
 
 
 @archivos.get("/archivos/{archivo_id}")
