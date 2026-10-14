@@ -489,7 +489,7 @@ def resolver_propuesta(db: Session, ticket_id: int, aprobar: bool, autor: str) -
 _SELECT_TICKETS = """
     SELECT t.id, t.tipo_id, tp.nombre AS tipo, t.estado, t.fecha_servicio, t.plazo,
            t.hora_inicio, t.hora_fin, t.servicio_inicio, t.servicio_fin,
-           t.reserva_asunto, t.reserva_sala,
+           t.reserva_id, t.reserva_asunto, t.reserva_sala,
            t.version_actual, t.version_vista_admin, t.created_at, t.updated_at,
            t.plazo_emergencia, t.cancelacion_tardia,
            EXISTS (SELECT 1 FROM tickets.versiones v
