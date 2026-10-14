@@ -57,7 +57,9 @@ export const titulos = (definicion) =>
 export const mostrar = (v, etqs = {}) => {
   if (v === undefined || v === null || v === '') return '—'
   const uno = (x) => (typeof x === 'string' && etqs[x]) || x
-  if (Array.isArray(v)) return v.map(uno).join(', ')
+  // Un checkbox sin marcar llega como [] y es tan "sin responder" como un
+  // texto vacío: en el resumen, fila por pregunta, la diferencia se nota.
+  if (Array.isArray(v)) return v.length ? v.map(uno).join(', ') : '—'
   const t = uno(v)
   return typeof t === 'object' ? JSON.stringify(t) : String(t)
 }
@@ -141,6 +143,7 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
   eq(columnas(undefined), [])
   eq(titulos(def), { a: 'Nombre', b: 'Servicios', c: 'c' })
   eq(mostrar(['x', 'y']), 'x, y')
+  eq(mostrar([]), '—')
   eq(mostrar(''), '—')
   eq(mostrar(0), '0')
   eq(mostrar(false), 'false')
