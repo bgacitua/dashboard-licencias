@@ -99,6 +99,10 @@ const FIJAS = [
   ['Solicitante', (t) => t.usuario || ''],
   ['Correo', (t) => t.email || ''],
   ['Estado', (t) => t.estado],
+  // Lo que decide si una cancelación se cobra igual. Va al lado del estado
+  // porque es la otra mitad de la misma respuesta: canceló, sí, ¿pero a
+  // tiempo? Vacío en todo lo que no se canceló.
+  ['Cancelación tardía', (t) => (t.cancelacion_tardia == null ? '' : t.cancelacion_tardia ? 'Sí' : 'No')],
   ['Fecha servicio', (t) => t.fecha_servicio || ''],
   ['Enviado', (t) => t.created_at || ''],
   ['Última edición', (t) => t.updated_at || ''],
@@ -200,10 +204,14 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
        datos: { a: 'Hola', b: ['x', 'y'] } }],
     columnas(def),
   )
-  eq(exp.columns, ['N°', 'Solicitante', 'Correo', 'Estado', 'Fecha servicio', 'Enviado',
-    'Última edición', 'Versión', 'Costo', 'Detalle del costo', 'Nombre', 'Servicios', 'c'])
+  eq(exp.columns, ['N°', 'Solicitante', 'Correo', 'Estado', 'Cancelación tardía', 'Fecha servicio',
+    'Enviado', 'Última edición', 'Versión', 'Costo', 'Detalle del costo', 'Nombre', 'Servicios', 'c'])
   // Sin costo congelado la celda va vacía, no en 0: no es lo mismo.
   eq(exp.rows[0].Costo, '')
+  // Sin cancelar, la columna va vacía: 'No' diría que canceló a tiempo.
+  eq(exp.rows[0]['Cancelación tardía'], '')
+  eq(filasExport([{ id: 6, estado: 'cancelado', cancelacion_tardia: true }], []).rows[0]['Cancelación tardía'], 'Sí')
+  eq(filasExport([{ id: 7, estado: 'cancelado', cancelacion_tardia: false }], []).rows[0]['Cancelación tardía'], 'No')
   eq(exp.rows[0]['N°'], 5)
   eq(exp.rows[0].Nombre, 'Hola')
   eq(exp.rows[0].Servicios, 'x, y')

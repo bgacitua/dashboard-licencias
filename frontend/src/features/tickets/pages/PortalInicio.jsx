@@ -3,7 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
 import { useDialogo } from '../../../components/Dialogos';
-import { ESTADOS, fechaCorta, fechaHora, misTickets, tiposPortal, tramoYSala } from '../services/tickets';
+import {
+    ESTADOS, ESTADOS_ABIERTOS, fechaCorta, fechaHora, misTickets, tiposPortal, tramoYSala,
+} from '../services/tickets';
 
 const reglaPlazo = (t) =>
     t.dias_anticipacion === 0
@@ -35,9 +37,11 @@ export default function PortalInicio() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // El corte es abierta / terminada, no una lista de estados: así un estado
+    // nuevo cae solo del lado que le toca en vez de desaparecer de las dos.
     const [enCurso, historial] = useMemo(() => [
-        tickets.filter((t) => t.estado === 'pendiente' || t.estado === 'en_curso'),
-        tickets.filter((t) => t.estado === 'rechazado' || t.estado === 'cerrado'),
+        tickets.filter((t) => ESTADOS_ABIERTOS.includes(t.estado)),
+        tickets.filter((t) => !ESTADOS_ABIERTOS.includes(t.estado)),
     ], [tickets]);
     const lista = vista === 'curso' ? enCurso : historial;
 
@@ -126,7 +130,7 @@ export default function PortalInicio() {
                     ))}
                     {lista.length === 0 && (
                         <li className="px-4 py-8 text-center text-sm text-slate-500">
-                            {vista === 'curso' ? 'No tienes solicitudes en curso.' : 'Aún no hay solicitudes cerradas.'}
+                            {vista === 'curso' ? 'No tienes solicitudes en curso.' : 'Aún no hay solicitudes terminadas.'}
                         </li>
                     )}
                 </ul>

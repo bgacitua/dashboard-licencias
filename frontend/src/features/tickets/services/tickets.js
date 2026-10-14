@@ -55,6 +55,10 @@ export const misTickets = () => portal('/tickets');
 export const miTicket = (id) => portal(`/tickets/${id}`);
 export const crearTicket = (datos) => portal('/tickets', { method: 'POST', body: datos });
 export const editarTicket = (id, datos) => portal(`/tickets/${id}`, { method: 'PUT', body: datos });
+// Cancelar no tiene plazo y el portal no nombra ningún cobro: la política de
+// cancelación no es pública para el usuario final.
+export const cancelarTicket = (id, motivo) =>
+    portal(`/tickets/${id}/cancelar`, { method: 'POST', body: { motivo } });
 
 // === Panel ===
 
@@ -105,12 +109,21 @@ export const resetUsuario = (id) => admin(`/usuarios/${id}/reset`, { method: 'PO
 
 // === Formato compartido ===
 
+// En el orden del recorrido, que es como se leen los filtros del panel.
+// 'cancelado' y 'rechazado' son dos cosas distintas a propósito: se bajó el
+// solicitante o lo bajó el administrador, y en el reporte no da lo mismo.
 export const ESTADOS = {
     pendiente: { label: 'Pendiente', clase: 'bg-amber-100 text-amber-800' },
     en_curso: { label: 'En curso', clase: 'bg-blue-100 text-blue-800' },
+    en_revision: { label: 'En revisión', clase: 'bg-violet-100 text-violet-800' },
+    cancelado: { label: 'Cancelado', clase: 'bg-orange-100 text-orange-800' },
     rechazado: { label: 'Rechazado', clase: 'bg-red-100 text-red-800' },
     cerrado: { label: 'Cerrado', clase: 'bg-gray-200 text-gray-700' },
 };
+
+// Los que todavía se mueven. El portal parte el historial con esto y el panel
+// decide con ellos si ofrecer reabrir.
+export const ESTADOS_ABIERTOS = ['pendiente', 'en_curso', 'en_revision'];
 
 export const fechaCorta = (iso) =>
     iso ? new Date(`${iso}`.length === 10 ? `${iso}T12:00:00` : iso)
