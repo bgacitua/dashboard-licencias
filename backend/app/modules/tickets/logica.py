@@ -279,3 +279,18 @@ def huecos_libres(
     if cursor < bloque_fin:
         libres.append((cursor, bloque_fin))
     return [(a, b) for a, b in libres if a < b]
+
+
+def disponibilidad_del_bloque(
+    bloque_inicio: time, bloque_fin: time, ocupados: list[tuple[time, time]],
+) -> tuple[list[tuple[time, time]], list[tuple[time, time]]]:
+    """Lo ocupado y lo libre de un bloque reservado, a partir de lo ya pedido.
+
+    Los tramos pueden venir de otras reuniones del mismo día en la misma sala,
+    así que primero se descarta lo que no toca este bloque: decirle al usuario
+    que tiene ocupado un horario fuera de la reserva que está mirando no explica
+    nada. Qué tickets entran en `ocupados` lo decide el service contra la base;
+    acá solo se recorta, que es la parte que no necesita base para probarse.
+    """
+    dentro = sorted(t for t in ocupados if se_solapan(bloque_inicio, bloque_fin, *t))
+    return dentro, huecos_libres(bloque_inicio, bloque_fin, dentro)

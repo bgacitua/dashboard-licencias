@@ -270,6 +270,10 @@ class TicketResumen(BaseModel):
     hora_fin: time | None = None
     servicio_inicio: time | None = None
     servicio_fin: time | None = None
+    # De qué reserva de Outlook salió. El portal lo necesita para reconocer la
+    # reunión del ticket entre las del calendario: sin él, pedir un cambio sin
+    # mover sala ni horario se leía como un choque consigo mismo.
+    reserva_id: str | None = None
     reserva_asunto: str | None = None
     reserva_sala: str | None = None
     plazo: datetime

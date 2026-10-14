@@ -10,8 +10,8 @@ from app.modules.tickets.config import TicketsSettings
 from app.modules.tickets.logica import (
     ESTADOS, ESTADOS_ABIERTOS, ESTADOS_ADMIN, ESTADOS_QUE_OCUPAN, aviso_de_cambio,
     calcular_costo, calcular_plazo, cancelable, cancelacion_tardia, cantidad_de,
-    cierra_automaticamente, clave_jwt, editable, huecos_libres, id_de_servicio,
-    mime_de_imagen, plazo_efectivo, se_solapan, servicios_respondidos,
+    cierra_automaticamente, clave_jwt, disponibilidad_del_bloque, editable, huecos_libres,
+    id_de_servicio, mime_de_imagen, plazo_efectivo, se_solapan, servicios_respondidos,
 )
 
 
@@ -392,6 +392,33 @@ def test_lo_que_queda_libre():
     print("ok  lo que queda libre")
 
 
+def test_disponibilidad_de_la_reserva():
+    """Lo que el portal pinta en cada reserva, y qué cambia al editar un ticket."""
+    bloque = (time(10, 0), time(13, 0))
+    # Tramos del usuario ese día en esa sala: uno dentro de esta reunión y otro
+    # de otra reunión más tarde, que no tiene por qué ensuciar este bloque.
+    propio = (time(12, 0), time(13, 0))
+    otra_reunion = (time(15, 0), time(16, 0))
+
+    ocupados, libres = disponibilidad_del_bloque(*bloque, [otra_reunion, propio])
+    assert ocupados == [propio]
+    assert libres == [(time(10, 0), time(12, 0))]
+
+    # Editando ese mismo ticket, su tramo no viene en la lista (el service lo
+    # saca con `excluir_ticket`): la reserva vuelve a estar entera disponible y
+    # el usuario puede mover el servicio sin chocar consigo mismo.
+    assert disponibilidad_del_bloque(*bloque, [otra_reunion]) == ([], [bloque])
+
+    # Un tramo que empieza donde termina el bloque no lo toca: 13:00 cierra uno
+    # y abre el otro.
+    assert disponibilidad_del_bloque(*bloque, [(time(13, 0), time(14, 0))]) == ([], [bloque])
+
+    # Lo ocupado sale ordenado aunque la consulta lo devuelva en cualquier orden.
+    revueltos = [(time(12, 0), time(12, 30)), (time(10, 30), time(11, 0))]
+    assert disponibilidad_del_bloque(*bloque, revueltos)[0] == sorted(revueltos)
+    print("ok  disponibilidad de la reserva")
+
+
 if __name__ == "__main__":
     test_plazo()
     test_editable()
@@ -414,3 +441,4 @@ if __name__ == "__main__":
     test_tramo_del_servicio()
     test_tramos_que_se_pisan()
     test_lo_que_queda_libre()
+    test_disponibilidad_de_la_reserva()

@@ -50,7 +50,10 @@ export const tiposPortal = () => portal('/tipos');
 // Reservas de sala del usuario en Outlook: son los bloques sobre los que se
 // puede pedir un servicio. Cada llamada va a Microsoft, así que se pide una
 // vez al abrir el formulario y no en cada tecla.
-export const reservasPortal = () => portal('/reservas');
+// Editando un ticket se manda su id: el backend deja de contar su propio tramo
+// como ocupado, que es lo que hace utilizable el horario que se quiere mover.
+export const reservasPortal = (excluirTicket) =>
+    portal(`/reservas${excluirTicket ? `?excluir_ticket=${encodeURIComponent(excluirTicket)}` : ''}`);
 export const misTickets = () => portal('/tickets');
 export const miTicket = (id) => portal(`/tickets/${id}`);
 export const crearTicket = (datos) => portal('/tickets', { method: 'POST', body: datos });

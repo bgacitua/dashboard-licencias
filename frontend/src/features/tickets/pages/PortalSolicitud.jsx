@@ -9,6 +9,7 @@ import CarruselNoticias from '../components/CarruselNoticias';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
 import { useDialogo } from '../../../components/Dialogos';
+import { etiquetas, mostrar, resumenCampos } from '../respuestas';
 import {
     bloque, cabeEnLibres, cancelarTicket, crearTicket, editarTicket, fechaCorta, fechaHora,
     mayorHueco, miTicket, plazoPara, reservasPortal, tiposPortal, tramoDe, tramoTexto,
@@ -91,7 +92,7 @@ export default function PortalSolicitud() {
     useEffect(() => {
         if (!hayQueElegir || reservas) return;
         setErrorReservas('');
-        reservasPortal()
+        reservasPortal(id)
             .then(setReservas)
             .catch((e) => { setReservas([]); setErrorReservas(manejar(e)); });
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,8 +110,16 @@ export default function PortalSolicitud() {
     // es el caso más común y deja el formulario utilizable sin tocar nada. Si
     // se vuelve a la reserva que el ticket ya tenía, vuelve su tramo guardado.
     const alElegirReserva = (r) => {
-        setReservaId(r.id);
         setError('');
+        // Segundo click sobre la misma: se suelta. Sin esto, elegida una sala
+        // no había forma de volver a "ninguna" salvo recargar, y en un paso
+        // que es justamente de elegir eso se siente trabado.
+        if (r.id === reservaId) {
+            setReservaId('');
+            setTramo({ inicio: '', fin: '' });
+            return;
+        }
+        setReservaId(r.id);
         const suyo = ticket && ticket.reserva_id === r.id && ticket.servicio_inicio;
         if (suyo) {
             setTramo({ inicio: hhmm(ticket.servicio_inicio), fin: hhmm(ticket.servicio_fin) });
@@ -132,6 +141,15 @@ export default function PortalSolicitud() {
         setTramo({ inicio: hhmm(ticket.servicio_inicio), fin: hhmm(ticket.servicio_fin) });
     }, [ticket, reservaId]);
 
+    // Lo respondido en la versión que rige, pregunta por pregunta. Sale de los
+    // mismos helpers que usa el panel: una sola forma de leer un formulario
+    // guardado, y las preguntas que el admin sacó después igual se muestran.
+    const etqs = useMemo(() => etiquetas(tipo?.definicion), [tipo]);
+    const respondido = useMemo(
+        () => (ticket ? resumenCampos(tipo?.definicion, ticket.datos) : []),
+        [tipo, ticket],
+    );
+
     const propuesta = ticket?.propuesta || null;
     // Con un cambio esperando respuesta el formulario se congela: otro
     // encima dejaría al administrador resolviendo algo ya viejo.
@@ -146,13 +164,14 @@ export default function PortalSolicitud() {
         && (tramo.inicio < hhmm(reserva.hora_inicio) || tramo.fin > hhmm(reserva.hora_fin));
     const alReves = !!tramo.inicio && !!tramo.fin && tramo.fin <= tramo.inicio;
     // Lo que el usuario ya pidió en esa sala ese día lo manda el backend con la
-    // reserva. Al editar, el tramo del propio ticket no cuenta como ocupado:
-    // es justo el que se está moviendo.
-    const libres = (reserva?.libres || []).concat(
-        ticket && ticket.reserva_id === reserva?.id && ticket.servicio_inicio
-            ? [{ inicio: ticket.servicio_inicio, fin: ticket.servicio_fin }]
-            : [],
-    );
+    // reserva, y al editar ya viene sin el tramo del propio ticket: su id viaja
+    // en la llamada. Acá no se vuelve a compensar, por dos razones. La regla de
+    // qué ocupa un horario queda escrita en un solo lado, que es el que valida
+    // al guardar. Y sumarlo de nuevo rompería el aviso de choque: el backend
+    // devuelve el tramo propio ya fundido con el hueco contiguo, así que el
+    // concat dejaba el mensaje diciendo "te queda libre 12:00 a 14:00 y 12:00
+    // a 13:00".
+    const libres = reserva?.libres || [];
     const pisado = !!reserva && !!tramo.inicio && !!tramo.fin && !alReves && !fueraDelBloque
         && !cabeEnLibres(libres, tramo.inicio, tramo.fin);
 
@@ -162,8 +181,8 @@ export default function PortalSolicitud() {
         : !tramo.inicio || !tramo.fin ? 'Indica desde y hasta qué hora necesitas el servicio.'
             : alReves ? 'La hora de término tiene que ser posterior a la de inicio.'
                 : fueraDelBloque ? `El horario tiene que quedar dentro de tu reserva (${bloque(reserva)}).`
-                    : pisado ? (reserva.libres?.length
-                        ? `Ya pediste un servicio que se pisa con ese horario. Te queda libre ${reserva.libres.map(tramoTexto).join(' y ')}.`
+                    : pisado ? (libres.length
+                        ? `Ya pediste un servicio que se pisa con ese horario. Te queda libre ${libres.map(tramoTexto).join(' y ')}.`
                         : 'Ya pediste servicios para toda esa reserva. Elige otra reservación.')
                         : vencido ? 'El plazo para esa fecha ya venció. Elige otra reserva.' : '';
 
@@ -418,18 +437,44 @@ export default function PortalSolicitud() {
             {/* El ticket guarda una copia de la reserva: si la movieron en
                 Outlook, lo pedido sigue donde quedó. Por eso en un ticket ya
                 enviado se muestra lo guardado y no lo que dice el calendario. */}
-            {ticket?.hora_inicio && (
+            {ticket && (
                 <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-5 py-4">
                     <p className="text-sm font-medium text-slate-800">Lo que pediste</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                        {fechaCorta(ticket.fecha_servicio)} · {tramoDe(ticket)}
-                        {ticket.reserva_sala ? ` · ${ticket.reserva_sala}` : ''}
-                        {ticket.reserva_asunto ? ` — ${ticket.reserva_asunto}` : ''}
-                    </p>
-                    {bloque(ticket) && (
-                        <p className="mt-1 text-xs text-slate-500">
-                            Dentro de tu reserva de {bloque(ticket)}
-                        </p>
+                    {ticket.hora_inicio && (
+                        <>
+                            <p className="mt-1 text-sm text-slate-600">
+                                {fechaCorta(ticket.fecha_servicio)} · {tramoDe(ticket)}
+                                {ticket.reserva_sala ? ` · ${ticket.reserva_sala}` : ''}
+                                {ticket.reserva_asunto ? ` — ${ticket.reserva_asunto}` : ''}
+                            </p>
+                            {bloque(ticket) && (
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Dentro de tu reserva de {bloque(ticket)}
+                                </p>
+                            )}
+                        </>
+                    )}
+
+                    {/* Las respuestas, no solo la fecha: para decidir si hace falta
+                        cambiar algo hay que poder leer lo que uno contestó sin
+                        bajar hasta el formulario. */}
+                    {respondido.length > 0 && (
+                        <dl className="mt-3 border-t border-slate-100 pt-1">
+                            {respondido.map((c) => (
+                                <div key={c.name}
+                                    className="-mx-2 grid grid-cols-1 gap-x-6 rounded-lg px-2 py-2 transition-colors hover:bg-slate-50 sm:grid-cols-[14rem_minmax(0,1fr)]">
+                                    <dt className="text-sm text-slate-500">
+                                        {c.title}
+                                        {c.fueraDelFormulario && (
+                                            <span className="ml-1 text-xs text-slate-400">(ya no se pregunta)</span>
+                                        )}
+                                    </dt>
+                                    <dd className="whitespace-pre-wrap text-sm text-slate-900">
+                                        {mostrar(ticket.datos?.[c.name], etqs)}
+                                    </dd>
+                                </div>
+                            ))}
+                        </dl>
                     )}
                 </div>
             )}
@@ -614,7 +659,7 @@ export default function PortalSolicitud() {
                             disabled={!!traba}
                             className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition-all duration-200 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
                         >
-                            Continuar al formulario
+                            {ticket ? 'Solicitud de modificación' : 'Continuar al formulario'}
                             <span className="material-symbols-outlined text-lg">arrow_forward</span>
                         </button>
                     )}

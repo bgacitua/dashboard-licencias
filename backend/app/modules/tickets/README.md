@@ -133,8 +133,14 @@ y el bloque horario del servicio.
   pendiente, en curso, en revisión y cerrado lo ocupan —el que está en revisión
   porque lo que rige mientras tanto es su versión vigente—. Las propuestas de cambio sin aprobar no bloquean: todavía
   no rigen. Es por usuario y no por sala, porque quien reservó es quien recibe
-  el servicio. Reglas puras en `logica.py` (`se_solapan`, `huecos_libres`),
-  aplicadas en `service.py` al crear y al pedir un cambio.
+  el servicio. Reglas puras en `logica.py` (`se_solapan`, `huecos_libres`,
+  `disponibilidad_del_bloque`), aplicadas en `service.py` al crear y al pedir un
+  cambio. Editando un ticket, su propio tramo no se cuenta: el portal manda su
+  id en `excluir_ticket` al pedir `/reservas` y el backend lo descuenta antes de
+  armar `libres`. Antes lo compensaba el navegador: la regla quedaba escrita en
+  dos lados, y como el backend devuelve el tramo propio fundido con el hueco de
+  al lado, el aviso de choque terminaba ofreciendo dos veces el mismo rango. El
+  id se valida contra el dueño: uno ajeno responde 404, igual que el detalle.
 - **El servicio va dentro de la reserva.** Elegida la reunión, el usuario dice
   desde y hasta qué hora necesita el servicio (`servicio_inicio` /
   `servicio_fin`), que puede ser más corto que el bloque: café a las 15:30 en

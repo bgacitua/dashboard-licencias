@@ -604,18 +604,20 @@ export default function AdminTickets() {
                             const f = diaMes(t.fecha_servicio);
                             return (
                                 <li key={t.id}>
-                                    {/* El borde izquierdo dice tres cosas distintas: rojo
-                                        fijo es la que está abierta, ámbar que respira es
-                                        la que tiene un cambio sin resolver, y transparente
-                                        el resto. La selección gana: si ya la estás mirando,
-                                        que siga latiendo no agrega nada. */}
+                                    {/* Dos marcas que conviven: el borde lateral rojo dice
+                                        cuál está abierta, y un contorno ámbar que late rodea
+                                        la tarjeta entera cuando tiene un cambio sin resolver.
+                                        El contorno va en box-shadow, así que no desplaza nada
+                                        y puede convivir con el borde de la selección. El
+                                        shadow fijo es lo que queda cuando
+                                        prefers-reduced-motion corta la animación. */}
                                     <button onClick={() => setAbierto(t.id)}
                                         className={`flex w-full items-start gap-3 border-l-4 px-3 py-3 pl-2 text-left hover:bg-gray-50 ${
-                                            abierto === t.id
-                                                ? 'border-red-800 bg-red-50'
-                                                : t.modificado
-                                                    ? 'animate-respira border-amber-400'
-                                                    : 'border-transparent'
+                                            abierto === t.id ? 'border-red-800 bg-red-50' : 'border-transparent'
+                                        } ${
+                                            t.modificado
+                                                ? 'animate-respira shadow-[inset_0_0_0_1.5px_var(--color-amber-400)]'
+                                                : ''
                                         }`}>
                                         <span className="flex w-12 shrink-0 flex-col items-center rounded-lg border border-gray-200 py-1 leading-tight">
                                             <span className="text-[10px] uppercase text-gray-500">{f.semana}</span>
