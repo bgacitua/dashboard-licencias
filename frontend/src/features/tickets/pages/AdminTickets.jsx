@@ -296,9 +296,14 @@ function Detalle({ id, tipos, onCambio }) {
                                 v{verVersion}{verVersion === t.version_actual ? ' · vigente' : ''}
                             </span>
                         </div>
-                        <dl className="mt-4 divide-y divide-gray-100 border-t border-gray-100">
+                        {/* Sin líneas divisorias: lo que separa una respuesta de la
+                            siguiente es el realce al pasar por encima, que además
+                            acompaña la lectura en un formulario largo. El -mx-2 con
+                            px-2 deja que la banda respire sin mover la grilla. */}
+                        <dl className="mt-4">
                             {resumen.map((c) => (
-                                <div key={c.name} className="grid grid-cols-1 gap-x-6 py-2.5 sm:grid-cols-[14rem_minmax(0,1fr)]">
+                                <div key={c.name}
+                                    className="-mx-2 grid grid-cols-1 gap-x-6 rounded-lg px-2 py-2.5 transition-colors hover:bg-gray-50 sm:grid-cols-[14rem_minmax(0,1fr)]">
                                     <dt className="text-sm text-gray-600">
                                         {c.title}
                                         {c.fueraDelFormulario && (
