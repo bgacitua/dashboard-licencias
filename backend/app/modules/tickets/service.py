@@ -19,8 +19,9 @@ from . import calendario
 from .auth import HASH_SEÑUELO, pwd
 from .config import settings
 from .logica import (
-    ESTADOS_QUE_OCUPAN, calcular_costo, calcular_plazo, editable, huecos_libres,
-    id_de_servicio, mime_de_imagen, plazo_efectivo, se_solapan, servicios_respondidos,
+    ESTADOS_ABIERTOS, ESTADOS_ADMIN, ESTADOS_QUE_OCUPAN, calcular_costo, calcular_plazo,
+    cancelable, cancelacion_tardia, editable, huecos_libres, id_de_servicio, mime_de_imagen,
+    plazo_efectivo, se_solapan, servicios_respondidos,
 )
 from .models import (
     TkArchivo, TkEvento, TkServicio, TkServicioPrecio, TkTicket, TkTipo, TkUsuario, TkVersion,
@@ -428,6 +429,14 @@ def proponer_cambio(
         ticket_id=ticket_id, version=siguiente, datos=datos, ip=ip,
         costo=costo_de(db, tipo, datos), estado="propuesta", **campos,
     ))
+    # El estado lo dice ahora el ticket y no solo la versión: quien mira el
+    # panel tiene que ver que esta solicitud quedó esperando una respuesta suya
+    # sin abrirla. Vuelve a 'en_curso' cuando la resuelve.
+    ticket.estado = "en_revision"
+    db.add(TkEvento(
+        ticket_id=ticket_id, autor=usuario.nombre or usuario.email, es_admin=False,
+        estado_nuevo="en_revision", texto=f"Solicitud de modificación enviada (versión {siguiente}).",
+    ))
     try:
         db.commit()
     except IntegrityError:
@@ -462,6 +471,11 @@ def resolver_propuesta(db: Session, ticket_id: int, aprobar: bool, autor: str) -
             setattr(ticket, campo, getattr(propuesta, campo))
         ticket.plazo = _plazo(db.get(TkTipo, ticket.tipo_id), propuesta.fecha_servicio)
         ticket.updated_at = ahora()
+    # Resuelta la revisión, la solicitud queda en curso: aprobar o rechazar el
+    # cambio no la devuelve a la cola de pendientes, porque el administrador ya
+    # la tomó. Si entre medio la cancelaron o la cerró el barrido, manda eso.
+    if ticket.estado == "en_revision":
+        ticket.estado = "en_curso"
     db.commit()
 
     comentar(
@@ -477,7 +491,7 @@ _SELECT_TICKETS = """
            t.hora_inicio, t.hora_fin, t.servicio_inicio, t.servicio_fin,
            t.reserva_asunto, t.reserva_sala,
            t.version_actual, t.version_vista_admin, t.created_at, t.updated_at,
-           t.plazo_emergencia,
+           t.plazo_emergencia, t.cancelacion_tardia,
            EXISTS (SELECT 1 FROM tickets.versiones v
                     WHERE v.ticket_id = t.id AND v.estado = 'propuesta') AS con_propuesta,
            u.nombre AS usuario, u.email
@@ -512,12 +526,17 @@ def _resumen(row: dict, admin: bool) -> dict:
     # Hasta cuándo se puede pedir un cambio de verdad, contando la emergencia.
     # Es lo que hay que mostrarle al usuario, no el plazo de la regla.
     r["plazo_efectivo"] = plazo_efectivo(r["plazo"], r.get("plazo_emergencia"))
+    # Cancelar no mira el plazo: solo que la solicitud siga abierta.
+    r["cancelable"] = cancelable(r["estado"])
     vista = r.pop("version_vista_admin")
     # Lo que el admin tiene que resolver es la propuesta, no una versión ya
     # aplicada: con el flujo de aprobación 'modificado' pasa a significar eso.
     r["modificado"] = admin and bool(r.get("con_propuesta"))
     if not admin:
         r.pop("plazo_emergencia", None)
+        # Que haya una ventana de cobro no se le dice al usuario final: la
+        # política de cancelación no es pública, y el dato es del reporte.
+        r.pop("cancelacion_tardia", None)
     if not admin:
         r["usuario"] = r["email"] = None
     return r
@@ -585,16 +604,49 @@ def detalle_ticket(db: Session, ticket_id: int, *, usuario_id: int | None = None
     return r
 
 
+def _descartar_propuesta(db: Session, ticket_id: int, autor: str) -> TkVersion | None:
+    """Cierra la propuesta pendiente cuando la solicitud deja de estar abierta.
+
+    Una solicitud cancelada, rechazada o cerrada ya no se va a servir: dejar el
+    cambio esperando respuesta mostraría al administrador algo que resolver
+    sobre algo que no existe. Queda 'rechazada', que es lo que de verdad pasó:
+    nunca llegó a regir.
+    """
+    propuesta = propuesta_pendiente(db, ticket_id)
+    if not propuesta:
+        return None
+    propuesta.estado = "rechazada"
+    propuesta.resuelta_por = autor
+    propuesta.resuelta_at = ahora()
+    return propuesta
+
+
 def cambiar_estado(db: Session, ticket_id: int, estado: str, comentario: str | None, autor: str) -> dict | None:
     """Cambia el estado y devuelve los datos del aviso al usuario, o None si no
     corresponde avisar (devolverlo a pendiente es una corrección del admin)."""
     ticket = db.get(TkTicket, ticket_id)
     if not ticket:
         raise HTTPException(404, "Ticket no encontrado.")
+    # 'cancelado' es del usuario final y 'en_revision' la mueve el flujo de
+    # cambios. El panel no los ofrece, y acá se vuelve a decir porque el schema
+    # solo cubre lo que entra por HTTP.
+    if estado not in ESTADOS_ADMIN:
+        raise HTTPException(400, "Ese estado no se cambia desde el panel.")
     if ticket.estado == estado:
         raise HTTPException(400, "El ticket ya está en ese estado.")
+    if ticket.estado == "cancelado":
+        raise HTTPException(409, "El solicitante canceló esta solicitud.")
     comentario = (comentario or "").strip() or None
+    if estado in ESTADOS_ABIERTOS and propuesta_pendiente(db, ticket_id):
+        # Mientras el cambio espera respuesta, la solicitud está 'en_revision'
+        # y tiene que seguir diciéndolo. Moverla a otro estado abierto dejaría
+        # el estado mintiendo sobre algo que el admin todavía no resolvió.
+        raise HTTPException(409, "Resuelve primero la solicitud de cambio que está esperando respuesta.")
     ticket.estado = estado
+    if estado not in ESTADOS_ABIERTOS:
+        # Rechazar o cerrar sí se lleva el cambio por delante: la solicitud ya
+        # no se va a servir, así que no queda nada que modificar.
+        _descartar_propuesta(db, ticket_id, autor)
     db.add(TkEvento(ticket_id=ticket_id, autor=autor, es_admin=True, estado_nuevo=estado, texto=comentario))
     db.commit()
     if estado == "pendiente":
@@ -611,6 +663,76 @@ def cambiar_estado(db: Session, ticket_id: int, estado: str, comentario: str | N
             "comentario": comentario, **_horario_aviso(ticket),
         },
     }
+
+
+def cancelar_ticket(db: Session, usuario: TkUsuario, ticket_id: int, motivo: str | None) -> dict:
+    """El usuario final se baja de su solicitud.
+
+    Sin plazo: cancelar tarde se cobra, pero amarrar a alguien a un servicio
+    que ya no necesita no le sirve a nadie, menos al casino que igual lo
+    prepararía. Lo que sí queda es la marca `cancelacion_tardia`, que el portal
+    no ve —la política no es pública para el usuario final— y que el panel y el
+    reporte usan para saber qué se cobra igual.
+
+    Devuelve el aviso para el administrador: una cancelación hay que ir a
+    buscarla al panel si nadie la avisa, y de eso depende que no se prepare.
+    """
+    ticket = db.get(TkTicket, ticket_id)
+    if not ticket or ticket.usuario_id != usuario.id:
+        raise HTTPException(404, "Ticket no encontrado.")
+    if not cancelable(ticket.estado):
+        raise HTTPException(409, "Esta solicitud ya terminó: no hay nada que cancelar.")
+
+    tardia = cancelacion_tardia(
+        ticket.fecha_servicio, ticket.servicio_inicio, ahora(), settings.zona,
+        horas=settings.cancelacion_horas,
+    )
+    ticket.estado = "cancelado"
+    ticket.cancelacion_tardia = tardia
+    ticket.updated_at = ahora()
+    # Un cambio esperando respuesta se cae con la solicitud: ya no hay qué
+    # modificar.
+    _descartar_propuesta(db, ticket_id, usuario.nombre or usuario.email)
+    motivo = (motivo or "").strip() or None
+    db.add(TkEvento(
+        ticket_id=ticket_id, autor=usuario.nombre or usuario.email, es_admin=False,
+        estado_nuevo="cancelado", texto=motivo,
+    ))
+    db.commit()
+    # `tardia` va en el aviso al administrador, que es quien tiene que saber si
+    # esto se cobra igual. El correo al usuario no se manda desde acá: la
+    # cancelación la hizo él.
+    return _aviso_de(db, ticket, {"motivo": motivo, "cancelacion_tardia": tardia})
+
+
+def cerrar_vencidos(db: Session, hoy: date | None = None) -> int:
+    """Cierra las solicitudes cuyo día de servicio ya pasó. Devuelve cuántas.
+
+    Lo corre el barrido de madrugada (`cierre.py`). Un día después y no el
+    mismo día: el servicio se presta hasta el final de su jornada, y cerrarlo
+    mientras todavía puede estar ocurriendo dejaría el panel mintiendo.
+
+    Cerrar a mano antes sigue siendo posible y es lo normal: esto es la red que
+    recoge lo que nadie alcanzó a cerrar, para que el panel no acumule
+    pendientes de hace semanas.
+    """
+    hoy = hoy or ahora().astimezone(pytz.timezone(settings.zona)).date()
+    vencidos = (
+        db.query(TkTicket)
+        .filter(TkTicket.estado.in_(ESTADOS_ABIERTOS), TkTicket.fecha_servicio < hoy)
+        .all()
+    )
+    for ticket in vencidos:
+        ticket.estado = "cerrado"
+        ticket.updated_at = ahora()
+        _descartar_propuesta(db, ticket.id, "Sistema")
+        db.add(TkEvento(
+            ticket_id=ticket.id, autor="Sistema", es_admin=True, estado_nuevo="cerrado",
+            texto="Cerrada automáticamente: el día del servicio ya pasó.",
+        ))
+    if vencidos:
+        db.commit()
+    return len(vencidos)
 
 
 def comentar(db: Session, ticket_id: int, texto: str, autor: str, es_admin: bool) -> None:
@@ -839,8 +961,11 @@ def abrir_plazo_emergencia(db: Session, ticket_id: int, hasta: datetime, motivo:
     ticket = db.get(TkTicket, ticket_id)
     if not ticket:
         raise HTTPException(404, "Ticket no encontrado.")
-    if ticket.estado != "pendiente":
-        raise HTTPException(409, "Solo se puede abrir plazo en una solicitud pendiente.")
+    if ticket.estado not in ("pendiente", "en_curso"):
+        # 'en_revision' queda fuera a propósito: con un cambio esperando
+        # respuesta, lo que toca es resolverlo, no estirar el plazo del que
+        # viene después.
+        raise HTTPException(409, "Solo se puede abrir plazo en una solicitud pendiente o en curso.")
     if hasta <= ahora():
         raise HTTPException(400, "El plazo de emergencia tiene que ser a futuro.")
 

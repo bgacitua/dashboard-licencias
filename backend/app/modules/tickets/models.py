@@ -79,6 +79,10 @@ class TkTicket(Base):
     # Plazo excepcional solo para este ticket, por sobre la regla del tipo.
     plazo_emergencia = Column(TZ)
     plazo_emergencia_por = Column(String(150))
+    # Si al cancelar quedaba menos de `TICKETS_CANCELACION_HORAS` para el
+    # servicio, que es cuando el casino lo cobra igual. NULL = no cancelada.
+    # Solo la lee el panel: al usuario final no se le dice que hay una ventana.
+    cancelacion_tardia = Column(Boolean)
     created_at = Column(TZ, nullable=False, server_default=func.now())
     updated_at = Column(TZ, nullable=False, server_default=func.now(), onupdate=func.now())
 

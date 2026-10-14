@@ -8,9 +8,10 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from app.modules.tickets.config import TicketsSettings
 from app.modules.tickets.logica import (
-    aviso_de_cambio, calcular_costo, calcular_plazo, cantidad_de, clave_jwt, editable,
-    huecos_libres, id_de_servicio, mime_de_imagen, plazo_efectivo, se_solapan,
-    servicios_respondidos,
+    ESTADOS, ESTADOS_ABIERTOS, ESTADOS_ADMIN, ESTADOS_QUE_OCUPAN, aviso_de_cambio,
+    calcular_costo, calcular_plazo, cancelable, cancelacion_tardia, cantidad_de,
+    cierra_automaticamente, clave_jwt, editable, huecos_libres, id_de_servicio,
+    mime_de_imagen, plazo_efectivo, se_solapan, servicios_respondidos,
 )
 
 
@@ -31,9 +32,78 @@ def test_editable():
     antes, despues = plazo - timedelta(seconds=1), plazo
     assert editable("pendiente", plazo, antes)
     assert not editable("pendiente", plazo, despues)       # justo en el plazo ya no
-    for estado in ("en_curso", "rechazado", "cerrado"):
+    # Que el admin la haya tomado no cierra la puerta: el cambio no entra solo,
+    # se lo manda a él.
+    assert editable("en_curso", plazo, antes)
+    # En revisión ya hay un cambio esperando respuesta; el resto ya terminó.
+    for estado in ("en_revision", "cancelado", "rechazado", "cerrado"):
         assert not editable(estado, plazo, antes)
     print("ok  editable")
+
+
+def test_estados():
+    """Los conjuntos de estados tienen que seguir hablando del mismo universo:
+    una lista que se queda atrás deja un estado que nadie cierra ni libera."""
+    for grupo in (ESTADOS_ADMIN, ESTADOS_ABIERTOS, ESTADOS_QUE_OCUPAN):
+        assert set(grupo) <= set(ESTADOS)
+    # El panel no pone los dos que no son suyos.
+    assert "cancelado" not in ESTADOS_ADMIN and "en_revision" not in ESTADOS_ADMIN
+    # Lo terminado no está abierto, y lo abierto no está terminado.
+    assert set(ESTADOS_ABIERTOS) == {"pendiente", "en_curso", "en_revision"}
+    # Bajarse libera el horario; lo cerrado lo sigue ocupando, porque se sirvió.
+    assert "cancelado" not in ESTADOS_QUE_OCUPAN and "rechazado" not in ESTADOS_QUE_OCUPAN
+    assert "cerrado" in ESTADOS_QUE_OCUPAN and "en_revision" in ESTADOS_QUE_OCUPAN
+    print("ok  estados")
+
+
+def test_cancelable():
+    """Cancelar no mira el plazo: solo que la solicitud siga abierta."""
+    for estado in ESTADOS_ABIERTOS:
+        assert cancelable(estado)
+    for estado in ("cancelado", "rechazado", "cerrado"):
+        assert not cancelable(estado)
+    print("ok  cancelable")
+
+
+def test_cancelacion_tardia():
+    """La ventana de 24 h no impide cancelar: solo marca lo que el casino cobra
+    igual. Se mide contra el inicio del servicio, en hora de Chile."""
+    zona = "America/Santiago"
+    servicio, inicio = date(2026, 9, 28), time(13, 0)
+    # 28-09-2026 13:00 en Chile (UTC-3 en primavera) = 16:00 UTC.
+    limite = datetime(2026, 9, 27, 16, tzinfo=timezone.utc)   # justo 24 h antes
+    assert not cancelacion_tardia(servicio, inicio, limite, zona)
+    assert not cancelacion_tardia(servicio, inicio, limite - timedelta(hours=1), zona)
+    assert cancelacion_tardia(servicio, inicio, limite + timedelta(seconds=1), zona)
+    # Ya empezado el servicio, por supuesto que se cobra.
+    assert cancelacion_tardia(servicio, inicio, limite + timedelta(days=1), zona)
+    # Sin tramo guardado (tickets anteriores a Outlook) se mide contra el
+    # comienzo del día: quedarse corto es preferible a cobrar de más. El evento
+    # pasa a empezar el 28-09 00:00 de Chile, así que la ventana abre el 27-09
+    # 00:00 (= 03:00 UTC), trece horas antes que con el tramo de las 13:00.
+    sin_tramo = datetime(2026, 9, 27, 3, tzinfo=timezone.utc)
+    assert not cancelacion_tardia(servicio, None, sin_tramo, zona)
+    assert cancelacion_tardia(servicio, None, sin_tramo + timedelta(seconds=1), zona)
+    # A esa misma hora, con tramo a las 13:00 todavía queda margen.
+    assert not cancelacion_tardia(servicio, inicio, sin_tramo + timedelta(seconds=1), zona)
+    # La ventana es configurable: con 48 h, lo que antes estaba a tiempo ya no.
+    assert cancelacion_tardia(servicio, inicio, limite, zona, horas=48)
+    print("ok  cancelacion tardia")
+
+
+def test_cierre_automatico():
+    """Se cierra el día siguiente al servicio, no el mismo día: mientras el día
+    corre, el servicio todavía puede estar ocurriendo."""
+    servicio = date(2026, 9, 28)
+    assert not cierra_automaticamente("pendiente", servicio, servicio)
+    assert cierra_automaticamente("pendiente", servicio, date(2026, 9, 29))
+    # Alcanza a todo lo que quedó abierto, revisión incluida.
+    for estado in ESTADOS_ABIERTOS:
+        assert cierra_automaticamente(estado, servicio, date(2026, 9, 29))
+    # Lo que ya terminó no se toca: cerrar algo cancelado borraría por qué murió.
+    for estado in ("cancelado", "rechazado", "cerrado"):
+        assert not cierra_automaticamente(estado, servicio, date(2026, 10, 30))
+    print("ok  cierre automatico")
 
 
 def test_mime():
@@ -192,8 +262,12 @@ def test_plazo_de_emergencia():
     # Vencido el plazo normal, la emergencia lo reabre.
     assert editable("pendiente", plazo, justo_despues) is False
     assert editable("pendiente", plazo, justo_despues, emergencia=mas_tarde) is True
-    # Pero no revive un ticket que ya dejó de ser del usuario.
-    assert editable("en_curso", plazo, justo_despues, emergencia=mas_tarde) is False
+    # La emergencia también alcanza a lo que el admin ya tomó: lo que el
+    # usuario manda es una propuesta, y el admin la resuelve igual.
+    assert editable("en_curso", plazo, justo_despues, emergencia=mas_tarde) is True
+    # Pero no revive una solicitud que ya terminó.
+    for estado in ("cancelado", "rechazado", "cerrado"):
+        assert editable(estado, plazo, justo_despues, emergencia=mas_tarde) is False
     print("ok  plazo de emergencia")
 
 
@@ -321,6 +395,10 @@ def test_lo_que_queda_libre():
 if __name__ == "__main__":
     test_plazo()
     test_editable()
+    test_estados()
+    test_cancelable()
+    test_cancelacion_tardia()
+    test_cierre_automatico()
     test_mime()
     test_jwt_separado()
     test_dominio()

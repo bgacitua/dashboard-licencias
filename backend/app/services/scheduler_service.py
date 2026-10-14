@@ -205,6 +205,19 @@ def _ausencias_consecutivas():
     return ausencias if ausencias.job_habilitado() else None
 
 
+def _cierre_de_tickets():
+    """Job del modulo de tickets, si el modulo esta montado y encendido.
+
+    Mismo import perezoso y tolerante que el de ausencias: borrar la carpeta
+    del modulo tiene que seguir desinstalandolo sin tocar este archivo.
+    """
+    try:
+        from app.modules.tickets import cierre
+    except Exception:
+        return None
+    return cierre if cierre.job_habilitado() else None
+
+
 def start_scheduler() -> None:
     global _scheduler
 
@@ -217,6 +230,7 @@ def start_scheduler() -> None:
         or settings.RETORNO_SCHEDULER_ENABLED
         or settings.GRAPH_TOKEN_CHECK_ENABLED
         or _ausencias_consecutivas() is not None
+        or _cierre_de_tickets() is not None
     ):
         logger.info("[Scheduler] Deshabilitado — ningún job está activo.")
         return
@@ -342,6 +356,9 @@ def start_scheduler() -> None:
 
     if (ausencias := _ausencias_consecutivas()):
         ausencias.registrar_job(_scheduler, tz)
+
+    if (tickets_cierre := _cierre_de_tickets()):
+        tickets_cierre.registrar_job(_scheduler, tz)
 
     _scheduler.start()
     logger.info(

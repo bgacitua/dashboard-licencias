@@ -51,13 +51,30 @@ const diaMes = (iso) => {
 const encabezadoDe = (t) => [t.tipo, t.reserva_sala].filter(Boolean).join(' · ');
 
 /** La acción principal que toca según en qué estado está la solicitud.
- *  Sin estado siguiente (rechazado, cerrado) se ofrece reabrir. */
+ *  Sin estado siguiente (rechazado, cerrado) se ofrece reabrir.
+ *
+ *  'en_revision' no está: lo que toca ahí es resolver la solicitud de cambio,
+ *  y ese botón vive en su propia tarjeta. 'cancelado' tampoco: se bajó el
+ *  solicitante, y reabrirlo por él sería decidir en su nombre. */
 const SIGUIENTE = {
     pendiente: { estado: 'en_curso', label: 'Iniciar atención' },
     en_curso: { estado: 'cerrado', label: 'Cerrar solicitud' },
     cerrado: { estado: 'en_curso', label: 'Reabrir' },
     rechazado: { estado: 'en_curso', label: 'Reabrir' },
 };
+
+/** La marca de que una cancelación cayó dentro de la ventana que el casino
+ *  cobra igual. Solo existe en el panel: la política de cancelación no es
+ *  pública para el usuario final, y el portal nunca recibe este campo. */
+function CancelacionTardia({ ticket }) {
+    if (!ticket?.cancelacion_tardia) return null;
+    return (
+        <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-900"
+            title="Canceló con menos de 24 horas: el casino lo cobra igual.">
+            Cancelación tardía · se cobra
+        </span>
+    );
+}
 
 /** Dato de la ficha del encabezado: rótulo arriba, valor abajo. */
 function Campo({ rotulo, children }) {
@@ -177,6 +194,7 @@ function Detalle({ id, tipos, onCambio }) {
                             <span className="font-mono text-gray-500">#{t.id}</span> · {t.tipo}
                         </h2>
                         <Estado estado={t.estado} />
+                        <CancelacionTardia ticket={t} />
                         {t.modificado && (
                             <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
                                 v{t.version_actual} nueva
@@ -207,7 +225,7 @@ function Detalle({ id, tipos, onCambio }) {
                             {t.plazo_emergencia && (
                                 <span className="ml-2 text-xs text-amber-700">plazo de emergencia abierto</span>
                             )}
-                            {t.estado === 'pendiente' && (
+                            {(t.estado === 'pendiente' || t.estado === 'en_curso') && (
                                 <button type="button" onClick={habilitarEmergencia}
                                     className="ml-3 text-xs text-red-800 underline">
                                     {t.plazo_emergencia ? 'Cambiar plazo de emergencia' : 'Extender plazo'}
@@ -397,7 +415,7 @@ function Detalle({ id, tipos, onCambio }) {
                         className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100">
                         Solo comentar
                     </button>
-                    {t.estado !== 'rechazado' && (
+                    {t.estado !== 'rechazado' && t.estado !== 'cancelado' && (
                         <button type="button" onClick={rechazar}
                             className="ml-auto rounded-lg border border-red-300 bg-white px-4 py-2 text-sm text-red-800 hover:bg-red-50">
                             Rechazar
@@ -552,7 +570,10 @@ export default function AdminTickets() {
                                     className="cursor-pointer align-top hover:bg-gray-50">
                                     <td className="px-3 py-2 font-mono text-gray-500">#{t.id}</td>
                                     <td className="px-3 py-2">{t.usuario || t.email}</td>
-                                    <td className="px-3 py-2"><Estado estado={t.estado} /></td>
+                                    <td className="px-3 py-2">
+                                        <Estado estado={t.estado} />
+                                        <CancelacionTardia ticket={t} />
+                                    </td>
                                     <td className="px-3 py-2 whitespace-nowrap">{bloqueDe(t)}</td>
                                     <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums"
                                         title={detalleCosto(t)}>

@@ -8,21 +8,40 @@ import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
 import CarruselNoticias from '../components/CarruselNoticias';
 import Conversacion from '../components/Conversacion';
 import { Estado } from './PortalInicio';
+import { useDialogo } from '../../../components/Dialogos';
 import {
-    bloque, cabeEnLibres, crearTicket, editarTicket, fechaCorta, fechaHora, mayorHueco,
-    miTicket, plazoPara, reservasPortal, tiposPortal, tramoDe, tramoTexto,
+    bloque, cabeEnLibres, cancelarTicket, crearTicket, editarTicket, fechaCorta, fechaHora,
+    mayorHueco, miTicket, plazoPara, reservasPortal, tiposPortal, tramoDe, tramoTexto,
 } from '../services/tickets';
 
 /** 'HH:MM:SS' o 'HH:MM' -> 'HH:MM', que es lo que quiere <input type="time">. */
 const hhmm = (t) => `${t || ''}`.slice(0, 5);
 
+/** La línea que explica en qué quedó la solicitud, debajo de la insignia de
+ *  estado. Va aparte y no encadenada en el JSX: son seis estados cruzados con
+ *  el plazo, y así ninguno termina cayendo en el `else` de otro. */
+const situacion = (ticket, propuesta) => {
+    if (propuesta) return 'Tienes un cambio esperando respuesta. Podrás pedir otro cuando lo resuelvan.';
+    if (ticket.editable) {
+        return `Puedes pedir un cambio hasta el ${fechaHora(ticket.plazo_efectivo || ticket.plazo)}`
+            + ' · Lo revisa el administrador antes de que rija.';
+    }
+    if (ticket.estado === 'cancelado') return 'Cancelaste esta solicitud.';
+    if (ticket.estado === 'rechazado') return 'El administrador rechazó esta solicitud.';
+    // Sigue abierta, así que lo único que se acabó es el plazo de los cambios.
+    if (ticket.cancelable) return 'El plazo para pedir cambios ya venció.';
+    return 'Esta solicitud ya está cerrada.';
+};
+
 /**
  * Una sola página para pedir y para ver o editar lo pedido:
  *   /tickets/nueva/:tipoId -> formulario vacío
- *   /tickets/t/:id         -> el ticket; editable si está pendiente y en plazo
+ *   /tickets/t/:id         -> el ticket; editable mientras esté abierto y en
+ *                             plazo, y cancelable mientras esté abierto
  */
 export default function PortalSolicitud() {
     const { tipoId, id } = useParams();
+    const { confirmar } = useDialogo();
     const manejar = useSesionPortal();
     const [tipo, setTipo] = useState(null);
     const [ticket, setTicket] = useState(null);
@@ -45,6 +64,9 @@ export default function PortalSolicitud() {
     const [recarga, setRecarga] = useState(0);
     // Hay respuestas escritas sin guardar. Solo para avisar antes de salir.
     const [sucio, setSucio] = useState(false);
+    // Panel de cancelación abierto, y el motivo que se está escribiendo.
+    const [cancelando, setCancelando] = useState(false);
+    const [motivo, setMotivo] = useState('');
 
     useEffect(() => {
         setError('');
@@ -164,6 +186,28 @@ export default function PortalSolicitud() {
         // usuario a la grilla mientras escribe.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ticket, reservas, soloLectura]);
+
+    // Cancelar no pregunta por plazos ni menciona cobros: la política de
+    // cancelación no es pública para el usuario final, y el backend es el que
+    // marca si esta cayó dentro de la ventana que el casino cobra.
+    const cancelar = async () => {
+        const seguro = await confirmar({
+            titulo: 'Cancelar la solicitud',
+            mensaje: 'Se dará de baja y no se preparará el servicio. Para volver a pedirlo tendrás que crear una solicitud nueva.',
+            textoConfirmar: 'Sí, cancelar',
+            textoCancelar: 'Volver',
+            destructivo: true,
+        });
+        if (!seguro) return;
+        setError('');
+        try {
+            await cancelarTicket(ticket.id, motivo.trim() || null);
+            setCancelando(false);
+            setMotivo('');
+            setAviso('Tu solicitud quedó cancelada. Le avisamos al administrador.');
+            setRecarga((n) => n + 1);
+        } catch (e) { setError(manejar(e)); }
+    };
 
     const irAlFormulario = () => {
         if (traba) { setError(traba); return; }
@@ -316,14 +360,39 @@ export default function PortalSolicitud() {
                         Actualizado {fechaHora(ticket.updated_at)}
                     </span>
                     <span className="w-full text-sm text-slate-600">
-                        {propuesta
-                            ? 'Tienes un cambio esperando respuesta. Podrás pedir otro cuando lo resuelvan.'
-                            : ticket.editable
-                                ? `Puedes pedir un cambio hasta el ${fechaHora(ticket.plazo_efectivo || ticket.plazo)} · Lo revisa el administrador antes de que rija.`
-                                : ticket.estado === 'pendiente'
-                                    ? 'El plazo para pedir cambios ya venció.'
-                                    : 'Ya no se puede modificar: el administrador lo está gestionando.'}
+                        {situacion(ticket, propuesta)}
                     </span>
+                    {/* Cancelar no tiene plazo: mientras la solicitud siga
+                        abierta, el botón está. Que hacerlo tarde se cobre es
+                        cosa del casino y no se nombra acá. */}
+                    {ticket.cancelable && !cancelando && (
+                        <button type="button" onClick={() => setCancelando(true)}
+                            className="text-sm font-medium text-red-700 underline underline-offset-2 hover:text-red-800">
+                            Cancelar solicitud
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {cancelando && (
+                <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+                    <p className="text-sm font-medium text-red-900">¿Ya no necesitas este servicio?</p>
+                    <label className="mt-3 block text-sm text-red-900" htmlFor="tk-motivo-cancelar">
+                        Cuéntanos por qué <span className="font-normal text-red-700">(opcional)</span>
+                    </label>
+                    <textarea id="tk-motivo-cancelar" rows={2} maxLength={500} value={motivo}
+                        onChange={(e) => setMotivo(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-red-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300" />
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <button type="button" onClick={cancelar}
+                            className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800">
+                            Cancelar la solicitud
+                        </button>
+                        <button type="button" onClick={() => { setCancelando(false); setMotivo(''); }}
+                            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-100">
+                            Volver
+                        </button>
+                    </div>
                 </div>
             )}
 

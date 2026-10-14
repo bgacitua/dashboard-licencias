@@ -4,7 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-Estado = Literal["pendiente", "en_curso", "rechazado", "cerrado"]
+Estado = Literal["pendiente", "en_curso", "en_revision", "cancelado", "rechazado", "cerrado"]
+# Lo que el panel puede poner. 'cancelado' es del usuario final y 'en_revision'
+# la mueve el flujo de cambios: ninguno entra por el endpoint de estado.
+EstadoAdmin = Literal["pendiente", "en_curso", "rechazado", "cerrado"]
 ModoCobro = Literal["fijo", "cantidad"]
 
 # Tope del JSON de una respuesta. Los campos los define el admin, pero el body
@@ -212,8 +215,16 @@ class ComentarioIn(BaseModel):
 
 
 class EstadoIn(BaseModel):
-    estado: Estado
+    estado: EstadoAdmin
     comentario: str | None = Field(None, max_length=2000)
+
+
+class CancelacionIn(BaseModel):
+    """Lo que el usuario final manda al bajarse de su solicitud. El motivo es
+    opcional y queda en el hilo; no se le pregunta nada más, porque cancelar no
+    está condicionado a justificarse."""
+
+    motivo: str | None = Field(None, max_length=500)
 
 
 class VersionOut(BaseModel):
@@ -263,6 +274,9 @@ class TicketResumen(BaseModel):
     reserva_sala: str | None = None
     plazo: datetime
     editable: bool
+    # Si el usuario todavía puede bajarse. No mira el plazo: solo que la
+    # solicitud siga abierta.
+    cancelable: bool = False
     version_actual: int
     created_at: datetime
     updated_at: datetime
@@ -273,6 +287,10 @@ class TicketResumen(BaseModel):
     modificado: bool = False
     # Plazo excepcional abierto por el admin; solo lo ve el panel.
     plazo_emergencia: datetime | None = None
+    # Canceló dentro de la ventana que el casino cobra igual. Solo el panel:
+    # la política de cancelación no es pública para el usuario final.
+    # None = no cancelada.
+    cancelacion_tardia: bool | None = None
     # El plazo que rige de verdad, con la emergencia ya considerada.
     plazo_efectivo: datetime | None = None
     # Respuestas de la versión vigente; solo con ?incluir_datos=true.
