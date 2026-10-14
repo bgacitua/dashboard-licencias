@@ -92,7 +92,7 @@ export default function PortalSolicitud() {
     useEffect(() => {
         if (!hayQueElegir || reservas) return;
         setErrorReservas('');
-        reservasPortal()
+        reservasPortal(id)
             .then(setReservas)
             .catch((e) => { setReservas([]); setErrorReservas(manejar(e)); });
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,13 +164,14 @@ export default function PortalSolicitud() {
         && (tramo.inicio < hhmm(reserva.hora_inicio) || tramo.fin > hhmm(reserva.hora_fin));
     const alReves = !!tramo.inicio && !!tramo.fin && tramo.fin <= tramo.inicio;
     // Lo que el usuario ya pidió en esa sala ese día lo manda el backend con la
-    // reserva. Al editar, el tramo del propio ticket no cuenta como ocupado:
-    // es justo el que se está moviendo.
-    const libres = (reserva?.libres || []).concat(
-        ticket && ticket.reserva_id === reserva?.id && ticket.servicio_inicio
-            ? [{ inicio: ticket.servicio_inicio, fin: ticket.servicio_fin }]
-            : [],
-    );
+    // reserva, y al editar ya viene sin el tramo del propio ticket: su id viaja
+    // en la llamada. Acá no se vuelve a compensar, por dos razones. La regla de
+    // qué ocupa un horario queda escrita en un solo lado, que es el que valida
+    // al guardar. Y sumarlo de nuevo rompería el aviso de choque: el backend
+    // devuelve el tramo propio ya fundido con el hueco contiguo, así que el
+    // concat dejaba el mensaje diciendo "te queda libre 12:00 a 14:00 y 12:00
+    // a 13:00".
+    const libres = reserva?.libres || [];
     const pisado = !!reserva && !!tramo.inicio && !!tramo.fin && !alReves && !fueraDelBloque
         && !cabeEnLibres(libres, tramo.inicio, tramo.fin);
 

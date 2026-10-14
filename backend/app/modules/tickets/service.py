@@ -20,8 +20,8 @@ from .auth import HASH_SEÑUELO, pwd
 from .config import settings
 from .logica import (
     ESTADOS_ABIERTOS, ESTADOS_ADMIN, ESTADOS_QUE_OCUPAN, calcular_costo, calcular_plazo,
-    cancelable, cancelacion_tardia, editable, huecos_libres, id_de_servicio, mime_de_imagen,
-    plazo_efectivo, se_solapan, servicios_respondidos,
+    cancelable, cancelacion_tardia, disponibilidad_del_bloque, editable, huecos_libres,
+    id_de_servicio, mime_de_imagen, plazo_efectivo, se_solapan, servicios_respondidos,
 )
 from .models import (
     TkArchivo, TkEvento, TkServicio, TkServicioPrecio, TkTicket, TkTipo, TkUsuario, TkVersion,
@@ -231,31 +231,47 @@ def _campos_de_reserva(reserva: dict, inicio: time, fin: time) -> dict:
     }
 
 
-def reservas_con_disponibilidad(db: Session, usuario: TkUsuario) -> list[dict]:
+def reservas_con_disponibilidad(
+    db: Session, usuario: TkUsuario, *, excluir_ticket: int | None = None,
+) -> list[dict]:
     """Las reservas del usuario, cada una con lo que ya pidió y lo que le queda.
 
     Va pegado a `/reservas` y no en un endpoint aparte: el portal ya pide esta
     lista para armar la grilla, y separarlo obligaba a un segundo viaje para
     pintar la misma tarjeta. `libres` es lo que el formulario ofrece; `ocupados`
     es para poder decir por qué el resto no está.
+
+    Editando un ticket se manda su id en `excluir_ticket`, porque su tramo
+    vigente es justo el que se quiere mover: sin eso el ticket aparece ocupado
+    contra sí mismo y el portal tiene que compensarlo a mano. Es la misma
+    exclusión que ya hace `proponer_cambio` al validar el solape, y por eso vive
+    acá: la regla de qué ocupa un horario se escribe una vez, del lado que
+    después la hace cumplir, y el navegador se limita a mostrar lo que le dan.
     """
+    # El id lo manda el navegador, así que se comprueba de quién es: con uno
+    # ajeno, el usuario estaría borrando de su propia vista un tramo que no es
+    # suyo. 404 y no ignorarlo en silencio, por dos razones: es la misma
+    # respuesta que ya da el detalle del ticket para uno ajeno o inexistente
+    # —no distingue los dos casos, para no confirmar desde internet qué ids
+    # existen—, y callar dejaría el único síntoma del lado del usuario, que
+    # vería su propio horario marcado como ocupado sin que nada lo explique.
+    if excluir_ticket is not None:
+        ticket = db.get(TkTicket, excluir_ticket)
+        if not ticket or ticket.usuario_id != usuario.id:
+            raise HTTPException(404, "Ticket no encontrado.")
+
     reservas = reservas_de(usuario)
     salidas = []
     for r in reservas:
         campos = {
             "fecha_servicio": r["fecha"], "reserva_id": r["id"], "reserva_sala": r["sala"],
         }
-        ocupados = _tramos_ocupados(db, usuario.id, campos)
-        # Los tramos de otras salas del mismo día no cuentan: la consulta ya
-        # filtra por sala, así que acá solo queda recortar contra este bloque.
-        dentro = [t for t in ocupados if se_solapan(r["hora_inicio"], r["hora_fin"], *t)]
+        ocupados = _tramos_ocupados(db, usuario.id, campos, excluir_ticket=excluir_ticket)
+        dentro, libres = disponibilidad_del_bloque(r["hora_inicio"], r["hora_fin"], ocupados)
         salidas.append({
             **r,
-            "ocupados": [{"inicio": a, "fin": b} for a, b in sorted(dentro)],
-            "libres": [
-                {"inicio": a, "fin": b}
-                for a, b in huecos_libres(r["hora_inicio"], r["hora_fin"], dentro)
-            ],
+            "ocupados": [{"inicio": a, "fin": b} for a, b in dentro],
+            "libres": [{"inicio": a, "fin": b} for a, b in libres],
         })
     return salidas
 
