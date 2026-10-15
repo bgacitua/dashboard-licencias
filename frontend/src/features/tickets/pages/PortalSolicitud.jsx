@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
@@ -7,6 +7,7 @@ import { crearModelo } from '../../../components/form-builder/tema';
 import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
 import CarruselNoticias from '../components/CarruselNoticias';
 import Desglosado from '../components/Desglosado';
+import ResumenVivo from '../components/ResumenVivo';
 import Seguimiento from '../components/Seguimiento';
 import { Estado } from './PortalInicio';
 import { useDialogo } from '../../../components/Dialogos';
@@ -18,6 +19,22 @@ import {
 
 /** 'HH:MM:SS' o 'HH:MM' -> 'HH:MM', que es lo que quiere <input type="time">. */
 const hhmm = (t) => `${t || ''}`.slice(0, 5);
+
+/**
+ * El valor de una pregunta como lista de textos legibles, para el resumen vivo.
+ *
+ * Se lee `q.value` y se traduce con `etqs` en vez de usar `q.displayValue`:
+ * ese getter devuelve `locText.textOrHtml`, o sea el HTML de las tarjetas que
+ * inyecta `crearModelo`, y el resumen mostraría el marcado crudo.
+ */
+const valoresVivos = (q, etqs) => {
+    // Un booleano guarda true/false, que en pantalla no dice nada. Los rótulos
+    // son de la propia pregunta y el desglose no los toca.
+    if (q.getType() === 'boolean') return [q.value ? q.labelTrue : q.labelFalse];
+    // Una fecha guarda el ISO crudo; en esta página se lee corta en todos lados.
+    if (q.inputType === 'date') return [fechaCorta(q.value)];
+    return valoresDe(q.value, etqs);
+};
 
 /** La línea que explica en qué quedó la solicitud, debajo de la insignia de
  *  estado. Va aparte y no encadenada en el JSX: son seis estados cruzados con
@@ -66,6 +83,10 @@ export default function PortalSolicitud() {
     const [recarga, setRecarga] = useState(0);
     // Hay respuestas escritas sin guardar. Solo para avisar antes de salir.
     const [sucio, setSucio] = useState(false);
+    // Lo contestado hasta ahora, para el resumen de la derecha. Va en estado y
+    // no se deriva en el render: el modelo de survey-core es mutable y React
+    // no se entera de que cambió.
+    const [vivo, setVivo] = useState([]);
     // Panel de cancelación abierto, y el motivo que se está escribiendo.
     const [cancelando, setCancelando] = useState(false);
     const [motivo, setMotivo] = useState('');
@@ -146,6 +167,15 @@ export default function PortalSolicitud() {
     // mismos helpers que usa el panel: una sola forma de leer un formulario
     // guardado, y las preguntas que el admin sacó después igual se muestran.
     const etqs = useMemo(() => etiquetas(tipo?.definicion), [tipo]);
+
+    // Lo contestado que survey-core está mostrando ahora mismo. `visibleOnly`
+    // deja fuera lo escondido por un `visibleIf`: el resumen no puede afirmar
+    // algo que el usuario no tiene a la vista.
+    const leerVivo = useCallback((m) => (m
+        ? m.getAllQuestions(true)
+            .filter((q) => !q.isEmpty())
+            .map((q) => ({ name: q.name, title: q.title || q.name, valores: valoresVivos(q, etqs) }))
+        : []), [etqs]);
     const respondido = useMemo(
         () => (ticket ? resumenCampos(tipo?.definicion, ticket.datos) : []),
         [tipo, ticket],
@@ -155,6 +185,18 @@ export default function PortalSolicitud() {
     // Con un cambio esperando respuesta el formulario se congela: otro
     // encima dejaría al administrador resolviendo algo ya viejo.
     const soloLectura = !!ticket && !ticket.editable;
+    // El resumen vivo es solo de la solicitud nueva y solo del paso 2. Abriendo
+    // un ticket, la columna es del Seguimiento; en el paso 1 todavía no hay
+    // nada que resumir, y enviada la solicitud el resumen ya no sirve.
+    const conResumen = !ticket && !enviada && paso === 'formulario' && !!model;
+    // Va en xl: y no en lg: porque a 1024px la columna de 20rem dejaría el
+    // formulario en 648px, más angosto que los 768px que tiene hoy sin columna.
+    // Bajo ese ancho el resumen cae abajo y el formulario conserva el suyo.
+    const grilla = ticket
+        ? 'flex flex-col gap-6 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start'
+        : conResumen
+            ? 'flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start'
+            : '';
     const reserva = (reservas || []).find((r) => r.id === reservaId) || null;
     const fecha = reserva?.fecha || '';
     const plazo = !soloLectura && fecha && tipo ? plazoPara(tipo, fecha) : null;
@@ -317,13 +359,22 @@ export default function PortalSolicitud() {
         accion.tooltip = traba || undefined;
     }, [model, traba]);
 
-    // Marca que hay respuestas sin guardar, para avisar antes de salir.
+    // Marca que hay respuestas sin guardar, y refresca el resumen de la derecha.
+    // Las dos cosas cuelgan del mismo evento a propósito: engancharlo dos veces
+    // obliga a survey-core a redibujar todos sus textos cada vez.
     useEffect(() => {
         if (!model || soloLectura) return undefined;
-        const alCambiar = () => setSucio(true);
+        const alCambiar = () => {
+            setSucio(true);
+            setVivo(leerVivo(model));
+        };
         model.onValueChanged.add(alCambiar);
         return () => model.onValueChanged.remove(alCambiar);
-    }, [model, soloLectura]);
+    }, [model, soloLectura, leerVivo]);
+
+    // `onValueChanged` solo avisa de cambios, así que lo ya respondido —un
+    // ticket que se está editando, o un `defaultValue`— no entraría nunca.
+    useEffect(() => { setVivo(leerVivo(model)); }, [model, leerVivo]);
 
     // Cerrar o recargar la pestaña con cambios escritos. El navegador muestra
     // su propio texto; el nuestro solo activa el aviso.
@@ -346,7 +397,7 @@ export default function PortalSolicitud() {
         // Mismo truco que FormPublico: survey-core pinta el fondo con
         // --sjs2-color-utility-body solo dentro de su caja; con las variables
         // en la página entera, el resto del viewport resuelve el mismo color.
-        <PortalLayout ancho={ticket ? 'max-w-6xl' : 'max-w-3xl'}
+        <PortalLayout ancho={ticket || paso === 'formulario' ? 'max-w-6xl' : 'max-w-3xl'}
             estilo={model ? { ...model.themeVariables, background: 'var(--sjs2-color-utility-body)' } : undefined}>
             {/* Enviada la solicitud, la salida es el botón de abajo: dos formas
                 de volver a lo mismo en una pantalla de acuse sobran. */}
@@ -360,7 +411,7 @@ export default function PortalSolicitud() {
 
             {/* Con ticket: seguimiento en una columna fija a la izquierda. En
                 pantallas chicas no cabe al lado y baja después del formulario. */}
-            <div className={ticket ? 'flex flex-col gap-6 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start' : ''}>
+            <div className={grilla}>
             {ticket && (
                 <aside className="order-last lg:sticky lg:top-20 lg:order-none lg:h-[calc(100vh-9rem)]">
                     {/* El usuario del portal recibe el seguimiento, no conversa:
@@ -741,6 +792,11 @@ export default function PortalSolicitud() {
                 </div>
             )}
             </div>
+            {conResumen && (
+                <aside className="xl:sticky xl:top-20 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+                    <ResumenVivo reserva={reserva} tramo={tramo} filas={vivo} />
+                </aside>
+            )}
             </div>
         </PortalLayout>
     );
