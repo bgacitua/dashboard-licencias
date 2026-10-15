@@ -28,6 +28,10 @@ export const TEMA_DEFECTO = {
     // trae el texto escrito y no queremos repetirlo encima.
     sinTitulo: false,
     sinPaneles: false,
+    // Modo "una pantalla": la primera pregunta de selección se pinta como
+    // tarjetas centradas y el resto se despliega abajo según las ramas, sin
+    // navegación de páginas ni aspecto de formulario. Apagado = render clásico.
+    tarjetas: false,
 };
 
 /** Objeto del admin -> ITheme. Pura: se prueba en tema.test.js. */
@@ -109,6 +113,34 @@ const desgloseEnOpciones = (m) => {
     });
 };
 
+// Tipos de pregunta que ofrecen opciones y por lo tanto pueden pintarse como
+// tarjetas de entrada. El imagepicker ya es visual de por sí, pero lo incluimos
+// para no sorprender si un tipo arranca con uno.
+const SELECCION = new Set(['radiogroup', 'dropdown', 'imagepicker']);
+
+/**
+ * Modo "una pantalla": colapsa las páginas en una sola, marca la primera
+ * pregunta de selección como "entrada" (la que el CSS pinta como tarjetas) y
+ * expone el flag para que el contenedor agregue la clase de scope.
+ *
+ * La pregunta de entrada es la primera de selección en orden de definición; si
+ * el formulario arranca con un html o una imagen, se la salta. No se nombra
+ * ninguna pregunta en particular: el modo es genérico, no sabe de "Casino".
+ */
+const modoTarjetas = (m) => {
+    // singlePage junta todas las páginas; visibleIf sigue gobernando qué se ve,
+    // así que las ramas se despliegan solas en la misma pantalla.
+    m.questionsOnPageMode = 'singlePage';
+    m.modoTarjetas = true;
+    const entrada = m.getAllQuestions().find((q) => SELECCION.has(q.getType()));
+    if (!entrada) return;
+    m.onUpdateQuestionCssClasses.add((_, opciones) => {
+        if (opciones.question === entrada) {
+            opciones.cssClasses.mainRoot += ' tema-entrada';
+        }
+    });
+};
+
 /**
  * Modelo listo para renderizar, igual en el portal, la vista previa y el panel.
  * `cabecera` = { titulo, descripcion } va al header de survey-core.
@@ -132,5 +164,8 @@ export const crearModelo = (definicion, tema, cabecera = {}) => {
     // propio: dentro de un contenedor sin altura reserva una caja vacía.
     m.fitToContainer = false;
     desgloseEnOpciones(m);
+    // El handler de css tiene que estar antes del primer render, por eso va acá
+    // y no en un efecto del componente.
+    if (t.tarjetas) modoTarjetas(m);
     return m;
 };
