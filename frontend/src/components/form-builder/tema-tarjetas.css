@@ -1,0 +1,70 @@
+/*
+ * Modo "una pantalla con tarjetas" de un formulario.
+ *
+ * Todo está scopeado bajo `.tema-tarjetas`, clase que solo se agrega al
+ * contenedor del render cuando la perilla del tema está encendida (ver
+ * `modoTarjetas` en tema.js). Un formulario normal no ve ni una de estas reglas,
+ * así que la personalización de los demás tipos queda intacta.
+ *
+ * La pregunta de entrada lleva además la clase `tema-entrada`, que tema.js pone
+ * sobre la primera pregunta de selección. Sus opciones se pintan como tarjetas
+ * centradas; el resto de preguntas se despliega abajo sin cromo de formulario.
+ */
+
+/* Cuerpo centrado y de ancho acotado: no se ve como un formulario a todo lo
+   ancho. */
+.tema-tarjetas .sd-body__page {
+    max-width: 48rem;
+    margin-inline: auto;
+}
+
+/* ---- Pregunta de entrada: tarjetas centradas ---- */
+.tema-tarjetas .tema-entrada .sd-element__header {
+    text-align: center;
+}
+
+/* Lista de opciones como grilla centrada en vez de columna de radios. */
+.tema-tarjetas .tema-entrada .sd-selectbase {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+}
+.tema-tarjetas .tema-entrada .sd-selectbase__column {
+    flex: 0 1 14rem;
+    min-width: 0;
+}
+
+/* Cada opción es una tarjeta clickeable completa. */
+.tema-tarjetas .tema-entrada .sd-item.sd-radio {
+    border: 2px solid var(--sjs2-color-utility-outline, #e2e8f0);
+    border-radius: var(--sjs2-base-unit-radius, 8px);
+    padding: 1.25rem 1rem;
+    background: #fff;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tema-tarjetas .tema-entrada .sd-item.sd-radio:hover {
+    border-color: var(--sjs2-color-project-brand-600);
+}
+.tema-tarjetas .tema-entrada .sd-radio--checked {
+    border-color: var(--sjs2-color-project-brand-600);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sjs2-color-project-brand-600) 20%, transparent);
+}
+
+/* El circulito del radio sobra cuando toda la tarjeta es el control. */
+.tema-tarjetas .tema-entrada .sd-item__decorator {
+    display: none;
+}
+.tema-tarjetas .tema-entrada .sd-item__control-label {
+    display: block;
+    font-weight: 600;
+}
+
+/* ---- Preguntas desplegadas: sin marco, para el aspecto de una sola pantalla ---- */
+.tema-tarjetas .sd-element--with-frame {
+    box-shadow: none;
+    background: transparent;
+    padding-inline: 0;
+}

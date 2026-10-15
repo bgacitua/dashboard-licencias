@@ -86,4 +86,19 @@ assert.ok(!conDesglose.getQuestionByName("d").choices[0].locText.hasHtml,
 // nombre no puede terminar con tarjetas en el encabezado.
 assert.ok(!conDesglose.locTitle.hasHtml, "el encabezado nunca recibe tarjetas");
 
+// Modo tarjetas: colapsa las páginas en una y expone el flag para el scope CSS.
+// Apagado (default) no toca nada.
+const normal = crearModelo({ elements: [{ type: "radiogroup", name: "r", choices: ["a"] }] }, {});
+assert.ok(!normal.modoTarjetas, "sin la perilla no hay modo tarjetas");
+
+const tarjetas = crearModelo(
+    { elements: [{ type: "html", name: "h", html: "<p>hola</p>" }, { type: "radiogroup", name: "r", choices: ["a"] }] },
+    { tarjetas: true },
+);
+assert.equal(tarjetas.modoTarjetas, true);
+assert.equal(tarjetas.questionsOnPageMode, "singlePage");
+// La entrada es la primera pregunta de selección; el html de arriba se salta.
+// Sin un render real solo se afirma el flag; la clase tema-entrada se ve en QA.
+assert.equal(tarjetas.getAllQuestions().find((q) => q.getType() === "radiogroup").name, "r");
+
 console.log("tema: ok");
