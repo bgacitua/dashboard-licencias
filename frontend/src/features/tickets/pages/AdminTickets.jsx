@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import AdminMarco from '../components/AdminMarco';
-import Conversacion from '../components/Conversacion';
+import Seguimiento from '../components/Seguimiento';
 import { Estado } from './PortalInicio';
 import { descargarHojas } from '../../asistencia/planilla';
 import {
@@ -330,13 +330,7 @@ function Detalle({ id, tipos, onCambio }) {
                     </>
                 )}
 
-                {pestaña === 'seguimiento' && (
-                    <Conversacion
-                        lado="admin"
-                        eventos={t.eventos}
-                        onEnviar={async (texto) => { await comentarAdmin(id, texto); setRecarga((n) => n + 1); }}
-                    />
-                )}
+                {pestaña === 'seguimiento' && <Seguimiento lado="admin" ticket={t} />}
 
                 {pestaña === 'versiones' && (
                     <>
