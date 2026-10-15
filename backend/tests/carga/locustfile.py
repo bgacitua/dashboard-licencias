@@ -47,7 +47,7 @@ class Trabajador(HttpUser):
         if self.tipo is None:
             raise RuntimeError("No está el tipo de prueba: corre `preparar crear` antes.")
         self.mios: list[int] = []
-        self.creados = self.comentarios = 0
+        self.creados = 0
         self.crear()  # nadie entra a la hora punta a no pedir nada
 
     @task(6)
@@ -93,9 +93,3 @@ class Trabajador(HttpUser):
             if r.status_code == 409:
                 r.success()
 
-    @task(1)
-    def comentar(self):
-        if self.mios and self.comentarios < 5:
-            self.client.post(f"{BASE}/tickets/{random.choice(self.mios)}/comentarios",
-                             name="comentar", json={"texto": "¿Se puede cambiar la hora de entrega?"})
-            self.comentarios += 1
