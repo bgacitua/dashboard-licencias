@@ -185,18 +185,6 @@ export default function PortalSolicitud() {
     // Con un cambio esperando respuesta el formulario se congela: otro
     // encima dejaría al administrador resolviendo algo ya viejo.
     const soloLectura = !!ticket && !ticket.editable;
-    // El resumen vivo es solo de la solicitud nueva y solo del paso 2. Abriendo
-    // un ticket, la columna es del Seguimiento; en el paso 1 todavía no hay
-    // nada que resumir, y enviada la solicitud el resumen ya no sirve.
-    const conResumen = !ticket && !enviada && paso === 'formulario' && !!model;
-    // Va en xl: y no en lg: porque a 1024px la columna de 20rem dejaría el
-    // formulario en 648px, más angosto que los 768px que tiene hoy sin columna.
-    // Bajo ese ancho el resumen cae abajo y el formulario conserva el suyo.
-    const grilla = ticket
-        ? 'flex flex-col gap-6 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start'
-        : conResumen
-            ? 'flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start'
-            : '';
     const reserva = (reservas || []).find((r) => r.id === reservaId) || null;
     const fecha = reserva?.fecha || '';
     const plazo = !soloLectura && fecha && tipo ? plazoPara(tipo, fecha) : null;
@@ -291,6 +279,24 @@ export default function PortalSolicitud() {
         m.completeText = ticket ? 'Enviar solicitud de cambio' : 'Enviar solicitud';
         return m;
     }, [tipo, ticket, soloLectura]);
+
+    // El resumen vivo es solo de la solicitud nueva y solo del paso 2. Abriendo
+    // un ticket, la columna es del Seguimiento; en el paso 1 todavía no hay
+    // nada que resumir, y enviada la solicitud el resumen ya no sirve.
+    //
+    // Va debajo de `model` y no arriba con el resto de los derivados: lo mira,
+    // y declararlo antes lo leía en su zona muerta temporal. No reventaba en el
+    // paso 1 —el `&&` cortaba antes de llegar— sino al entrar al formulario,
+    // que es donde `paso === 'formulario'` deja pasar la condición.
+    const conResumen = !ticket && !enviada && paso === 'formulario' && !!model;
+    // Va en xl: y no en lg: porque a 1024px la columna de 20rem dejaría el
+    // formulario en 648px, más angosto que los 768px que tiene hoy sin columna.
+    // Bajo ese ancho el resumen cae abajo y el formulario conserva el suyo.
+    const grilla = ticket
+        ? 'flex flex-col gap-6 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start'
+        : conResumen
+            ? 'flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start'
+            : '';
 
     // El handler se engancha aparte para leer la fecha vigente sin recrear el
     // modelo (recrearlo en cada tecla borraría lo escrito en el formulario).
