@@ -451,14 +451,48 @@ export default function PortalSolicitud({ modificando = false }) {
         // en la página entera, el resto del viewport resuelve el mismo color.
         <PortalLayout ancho={ticket || paso === 'formulario' ? 'max-w-6xl' : 'max-w-3xl'}
             estilo={model ? { ...model.themeVariables, background: 'var(--sjs2-color-utility-body)' } : undefined}>
-            {/* Enviada la solicitud, la salida es el botón de abajo: dos formas
+            {/* Header superior: el botón de volver pegado a la izquierda y, a la
+                misma altura, los pasos del asistente. Juntarlos en una fila sube
+                el formulario y evita el scroll cuando se despliegan las tarjetas.
+                Enviada la solicitud, la salida es el botón de abajo: dos formas
                 de volver a lo mismo en una pantalla de acuse sobran. */}
             {!enviada && (
-                <Link to={modificando && ticket ? `/tickets/t/${ticket.id}` : '/tickets'} onClick={alSalir}
-                    className="mb-4 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
-                    <span className="material-symbols-outlined text-lg">arrow_back</span>
-                    {modificando && ticket ? 'Volver a la solicitud' : 'Mis solicitudes'}
-                </Link>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                    <Link to={modificando && ticket ? `/tickets/t/${ticket.id}` : '/tickets'} onClick={alSalir}
+                        className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
+                        <span className="material-symbols-outlined text-lg">arrow_back</span>
+                        {modificando && ticket ? 'Volver a la solicitud' : 'Mis solicitudes'}
+                    </Link>
+
+                    {/* Dos pasos, dos rótulos, a la altura del botón de volver. */}
+                    {!soloLectura && esAsistente && tipo && (
+                        <ol className="flex items-center gap-3 text-sm">
+                            {[['reserva', 'Reservación'], ['formulario', 'Solicitud']].map(([clave, rotulo], i) => {
+                                const activo = paso === clave;
+                                const hecho = clave === 'reserva' && paso === 'formulario';
+                                return (
+                                    <li key={clave} className="flex items-center gap-3">
+                                        {i > 0 && <span aria-hidden className="h-px w-6 bg-slate-300" />}
+                                        <span className={`flex items-center gap-2 transition-colors ${
+                                            activo ? 'font-medium text-slate-900' : 'text-slate-500'
+                                        }`}>
+                                            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs transition-all duration-200 ${
+                                                hecho ? 'bg-blue-600 text-white'
+                                                    : activo ? 'bg-blue-600 text-white ring-4 ring-blue-100'
+                                                        : 'bg-slate-200 text-slate-600'
+                                            }`}>
+                                                {hecho
+                                                    ? <span className="material-symbols-outlined text-sm">check</span>
+                                                    : i + 1}
+                                            </span>
+                                            {rotulo}
+                                        </span>
+                                    </li>
+                                );
+                            })}
+                        </ol>
+                    )}
+                </div>
             )}
 
             {/* Con ticket: seguimiento en una columna fija a la izquierda. En
@@ -591,36 +625,6 @@ export default function PortalSolicitud({ modificando = false }) {
                         </dl>
                     )}
                 </div>
-            )}
-
-            {/* Dos pasos, dos rótulos. Sin esto el salto de la grilla al
-                formulario parece que la página se hubiera ido a otra parte. */}
-            {!soloLectura && esAsistente && !enviada && tipo && (
-                <ol className="mb-4 flex items-center gap-3 text-sm">
-                    {[['reserva', 'Reservación'], ['formulario', 'Solicitud']].map(([clave, rotulo], i) => {
-                        const activo = paso === clave;
-                        const hecho = clave === 'reserva' && paso === 'formulario';
-                        return (
-                            <li key={clave} className="flex items-center gap-3">
-                                {i > 0 && <span aria-hidden className="h-px w-6 bg-slate-300" />}
-                                <span className={`flex items-center gap-2 transition-colors ${
-                                    activo ? 'font-medium text-slate-900' : 'text-slate-500'
-                                }`}>
-                                    <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs transition-all duration-200 ${
-                                        hecho ? 'bg-blue-600 text-white'
-                                            : activo ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                                                : 'bg-slate-200 text-slate-600'
-                                    }`}>
-                                        {hecho
-                                            ? <span className="material-symbols-outlined text-sm">check</span>
-                                            : i + 1}
-                                    </span>
-                                    {rotulo}
-                                </span>
-                            </li>
-                        );
-                    })}
-                </ol>
             )}
 
             {!soloLectura && esAsistente && !enviada && paso === 'reserva' && tipo && (
