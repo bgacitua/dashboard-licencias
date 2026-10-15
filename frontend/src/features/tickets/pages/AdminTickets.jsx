@@ -4,10 +4,8 @@ import AdminMarco from '../components/AdminMarco';
 import Desglosado from '../components/Desglosado';
 import Seguimiento from '../components/Seguimiento';
 import { Estado } from './PortalInicio';
-import { descargarHojas } from '../../asistencia/planilla';
 import {
-    columnas, detalleCosto, enTexto, etiquetas, filasExport, money, resumenCampos, titulos,
-    totalDe, valoresDe,
+    enTexto, etiquetas, money, resumenCampos, titulos, totalDe, valoresDe,
 } from '../respuestas';
 import {
     ESTADOS, abrirEmergencia, bloque, cambiarEstado, diaMes, encabezadoDe, fechaCorta,
@@ -404,43 +402,158 @@ function Detalle({ id, tipos, onCambio }) {
     );
 }
 
+/** El orden que el admin le dio a las tarjetas dentro de cada columna. Vive en
+ *  el navegador: es una comodidad visual personal, no un dato de la solicitud,
+ *  así que no toca el backend. Mapa estado -> [ids en el orden elegido]. */
+const CLAVE_ORDEN = 'tk_kanban_orden';
+const leerOrden = () => {
+    try { return JSON.parse(localStorage.getItem(CLAVE_ORDEN)) || {}; } catch { return {}; }
+};
+const guardarOrden = (o) => {
+    try { localStorage.setItem(CLAVE_ORDEN, JSON.stringify(o)); } catch { /* sin storage: dura la sesión */ }
+};
+
+/** Ordena los tickets de una columna según los ids guardados. Los que no estén
+ *  en la lista (recién llegados) caen al final conservando el orden del servidor,
+ *  porque el sort es estable. */
+const ordenarPorIds = (lista, ids) => {
+    if (!ids?.length) return lista;
+    const pos = new Map(ids.map((id, i) => [id, i]));
+    return [...lista].sort((a, b) => (pos.get(a.id) ?? Infinity) - (pos.get(b.id) ?? Infinity));
+};
+
+/** Tarjeta de una solicitud en el tablero. Misma identidad que en la lista
+ *  (fecha, #id · servicio, solicitante), sin la píldora de estado porque la
+ *  columna ya lo dice. Se arrastra para reordenar y se hace clic para abrirla. */
+function TarjetaKanban({ ticket, onAbrir, onArrastrar, onSoltar, soltando }) {
+    const f = diaMes(ticket.fecha_servicio);
+    const costo = totalDe(ticket);
+    return (
+        <li
+            draggable
+            onDragStart={() => onArrastrar(ticket.id)}
+            onDragEnd={() => onArrastrar(null)}
+            onDragOver={(e) => { e.preventDefault(); }}
+            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onSoltar(ticket.id); }}
+            className={`rounded-lg border bg-white ${soltando ? 'border-red-400' : 'border-gray-200'} ${
+                ticket.modificado ? 'animate-respira shadow-[inset_0_0_0_1.5px_var(--color-amber-400)]' : ''
+            }`}>
+            <button type="button" onClick={() => onAbrir(ticket.id)}
+                className="flex w-full cursor-grab items-start gap-2.5 px-2.5 py-2.5 text-left active:cursor-grabbing">
+                <span className="flex w-11 shrink-0 flex-col items-center rounded-lg border border-gray-200 py-1 leading-tight">
+                    <span className="text-[10px] uppercase text-gray-500">{f.semana}</span>
+                    <span className="text-base font-semibold text-gray-900">{f.dia}</span>
+                    <span className="text-[10px] text-gray-500">{f.mes}</span>
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-gray-900">
+                        <span className="font-mono text-gray-500">#{ticket.id}</span> · {encabezadoDe(ticket)}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-gray-500">{ticket.usuario || ticket.email}</span>
+                    <span className="mt-0.5 flex items-center justify-between gap-2 text-xs text-gray-500">
+                        <span className="truncate">{tramoDe(ticket) || '—'}</span>
+                        {costo !== null && <span className="shrink-0 tabular-nums">{money(costo)}</span>}
+                    </span>
+                    {ticket.modificado && (
+                        <span className="mt-1 block text-xs font-medium text-amber-700">
+                            v{ticket.version_actual} nueva sin revisar
+                        </span>
+                    )}
+                </span>
+            </button>
+        </li>
+    );
+}
+
+/** Tablero por estado. Una columna fija por cada estado; las solicitudes caen en
+ *  la suya según el dato real. Arrastrar solo reordena dentro de la misma columna
+ *  y guarda ese orden local: no cambia el estado del ticket (eso se hace en el
+ *  detalle, con sus reglas). Por eso soltar en otra columna no hace nada. */
+function Kanban({ tickets, onAbrir }) {
+    const [orden, setOrden] = useState(leerOrden);
+    // { id, estado } de la tarjeta que se está arrastrando, para saber a qué
+    // columna pertenece y marcar dónde caería.
+    const [arrastrando, setArrastrando] = useState(null);
+    const [sobre, setSobre] = useState(null);
+
+    const porEstado = useMemo(() => {
+        const m = Object.fromEntries(Object.keys(ESTADOS).map((k) => [k, []]));
+        for (const t of tickets) (m[t.estado] || (m[t.estado] = [])).push(t);
+        return m;
+    }, [tickets]);
+
+    const columnas = useMemo(
+        () => Object.entries(ESTADOS).map(([estado, def]) => ({
+            estado, def, lista: ordenarPorIds(porEstado[estado] || [], orden[estado]),
+        })),
+        [porEstado, orden],
+    );
+
+    // Inserta la tarjeta arrastrada antes de `destinoId` (o al final si es null)
+    // dentro de su propia columna. Fuera de ella, no hace nada.
+    const soltar = (estado, destinoId) => {
+        setSobre(null);
+        if (!arrastrando || arrastrando.estado !== estado || arrastrando.id === destinoId) return;
+        const ids = (columnas.find((c) => c.estado === estado)?.lista || []).map((t) => t.id);
+        const sin = ids.filter((id) => id !== arrastrando.id);
+        const i = destinoId == null ? sin.length : sin.indexOf(destinoId);
+        sin.splice(i < 0 ? sin.length : i, 0, arrastrando.id);
+        const nuevo = { ...orden, [estado]: sin };
+        setOrden(nuevo);
+        guardarOrden(nuevo);
+    };
+
+    return (
+        <div className="mt-4 flex gap-4 overflow-x-auto pb-3">
+            {columnas.map(({ estado, def, lista }) => (
+                <section key={estado} className="flex w-72 shrink-0 flex-col rounded-xl border border-gray-200 bg-gray-50">
+                    <header className="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5">
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${def.clase}`}>{def.label}</span>
+                        <span className="text-xs tabular-nums text-gray-500">{lista.length}</span>
+                    </header>
+                    <ul
+                        onDragOver={(e) => { if (arrastrando?.estado === estado) { e.preventDefault(); setSobre(estado); } }}
+                        onDrop={(e) => { e.preventDefault(); soltar(estado, null); }}
+                        className={`flex min-h-[6rem] flex-1 flex-col gap-2 p-2 ${
+                            arrastrando?.estado === estado && sobre === estado ? 'bg-red-50/60' : ''
+                        }`}>
+                        {lista.map((t) => (
+                            <TarjetaKanban key={t.id} ticket={t} onAbrir={onAbrir}
+                                onArrastrar={(id) => setArrastrando(id == null ? null : { id, estado })}
+                                onSoltar={(destinoId) => soltar(estado, destinoId)}
+                                soltando={false} />
+                        ))}
+                        {lista.length === 0 && (
+                            <p className="px-2 py-6 text-center text-xs text-gray-400">Sin solicitudes</p>
+                        )}
+                    </ul>
+                </section>
+            ))}
+        </div>
+    );
+}
+
 export default function AdminTickets() {
     const [tickets, setTickets] = useState([]);
     const [tipos, setTipos] = useState([]);
     const [filtros, setFiltros] = useState({ estado: '', tipo_id: '', q: '', desde: '', hasta: '' });
     const [abierto, setAbierto] = useState(null);
     const [error, setError] = useState('');
-    // La tabla necesita las respuestas de cada ticket; el listado no, así que
-    // solo se piden cuando toca mostrarlas.
-    const [tabla, setTabla] = useState(false);
+    // La vista Kanban reordena tarjetas por estado; es una vista práctica, no
+    // cambia cómo se atiende una solicitud (eso sigue en el detalle).
+    const [kanban, setKanban] = useState(false);
 
-    const recargar = () => listarTickets({ ...filtros, incluir_datos: tabla || undefined })
+    // El Kanban muestra el costo en cada tarjeta, y el costo congelado solo
+    // viaja en el listado con incluir_datos; la Lista no lo usa, así que solo
+    // se pide cuando el tablero está a la vista.
+    const recargar = () => listarTickets({ ...filtros, incluir_datos: kanban || undefined })
         .then(setTickets).catch((e) => setError(e.message));
 
     useEffect(() => { listarTipos().then(setTipos).catch((e) => setError(e.message)); }, []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => { recargar(); }, [filtros.estado, filtros.tipo_id, filtros.desde, filtros.hasta, tabla]);
+    useEffect(() => { recargar(); }, [filtros.estado, filtros.tipo_id, filtros.desde, filtros.hasta, kanban]);
 
     const modificados = tickets.filter((t) => t.modificado).length;
-    const tipoElegido = tipos.find((t) => String(t.id) === String(filtros.tipo_id));
-    const cols = useMemo(() => columnas(tipoElegido?.definicion), [tipoElegido]);
-    // Las respuestas guardan el `value`; el texto de la opción sale de la definición.
-    const etqs = useMemo(() => etiquetas(tipoElegido?.definicion), [tipoElegido]);
-    // Suma de lo congelado en cada ticket, no un recálculo: es lo que de
-    // verdad costó. null si ninguno tiene costo, para no mostrar un $0 falso.
-    const totalPeriodo = useMemo(() => {
-        const conCosto = tickets.map(totalDe).filter((v) => v !== null);
-        return conCosto.length ? conCosto.reduce((a, b) => a + b, 0) : null;
-    }, [tickets]);
-    // Sin un tipo elegido no hay un juego de columnas común que mostrar.
-    const enTabla = tabla && !!tipoElegido;
-
-    const descargar = () => {
-        const { columns, rows } = filasExport(tickets, cols, etqs);
-        const hoja = (tipoElegido.nombre || 'Solicitudes').trim() || 'Solicitudes';
-        const fecha = new Date().toISOString().slice(0, 10);
-        descargarHojas([{ nombre: hoja, rows, columns }], `tickets_${hoja}_${fecha}.xlsx`);
-    };
 
     return (
         <AdminMarco>
@@ -466,10 +579,10 @@ export default function AdminTickets() {
                         </span>
                     )}
                     <div className="ml-auto inline-flex overflow-hidden rounded-lg border border-gray-300">
-                        {[['Lista', false], ['Tabla', true]].map(([etiqueta, valor]) => (
-                            <button key={etiqueta} type="button" onClick={() => setTabla(valor)}
-                                aria-pressed={tabla === valor}
-                                className={`px-4 py-1.5 text-sm ${tabla === valor ? 'bg-gray-900 text-white' : 'bg-white hover:bg-gray-100'}`}>
+                        {[['Lista', false], ['Kanban', true]].map(([etiqueta, valor]) => (
+                            <button key={etiqueta} type="button" onClick={() => setKanban(valor)}
+                                aria-pressed={kanban === valor}
+                                className={`px-4 py-1.5 text-sm ${kanban === valor ? 'bg-gray-900 text-white' : 'bg-white hover:bg-gray-100'}`}>
                                 {etiqueta}
                             </button>
                         ))}
@@ -505,76 +618,14 @@ export default function AdminTickets() {
                             Limpiar fechas
                         </button>
                     )}
-                    {tabla && !tipoElegido && (
-                        <span className="text-xs text-gray-500">Elige un tipo de solicitud para ver la tabla</span>
-                    )}
-                    {enTabla && totalPeriodo !== null && (
-                        <span className="text-sm text-gray-600">
-                            Total: <strong className="tabular-nums">{money(totalPeriodo)}</strong>
-                        </span>
-                    )}
-                    {enTabla && (
-                        <button type="button" onClick={descargar} disabled={tickets.length === 0}
-                            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-50">
-                            Descargar Excel
-                        </button>
-                    )}
                 </div>
             </div>
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
-            {enTabla ? (
-                <div className="mt-4 overflow-auto rounded-xl border border-gray-200 bg-white">
-                    <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                            <tr>
-                                <th className="px-3 py-2 font-medium">N°</th>
-                                <th className="px-3 py-2 font-medium">Solicitante</th>
-                                <th className="px-3 py-2 font-medium">Estado</th>
-                                <th className="px-3 py-2 font-medium">Reserva</th>
-                                <th className="px-3 py-2 text-right font-medium">Costo</th>
-                                {cols.map((c) => (
-                                    <th key={c.name} className="px-3 py-2 font-medium">{c.title}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {tickets.map((t) => (
-                                // Abrir una fila lleva al detalle de siempre: la tabla cambia
-                                // cómo se listan las respuestas, no cómo se atienden.
-                                <tr key={t.id} onClick={() => { setTabla(false); setAbierto(t.id); }}
-                                    className="cursor-pointer align-top hover:bg-gray-50">
-                                    <td className="px-3 py-2 font-mono text-gray-500">#{t.id}</td>
-                                    <td className="px-3 py-2">{t.usuario || t.email}</td>
-                                    <td className="px-3 py-2">
-                                        <Estado estado={t.estado} />
-                                        <CancelacionTardia ticket={t} />
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap">{bloqueDe(t)}</td>
-                                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums"
-                                        title={detalleCosto(t)}>
-                                        {money(totalDe(t))}
-                                    </td>
-                                    {cols.map((c) => {
-                                        const texto = enTexto(t.datos?.[c.name], etqs);
-                                        return (
-                                            <td key={c.name} className="max-w-[16rem] truncate px-3 py-2" title={texto}>
-                                                {texto}
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))}
-                            {tickets.length === 0 && (
-                                <tr>
-                                    <td colSpan={5 + cols.length} className="px-4 py-8 text-center text-sm text-gray-500">
-                                        Sin solicitudes con esos filtros.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+            {kanban ? (
+                // Abrir una tarjeta lleva al detalle de siempre, en la vista Lista:
+                // el Kanban cambia cómo se ordenan, no cómo se atienden.
+                <Kanban tickets={tickets} onAbrir={(id) => { setKanban(false); setAbierto(id); }} />
             ) : (
             /* Izquierda: el listado, pegado y con scroll propio, para que la
                página no crezca con cientos de solicitudes. Derecha: el detalle. */
