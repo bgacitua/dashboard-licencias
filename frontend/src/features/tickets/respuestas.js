@@ -7,6 +7,8 @@
  */
 
 // Los elementos decorativos no son respuestas y no merecen columna.
+import { tituloDe } from '../../components/form-builder/desglose.js'
+
 const DECORATIVOS = new Set(['html', 'image', 'expression'])
 
 /** Preguntas de la definición, en orden, aplanando los paneles. */
@@ -49,20 +51,43 @@ export const titulos = (definicion) =>
   Object.fromEntries(columnas(definicion).map((c) => [c.name, c.title]))
 
 /**
+ * Una respuesta como lista de valores ya traducidos, uno por opción elegida.
+ *
+ * Es lo mismo que `mostrar` pero sin aplanar, para quien tiene que dibujar
+ * cada valor por separado —una tarjeta por servicio— y no puede partir el
+ * string de vuelta: un nombre de servicio puede traer una coma.
+ *
+ * Vacío devuelve []. El '—' lo pone quien dibuja, que sabe si está llenando
+ * una celda o una lista.
+ */
+export const valoresDe = (v, etqs = {}) => {
+  if (v === undefined || v === null || v === '') return []
+  const uno = (x) => {
+    const t = (typeof x === 'string' && etqs[x]) || x
+    return typeof t === 'object' ? JSON.stringify(t) : String(t)
+  }
+  // Un checkbox sin marcar llega como [] y es tan "sin responder" como un
+  // texto vacío: en el resumen, fila por pregunta, la diferencia se nota.
+  return Array.isArray(v) ? v.map(uno) : [uno(v)]
+}
+
+/**
  * Una respuesta como texto plano, lista para una celda.
  *
  * `etqs` traduce el valor guardado al texto de la opción. Sin él se muestra el
  * valor crudo, que es lo correcto para las respuestas escritas a mano.
  */
-export const mostrar = (v, etqs = {}) => {
-  if (v === undefined || v === null || v === '') return '—'
-  const uno = (x) => (typeof x === 'string' && etqs[x]) || x
-  // Un checkbox sin marcar llega como [] y es tan "sin responder" como un
-  // texto vacío: en el resumen, fila por pregunta, la diferencia se nota.
-  if (Array.isArray(v)) return v.length ? v.map(uno).join(', ') : '—'
-  const t = uno(v)
-  return typeof t === 'object' ? JSON.stringify(t) : String(t)
-}
+export const mostrar = (v, etqs = {}) => valoresDe(v, etqs).join(', ') || '—'
+
+/**
+ * Una respuesta como texto plano, con el desglose de los servicios recortado.
+ *
+ * Para donde no caben tarjetas: una celda de tabla o un diff entre versiones.
+ * Ahí el paréntesis entero se come el ancho y termina cortado a la mitad, que
+ * es peor que no mostrarlo. El Excel sigue usando `mostrar`, con el nombre
+ * completo: ahí no hay ancho que cuidar y el dato crudo es el que sirve.
+ */
+export const enTexto = (v, etqs = {}) => valoresDe(v, etqs).map(tituloDe).join(', ') || '—'
 
 /**
  * Las preguntas a mostrar en el resumen de una respuesta: las de la definición
@@ -165,6 +190,30 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
   eq(mostrar(''), '—')
   eq(mostrar(0), '0')
   eq(mostrar(false), 'false')
+
+  // valoresDe es el primitivo: mostrar lo une con ', '. Sin aplanar, porque un
+  // nombre de servicio puede traer una coma y partir el string de vuelta
+  // rompería justo los nombres largos.
+  eq(valoresDe(['x', 'y']), ['x', 'y'])
+  eq(valoresDe('x'), ['x'])
+  eq(valoresDe([]), [])
+  eq(valoresDe(undefined), [])
+  eq(valoresDe(null), [])
+  eq(valoresDe(''), [])
+  // El '—' no es de acá: lo pone quien dibuja.
+  eq(valoresDe(0), ['0'])
+  eq(valoresDe(false), ['false'])
+  // Un objeto suelto se serializa igual dentro de un array que fuera de él.
+  // Antes el caso dentro del array caía en el join y daba '[object Object]'.
+  eq(valoresDe([{ a: 1 }]), ['{"a":1}'])
+  eq(mostrar([{ a: 1 }]), '{"a":1}')
+
+  // enTexto recorta el desglose; mostrar (y con él el Excel) lo conserva.
+  eq(enTexto('Coffee break (café; galletas)'), 'Coffee break')
+  eq(mostrar('Coffee break (café; galletas)'), 'Coffee break (café; galletas)')
+  eq(enTexto(['Coffee break (café; galletas)', 'Proyector']), 'Coffee break, Proyector')
+  eq(enTexto('Arriendo sala (sala grande)'), 'Arriendo sala (sala grande)')
+  eq(enTexto(undefined), '—')
 
   // Resumen: el orden del formulario, y lo que ya no se pregunta va al final.
   eq(resumenCampos(def, { a: 'Hola', viejo: 1 }), [

@@ -120,6 +120,22 @@ export const aCompletedHtml = (texto) => {
 };
 
 /**
+ * Escapa texto que va a entrar al DOM como HTML.
+ *
+ * survey-core inyecta varios de sus textos con innerHTML, sin pasar por React,
+ * así que el escape corre por nuestra cuenta. El orden importa: '&' primero, o
+ * se re-escaparían las entidades recién puestas.
+ *
+ * No escapa la comilla simple: quien arme atributos tiene que usar comillas
+ * dobles.
+ */
+export const escaparHtml = (texto) => String(texto ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+/**
  * Texto informativo -> `html` de survey-core. Mismo escape que completedHtml:
  * survey-core lo inyecta tal cual en la página que ve el usuario. Se permite
  * solo **negrita** y saltos de línea, que es lo que un aviso necesita.
@@ -127,11 +143,7 @@ export const aCompletedHtml = (texto) => {
 export const aHtmlInformativo = (texto) => {
     const limpio = String(texto ?? '').trim();
     if (!limpio) return '';
-    const escapado = limpio
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
+    const escapado = escaparHtml(limpio)
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\n/g, '<br>');
     return `<div style="line-height:1.6">${escapado}</div>`;
