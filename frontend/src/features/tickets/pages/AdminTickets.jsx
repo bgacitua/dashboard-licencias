@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import AdminMarco from '../components/AdminMarco';
+import Desglosado from '../components/Desglosado';
 import Seguimiento from '../components/Seguimiento';
 import { Estado } from './PortalInicio';
 import { descargarHojas } from '../../asistencia/planilla';
 import {
-    columnas, detalleCosto, etiquetas, filasExport, money, mostrar, resumenCampos, titulos, totalDe,
+    columnas, detalleCosto, enTexto, etiquetas, filasExport, money, resumenCampos, titulos,
+    totalDe, valoresDe,
 } from '../respuestas';
 import {
     ESTADOS, abrirEmergencia, bloque, cambiarEstado, diaMes, encabezadoDe, fechaCorta,
@@ -227,8 +229,8 @@ function Detalle({ id, tipos, onCambio }) {
                                         <span className="font-medium">
                                             {c.campo === '__fecha' ? 'Reserva del servicio' : nombres[c.campo] || c.campo}:
                                         </span>{' '}
-                                        <span className="line-through opacity-60">{mostrar(c.antes, etqs)}</span>
-                                        {' → '}{mostrar(c.ahora, etqs)}
+                                        <span className="line-through opacity-60">{enTexto(c.antes, etqs)}</span>
+                                        {' → '}{enTexto(c.ahora, etqs)}
                                     </li>
                                 ))}
                             </ul>
@@ -286,8 +288,8 @@ function Detalle({ id, tipos, onCambio }) {
                                             <span className="ml-1 text-xs text-gray-400">(ya no se pregunta)</span>
                                         )}
                                     </dt>
-                                    <dd className="whitespace-pre-wrap text-sm text-gray-900">
-                                        {mostrar(version?.datos?.[c.name], etqs)}
+                                    <dd className="text-sm text-gray-900">
+                                        <Desglosado valores={valoresDe(version?.datos?.[c.name], etqs)} />
                                     </dd>
                                 </div>
                             ))}
@@ -356,7 +358,7 @@ function Detalle({ id, tipos, onCambio }) {
                                     {cambios.map((c) => (
                                         <li key={c.campo}>
                                             <span className="font-medium">{c.campo === '__fecha' ? 'Reserva del servicio' : nombres[c.campo] || c.campo}:</span>{' '}
-                                            <span className="line-through opacity-60">{mostrar(c.antes, etqs)}</span> → {mostrar(c.ahora, etqs)}
+                                            <span className="line-through opacity-60">{enTexto(c.antes, etqs)}</span> → {enTexto(c.ahora, etqs)}
                                         </li>
                                     ))}
                                 </ul>
@@ -554,7 +556,7 @@ export default function AdminTickets() {
                                         {money(totalDe(t))}
                                     </td>
                                     {cols.map((c) => {
-                                        const texto = mostrar(t.datos?.[c.name], etqs);
+                                        const texto = enTexto(t.datos?.[c.name], etqs);
                                         return (
                                             <td key={c.name} className="max-w-[16rem] truncate px-3 py-2" title={texto}>
                                                 {texto}

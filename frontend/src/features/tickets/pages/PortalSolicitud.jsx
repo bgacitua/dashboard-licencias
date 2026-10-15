@@ -6,10 +6,11 @@ import 'survey-core/survey-core.css';
 import { crearModelo } from '../../../components/form-builder/tema';
 import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
 import CarruselNoticias from '../components/CarruselNoticias';
+import Desglosado from '../components/Desglosado';
 import Seguimiento from '../components/Seguimiento';
 import { Estado } from './PortalInicio';
 import { useDialogo } from '../../../components/Dialogos';
-import { etiquetas, mostrar, resumenCampos } from '../respuestas';
+import { etiquetas, resumenCampos, valoresDe } from '../respuestas';
 import {
     bloque, cabeEnLibres, cancelarTicket, crearTicket, editarTicket, fechaCorta, fechaHora,
     mayorHueco, miTicket, plazoPara, reservasPortal, tiposPortal, tramoDe, tramoTexto,
@@ -469,8 +470,8 @@ export default function PortalSolicitud() {
                                             <span className="ml-1 text-xs text-slate-400">(ya no se pregunta)</span>
                                         )}
                                     </dt>
-                                    <dd className="whitespace-pre-wrap text-sm text-slate-900">
-                                        {mostrar(ticket.datos?.[c.name], etqs)}
+                                    <dd className="text-sm text-slate-900">
+                                        <Desglosado valores={valoresDe(ticket.datos?.[c.name], etqs)} />
                                     </dd>
                                 </div>
                             ))}
