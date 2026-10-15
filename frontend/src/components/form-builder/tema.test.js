@@ -42,8 +42,6 @@ assert.equal(m.headerView, "advanced");
 assert.equal(construirTema({ encabezado: "imagen", encabezadoImagen: "" }).headerView, "basic");
 assert.equal(construirTema({ encabezado: "simple" }).headerView, "basic");
 
-console.log("tema: ok");
-
 // La perilla oculta título Y descripción: con la imagen del encabezado ya
 // escrita, dejar la descripción suelta se veía igual de repetido.
 const sinTitulo = crearModelo(
@@ -57,3 +55,35 @@ assert.equal(sinTitulo.description, "");
 const conTitulo = crearModelo({ elements: [] }, {}, { titulo: "Almuerzos", descripcion: "Pide" });
 assert.equal(conTitulo.title, "Almuerzos");
 assert.equal(conTitulo.description, "Pide");
+
+// El desglose entre paréntesis llega a survey-core como HTML: el texto de la
+// opción se parte en título + tarjetas. Es todo lo que se puede comprobar del
+// enganche de onTextMarkdown sin un navegador, y cubre los tres filtros.
+const conDesglose = crearModelo({
+    elements: [
+        {
+            type: "radiogroup", name: "r", choices: [
+                { value: "srv:1", text: "Coffee break (café; galletas)" },
+                { value: "srv:2", text: "Arriendo sala (sala grande)" },
+            ],
+        },
+        { type: "dropdown", name: "d", choices: [{ value: "srv:1", text: "Coffee break (café; galletas)" }] },
+    ],
+}, {}, { titulo: "Comida (almuerzo; cena)" });
+
+const ops = conDesglose.getQuestionByName("r").choices;
+assert.ok(ops[0].locText.hasHtml, "la opción con desglose pasa a HTML");
+assert.ok(ops[0].locText.textOrHtml.includes(">café<"), "y trae sus tarjetas");
+// Sin ';' no se toca options.html: si no, survey-core deja ese texto en la
+// rama innerHTML para siempre y se paga en todas las opciones.
+assert.ok(!ops[1].locText.hasHtml, "sin ';' la opción queda como texto plano");
+
+// El dropdown pinta la elegida dentro del combo cerrado, de una línea.
+assert.ok(!conDesglose.getQuestionByName("d").choices[0].locText.hasHtml,
+    "el dropdown no recibe tarjetas");
+
+// El título del formulario no es una opción: un tipo con paréntesis en el
+// nombre no puede terminar con tarjetas en el encabezado.
+assert.ok(!conDesglose.locTitle.hasHtml, "el encabezado nunca recibe tarjetas");
+
+console.log("tema: ok");
