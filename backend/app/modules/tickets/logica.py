@@ -294,3 +294,44 @@ def disponibilidad_del_bloque(
     """
     dentro = sorted(t for t in ocupados if se_solapan(bloque_inicio, bloque_fin, *t))
     return dentro, huecos_libres(bloque_inicio, bloque_fin, dentro)
+
+
+def _sin_responder(v) -> bool:
+    """Una respuesta que es lo mismo que no haber contestado.
+
+    El navegador borra la clave al vaciar un campo y lo ya guardado la conserva
+    en '' o []; las tres formas dicen lo mismo. `False` y `0` no entran: son
+    respuestas.
+    """
+    return v is None or v == "" or v == []
+
+
+def _comparable(v):
+    """Comparable estable. Una lista de primitivos se ordena: marcar y
+    desmarcar una casilla cambia el orden de la selección sin cambiar lo
+    pedido, y ninguna pregunta del constructor le da sentido al orden."""
+    if isinstance(v, list) and all(not isinstance(x, (list, dict)) for x in v):
+        return sorted(v, key=repr)
+    return v
+
+
+def mismas_respuestas(a: dict | None, b: dict | None) -> bool:
+    """¿Dos juegos de respuestas dicen lo mismo?
+
+    Es lo que decide si una solicitud de cambio tiene algo que pedir. Recorre
+    la unión de las claves y no las de uno solo: borrar una respuesta es un
+    cambio tanto como escribirla.
+
+    Espejo de `mismasRespuestas` en frontend/src/features/tickets/respuestas.js.
+    El navegador apaga el botón con esa; acá se rechaza igual, porque la regla
+    no puede vivir solo en la pantalla.
+    """
+    a = a or {}
+    b = b or {}
+    for k in set(a) | set(b):
+        x, y = a.get(k), b.get(k)
+        if _sin_responder(x) and _sin_responder(y):
+            continue
+        if _comparable(x) != _comparable(y):
+            return False
+    return True

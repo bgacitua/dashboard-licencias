@@ -21,7 +21,8 @@ from .config import settings
 from .logica import (
     ESTADOS_ABIERTOS, ESTADOS_ADMIN, ESTADOS_QUE_OCUPAN, calcular_costo, calcular_plazo,
     cancelable, cancelacion_tardia, disponibilidad_del_bloque, editable, huecos_libres,
-    id_de_servicio, mime_de_imagen, plazo_efectivo, se_solapan, servicios_respondidos,
+    id_de_servicio, mime_de_imagen, mismas_respuestas, plazo_efectivo, se_solapan,
+    servicios_respondidos,
 )
 from .models import (
     TkArchivo, TkEvento, TkServicio, TkServicioPrecio, TkTicket, TkTipo, TkUsuario, TkVersion,
@@ -433,6 +434,22 @@ def proponer_cambio(
         _validar_plazo(tipo, reserva["fecha"])
 
     campos = _campos_de_reserva(reserva, inicio, fin)
+
+    # Un cambio que no cambia nada no se guarda. El portal apaga el botón, pero
+    # la regla tiene que estar acá: si entrara, el ticket quedaría
+    # 'en_revision' y el administrador recibiría una revisión que no pide nada.
+    vigente = (
+        db.query(TkVersion)
+        .filter(TkVersion.ticket_id == ticket_id, TkVersion.version == ticket.version_actual)
+        .first()
+    )
+    mismo_horario = all(
+        getattr(ticket, campo) == campos[campo]
+        for campo in ("fecha_servicio", "servicio_inicio", "servicio_fin", "reserva_id")
+    )
+    if mismo_horario and vigente is not None and mismas_respuestas(vigente.datos, datos):
+        raise HTTPException(409, "No hay cambios que enviar: la solicitud quedó igual que la vigente.")
+
     # El ticket que se está cambiando no se choca consigo mismo: su tramo
     # vigente es justo el que se quiere mover.
     _validar_sin_solape(db, usuario.id, campos, excluir_ticket=ticket_id)

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
 
@@ -11,11 +11,13 @@ import ResumenVivo from '../components/ResumenVivo';
 import Seguimiento from '../components/Seguimiento';
 import { Estado } from './PortalInicio';
 import { useDialogo } from '../../../components/Dialogos';
-import { etiquetas, resumenCampos, valoresDe } from '../respuestas';
+import { etiquetas, mismasRespuestas, resumenCampos, valoresDe } from '../respuestas';
 import {
     bloque, cabeEnLibres, cancelarTicket, crearTicket, editarTicket, fechaCorta, fechaHora,
     mayorHueco, miTicket, plazoPara, reservasPortal, tiposPortal, tramoDe, tramoTexto,
 } from '../services/tickets';
+
+const SIN_CAMBIOS = 'Todavía no cambiaste nada. Modifica el horario o alguna respuesta para poder enviar.';
 
 /** 'HH:MM:SS' o 'HH:MM' -> 'HH:MM', que es lo que quiere <input type="time">. */
 const hhmm = (t) => `${t || ''}`.slice(0, 5);
@@ -58,8 +60,9 @@ const situacion = (ticket, propuesta) => {
  *   /tickets/t/:id         -> el ticket; editable mientras esté abierto y en
  *                             plazo, y cancelable mientras esté abierto
  */
-export default function PortalSolicitud() {
+export default function PortalSolicitud({ modificando = false }) {
     const { tipoId, id } = useParams();
+    const navegar = useNavigate();
     const { confirmar } = useDialogo();
     const manejar = useSesionPortal();
     const [tipo, setTipo] = useState(null);
@@ -87,6 +90,10 @@ export default function PortalSolicitud() {
     // no se deriva en el render: el modelo de survey-core es mutable y React
     // no se entera de que cambió.
     const [vivo, setVivo] = useState([]);
+    // Las respuestas crudas del formulario. Van aparte de `vivo`, que son filas
+    // ya formateadas para dibujar: para saber si el usuario cambió algo hay que
+    // comparar los valores, no su texto.
+    const [datosVivos, setDatosVivos] = useState(null);
     // Panel de cancelación abierto, y el motivo que se está escribiendo.
     const [cancelando, setCancelando] = useState(false);
     const [motivo, setMotivo] = useState('');
@@ -185,6 +192,13 @@ export default function PortalSolicitud() {
     // Con un cambio esperando respuesta el formulario se congela: otro
     // encima dejaría al administrador resolviendo algo ya viejo.
     const soloLectura = !!ticket && !ticket.editable;
+
+    // `/tickets/t/:id` es la ficha: estado, seguimiento y lo que se pidió, sin
+    // formulario. `/tickets/t/:id/modificar` es el asistente, el mismo de
+    // crear. Antes eran la misma pantalla y el formulario colgaba al final de
+    // la ficha, que es lo que confundía.
+    const esFicha = !!ticket && !modificando;
+    const esAsistente = !ticket || modificando;
     const reserva = (reservas || []).find((r) => r.id === reservaId) || null;
     const fecha = reserva?.fecha || '';
     const plazo = !soloLectura && fecha && tipo ? plazoPara(tipo, fecha) : null;
@@ -216,6 +230,24 @@ export default function PortalSolicitud() {
                         ? `Ya pediste un servicio que se pisa con ese horario. Te queda libre ${libres.map(tramoTexto).join(' y ')}.`
                         : 'Ya pediste servicios para toda esa reserva. Elige otra reservación.')
                         : vencido ? 'El plazo para esa fecha ya venció. Elige otra reserva.' : '';
+
+    // Un cambio que no cambia nada deja el ticket 'en_revision' y al
+    // administrador resolviendo una revisión que no pide nada. El backend lo
+    // rechaza igual; acá se apaga el botón para no hacer el viaje.
+    //
+    // `datosVivos` es null hasta que el modelo existe: sin respuestas que
+    // comparar no se puede afirmar que no hubo cambios, así que no traba.
+    const sinCambios = !!ticket && !!datosVivos
+        && reservaId === ticket.reserva_id
+        && hhmm(tramo.inicio) === hhmm(ticket.servicio_inicio)
+        && hhmm(tramo.fin) === hhmm(ticket.servicio_fin)
+        && mismasRespuestas(datosVivos, ticket.datos);
+
+    // Lo que impide enviar. Va aparte de `traba`, que también apaga el botón
+    // del paso 1: ahí el formulario ni se ha abierto y nada pudo cambiar
+    // todavía, así que trabarlo dejaba al usuario sin poder entrar a editar.
+    const trabaEnvio = traba
+        || (sinCambios ? SIN_CAMBIOS : '');
 
     // Un ticket ya enviado se abre en su formulario: la reservación está
     // tomada y volver a elegirla es la excepción, no el primer paso.
@@ -288,11 +320,11 @@ export default function PortalSolicitud() {
     // y declararlo antes lo leía en su zona muerta temporal. No reventaba en el
     // paso 1 —el `&&` cortaba antes de llegar— sino al entrar al formulario,
     // que es donde `paso === 'formulario'` deja pasar la condición.
-    const conResumen = !ticket && !enviada && paso === 'formulario' && !!model;
+    const conResumen = esAsistente && !enviada && paso === 'formulario' && !!model;
     // Va en xl: y no en lg: porque a 1024px la columna de 20rem dejaría el
     // formulario en 648px, más angosto que los 768px que tiene hoy sin columna.
     // Bajo ese ancho el resumen cae abajo y el formulario conserva el suyo.
-    const grilla = ticket
+    const grilla = esFicha
         ? 'flex flex-col gap-6 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start'
         : conResumen
             ? 'flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start'
@@ -305,9 +337,9 @@ export default function PortalSolicitud() {
         const alCompletar = (_, opciones) => {
             // Red de seguridad: el botón ya está deshabilitado, pero survey-core
             // también completa con Enter desde la última pregunta.
-            if (traba) {
+            if (trabaEnvio) {
                 opciones.allow = false;
-                setError(traba);
+                setError(trabaEnvio);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         };
@@ -320,9 +352,12 @@ export default function PortalSolicitud() {
                         reserva_id: reservaId, servicio_inicio: tramo.inicio, servicio_fin: tramo.fin,
                         datos: sender.data, version: ticket.version_actual,
                     });
-                    setAviso('Solicitud de cambio enviada. Rige la versión anterior hasta que el administrador la apruebe.');
                     setSucio(false);
                     setRecarga((n) => n + 1);
+                    // Se vuelve a la ficha: ahí está el aviso de que el cambio
+                    // espera respuesta, y quedarse en el formulario invitaba a
+                    // mandar otro encima.
+                    navegar(`/tickets/t/${ticket.id}`, { replace: true });
                 } else {
                     const r = await crearTicket({
                         tipo_id: tipo.id, reserva_id: reservaId,
@@ -352,7 +387,7 @@ export default function PortalSolicitud() {
             model.onCompleting.remove(alCompletar);
             model.onComplete.remove(alGuardar);
         };
-    }, [model, reservaId, tramo, traba, ticket, tipo, soloLectura, manejar]);
+    }, [model, reservaId, tramo, trabaEnvio, ticket, tipo, soloLectura, manejar]);
 
     // El botón de enviar queda apagado mientras falte la fecha o el plazo esté
     // vencido: es preferible a dejar llenar todo y rebotar al final. Si una
@@ -361,9 +396,9 @@ export default function PortalSolicitud() {
     useEffect(() => {
         const accion = model?.navigationBar?.getActionById?.('sv-nav-complete');
         if (!accion) return;
-        accion.enabled = !traba;
-        accion.tooltip = traba || undefined;
-    }, [model, traba]);
+        accion.enabled = !trabaEnvio;
+        accion.tooltip = trabaEnvio || undefined;
+    }, [model, trabaEnvio]);
 
     // Marca que hay respuestas sin guardar, y refresca el resumen de la derecha.
     // Las dos cosas cuelgan del mismo evento a propósito: engancharlo dos veces
@@ -373,6 +408,7 @@ export default function PortalSolicitud() {
         const alCambiar = () => {
             setSucio(true);
             setVivo(leerVivo(model));
+            setDatosVivos({ ...model.data });
         };
         model.onValueChanged.add(alCambiar);
         return () => model.onValueChanged.remove(alCambiar);
@@ -380,7 +416,10 @@ export default function PortalSolicitud() {
 
     // `onValueChanged` solo avisa de cambios, así que lo ya respondido —un
     // ticket que se está editando, o un `defaultValue`— no entraría nunca.
-    useEffect(() => { setVivo(leerVivo(model)); }, [model, leerVivo]);
+    useEffect(() => {
+        setVivo(leerVivo(model));
+        setDatosVivos(model ? { ...model.data } : null);
+    }, [model, leerVivo]);
 
     // Cerrar o recargar la pestaña con cambios escritos. El navegador muestra
     // su propio texto; el nuestro solo activa el aviso.
@@ -399,6 +438,13 @@ export default function PortalSolicitud() {
         }
     };
 
+    // Una solicitud que ya no admite cambios no tiene vista de modificación:
+    // /modificar mostraría un formulario congelado y sin botón. Se vuelve a la
+    // ficha, que es donde dice por qué.
+    if (modificando && ticket && !ticket.editable) {
+        return <Navigate to={`/tickets/t/${ticket.id}`} replace />;
+    }
+
     return (
         // Mismo truco que FormPublico: survey-core pinta el fondo con
         // --sjs2-color-utility-body solo dentro de su caja; con las variables
@@ -408,17 +454,17 @@ export default function PortalSolicitud() {
             {/* Enviada la solicitud, la salida es el botón de abajo: dos formas
                 de volver a lo mismo en una pantalla de acuse sobran. */}
             {!enviada && (
-                <Link to="/tickets" onClick={alSalir}
+                <Link to={modificando && ticket ? `/tickets/t/${ticket.id}` : '/tickets'} onClick={alSalir}
                     className="mb-4 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
                     <span className="material-symbols-outlined text-lg">arrow_back</span>
-                    Mis solicitudes
+                    {modificando && ticket ? 'Volver a la solicitud' : 'Mis solicitudes'}
                 </Link>
             )}
 
             {/* Con ticket: seguimiento en una columna fija a la izquierda. En
                 pantallas chicas no cabe al lado y baja después del formulario. */}
             <div className={grilla}>
-            {ticket && (
+            {esFicha && (
                 <aside className="order-last lg:sticky lg:top-20 lg:order-none lg:h-[calc(100vh-9rem)]">
                     {/* El usuario del portal recibe el seguimiento, no conversa:
                         lo que tenga que decir va en una solicitud de cambio, que
@@ -428,7 +474,7 @@ export default function PortalSolicitud() {
             )}
             <div className="min-w-0">
 
-            {ticket && (
+            {esFicha && (
                 <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4">
                     <span className="font-mono text-lg font-semibold text-slate-900">#{ticket.id}</span>
                     <Estado estado={ticket.estado} />
@@ -439,6 +485,16 @@ export default function PortalSolicitud() {
                     <span className="w-full text-sm text-slate-600">
                         {situacion(ticket, propuesta)}
                     </span>
+                    {/* Modificar abre su propia pantalla en vez de desplegar
+                        el formulario acá abajo: son dos cosas distintas y la
+                        ficha es para mirar en qué quedó la solicitud. */}
+                    {ticket.editable && !cancelando && (
+                        <Link to={`/tickets/t/${ticket.id}/modificar`}
+                            className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700">
+                            <span className="material-symbols-outlined text-base">edit</span>
+                            Solicitud de modificación
+                        </Link>
+                    )}
                     {/* Cancelar no tiene plazo: mientras la solicitud siga
                         abierta, el botón está. Que hacerlo tarde se cobre es
                         cosa del casino y no se nombra acá. */}
@@ -495,7 +551,7 @@ export default function PortalSolicitud() {
             {/* El ticket guarda una copia de la reserva: si la movieron en
                 Outlook, lo pedido sigue donde quedó. Por eso en un ticket ya
                 enviado se muestra lo guardado y no lo que dice el calendario. */}
-            {ticket && (
+            {esFicha && (
                 <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-5 py-4">
                     <p className="text-sm font-medium text-slate-800">Lo que pediste</p>
                     {ticket.hora_inicio && (
@@ -539,7 +595,7 @@ export default function PortalSolicitud() {
 
             {/* Dos pasos, dos rótulos. Sin esto el salto de la grilla al
                 formulario parece que la página se hubiera ido a otra parte. */}
-            {!soloLectura && !ticket && !enviada && tipo && (
+            {!soloLectura && esAsistente && !enviada && tipo && (
                 <ol className="mb-4 flex items-center gap-3 text-sm">
                     {[['reserva', 'Reservación'], ['formulario', 'Solicitud']].map(([clave, rotulo], i) => {
                         const activo = paso === clave;
@@ -567,7 +623,7 @@ export default function PortalSolicitud() {
                 </ol>
             )}
 
-            {!soloLectura && !enviada && paso === 'reserva' && tipo && (
+            {!soloLectura && esAsistente && !enviada && paso === 'reserva' && tipo && (
                 <section className="animate-entra mb-4 rounded-2xl border border-slate-200 bg-white px-5 py-5" aria-live="polite">
                     <h2 className="text-lg font-semibold text-slate-900">Mis reservaciones</h2>
                     <p className="mt-1 text-sm text-slate-500">
@@ -717,7 +773,7 @@ export default function PortalSolicitud() {
                             disabled={!!traba}
                             className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition-all duration-200 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
                         >
-                            {ticket ? 'Solicitud de modificación' : 'Continuar al formulario'}
+                            Continuar al formulario
                             <span className="material-symbols-outlined text-lg">arrow_forward</span>
                         </button>
                     )}
@@ -726,7 +782,7 @@ export default function PortalSolicitud() {
 
             {/* Recién con la reservación tomada aparece el formulario. Arriba
                 queda el resumen, que es lo único que hay que recordar de acá. */}
-            {paso === 'formulario' && !soloLectura && !enviada && reserva && (
+            {paso === 'formulario' && !soloLectura && esAsistente && !enviada && reserva && (
                 <div className="animate-entra-lateral mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
                     <span className="material-symbols-outlined text-blue-700">event_available</span>
                     <span className="text-sm text-slate-800">
@@ -748,7 +804,7 @@ export default function PortalSolicitud() {
             {/* El botón de enviar está apagado y la razón no se ve desde acá:
                 lo que la destraba vive en el paso de reservación. Sin esto el
                 usuario editaba campos esperando que el botón se encendiera. */}
-            {paso === 'formulario' && !soloLectura && !enviada && traba && (
+            {paso === 'formulario' && !soloLectura && esAsistente && !enviada && traba && (
                 <div className="animate-entra mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4"
                     role="status">
                     <span className="material-symbols-outlined text-amber-700">error_outline</span>
@@ -764,9 +820,17 @@ export default function PortalSolicitud() {
                 </div>
             )}
 
+            {/* Sin acción a propósito: esto no se arregla volviendo al paso
+                de reservación, sino editando lo que ya está en pantalla. */}
+            {paso === 'formulario' && esAsistente && !enviada && !traba && sinCambios && (
+                <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3" role="status">
+                    <p className="text-sm text-slate-600">{SIN_CAMBIOS}</p>
+                </div>
+            )}
+
             {/* Enviada, el formulario se desmonta: en su lugar va el carrusel
                 de noticias, que reemplaza a la página final de survey-core. */}
-            {model && !enviada && (soloLectura || paso === 'formulario') && (
+            {model && esAsistente && !enviada && paso === 'formulario' && (
                 <div className="animate-entra-lateral overflow-hidden rounded-2xl border border-slate-200">
                     <Survey model={model} />
                 </div>
