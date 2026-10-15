@@ -366,13 +366,19 @@ class ContractAlertsService:
         """Resuelve el token opaco contra la BD. None si no existe o caducó.
 
         No hay nada que validar criptográficamente: el token no lleva datos. La
-        única fuente de verdad es la fila. Caduca a las TOKEN_TTL_HORAS del
-        último envío; un recordatorio emite token nuevo y reabre la ventana.
+        única fuente de verdad es la fila. Caduca a las TOKEN_TTL_HORAS de cuando
+        se emitió el token —no del último envío principal—, así el recordatorio
+        reabre la ventana sin alterar su propia cadencia diaria.
+
+        El fallback cubre las filas anteriores a la migración 032, que no tienen
+        token_issued_at poblado.
         """
         record = self.tracking.get_by_token(token)
         if not record:
             return None
-        emitido = record.get("last_followup_at") or record.get("first_sent_at")
+        emitido = (record.get("token_issued_at")
+                   or record.get("last_followup_at")
+                   or record.get("first_sent_at"))
         if emitido and datetime.now(emitido.tzinfo) - emitido > timedelta(hours=TOKEN_TTL_HORAS):
             logger.info(f"[token] caducado para tracking_id={record.get('id')}")
             return None
@@ -642,7 +648,29 @@ class ContractAlertsService:
         try:
             for boss_email, registros in por_jefe.items():
                 boss_name = registros[0]["boss_name"]
-                token_map = {r["rut"]: r["response_token"] for r in registros}
+
+                # La primera vez que una fila cae acá su token ya cumplió las
+                # TOKEN_TTL_HORAS: la consulta de pendientes pide 3 días sin alerta,
+                # que son las mismas 72 horas de la ventana. Reusarlo manda un link
+                # muerto, así que el recordatorio emite uno nuevo por empleado y
+                # mark_followup_sent() le abre la ventana al salir el correo.
+                token_map: Dict[str, str] = {}
+                rotados: List[int] = []
+                for r in registros:
+                    nuevo_token = self.tracking.rotate_token(r["id"])
+                    if not nuevo_token:
+                        logger.error(
+                            f"[Followup] No se pudo rotar el token de tracking_id={r['id']}, "
+                            f"va sin link"
+                        )
+                        continue
+                    token_map[r["rut"]] = nuevo_token
+                    rotados.append(r["id"])
+
+                if not token_map:
+                    logger.error(f"[Followup] Sin tokens utilizables para {boss_email}, no se envía")
+                    errores += 1
+                    continue
 
                 empleados_data = [
                     {
@@ -663,6 +691,9 @@ class ContractAlertsService:
                 ok = _send_email_graph(boss_email, "", subject, html)
                 if ok:
                     enviados += 1
+                    # Recién ahora corre la ventana de los tokens que acaban de salir.
+                    for tracking_id in rotados:
+                        self.tracking.mark_followup_sent(tracking_id)
                     logger.info(f"[Followup] Recordatorio enviado a {boss_email} ({len(registros)} empleados)")
                 else:
                     errores += 1
