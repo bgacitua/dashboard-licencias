@@ -248,10 +248,50 @@ vacías) y las crea en el esquema `tickets`.
 Siembra el módulo `tickets` en `app.modulos`. Falta asignarlo al perfil que
 atiende las solicitudes desde el panel de administración.
 
+## Desglose de un servicio
+
+Lo que un servicio incluye se escribe **en su propio nombre**, entre paréntesis
+al final y separado por punto y coma:
+
+```
+Coffee break (café; galletas; jugo de naranja)
+```
+
+El portal lo dibuja como el título del servicio y, debajo, una tarjeta por
+parte. No hay columna nueva ni migración: la convención vive en
+`tickets.servicios.nombre`, que es el texto que el backend ya copia a la
+definición de cada tipo (`con_servicios_al_dia`). Sirve igual para una opción
+libre escrita a mano en el constructor.
+
+**Hace falta el `;`.** `Arriendo sala (sala grande)` se deja tal cual: un
+paréntesis sin punto y coma es una aclaración, no una lista, y los nombres que
+ya existían no podían cambiar de aspecto solos. Si quieres una sola tarjeta,
+`Arriendo sala (sala grande;)`.
+
+**Dónde se ve.** En las preguntas de opción única y de casillas del formulario,
+en el resumen de la derecha mientras se llena, en "Lo que pediste" y en la
+pestaña Detalle del panel. Los `dropdown` quedan fuera a propósito: pintan la
+opción elegida dentro del combo cerrado, que es de una línea.
+
+**Dónde no.** El Excel, el detalle de costo y las celdas de la tabla del panel
+siguen con el nombre completo o recortado al título, según el ancho. El nombre
+que queda congelado en `versiones.costo.lineas[].nombre` tampoco se parte: es
+el que el servicio tenía cuando se guardó esa versión.
+
+**Al escribirlo**, ojo con dos cosas. El nombre está topado en 160 caracteres y
+el índice único es sobre el nombre entero, así que `Coffee break (café)` y
+`Coffee break (té; jugo)` son dos filas válidas que se leen con el mismo
+título. Y el `;` es el separador: una parte no puede contener uno.
+
+El parser y el HTML que inyecta están en
+`frontend/src/components/form-builder/desglose.js`, junto a `servicios.js`
+porque lo necesita `crearModelo` y `components/` no importa de `features/`.
+
 ## Self-check
 
 ```
 python -m tests.test_tickets
 node frontend/src/components/form-builder/tema.test.js
 node frontend/src/components/form-builder/logica.test.js
+node frontend/src/components/form-builder/desglose.test.mjs
 ```
