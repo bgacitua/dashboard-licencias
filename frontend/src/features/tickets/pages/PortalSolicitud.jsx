@@ -6,7 +6,7 @@ import 'survey-core/survey-core.css';
 import { crearModelo } from '../../../components/form-builder/tema';
 import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
 import CarruselNoticias from '../components/CarruselNoticias';
-import Conversacion from '../components/Conversacion';
+import Seguimiento from '../components/Seguimiento';
 import { Estado } from './PortalInicio';
 import { useDialogo } from '../../../components/Dialogos';
 import { etiquetas, mostrar, resumenCampos } from '../respuestas';
@@ -362,10 +362,10 @@ export default function PortalSolicitud() {
             <div className={ticket ? 'flex flex-col gap-6 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start' : ''}>
             {ticket && (
                 <aside className="order-last lg:sticky lg:top-20 lg:order-none lg:h-[calc(100vh-9rem)]">
-                    {/* Sin onEnviar: el usuario del portal recibe el seguimiento,
-                        no conversa. Lo que tenga que decir va en una solicitud
-                        de cambio, que es lo que el administrador resuelve. */}
-                    <Conversacion columna eventos={ticket.eventos} />
+                    {/* El usuario del portal recibe el seguimiento, no conversa:
+                        lo que tenga que decir va en una solicitud de cambio, que
+                        es lo que el administrador resuelve. */}
+                    <Seguimiento columna ticket={ticket} />
                 </aside>
             )}
             <div className="min-w-0">

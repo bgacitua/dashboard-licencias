@@ -75,7 +75,6 @@ export const listarTickets = (filtros = {}) => {
 export const verTicket = (id) => admin(`/tickets/${id}`);
 export const cambiarEstado = (id, estado, comentario) =>
     admin(`/tickets/${id}/estado`, { method: 'POST', body: { estado, comentario } });
-export const comentarAdmin = (id, texto) => admin(`/tickets/${id}/comentarios`, { method: 'POST', body: { texto } });
 // Aprobar hace vigente el cambio del usuario; rechazar lo deja registrado.
 export const resolverPropuesta = (id, aprobar) =>
     admin(`/tickets/${id}/propuesta`, { method: 'POST', body: { aprobar } });

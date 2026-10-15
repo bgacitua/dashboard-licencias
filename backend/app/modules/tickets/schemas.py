@@ -210,10 +210,6 @@ class TicketEdit(TramoIn):
     _v = field_validator("datos")(_datos_acotados)
 
 
-class ComentarioIn(BaseModel):
-    texto: str = Field(..., min_length=1, max_length=2000)
-
-
 class EstadoIn(BaseModel):
     estado: EstadoAdmin
     comentario: str | None = Field(None, max_length=2000)

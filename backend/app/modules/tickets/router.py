@@ -27,7 +27,7 @@ from .config import settings
 from .logica import aviso_de_cambio
 from .models import TkTicket, TkTipo, TkUsuario
 from .schemas import (
-    ArchivoOut, ComentarioIn, EmergenciaIn, Estado, EstadoIn, PrecioIn, ResolucionIn,
+    ArchivoOut, EmergenciaIn, Estado, EstadoIn, PrecioIn, ResolucionIn,
     ServicioCreate, ServicioDetalle,
     ServicioOut, ServicioUpdate, TicketDetalle, TicketResumen, TipoCreate, TipoOut, TipoUpdate,
     UsuarioEstadoIn, UsuarioOut,
@@ -97,13 +97,6 @@ def abrir_emergencia(
         service.url_portal(f"/tickets/t/{ticket_id}"),
         motivo=datos.motivo or None, ticket=aviso["ticket"],
     )
-
-
-@router.post("/tickets/{ticket_id}/comentarios", status_code=204)
-def comentar(ticket_id: int, datos: ComentarioIn, db: Db, admin: Admin) -> None:
-    if not db.get(TkTicket, ticket_id):
-        raise HTTPException(404, "Ticket no encontrado.")
-    service.comentar(db, ticket_id, datos.texto, admin.username, es_admin=True)
 
 
 # === Tipos de solicitud ===
