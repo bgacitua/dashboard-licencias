@@ -494,10 +494,10 @@ def resolver_propuesta(db: Session, ticket_id: int, aprobar: bool, autor: str) -
         ticket.estado = "en_curso"
     db.commit()
 
-    comentar(
+    anotar(
         db, ticket_id,
         f"Cambio {'aprobado' if aprobar else 'rechazado'} (versión {propuesta.version}).",
-        autor, es_admin=True,
+        autor,
     )
     return _aviso_de(db, ticket, {"version": propuesta.version, "aprobado": aprobar})
 
@@ -751,8 +751,16 @@ def cerrar_vencidos(db: Session, hoy: date | None = None) -> int:
     return len(vencidos)
 
 
-def comentar(db: Session, ticket_id: int, texto: str, autor: str, es_admin: bool) -> None:
-    db.add(TkEvento(ticket_id=ticket_id, autor=autor, es_admin=es_admin, texto=texto.strip()))
+def anotar(db: Session, ticket_id: int, texto: str, autor: str) -> None:
+    """Deja una nota del sistema en la línea de tiempo de la solicitud.
+
+    No es un mensaje: entre el administrador y el usuario final no hay
+    conversación. Lo que el administrador tenga que decir viaja en el
+    comentario con que mueve el estado, y de ahí sale el correo. Esto es para
+    lo que el backend hace solo —resolver un cambio, abrir un plazo de
+    emergencia— y que el solicitante tiene que poder leer después.
+    """
+    db.add(TkEvento(ticket_id=ticket_id, autor=autor, es_admin=True, texto=texto.strip()))
     db.commit()
 
 
@@ -990,5 +998,5 @@ def abrir_plazo_emergencia(db: Session, ticket_id: int, hasta: datetime, motivo:
     db.commit()
 
     local = hasta.astimezone(pytz.timezone(settings.zona)).strftime("%d-%m-%Y a las %H:%M")
-    comentar(db, ticket_id, f"Plazo de emergencia habilitado hasta el {local}. {motivo}".strip(), autor, es_admin=True)
+    anotar(db, ticket_id, f"Plazo de emergencia habilitado hasta el {local}. {motivo}".strip(), autor)
     return _aviso_de(db, ticket, {"plazo_emergencia": hasta.isoformat()})

@@ -8,7 +8,7 @@ import {
     columnas, detalleCosto, etiquetas, filasExport, money, mostrar, resumenCampos, titulos, totalDe,
 } from '../respuestas';
 import {
-    ESTADOS, abrirEmergencia, bloque, cambiarEstado, comentarAdmin, diaMes, encabezadoDe, fechaCorta,
+    ESTADOS, abrirEmergencia, bloque, cambiarEstado, diaMes, encabezadoDe, fechaCorta,
     fechaHora, listarTickets, listarTipos, resolverPropuesta, tramoDe, tramoYSala, verTicket,
 } from '../services/tickets';
 
@@ -142,16 +142,6 @@ function Detalle({ id, tipos, onCambio }) {
         } catch (e) {
             setError(e.message);
         }
-    };
-
-    const soloComentar = async () => {
-        setError('');
-        if (!comentario.trim()) { setError('Escribe un comentario antes de enviarlo.'); return; }
-        try {
-            await comentarAdmin(id, comentario.trim());
-            setComentario('');
-            setRecarga((n) => n + 1);
-        } catch (e) { setError(e.message); }
     };
 
     const rechazar = () => {
@@ -385,7 +375,10 @@ function Detalle({ id, tipos, onCambio }) {
 
             <div className="border-t border-gray-200 bg-gray-50 p-5">
                 <label className="mb-1 block text-sm font-medium text-gray-900" htmlFor="tk-coment-estado">
-                    Comentario al solicitante <span className="font-normal text-gray-500">(obligatorio para rechazar)</span>
+                    Comentario al solicitante{' '}
+                    <span className="font-normal text-gray-500">
+                        (viaja con el cambio de estado; obligatorio para rechazar)
+                    </span>
                 </label>
                 <textarea id="tk-coment-estado" rows={2} className={`${control} w-full bg-white`} value={comentario}
                     onChange={(e) => setComentario(e.target.value)} maxLength={2000} />
@@ -396,10 +389,6 @@ function Detalle({ id, tipos, onCambio }) {
                             {siguiente.label}
                         </button>
                     )}
-                    <button type="button" onClick={soloComentar}
-                        className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100">
-                        Solo comentar
-                    </button>
                     {t.estado !== 'rechazado' && t.estado !== 'cancelado' && (
                         <button type="button" onClick={rechazar}
                             className="ml-auto rounded-lg border border-red-300 bg-white px-4 py-2 text-sm text-red-800 hover:bg-red-50">

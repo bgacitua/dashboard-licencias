@@ -13,10 +13,10 @@ Portal (/tickets)         cuenta propia del módulo, NO la de la plataforma
   /tickets                 tipos disponibles + mis solicitudes
   /tickets/nueva/:tipo     reserva de sala + horario del servicio + formulario
   /tickets/t/:id           ver / pedir cambio (si abierta y en plazo) /
-                           cancelar (si abierta) / conversar
+                           cancelar (si abierta) / seguir el recorrido
 
 Panel (/tickets/admin)    require_module("tickets")
-  /tickets/admin           solicitudes, versiones con diff, estado, comentarios
+  /tickets/admin           solicitudes, versiones con diff, estado, seguimiento
   /tickets/admin/tipos     builder, plazo y apariencia de cada tipo
   /tickets/admin/usuarios  activar, desactivar, restablecer clave
 ```
@@ -153,11 +153,16 @@ y el bloque horario del servicio.
   pedido y un botón al inicio. Antes se saltaba al ticket recién creado y el
   acuse se veía menos de un segundo. El mensaje final por tipo
   (`completedHtml`) ya no se configura: el carrusel lo reemplazó.
-- **El seguimiento no se contesta desde el portal.** `Conversacion` sin
-  `onEnviar` no dibuja el campo de texto, y el endpoint de comentarios del
-  portal no existe: la regla está en el backend y no solo en la pantalla. Lo
-  que el usuario tenga que decir va en una solicitud de cambio, que es lo que
-  el administrador resuelve.
+- **El seguimiento no se conversa por ningún lado.** `Seguimiento` dibuja el
+  recorrido de la solicitud como línea de tiempo —lo ocurrido con su fecha y
+  autor, lo que falta en gris— y no tiene dónde escribir, a ninguno de los dos
+  lados. No hay endpoint de comentarios ni en el portal ni en el panel: la
+  regla está en el backend y no solo en la pantalla. Lo que el usuario tenga
+  que decir va en una solicitud de cambio; lo que diga el administrador, en el
+  comentario con que mueve el estado, que es lo que sale por correo y lo que
+  queda en la línea de tiempo. `service.anotar` es para las notas que el
+  backend escribe solo (resolver un cambio, abrir un plazo de emergencia), no
+  una puerta para volver a conversar.
 - **Dos puertas.** Las tarjetas del inicio son para pedir algo nuevo —y avisan
   si ya hay una solicitud en curso de ese tipo antes de crear otra—; el
   historial es para revisar lo pedido y mandar solicitudes de modificación.
