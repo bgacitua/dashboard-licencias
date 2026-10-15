@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
+import '../../../components/form-builder/tema-tarjetas.css';
 
 import { crearModelo } from '../../../components/form-builder/tema';
 import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
@@ -835,7 +836,7 @@ export default function PortalSolicitud({ modificando = false }) {
             {/* Enviada, el formulario se desmonta: en su lugar va el carrusel
                 de noticias, que reemplaza a la página final de survey-core. */}
             {model && esAsistente && !enviada && paso === 'formulario' && (
-                <div className="animate-entra-lateral overflow-hidden rounded-2xl border border-slate-200">
+                <div className={`animate-entra-lateral overflow-hidden rounded-2xl border border-slate-200${model.modoTarjetas ? ' tema-tarjetas' : ''}`}>
                     <Survey model={model} />
                 </div>
             )}

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Survey } from 'survey-react-ui';
 import 'survey-core/survey-core.css';
+import '../../../components/form-builder/tema-tarjetas.css';
 
 import { CampoImagen } from '../../../components/form-builder/PanelPropiedades';
 import { TEMA_DEFECTO, crearModelo } from '../../../components/form-builder/tema';
@@ -236,7 +237,7 @@ export default function AdminTipos() {
                             )}
 
                             {seccion === 'preview' && preview && (
-                                <div className="mt-4 overflow-hidden rounded-xl border border-gray-200"
+                                <div className={`mt-4 overflow-hidden rounded-xl border border-gray-200${preview.modoTarjetas ? ' tema-tarjetas' : ''}`}
                                     style={{ ...preview.themeVariables, background: 'var(--sjs2-color-utility-body)' }}>
                                     <Survey model={preview} />
                                 </div>
