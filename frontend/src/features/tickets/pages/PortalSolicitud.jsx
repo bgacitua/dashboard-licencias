@@ -11,11 +11,13 @@ import ResumenVivo from '../components/ResumenVivo';
 import Seguimiento from '../components/Seguimiento';
 import { Estado } from './PortalInicio';
 import { useDialogo } from '../../../components/Dialogos';
-import { etiquetas, resumenCampos, valoresDe } from '../respuestas';
+import { etiquetas, mismasRespuestas, resumenCampos, valoresDe } from '../respuestas';
 import {
     bloque, cabeEnLibres, cancelarTicket, crearTicket, editarTicket, fechaCorta, fechaHora,
     mayorHueco, miTicket, plazoPara, reservasPortal, tiposPortal, tramoDe, tramoTexto,
 } from '../services/tickets';
+
+const SIN_CAMBIOS = 'Todavía no cambiaste nada. Modifica el horario o alguna respuesta para poder enviar.';
 
 /** 'HH:MM:SS' o 'HH:MM' -> 'HH:MM', que es lo que quiere <input type="time">. */
 const hhmm = (t) => `${t || ''}`.slice(0, 5);
@@ -87,6 +89,10 @@ export default function PortalSolicitud() {
     // no se deriva en el render: el modelo de survey-core es mutable y React
     // no se entera de que cambió.
     const [vivo, setVivo] = useState([]);
+    // Las respuestas crudas del formulario. Van aparte de `vivo`, que son filas
+    // ya formateadas para dibujar: para saber si el usuario cambió algo hay que
+    // comparar los valores, no su texto.
+    const [datosVivos, setDatosVivos] = useState(null);
     // Panel de cancelación abierto, y el motivo que se está escribiendo.
     const [cancelando, setCancelando] = useState(false);
     const [motivo, setMotivo] = useState('');
@@ -217,6 +223,23 @@ export default function PortalSolicitud() {
                         : 'Ya pediste servicios para toda esa reserva. Elige otra reservación.')
                         : vencido ? 'El plazo para esa fecha ya venció. Elige otra reserva.' : '';
 
+    // Un cambio que no cambia nada deja el ticket 'en_revision' y al
+    // administrador resolviendo una revisión que no pide nada. El backend lo
+    // rechaza igual; acá se apaga el botón para no hacer el viaje.
+    //
+    // `datosVivos` es null hasta que el modelo existe: sin respuestas que
+    // comparar no se puede afirmar que no hubo cambios, así que no traba.
+    const sinCambios = !!ticket && !!datosVivos
+        && reservaId === ticket.reserva_id
+        && hhmm(tramo.inicio) === hhmm(ticket.servicio_inicio)
+        && hhmm(tramo.fin) === hhmm(ticket.servicio_fin)
+        && mismasRespuestas(datosVivos, ticket.datos);
+
+    // Lo que impide enviar. Va aparte de `traba`, que también apaga el botón
+    // del paso 1: ahí el formulario ni se ha abierto y nada pudo cambiar
+    // todavía, así que trabarlo dejaba al usuario sin poder entrar a editar.
+    const trabaEnvio = traba || (sinCambios ? SIN_CAMBIOS : '');
+
     // Un ticket ya enviado se abre en su formulario: la reservación está
     // tomada y volver a elegirla es la excepción, no el primer paso.
     //
@@ -305,9 +328,9 @@ export default function PortalSolicitud() {
         const alCompletar = (_, opciones) => {
             // Red de seguridad: el botón ya está deshabilitado, pero survey-core
             // también completa con Enter desde la última pregunta.
-            if (traba) {
+            if (trabaEnvio) {
                 opciones.allow = false;
-                setError(traba);
+                setError(trabaEnvio);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         };
@@ -352,7 +375,7 @@ export default function PortalSolicitud() {
             model.onCompleting.remove(alCompletar);
             model.onComplete.remove(alGuardar);
         };
-    }, [model, reservaId, tramo, traba, ticket, tipo, soloLectura, manejar]);
+    }, [model, reservaId, tramo, trabaEnvio, ticket, tipo, soloLectura, manejar]);
 
     // El botón de enviar queda apagado mientras falte la fecha o el plazo esté
     // vencido: es preferible a dejar llenar todo y rebotar al final. Si una
@@ -361,9 +384,9 @@ export default function PortalSolicitud() {
     useEffect(() => {
         const accion = model?.navigationBar?.getActionById?.('sv-nav-complete');
         if (!accion) return;
-        accion.enabled = !traba;
-        accion.tooltip = traba || undefined;
-    }, [model, traba]);
+        accion.enabled = !trabaEnvio;
+        accion.tooltip = trabaEnvio || undefined;
+    }, [model, trabaEnvio]);
 
     // Marca que hay respuestas sin guardar, y refresca el resumen de la derecha.
     // Las dos cosas cuelgan del mismo evento a propósito: engancharlo dos veces
@@ -373,6 +396,7 @@ export default function PortalSolicitud() {
         const alCambiar = () => {
             setSucio(true);
             setVivo(leerVivo(model));
+            setDatosVivos({ ...model.data });
         };
         model.onValueChanged.add(alCambiar);
         return () => model.onValueChanged.remove(alCambiar);
@@ -380,7 +404,10 @@ export default function PortalSolicitud() {
 
     // `onValueChanged` solo avisa de cambios, así que lo ya respondido —un
     // ticket que se está editando, o un `defaultValue`— no entraría nunca.
-    useEffect(() => { setVivo(leerVivo(model)); }, [model, leerVivo]);
+    useEffect(() => {
+        setVivo(leerVivo(model));
+        setDatosVivos(model ? { ...model.data } : null);
+    }, [model, leerVivo]);
 
     // Cerrar o recargar la pestaña con cambios escritos. El navegador muestra
     // su propio texto; el nuestro solo activa el aviso.
@@ -761,6 +788,14 @@ export default function PortalSolicitud() {
                         <span className="material-symbols-outlined text-base">edit_calendar</span>
                         Elegir reservación
                     </button>
+                </div>
+            )}
+
+            {/* Sin acción a propósito: esto no se arregla volviendo al paso
+                de reservación, sino editando lo que ya está en pantalla. */}
+            {paso === 'formulario' && !enviada && !traba && sinCambios && (
+                <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3" role="status">
+                    <p className="text-sm text-slate-600">{SIN_CAMBIOS}</p>
                 </div>
             )}
 

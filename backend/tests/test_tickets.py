@@ -11,7 +11,8 @@ from app.modules.tickets.logica import (
     ESTADOS, ESTADOS_ABIERTOS, ESTADOS_ADMIN, ESTADOS_QUE_OCUPAN, aviso_de_cambio,
     calcular_costo, calcular_plazo, cancelable, cancelacion_tardia, cantidad_de,
     cierra_automaticamente, clave_jwt, disponibilidad_del_bloque, editable, huecos_libres,
-    id_de_servicio, mime_de_imagen, plazo_efectivo, se_solapan, servicios_respondidos,
+    id_de_servicio, mime_de_imagen, mismas_respuestas, plazo_efectivo, se_solapan,
+    servicios_respondidos,
 )
 
 
@@ -170,6 +171,30 @@ def test_aviso_de_cambio():
     assert aviso_de_cambio("activo", "rechazado") is None
     assert aviso_de_cambio("activo", "activo") is None
     print("ok  aviso de cambio")
+
+
+def test_mismas_respuestas():
+    assert mismas_respuestas({"a": 1}, {"a": 1})
+    assert not mismas_respuestas({"a": 1}, {"a": 2})
+    assert mismas_respuestas({}, {})
+    assert mismas_respuestas(None, None)
+    # El navegador borra la clave al vaciar un campo; lo guardado la conserva
+    # vacía. Las tres formas dicen lo mismo.
+    assert mismas_respuestas({"a": ""}, {})
+    assert mismas_respuestas({"a": []}, {"a": None})
+    assert mismas_respuestas({"a": 1, "b": ""}, {"a": 1})
+    # Borrar una respuesta es un cambio tanto como escribirla.
+    assert not mismas_respuestas({"a": "x"}, {})
+    assert not mismas_respuestas({}, {"a": "x"})
+    # Marcar y desmarcar una casilla reordena la selección sin cambiar lo pedido.
+    assert mismas_respuestas({"a": ["x", "y"]}, {"a": ["y", "x"]})
+    assert not mismas_respuestas({"a": ["x"]}, {"a": ["x", "y"]})
+    # 0 y False son respuestas, no ausencias.
+    assert not mismas_respuestas({"a": 0}, {})
+    assert not mismas_respuestas({"a": False}, {})
+    # Una lista de objetos no se reordena: no hay cómo ordenarla sin inventar.
+    assert mismas_respuestas({"a": [{"x": 1}]}, {"a": [{"x": 1}]})
+    print("ok  mismas_respuestas")
 
 
 def test_id_de_servicio():
@@ -431,6 +456,7 @@ if __name__ == "__main__":
     test_dominio()
     test_slug_libre()
     test_aviso_de_cambio()
+    test_mismas_respuestas()
     test_id_de_servicio()
     test_servicios_respondidos()
     test_cantidad_de()

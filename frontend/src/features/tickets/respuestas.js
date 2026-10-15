@@ -89,6 +89,38 @@ export const mostrar = (v, etqs = {}) => valoresDe(v, etqs).join(', ') || '—'
  */
 export const enTexto = (v, etqs = {}) => valoresDe(v, etqs).map(tituloDe).join(', ') || '—'
 
+/** Una respuesta que es lo mismo que no haber contestado. survey-core borra la
+ *  clave al vaciar un campo, el ticket guardado la conserva en '' o [], y las
+ *  dos cosas significan lo mismo. */
+const sinResponder = (v) =>
+  v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0)
+
+/** Comparable estable de un valor. Un arreglo de primitivos se ordena: marcar y
+ *  desmarcar una casilla cambia el orden de la selección sin cambiar lo pedido,
+ *  y ninguna pregunta de este constructor le da sentido al orden. */
+const comparable = (v) => JSON.stringify(
+  Array.isArray(v) && v.every((x) => x === null || typeof x !== 'object')
+    ? [...v].sort()
+    : v,
+)
+
+/**
+ * ¿Dos juegos de respuestas dicen lo mismo?
+ *
+ * Es lo que decide si hay algo que mandar en una solicitud de cambio. Compara
+ * la unión de las claves, no solo las de uno: borrar una respuesta es un cambio
+ * tanto como escribirla.
+ */
+export function mismasRespuestas(a, b) {
+  for (const k of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) {
+    const x = a?.[k]
+    const y = b?.[k]
+    if (sinResponder(x) && sinResponder(y)) continue
+    if (comparable(x) !== comparable(y)) return false
+  }
+  return true
+}
+
 /**
  * Las preguntas a mostrar en el resumen de una respuesta: las de la definición
  * en su orden, y al final lo que traen los datos pero el formulario ya no
@@ -171,6 +203,7 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
     const [x, y] = [JSON.stringify(a), JSON.stringify(b)]
     if (x !== y) throw new Error(`${x} != ${y}`)
   }
+  const ok = (v, porque) => { if (!v) throw new Error(porque) }
   const def = {
     pages: [
       { elements: [{ name: 'a', type: 'text', title: 'Nombre' }, { name: 'logo', type: 'image' }] },
@@ -214,6 +247,26 @@ if (globalThis.process?.argv?.[1]?.endsWith('respuestas.js')) {
   eq(enTexto(['Coffee break (café; galletas)', 'Proyector']), 'Coffee break, Proyector')
   eq(enTexto('Arriendo sala (sala grande)'), 'Arriendo sala (sala grande)')
   eq(enTexto(undefined), '—')
+
+  // mismasRespuestas: lo que decide si hay algo que mandar en un cambio.
+  ok(mismasRespuestas({ a: 1 }, { a: 1 }), 'iguales')
+  ok(!mismasRespuestas({ a: 1 }, { a: 2 }), 'distinto valor')
+  ok(mismasRespuestas({}, {}), 'dos vacíos')
+  // survey-core borra la clave al vaciar un campo; el ticket guardado la deja
+  // en '' o []. Las tres formas significan lo mismo.
+  ok(mismasRespuestas({ a: '' }, {}), 'ausente == vacío')
+  ok(mismasRespuestas({ a: [] }, { a: null }), '[] == null')
+  ok(mismasRespuestas({ a: 1, b: '' }, { a: 1 }), 'una clave vacía de más')
+  // Borrar una respuesta es un cambio tanto como escribirla.
+  ok(!mismasRespuestas({ a: 'x' }, {}), 'borrar cuenta')
+  ok(!mismasRespuestas({}, { a: 'x' }), 'escribir cuenta')
+  // Marcar y desmarcar una casilla reordena la selección sin cambiar lo pedido.
+  ok(mismasRespuestas({ a: ['x', 'y'] }, { a: ['y', 'x'] }), 'orden de un checkbox')
+  ok(!mismasRespuestas({ a: ['x'] }, { a: ['x', 'y'] }), 'una opción más sí cuenta')
+  // 0 y false son respuestas, no ausencias.
+  ok(!mismasRespuestas({ a: 0 }, {}), '0 es una respuesta')
+  ok(!mismasRespuestas({ a: false }, {}), 'false es una respuesta')
+  ok(mismasRespuestas(undefined, undefined), 'sin datos a ninguno de los dos lados')
 
   // Resumen: el orden del formulario, y lo que ya no se pregunta va al final.
   eq(resumenCampos(def, { a: 'Hola', viejo: 1 }), [
