@@ -305,6 +305,9 @@ function App() {
             <Route path="/tickets" element={<PortalInicio />} />
             <Route path="/tickets/nueva/:tipoId" element={<PortalSolicitud />} />
             <Route path="/tickets/t/:id" element={<PortalSolicitud />} />
+            {/* El cambio tiene pantalla propia: la ficha es para mirar en qué
+                quedó la solicitud, no para editarla por abajo. */}
+            <Route path="/tickets/t/:id/modificar" element={<PortalSolicitud modificando />} />
             <Route
               path="/tickets/admin"
               element={
