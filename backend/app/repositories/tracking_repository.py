@@ -35,12 +35,12 @@ class TrackingRepository:
             INSERT INTO app.contract_alert_tracking (
                 employee_id, rut, employee_name, employee_role,
                 boss_name, boss_email, alert_date, alert_type, alert_reason,
-                response_token, first_sent_at, last_followup_at, updated_at
+                response_token, token_issued_at, first_sent_at, last_followup_at, updated_at
             )
             VALUES (
                 :employee_id, :rut, :employee_name, :employee_role,
                 :boss_name, :boss_email, :alert_date, :alert_type, :alert_reason,
-                :response_token, NOW(), NOW(), NOW()
+                :response_token, NOW(), NOW(), NOW(), NOW()
             )
             ON CONFLICT (employee_id, alert_date)
             DO UPDATE SET
@@ -51,6 +51,7 @@ class TrackingRepository:
                 alert_type       = EXCLUDED.alert_type,
                 alert_reason     = EXCLUDED.alert_reason,
                 response_token   = EXCLUDED.response_token,
+                token_issued_at  = NOW(),
                 updated_at       = NOW()
             RETURNING response_token
         """)
@@ -83,6 +84,7 @@ class TrackingRepository:
                 TO_CHAR(alert_date, 'YYYY-MM-DD') AS alert_date,
                 alert_type, alert_reason,
                 response_token,
+                token_issued_at,
                 first_sent_at, last_followup_at, response, responded_at,
                 buk_synced
             FROM app.contract_alert_tracking
@@ -185,6 +187,57 @@ class TrackingRepository:
         except Exception as e:
             logger.error(f"Error get_pending_followups: {e}")
             return []
+
+    def rotate_token(self, tracking_id: int) -> Optional[str]:
+        """Emite un token nuevo para la fila y lo retorna. None si falla.
+
+        El link anterior deja de resolver apenas corre este UPDATE: response_token
+        es el único camino hasta la fila. No mueve token_issued_at: la ventana de
+        vigencia la abre mark_followup_sent() una vez que el correo salió de
+        verdad, así un envío fallido no regala 72 horas a un token que nadie recibió.
+        """
+        from app.core.security import create_response_token
+
+        query = text("""
+            UPDATE app.contract_alert_tracking
+            SET response_token = :token,
+                updated_at     = NOW()
+            WHERE id = :tracking_id
+            RETURNING response_token::text
+        """)
+        try:
+            result = self.db.execute(query, {
+                "token": create_response_token(),
+                "tracking_id": tracking_id,
+            })
+            row = result.fetchone()
+            self.db.commit()
+            return row[0] if row else None
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error rotate_token tracking_id={tracking_id}: {e}")
+            return None
+
+    def mark_followup_sent(self, tracking_id: int) -> None:
+        """Abre la ventana de vigencia del token recién emitido y cuenta el envío.
+
+        Deja last_followup_at quieto a propósito: esa fecha marca la cadencia en
+        get_pending_followups(), y moverla convertiría el recordatorio diario en
+        uno cada tres días. La vigencia del link es asunto de token_issued_at.
+        """
+        query = text("""
+            UPDATE app.contract_alert_tracking
+            SET token_issued_at = NOW(),
+                followup_count  = followup_count + 1,
+                updated_at      = NOW()
+            WHERE id = :tracking_id
+        """)
+        try:
+            self.db.execute(query, {"tracking_id": tracking_id})
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error mark_followup_sent tracking_id={tracking_id}: {e}")
 
     def log_event(
         self,
