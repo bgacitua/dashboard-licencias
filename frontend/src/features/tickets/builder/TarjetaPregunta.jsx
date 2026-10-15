@@ -54,8 +54,12 @@ function SubirImagen({ valor, onChange, className = '', alto = 'h-40', texto = '
 /**
  * Opciones de texto editables en línea, como Forms: Enter agrega la siguiente,
  * Backspace en una vacía la borra y vuelve a la anterior.
+ *
+ * `minimo` es cuántas tienen que quedar. Normalmente 1, porque una pregunta de
+ * selección sin opciones no se puede contestar; 0 cuando la pregunta ya tiene
+ * servicios del catálogo, que también son opciones y bastan por sí solos.
  */
-function OpcionesTexto({ opciones, marca, onChange }) {
+function OpcionesTexto({ opciones, marca, onChange, minimo = 1 }) {
     const refs = useRef([]);
     const enfocar = useRef(null);
 
@@ -94,10 +98,10 @@ function OpcionesTexto({ opciones, marca, onChange }) {
                         onChange={(e) => set(i, e.target.value)}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') { e.preventDefault(); agregar(i); }
-                            if (e.key === 'Backspace' && o === '' && opciones.length > 1) { e.preventDefault(); quitar(i); }
+                            if (e.key === 'Backspace' && o === '' && opciones.length > minimo) { e.preventDefault(); quitar(i); }
                         }}
                     />
-                    <button type="button" onClick={() => quitar(i)} disabled={opciones.length <= 1}
+                    <button type="button" onClick={() => quitar(i)} disabled={opciones.length <= minimo}
                         aria-label={`Quitar opción ${i + 1}`}
                         className="text-gray-400 opacity-0 hover:text-gray-700 group-hover:opacity-100 disabled:hidden">
                         <span className="material-symbols-outlined text-lg">close</span>
@@ -172,9 +176,14 @@ function OpcionesServicio({ opciones, servicios, onChange }) {
                 <div key={o.value} className="group mt-1 flex items-center gap-3 text-sm">
                     <span className="w-5 text-center text-gray-400">$</span>
                     <span className="min-w-0 flex-1 truncate text-gray-800">{o.text}</span>
+                    {/* El último servicio no se suelta si no queda ninguna
+                        opción escrita a mano: la pregunta quedaría sin nada que
+                        elegir. Antes lo garantizaba el mínimo de OpcionesTexto,
+                        que ahora baja a 0 justamente cuando hay servicios. */}
                     <button type="button" aria-label={`Quitar ${o.text}`}
+                        disabled={elegidos.length <= 1 && libres.length === 0}
                         onClick={() => onChange(unirOpciones(elegidos.filter((x) => x.value !== o.value), libres))}
-                        className="text-gray-400 opacity-0 hover:text-gray-700 group-hover:opacity-100">
+                        className="text-gray-400 opacity-0 hover:text-gray-700 group-hover:opacity-100 disabled:hidden">
                         <span className="material-symbols-outlined text-lg">close</span>
                     </button>
                 </div>
@@ -224,7 +233,10 @@ function Cuerpo({ p, editando, set, servicios }) {
             if (editando) {
                 return (
                     <>
-                        <OpcionesTexto opciones={libres} marca={marca}
+                        {/* Con servicios en la pregunta, las opciones escritas a
+                            mano se pueden borrar todas: los servicios ya son
+                            opciones y la pregunta sigue siendo contestable. */}
+                        <OpcionesTexto opciones={libres} marca={marca} minimo={conPrecio.length ? 0 : 1}
                             onChange={(v) => set({ choices: unirOpciones(conPrecio, v) })} />
                         {servicios?.length > 0 && (
                             <OpcionesServicio opciones={opciones} servicios={servicios}
