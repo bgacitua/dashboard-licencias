@@ -42,7 +42,7 @@ const claseInput =
 // Tarjeta de opción (radio/checkbox): objetivo grande y look de "elegir", no de
 // casilla de formulario. El estado activo tiñe con el color de marca.
 const claseOpcion = (activo, lectura) =>
-    `flex cursor-pointer items-start gap-3 rounded-[var(--fp-radio)] border px-5 py-4 text-base transition-all duration-200 ${
+    `flex cursor-pointer items-start gap-3 rounded-[var(--fp-radio)] border px-5 py-4 text-base transition-all duration-200 focus-within:ring-2 focus-within:ring-[var(--fp-marca)] focus-within:ring-offset-1 ${
         activo
             ? 'border-[var(--fp-marca)] bg-[color-mix(in_srgb,var(--fp-marca)_8%,white)] shadow-md ring-1 ring-[var(--fp-marca)]'
             : 'border-slate-200 shadow-sm hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md'
@@ -60,15 +60,15 @@ const partirIcono = (texto) => {
 // la vista de selección a pantalla completa (paso 1); sin él, el formato normal.
 export function TarjetasCamino({ q, lectura, grande = false }) {
     return (
-        <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
+        <div role="radiogroup" aria-label={q.title || 'Opciones'} className="grid gap-4 sm:grid-cols-2 sm:gap-6">
             {q.visibleChoices.map((item) => {
                 const activo = q.value === item.value;
                 const { titulo, partes } = desglosar(item.text);
                 const { icono, resto } = partirIcono(titulo);
                 return (
-                    <button key={item.value} type="button" disabled={lectura} aria-pressed={activo}
+                    <button key={item.value} type="button" role="radio" aria-checked={activo} disabled={lectura}
                         onClick={() => { q.value = item.value; }}
-                        className={`flex flex-col items-center justify-center gap-3 rounded-[var(--fp-radio)] border-2 text-center transition-all duration-200 ${
+                        className={`flex flex-col items-center justify-center gap-3 rounded-[var(--fp-radio)] border-2 text-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fp-marca)] focus-visible:ring-offset-2 ${
                             grande ? 'px-8 py-14' : 'px-6 py-8'
                         } ${
                             activo
@@ -189,9 +189,9 @@ function Control({ q, lectura, entrada }) {
                     {[[true, q.labelTrue || 'Sí'], [false, q.labelFalse || 'No']].map(([val, rotulo]) => {
                         const activo = q.booleanValue === val;
                         return (
-                            <button key={String(val)} type="button" disabled={lectura}
+                            <button key={String(val)} type="button" disabled={lectura} aria-pressed={activo}
                                 onClick={() => { q.booleanValue = activo ? undefined : val; }}
-                                className={`rounded-[var(--fp-radio)] border px-4 py-2 text-sm transition-colors ${
+                                className={`rounded-[var(--fp-radio)] border px-4 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fp-marca)] focus-visible:ring-offset-1 ${
                                     activo ? 'border-[var(--fp-marca)] bg-[color-mix(in_srgb,var(--fp-marca)_8%,white)] text-slate-900'
                                         : 'border-slate-200 text-slate-600 hover:border-slate-300'
                                 }`}>

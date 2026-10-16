@@ -160,17 +160,17 @@ export default function FormularioPortal({ model, tema, trabaEnvio = '', onEnvia
                 </div>
 
                 {!lectura && (
-                    <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:px-8">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:px-8">
                         {onCancelar ? (
                             <button type="button" onClick={onCancelar}
-                                className="rounded-[var(--fp-radio)] px-4 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-700">
+                                className="rounded-[var(--fp-radio)] px-4 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300">
                                 Cancelar
                             </button>
                         ) : <span />}
                         <div className="flex flex-col items-end gap-1">
                             <button type="button" onClick={enviar} disabled={!!trabaEnvio}
                                 title={trabaEnvio || undefined}
-                                className="rounded-[var(--fp-radio)] bg-[var(--fp-marca)] px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0">
+                                className="rounded-[var(--fp-radio)] bg-[var(--fp-marca)] px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fp-marca)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0">
                                 {model.completeText || 'Enviar'}
                             </button>
                             {trabaEnvio && <p className="text-right text-xs text-slate-500">{trabaEnvio}</p>}
