@@ -24,18 +24,20 @@ export function useSesionPortal() {
 
 // `estilo` pinta la página con el tema del formulario (ver PortalSolicitud);
 // sin él queda el degradado neutro del portal.
-export default function PortalLayout({ children, ancho = 'max-w-5xl', estilo }) {
+export default function PortalLayout({ children, ancho = 'max-w-5xl', estilo, preview = false }) {
     const [usuario, setUsuario] = useState(null);
     const manejar = useSesionPortal();
     const navigate = useNavigate();
     const hayToken = !!tokenPortal.get();
 
     useEffect(() => {
-        if (hayToken) yo().then(setUsuario).catch(manejar);
+        // En preview no hay sesión de portal: el admin abre la página con su
+        // propio token y no debe pasar por el guard ni pegarle al backend.
+        if (!preview && hayToken) yo().then(setUsuario).catch(manejar);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hayToken]);
+    }, [hayToken, preview]);
 
-    if (!hayToken) return <Navigate to="/tickets/ingresar" replace />;
+    if (!preview && !hayToken) return <Navigate to="/tickets/ingresar" replace />;
 
     const salir = () => {
         tokenPortal.borrar();
@@ -51,10 +53,18 @@ export default function PortalLayout({ children, ancho = 'max-w-5xl', estilo }) 
                         Solicitudes
                     </Link>
                     <div className="flex items-center gap-3 text-sm">
-                        <span className="hidden text-slate-600 sm:inline">{usuario?.nombre || usuario?.email}</span>
-                        <button onClick={salir} className="rounded-lg px-2 py-1 text-slate-600 hover:bg-slate-100">
-                            Salir
-                        </button>
+                        {preview ? (
+                            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">
+                                Vista previa
+                            </span>
+                        ) : (
+                            <>
+                                <span className="hidden text-slate-600 sm:inline">{usuario?.nombre || usuario?.email}</span>
+                                <button onClick={salir} className="rounded-lg px-2 py-1 text-slate-600 hover:bg-slate-100">
+                                    Salir
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </header>

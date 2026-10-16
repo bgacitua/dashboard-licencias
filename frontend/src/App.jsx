@@ -49,6 +49,7 @@ const EnviarFormulario = lazy(() => import('./features/formularios/pages/EnviarF
 const PortalAcceso = lazy(() => import('./features/tickets/pages/PortalAcceso'));
 const PortalInicio = lazy(() => import('./features/tickets/pages/PortalInicio'));
 const PortalSolicitud = lazy(() => import('./features/tickets/pages/PortalSolicitud'));
+const PreviewTipo = lazy(() => import('./features/tickets/pages/PreviewTipo'));
 const AdminTickets = lazy(() => import('./features/tickets/pages/AdminTickets'));
 const AdminTipos = lazy(() => import('./features/tickets/pages/AdminTipos'));
 const AdminUsuarios = lazy(() => import('./features/tickets/pages/AdminUsuarios'));
@@ -302,6 +303,7 @@ function App() {
                 va fuera de ProtectedRoute: tiene su propia sesión, que no es la
                 de la plataforma. El panel sí exige el módulo. */}
             <Route path="/tickets/ingresar" element={<PortalAcceso />} />
+            <Route path="/tickets/preview" element={<PreviewTipo />} />
             <Route path="/tickets" element={<PortalInicio />} />
             <Route path="/tickets/nueva/:tipoId" element={<PortalSolicitud />} />
             <Route path="/tickets/t/:id" element={<PortalSolicitud />} />

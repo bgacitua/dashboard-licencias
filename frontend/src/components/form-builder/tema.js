@@ -32,6 +32,10 @@ export const TEMA_DEFECTO = {
     // tarjetas centradas y el resto se despliega abajo según las ramas, sin
     // navegación de páginas ni aspecto de formulario. Apagado = render clásico.
     tarjetas: false,
+    // Motor de render: 'survey' usa survey-react-ui (clásico); 'propio' usa el
+    // renderer React propio (FormularioPortal), con aspecto de página web. Se
+    // porta formulario por formulario; el default sigue siendo survey.
+    render: 'survey',
 };
 
 /** Objeto del admin -> ITheme. Pura: se prueba en tema.test.js. */

@@ -5,6 +5,7 @@ import 'survey-core/survey-core.css';
 import '../../../components/form-builder/tema-tarjetas.css';
 
 import { crearModelo } from '../../../components/form-builder/tema';
+import FormularioPortal from '../formulario/FormularioPortal';
 import PortalLayout, { useSesionPortal } from '../components/PortalLayout';
 import CarruselNoticias from '../components/CarruselNoticias';
 import Desglosado from '../components/Desglosado';
@@ -81,6 +82,9 @@ export default function PortalSolicitud({ modificando = false }) {
     // Datos de la solicitud recién enviada. Con esto la página deja de ser un
     // formulario y pasa a ser el acuse: mensaje del admin, resumen y salida.
     const [enviada, setEnviada] = useState(null);
+    // Guardando la solicitud: el renderer propio lo usa para el estado "Enviando…"
+    // (survey-react-ui lo mostraba solo; acá el botón es nuestro).
+    const [guardando, setGuardando] = useState(false);
     const [errorReservas, setErrorReservas] = useState('');
     const [error, setError] = useState('');
     const [aviso, setAviso] = useState('');
@@ -321,7 +325,10 @@ export default function PortalSolicitud({ modificando = false }) {
     // y declararlo antes lo leía en su zona muerta temporal. No reventaba en el
     // paso 1 —el `&&` cortaba antes de llegar— sino al entrar al formulario,
     // que es donde `paso === 'formulario'` deja pasar la condición.
-    const conResumen = esAsistente && !enviada && paso === 'formulario' && !!model;
+    // El render propio trae su propio layout (split lateralizado): la columna de
+    // resumen al lado lo estorbaría, así que ahí no va.
+    const conResumen = esAsistente && !enviada && paso === 'formulario' && !!model
+        && tipo?.tema?.render !== 'propio';
     // Va en xl: y no en lg: porque a 1024px la columna de 20rem dejaría el
     // formulario en 648px, más angosto que los 768px que tiene hoy sin columna.
     // Bajo ese ancho el resumen cae abajo y el formulario conserva el suyo.
@@ -346,6 +353,7 @@ export default function PortalSolicitud({ modificando = false }) {
         };
         const alGuardar = async (sender, opciones) => {
             opciones.showSaveInProgress();
+            setGuardando(true);
             setAviso('');
             try {
                 if (ticket) {
@@ -380,6 +388,8 @@ export default function PortalSolicitud({ modificando = false }) {
                 setError(manejar(e));
                 sender.clear(false, false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+            } finally {
+                setGuardando(false);
             }
         };
         model.onCompleting.add(alCompletar);
@@ -836,9 +846,17 @@ export default function PortalSolicitud({ modificando = false }) {
             {/* Enviada, el formulario se desmonta: en su lugar va el carrusel
                 de noticias, que reemplaza a la página final de survey-core. */}
             {model && esAsistente && !enviada && paso === 'formulario' && (
-                <div className={`animate-entra-lateral overflow-hidden rounded-2xl border border-slate-200${model.modoTarjetas ? ' tema-tarjetas' : ''}`}>
-                    <Survey model={model} />
-                </div>
+                tipo?.tema?.render === 'propio'
+                    ? (
+                        <div className="animate-entra-lateral overflow-hidden rounded-2xl border border-slate-200">
+                            <FormularioPortal model={model} tema={tipo.tema} trabaEnvio={trabaEnvio} guardando={guardando} />
+                        </div>
+                    )
+                    : (
+                        <div className={`animate-entra-lateral overflow-hidden rounded-2xl border border-slate-200${model.modoTarjetas ? ' tema-tarjetas' : ''}`}>
+                            <Survey model={model} />
+                        </div>
+                    )
             )}
 
             {enviada && (

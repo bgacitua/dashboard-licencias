@@ -7,6 +7,8 @@ import { CampoImagen } from '../../../components/form-builder/PanelPropiedades';
 import { TEMA_DEFECTO, crearModelo } from '../../../components/form-builder/tema';
 import { definicionVacia } from '../../../components/form-builder/tipos';
 import Lienzo from '../builder/Lienzo';
+import FormularioPortal from '../formulario/FormularioPortal';
+import { CLAVE_PREVIEW } from './PreviewTipo';
 import AdminMarco from '../components/AdminMarco';
 import { columnas } from '../respuestas';
 import {
@@ -237,10 +239,36 @@ export default function AdminTipos() {
                             )}
 
                             {seccion === 'preview' && preview && (
-                                <div className={`mt-4 overflow-hidden rounded-xl border border-gray-200${preview.modoTarjetas ? ' tema-tarjetas' : ''}`}
-                                    style={{ ...preview.themeVariables, background: 'var(--sjs2-color-utility-body)' }}>
-                                    <Survey model={preview} />
+                                <div className="mt-2 flex justify-end">
+                                    {/* Enlace real (no window.open) para que el bloqueador de popups no
+                                        lo frene; el borrador viaja por localStorage, que sí se comparte
+                                        con la pestaña nueva. */}
+                                    <a href="/tickets/preview" target="_blank" rel="noopener"
+                                        onClick={() => {
+                                            localStorage.setItem(CLAVE_PREVIEW, JSON.stringify({
+                                                definicion, tema: actual.tema, nombre: actual.nombre, descripcion: actual.descripcion,
+                                            }));
+                                        }}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+                                        <span className="material-symbols-outlined text-base">open_in_new</span>
+                                        Abrir como la verá el usuario
+                                    </a>
                                 </div>
+                            )}
+
+                            {seccion === 'preview' && preview && (
+                                actual.tema?.render === 'propio'
+                                    ? (
+                                        <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
+                                            <FormularioPortal model={preview} tema={actual.tema} />
+                                        </div>
+                                    )
+                                    : (
+                                        <div className={`mt-4 overflow-hidden rounded-xl border border-gray-200${preview.modoTarjetas ? ' tema-tarjetas' : ''}`}
+                                            style={{ ...preview.themeVariables, background: 'var(--sjs2-color-utility-body)' }}>
+                                            <Survey model={preview} />
+                                        </div>
+                                    )
                             )}
                         </div>
                     </div>

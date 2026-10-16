@@ -86,6 +86,12 @@ export default function PanelTema({ tema, onChange, onCerrar }) {
                 <input type="checkbox" checked={!!t.tarjetas} onChange={(e) => set({ tarjetas: e.target.checked })} />
                 Mostrar como tarjetas en una pantalla
             </label>
+
+            <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={t.render === 'propio'}
+                    onChange={(e) => set({ render: e.target.checked ? 'propio' : 'survey' })} />
+                Render de página web (nuevo)
+            </label>
         </aside>
     );
 }
