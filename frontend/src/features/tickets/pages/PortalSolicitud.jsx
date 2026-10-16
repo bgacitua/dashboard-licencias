@@ -82,6 +82,9 @@ export default function PortalSolicitud({ modificando = false }) {
     // Datos de la solicitud recién enviada. Con esto la página deja de ser un
     // formulario y pasa a ser el acuse: mensaje del admin, resumen y salida.
     const [enviada, setEnviada] = useState(null);
+    // Guardando la solicitud: el renderer propio lo usa para el estado "Enviando…"
+    // (survey-react-ui lo mostraba solo; acá el botón es nuestro).
+    const [guardando, setGuardando] = useState(false);
     const [errorReservas, setErrorReservas] = useState('');
     const [error, setError] = useState('');
     const [aviso, setAviso] = useState('');
@@ -350,6 +353,7 @@ export default function PortalSolicitud({ modificando = false }) {
         };
         const alGuardar = async (sender, opciones) => {
             opciones.showSaveInProgress();
+            setGuardando(true);
             setAviso('');
             try {
                 if (ticket) {
@@ -384,6 +388,8 @@ export default function PortalSolicitud({ modificando = false }) {
                 setError(manejar(e));
                 sender.clear(false, false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+            } finally {
+                setGuardando(false);
             }
         };
         model.onCompleting.add(alCompletar);
@@ -843,7 +849,7 @@ export default function PortalSolicitud({ modificando = false }) {
                 tipo?.tema?.render === 'propio'
                     ? (
                         <div className="animate-entra-lateral overflow-hidden rounded-2xl border border-slate-200">
-                            <FormularioPortal model={model} tema={tipo.tema} trabaEnvio={trabaEnvio} />
+                            <FormularioPortal model={model} tema={tipo.tema} trabaEnvio={trabaEnvio} guardando={guardando} />
                         </div>
                     )
                     : (

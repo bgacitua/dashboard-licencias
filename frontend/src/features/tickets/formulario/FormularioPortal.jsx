@@ -22,7 +22,7 @@ const SELECCION = new Set(['radiogroup', 'dropdown', 'imagepicker']);
  * El envío real pasa por `model.tryComplete()`, que dispara los onCompleting/
  * onComplete que PortalSolicitud ya tiene enganchados (crear/editar ticket).
  */
-export default function FormularioPortal({ model, tema, trabaEnvio = '', onEnviar, onCancelar }) {
+export default function FormularioPortal({ model, tema, trabaEnvio = '', onEnviar, onCancelar, guardando = false }) {
     const [, refrescar] = useReducer((x) => x + 1, 0);
 
     // Las ramas aparecen/desaparecen al responder: hay que repintar cuando cambia
@@ -168,10 +168,11 @@ export default function FormularioPortal({ model, tema, trabaEnvio = '', onEnvia
                             </button>
                         ) : <span />}
                         <div className="flex flex-col items-end gap-1">
-                            <button type="button" onClick={enviar} disabled={!!trabaEnvio}
+                            <button type="button" onClick={enviar} disabled={!!trabaEnvio || guardando}
                                 title={trabaEnvio || undefined}
-                                className="rounded-[var(--fp-radio)] bg-[var(--fp-marca)] px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fp-marca)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0">
-                                {model.completeText || 'Enviar'}
+                                className="inline-flex items-center gap-2 rounded-[var(--fp-radio)] bg-[var(--fp-marca)] px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fp-marca)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0">
+                                {guardando && <span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
+                                {guardando ? 'Enviando…' : (model.completeText || 'Enviar')}
                             </button>
                             {trabaEnvio && <p className="text-right text-xs text-slate-500">{trabaEnvio}</p>}
                         </div>
