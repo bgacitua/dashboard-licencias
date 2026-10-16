@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef } from 'react';
 
 import Pregunta, { TarjetasCamino } from './Pregunta';
 import { desglosar } from '../../../components/form-builder/desglose';
@@ -57,13 +57,25 @@ export default function FormularioPortal({ model, tema, trabaEnvio = '', onEnvia
         ? desglosar(entrada.visibleChoices.find((c) => c.value === entrada.value)?.text || '').titulo
         : '';
 
+    const tarjetaRef = useRef(null);
+
+    // Lleva la vista a la primera sección con error, para que el usuario no tenga
+    // que cazarlo. Se hace tras pintar, por eso el requestAnimationFrame.
+    const irAlPrimerError = () => {
+        requestAnimationFrame(() => {
+            const el = tarjetaRef.current?.querySelector('[data-error="1"]');
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    };
+
     const enviar = () => {
         // En preview el envío no crea ticket: el que abre decide qué hacer.
         if (onEnviar) { onEnviar(model); refrescar(); return; }
         // tryComplete valida y, si pasa, dispara onComplete; si no, deja los
-        // errores en las preguntas. Repintamos para mostrarlos.
-        model.tryComplete();
+        // errores en las preguntas. Repintamos para mostrarlos y guiamos al error.
+        const ok = model.tryComplete();
         refrescar();
+        if (!ok) irAlPrimerError();
     };
 
     const hayMarca = cab.titulo || cab.descripcion || cab.logo;
@@ -89,6 +101,7 @@ export default function FormularioPortal({ model, tema, trabaEnvio = '', onEnvia
     // En lectura (ficha) la entrada se muestra como una sección más; editable va
     // en la barra de "Cambiar", así que se saca de las secciones.
     const secciones = lectura ? preguntas : preguntas.filter((q) => q.name !== entrada?.name);
+    const hayErrores = secciones.some((q) => q.errors && q.errors.length > 0);
 
     return (
         // Un solo elemento centrado en pantalla. Dentro, cada pregunta es una
@@ -96,7 +109,7 @@ export default function FormularioPortal({ model, tema, trabaEnvio = '', onEnvia
         // nuevas, animadas, sin salir de la tarjeta.
         <div className="flex min-h-[80vh] items-center justify-center px-4 py-10"
             style={{ ...estilosDeTema(tema), background: 'var(--fp-fondo)' }}>
-            <div className="w-full max-w-2xl animate-entra overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
+            <div ref={tarjetaRef} className="w-full max-w-2xl animate-entra overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5">
 
                 {hayMarca && (
                     // Barra de encabezado de la tarjeta, con el color o la imagen
@@ -125,14 +138,25 @@ export default function FormularioPortal({ model, tema, trabaEnvio = '', onEnvia
                     </div>
                 )}
 
+                {hayErrores && (
+                    <div className="border-b border-red-100 bg-red-50 px-6 py-3 text-sm font-medium text-red-700 sm:px-8" role="alert">
+                        Revisa los campos marcados antes de enviar.
+                    </div>
+                )}
+
                 {/* Secciones: una por pregunta, separadas por una línea. */}
                 <div className="divide-y divide-slate-100">
-                    {secciones.map((q, i) => (
-                        <section key={q.name} className="animate-entra px-6 py-6 sm:px-8"
-                            style={{ animationDelay: `${Math.min(i, 8) * 55}ms` }}>
-                            <Pregunta q={q} lectura={lectura} />
-                        </section>
-                    ))}
+                    {secciones.map((q, i) => {
+                        const conError = !!(q.errors && q.errors.length > 0);
+                        return (
+                            <section key={q.name}
+                                data-error={conError ? '1' : undefined}
+                                className={`animate-entra px-6 py-6 sm:px-8 ${conError ? 'border-l-2 border-red-400 bg-red-50/30' : ''}`}
+                                style={{ animationDelay: `${Math.min(i, 8) * 55}ms` }}>
+                                <Pregunta q={q} lectura={lectura} />
+                            </section>
+                        );
+                    })}
                 </div>
 
                 {!lectura && (
