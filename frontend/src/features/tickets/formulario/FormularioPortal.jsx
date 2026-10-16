@@ -2,11 +2,8 @@ import React, { useEffect, useMemo, useReducer, useRef } from 'react';
 
 import Pregunta, { TarjetasCamino } from './Pregunta';
 import { desglosar } from '../../../components/form-builder/desglose';
+import { SELECCION } from '../../../components/form-builder/logica';
 import { cabeceraDeTema, estilosDeTema } from './estilos';
-
-// Tipos que ofrecen opciones. La primera de estas es la "entrada": la que elige
-// el camino (Coffee / Almuerzo) y se pinta como dos tarjetas grandes.
-const SELECCION = new Set(['radiogroup', 'dropdown', 'imagepicker']);
 
 /**
  * Renderer propio de un formulario del portal. Usa el `SurveyModel` de
@@ -46,7 +43,7 @@ export default function FormularioPortal({ model, tema, trabaEnvio = '', onEnvia
     // La pregunta de entrada (primera de selección) decide el camino. Se busca
     // sobre todas, no solo las visibles, para que sea estable.
     const entrada = useMemo(() => {
-        return model.getAllQuestions().find((x) => SELECCION.has(x.getType())) || null;
+        return model.getAllQuestions().find((x) => SELECCION.includes(x.getType())) || null;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [model]);
 

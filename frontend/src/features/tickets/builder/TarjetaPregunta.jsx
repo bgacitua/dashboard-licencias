@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { TIPOS, aHtmlInformativo, claveTipo, deHtmlInformativo } from '../../../components/form-builder/tipos';
+import SelectorCamino from './SelectorCamino';
 import TextareaBuffer from '../../../components/form-builder/TextareaBuffer';
 import { separarOpciones, unirOpciones, valorDeServicio } from '../../../components/form-builder/servicios';
 import { subirImagen } from '../services/tickets';
@@ -411,6 +412,7 @@ export default function TarjetaPregunta({
 
             {seleccionada && (
                 <>
+                    <SelectorCamino definicion={definicion} pregunta={p} onChange={onChange} />
                     {extra && (
                         <div className="space-y-3 border-t border-gray-100 bg-gray-50/60 px-6 py-4">
                             <ReglaVisible definicion={definicion} pregunta={p} onChange={onChange} />

@@ -69,6 +69,23 @@ export const parsear = (visibleIf) => {
     return null;
 };
 
+/** Tipos de pregunta que ofrecen opciones (pueden definir "caminos"). */
+export const SELECCION = ['radiogroup', 'dropdown', 'imagepicker'];
+
+/**
+ * Pregunta de entrada: la primera de selección en orden de definición. Es la que
+ * el renderer pinta como tarjetas de camino y contra la que el selector de camino
+ * arma el `visibleIf`. Devuelve null si el formulario no tiene ninguna.
+ */
+export const preguntaDeEntrada = (definicion) => {
+    for (const pagina of definicion?.pages || []) {
+        for (const el of pagina.elements || []) {
+            if (SELECCION.includes(el.type)) return el;
+        }
+    }
+    return null;
+};
+
 /** Tipos que se muestran pero no guardan respuesta: no sirven de origen. */
 const SIN_RESPUESTA = ['image', 'html'];
 
