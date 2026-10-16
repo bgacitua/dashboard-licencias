@@ -202,6 +202,64 @@ function Control({ q, lectura, entrada }) {
                 </div>
             );
 
+        case 'rating': {
+            const min = Number.isFinite(q.rateMin) ? q.rateMin : 1;
+            const max = Number.isFinite(q.rateMax) ? q.rateMax : 5;
+            const valores = Array.from({ length: Math.max(0, max - min + 1) }, (_, k) => min + k);
+            return (
+                <div className="flex flex-wrap gap-2">
+                    {valores.map((n) => {
+                        const activo = q.value === n;
+                        return (
+                            <button key={n} type="button" disabled={lectura} aria-pressed={activo}
+                                onClick={() => { q.value = activo ? undefined : n; }}
+                                className={`h-11 min-w-11 rounded-[var(--fp-radio)] border px-3 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fp-marca)] focus-visible:ring-offset-1 ${
+                                    activo
+                                        ? 'border-[var(--fp-marca)] bg-[color-mix(in_srgb,var(--fp-marca)_10%,white)] text-slate-900 shadow-sm'
+                                        : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                                }`}>
+                                {n}
+                            </button>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        case 'imagepicker': {
+            const multi = !!q.multiSelect;
+            const arr = Array.isArray(q.value) ? q.value : [];
+            const elegido = (val) => (multi ? arr.includes(val) : q.value === val);
+            const alElegir = (val) => {
+                if (multi) q.value = arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val];
+                else q.value = q.value === val ? undefined : val;
+            };
+            return (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {q.visibleChoices.map((item) => {
+                        const activo = elegido(item.value);
+                        return (
+                            <button key={item.value} type="button" disabled={lectura} aria-pressed={activo}
+                                onClick={() => alElegir(item.value)}
+                                className={`overflow-hidden rounded-[var(--fp-radio)] border-2 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fp-marca)] focus-visible:ring-offset-2 ${
+                                    activo ? 'border-[var(--fp-marca)] shadow-md ring-1 ring-[var(--fp-marca)]'
+                                        : 'border-slate-200 hover:-translate-y-0.5 hover:shadow-md'
+                                } ${lectura ? 'pointer-events-none opacity-70' : ''}`}>
+                                {item.imageLink && (
+                                    <img src={item.imageLink} alt=""
+                                        style={{ height: q.imageHeight || 120, objectFit: q.imageFit || 'cover' }}
+                                        className="w-full" />
+                                )}
+                                {q.showLabel !== false && (
+                                    <span className="block px-2.5 py-2 text-sm text-slate-700">{desglosar(item.text).titulo}</span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            );
+        }
+
         // Contenido del admin; mismo trato que hoy (survey lo inyecta por innerHTML).
         case 'html':
             return <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: q.processedHtml || '' }} />;
