@@ -106,6 +106,25 @@ def test_hibrido_solo_con_mas_de_un_cargo():
         assert out["moneda"] == "CLP"
 
 
+def test_promedio_de_subfamilias_solo_con_mas_de_una():
+    def sub(cod, v):
+        return {"tipo": "subfamilia", "cargo_codigo": cod, "titulo": cod, "medida_codigo": "COMP1",
+                "n_companias": 5, "n_observaciones": 5, "p25": v, "mediana": v, "promedio": v, "p75": None}
+
+    for subs, esperado in (([sub("SCN.03.000", 10)], 0), ([sub("SCN.03.000", 10), sub("HRM.02.000", 30)], 1)):
+        db = FakeSession({
+            "FROM compensaciones.analisis": [ANALISIS],
+            "GROUP BY n.codigo": [{"codigo": "M20", "nombre": "x"}],
+            "FROM compensaciones.estudio WHERE": [ESTUDIO],
+            "CASE WHEN m.es_core": subs,
+        })
+        out = service.resultado(db, 7, ["SCN.03.017"], "M20")
+        prom = [f for f in out["filas"] if f["tipo"] == "promedio_subfamilias" and f["medida_codigo"] == "COMP1"]
+        assert len(prom) == esperado
+        if esperado:
+            assert prom[0]["mediana"] == 20 and prom[0]["p75"] is None  # p75 s/d en una -> s/d
+
+
 def test_inexistentes_404_y_nivel_400():
     _con_ia(lambda *a: None)
     for llamar in (

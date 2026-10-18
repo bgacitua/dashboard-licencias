@@ -17,6 +17,7 @@ export default function Compensaciones() {
   const [seleccion, setSeleccion] = useState(null) // { analisisId, cargos }
   const [niveles, setNiveles] = useState([])
   const [resultado, setResultado] = useState(null)
+  const [nivel, setNivel] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -45,11 +46,12 @@ export default function Compensaciones() {
       .catch(fallo)
   }
 
-  const elegirNivel = (nivel) => {
+  const elegirNivel = (codigo) => {
     setError('')
-    postResultado(seleccion.analisisId, { cargos: seleccion.cargos, nivel })
+    postResultado(seleccion.analisisId, { cargos: seleccion.cargos, nivel: codigo })
       .then((r) => {
         setResultado(r)
+        setNivel(niveles.find((n) => n.codigo === codigo))
         setPaso('resultado')
       })
       .catch(fallo)
@@ -119,7 +121,7 @@ export default function Compensaciones() {
                     <button type="button" className={link} onClick={() => setPaso('nivel')}>← Volver</button>
                     <button type="button" className={link} onClick={reiniciar}>Nuevo análisis</button>
                   </div>
-                  <PasoResultado resultado={resultado} pais={estudio.pais} />
+                  <PasoResultado resultado={resultado} pais={estudio.pais} nivel={nivel} />
                 </div>
               )}
             </>

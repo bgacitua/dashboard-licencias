@@ -4,7 +4,7 @@ const LOCALE = { CL: 'es-CL', PE: 'es-PE', BR: 'pt-BR' }
 const MEDIDAS = [['COMP1', 'Sueldo base'], ['COMP3_REAL', 'Compensación total']]
 const ESTADISTICAS = ['p25', 'mediana', 'promedio', 'p75']
 
-export default function PasoResultado({ resultado, pais }) {
+export default function PasoResultado({ resultado, pais, nivel }) {
   const [mensual, setMensual] = useState(false)
   const { moneda, factor_mensual, filas } = resultado
 
@@ -24,7 +24,7 @@ export default function PasoResultado({ resultado, pais }) {
 
       {MEDIDAS.map(([codigo, nombre]) => (
         <section key={codigo}>
-          <h2 className="mb-2 text-sm font-semibold text-app-ink">{nombre} <span className="font-normal text-app-muted">({codigo})</span></h2>
+          <h2 className="mb-2 text-sm font-semibold text-app-ink">{nombre} <span className="font-normal text-app-muted">({codigo})</span> · Nivel {nivel.codigo} <span className="font-normal text-app-muted">{nivel.nombre}</span></h2>
           <div className="overflow-x-auto rounded-xl border border-app-line bg-white">
             <table className="min-w-full text-sm">
               <thead className="text-left text-xs uppercase tracking-wide text-app-muted">
@@ -39,11 +39,11 @@ export default function PasoResultado({ resultado, pais }) {
               </thead>
               <tbody className="divide-y divide-app-line">
                 {filas.filter((f) => f.medida_codigo === codigo).map((f) => (
-                  <tr key={`${f.tipo}-${f.cargo_codigo}`} className={f.tipo === 'hibrido' ? 'font-semibold' : ''}>
+                  <tr key={`${f.tipo}-${f.cargo_codigo}`} className={f.tipo.startsWith('hibrido') || f.tipo === 'promedio_subfamilias' ? 'font-semibold' : ''}>
                     <td className="px-4 py-2">
                       {f.titulo} {f.cargo_codigo && <span className="text-app-muted">{f.cargo_codigo}</span>}
                     </td>
-                    <td className="px-4 py-2 text-right">{f.n_companias ?? (f.tipo === 'hibrido' ? '—' : 's/d')}</td>
+                    <td className="px-4 py-2 text-right">{f.n_companias ?? (f.n_companias == null && f.tipo !== 'cargo' && f.tipo !== 'subfamilia' ? '—' : 's/d')}</td>
                     {ESTADISTICAS.map((k) => (
                       <td key={k} className="px-4 py-2 text-right">{monto(f[k])}</td>
                     ))}

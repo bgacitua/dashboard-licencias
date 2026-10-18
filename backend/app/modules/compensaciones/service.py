@@ -76,6 +76,22 @@ def resultado(db: Session, analisis_id: int, cargos: list[str], nivel: str) -> d
                 "titulo": f"Híbrido ({len(cargos)} cargos)",
                 "n_companias": None, "n_observaciones": None,
             })
-    filas += [d for d in detalle if d["tipo"] == "subfamilia"]
+    subfamilias = [d for d in detalle if d["tipo"] == "subfamilia"]
+    filas += subfamilias
+    # Con cargos de más de una subfamilia: promedio simple entre ellas, con la
+    # misma regla del híbrido (un estadístico solo si todas lo tienen).
+    n_sub = len({d["cargo_codigo"] for d in subfamilias})
+    if n_sub > 1:
+        for medida in MEDIDAS:
+            grupo = [d for d in subfamilias if d["medida_codigo"] == medida]
+            if not grupo:
+                continue
+            filas.append({
+                "tipo": "promedio_subfamilias", "cargo_codigo": None,
+                "titulo": f"Promedio subfamilias ({n_sub})", "medida_codigo": medida,
+                "n_companias": None, "n_observaciones": None,
+                **{k: None if any(d[k] is None for d in grupo) else sum(d[k] for d in grupo) / len(grupo)
+                   for k in ("p25", "mediana", "promedio", "p75")},
+            })
 
     return {"moneda": estudio["moneda"], "factor_mensual": estudio["factor_mensual"], "filas": filas}
