@@ -10,7 +10,7 @@ así soportamos xls/xlsx/csv/html sin que el backend lea binarios.
 ponytail: los nombres de columna (reporte y auditoría Buk) están como constantes
 arriba — ajústalos si difieren. rut se normaliza para poder cruzar entre fuentes.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 # --- Atrasos: cabeceras esperadas en el reporte subido ---
 XLS_COL_RUT = "RUT"
@@ -159,6 +159,41 @@ def _atraso_cuenta(valor: object) -> bool:
     return True
 
 
+def _es_ingreso_0800(valor: object) -> bool:
+    """True si 'Hora de Ingreso' es exactamente 08:00:00.
+
+    Esas marcas llegan con 'Atraso con Holgura' en 0 porque la holgura las
+    absorbe, pero el negocio las cuenta como atraso (falso negativo). Es el único
+    caso que rescata un 'Atraso con Holgura' == 0.
+    """
+    if isinstance(valor, bool):
+        return False
+    if isinstance(valor, (datetime, time)):
+        return (valor.hour, valor.minute, valor.second) == (8, 0, 0)
+    if isinstance(valor, (int, float)):
+        # Fracción de día de Excel: 08:00:00 == 8/24.
+        return round(float(valor) * 86400) == 8 * 3600
+    partes = str(valor).strip().split(":")
+    if len(partes) < 2:
+        return False
+    try:
+        h, m = int(partes[0]), int(partes[1])
+        s = int(partes[2]) if len(partes) > 2 else 0
+    except ValueError:
+        return False
+    return (h, m, s) == (8, 0, 0)
+
+
+def _fila_cuenta_atraso(r: dict) -> bool:
+    """Una fila del reporte cuenta como atraso si 'Atraso con Holgura' > 0, o si
+    es 0/vacía pero la 'Hora de Ingreso' marca exactamente las 08:00:00."""
+    if XLS_COL_ATRASO not in r:
+        return True  # sin la columna no filtramos (comportamiento previo)
+    if _atraso_cuenta(r[XLS_COL_ATRASO]):
+        return True
+    return _es_ingreso_0800(_col(r, XLS_COL_INGRESO))
+
+
 def contar_atrasos(
     rows: list[dict], q1_inicio: date, q2_inicio: date, q2_fin: date
 ) -> dict[str, dict[str, int]]:
@@ -171,7 +206,7 @@ def contar_atrasos(
         )
     out: dict[str, dict[str, int]] = {}
     for r in rows:
-        if XLS_COL_ATRASO in r and not _atraso_cuenta(r[XLS_COL_ATRASO]):
+        if not _fila_cuenta_atraso(r):
             continue
         per = _periodo(_to_date(r.get(XLS_COL_DIA)), q1_inicio, q2_inicio, q2_fin)
         if per == 0:
@@ -189,7 +224,7 @@ def detalle_atrasos(
     """Filas de atrasos que cuentan, con rut normalizado y periodo (para hoja de auditoría)."""
     out: list[dict] = []
     for r in rows:
-        if XLS_COL_ATRASO in r and not _atraso_cuenta(r[XLS_COL_ATRASO]):
+        if not _fila_cuenta_atraso(r):
             continue
         f = _to_date(r.get(XLS_COL_DIA))
         per = _periodo(f, q1_inicio, q2_inicio, q2_fin)
@@ -482,6 +517,20 @@ if __name__ == "__main__":
         {"RUT": "9.999.999-9", "Día": "2026-07-02", "Atraso con Holgura": "0:00:00"},  # no cuenta
     ], q1, q2, qf)
     assert atr["9999999"] == {"p1": 1, "p2": 1}, atr
+
+    # Rescate del falso negativo: holgura en 0 pero ingreso exacto a las 08:00:00.
+    assert _es_ingreso_0800("08:00:00") and _es_ingreso_0800("8:00:00") and _es_ingreso_0800("8:00")
+    assert not _es_ingreso_0800("08:00:01") and not _es_ingreso_0800("08:05:00")
+    assert not _es_ingreso_0800("") and not _es_ingreso_0800("0:00:00")
+    atr0800 = contar_atrasos([
+        {"RUT": "7.777.777-7", "Día": "2026-06-20", "Atraso con Holgura": "0:00:00",
+         "Hora de Ingreso": "08:00:00"},                                   # rescatado
+        {"RUT": "7.777.777-7", "Día": "2026-07-01", "Atraso con Holgura": "0:00:00",
+         "Hora de Ingreso": "08:05:00"},                                   # no, no es 08:00:00
+        {"RUT": "7.777.777-7", "Día": "2026-07-02", "Atraso con Holgura": "0:00:00",
+         "Hora de Ingreso": "0:00:00"},                                    # no
+    ], q1, q2, qf)
+    assert atr0800["7777777"] == {"p1": 1, "p2": 0}, atr0800
 
     # Hora de marca y turno viajan a la hoja de auditoría; cabecera tolerante.
     det = detalle_atrasos([
