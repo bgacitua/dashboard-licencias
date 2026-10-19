@@ -427,6 +427,17 @@ class ReportService:
                                 "Fecha ingreso": r.get("active_since", ""),
                                 "Periodos sin bono por ingreso": ", ".join(afecta)})
 
+        # El cruce sale de permisos_horas/atrasos, que no filtran por cargo, así que
+        # cuela cargos sin bono y confunde. Se acota a los RUT de base (los cargos
+        # elegibles) siempre, no solo en JC_. En JC_ el bloque de abajo lo re-acota
+        # sin efecto adicional.
+        ruts_base = {incidencias.norm_rut(r.get("rut")) for r in base}
+        cruce = [
+            r for r in incidencias.cruce_atrasos_permiso_horas(
+                ctx["atrasos_rows"], ctx["permisos_horas"], q1, q2, qf)
+            if incidencias.norm_rut(r.get("RUT")) in ruts_base
+        ]
+
         sheets = [
             ("Bono Asistencia", ctx["principal"], COLUMNAS),
             ("Ausencias", ausencias, aus_cols),
@@ -437,18 +448,14 @@ class ReportService:
             ("Ingreso Reciente", ingreso, ing_cols),
             # ponytail: hoja temporal de auditoría — atraso y permiso_por_horas el mismo
             # día. No afecta el bono. Borrar cuando el cruce se haga en la BD.
-            ("Atraso vs Permiso Horas",
-             incidencias.cruce_atrasos_permiso_horas(
-                 ctx["atrasos_rows"], ctx["permisos_horas"], q1, q2, qf),
-             incidencias.CRUCE_COLS),
+            ("Atraso vs Permiso Horas", cruce, incidencias.CRUCE_COLS),
         ]
         if not ctx["p"].jc:
             return sheets
         # JC_: base ya viene filtrada por cargo/empresa; las hojas de detalle salen de
         # queries/archivos sin ese filtro, así que se acotan a los mismos ruts.
-        ruts = {incidencias.norm_rut(r.get("rut")) for r in base}
         return [
-            (name, [r for r in rows if incidencias.norm_rut(r.get("Rut", r.get("RUT"))) in ruts], cols)
+            (name, [r for r in rows if incidencias.norm_rut(r.get("Rut", r.get("RUT"))) in ruts_base], cols)
             for name, rows, cols in sheets
         ]
 
@@ -528,7 +535,11 @@ if __name__ == "__main__":
             }]
 
         def query_permisos_horas(self, q1_inicio, q2_fin):
+            # El "Gerente" no está en la base (query() no lo trae): su cruce debe caerse.
             return [{"rut": "12.345.678-9", "full_name": "Ana", "name_role": "Operario",
+                     "start_date": date(2026, 6, 20), "end_date": date(2026, 6, 20),
+                     "day_percent": "0.5"},
+                    {"rut": "99.999.999-9", "full_name": "Beto", "name_role": "Gerente",
                      "start_date": date(2026, 6, 20), "end_date": date(2026, 6, 20),
                      "day_percent": "0.5"}]
 
@@ -544,12 +555,15 @@ if __name__ == "__main__":
     assert rows[0]["Monto"] == 50000.0, rows[0]["Monto"]
 
     sheets = asyncio.run(svc.generar_sheets(
-        p, atrasos_rows=[{"RUT": "12.345.678-9", "Día": "2026-06-20", "Atraso con Holgura": "0:10:00"}]))
+        p, atrasos_rows=[{"RUT": "12.345.678-9", "Día": "2026-06-20", "Atraso con Holgura": "0:10:00"},
+                         {"RUT": "99.999.999-9", "Día": "2026-06-20", "Atraso con Holgura": "0:10:00"}]))
     names = [s[0] for s in sheets]
     assert names == ["Bono Asistencia", "Ausencias", "Atrasos", "Olvidos Marca",
                      "Ingreso Reciente", "Atraso vs Permiso Horas"], names
     cruce = sheets[5][1]
+    # Sin JC_, el cruce solo muestra cargos con bono (RUT en base): el Gerente se cae.
     assert len(cruce) == 1 and cruce[0]["Día"] == "2026-06-20", cruce
+    assert cruce[0]["RUT"] == "12.345.678-9" and all(c["Cargo"] != "Gerente" for c in cruce), cruce
 
     # JC_: filtra la base por cargo/empresa y propaga el recorte a todas las hojas.
     atrasos_demo = [{"RUT": "12.345.678-9", "Día": "2026-06-20", "Atraso con Holgura": "0:10:00"}]
