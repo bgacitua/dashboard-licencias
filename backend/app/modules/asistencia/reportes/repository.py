@@ -36,7 +36,10 @@ incidencias_clasificadas AS (
     JOIN rango r
       ON ci.start_date::DATE <= r.fin
      AND ci.end_date::DATE   >= r.inicio
-    WHERE ci.type_permission ILIKE ANY (ARRAY['%Enfermedad%', '%Licencia%', '%Accidente%', '%Ausencia%'])
+    WHERE (
+            ci.type_permission ILIKE ANY (ARRAY['%Enfermedad%', '%Licencia%', '%Accidente%', '%Ausencia%'])
+            OR ci.type_permission IN ('permiso_con_goce', 'permiso')
+          )
       AND NOT (
             ci.type_permission IN (
                 'permiso_por_horas', 'permiso_horas_cramer', 'permiso_matrimonio',
@@ -114,7 +117,10 @@ JOIN rango r
  AND ci.end_date::DATE   >= r.inicio
 JOIN rh.employees em ON ci.employee_id = em.id
 LEFT JOIN rh.areas AS a ON em.area_id = a.id
-WHERE ci.type_permission ILIKE ANY (ARRAY['%Enfermedad%', '%Licencia%', '%Accidente%', '%Ausencia%'])
+WHERE (
+        ci.type_permission ILIKE ANY (ARRAY['%Enfermedad%', '%Licencia%', '%Accidente%', '%Ausencia%'])
+        OR ci.type_permission IN ('permiso_con_goce', 'permiso')
+      )
   AND NOT (
         ci.type_permission IN (
             'permiso_por_horas', 'permiso_horas_cramer', 'permiso_matrimonio',
