@@ -24,6 +24,14 @@ export const TURNOS_EXCLUIDOS = ['06:00-10:00', '22:00-06:00']
 // Colación adicional a partir de estas horas trabajadas.
 export const HORAS_COLACION = 6
 
+// Unidades cuyos domingos no generan bono de colación ni movilización. El sábado
+// y los festivos siguen pagando normal; solo se descuenta el domingo "puro".
+export const UNIDADES_SIN_DOMINGO = new Set(['PLANTA SECADO 2'])
+
+// Clave normalizada de la unidad para comparar contra UNIDADES_SIN_DOMINGO:
+// sin espacios de más y en mayúsculas, porque el valor llega libre desde Buk.
+const claveUnidad = (v) => norm(v).replace(/\s+/g, ' ').toUpperCase()
+
 /**
  * Festivos legales de Chile, por año. El festivo paga igual que un sábado o
  * domingo, así que basta con sumarlo a la misma lista de días pagables.
@@ -160,6 +168,8 @@ export function colacionMovilizacion(rows, periodo = { desde: '', hasta: '' }) {
   for (const r of filtrar(rows, periodo)) {
     const fecha = diaMarcaje(r)
     if (!esDiaPagable(fecha)) continue
+    // En las unidades sin domingo, el domingo puro (no festivo) no genera bono.
+    if (nombreDia(fecha) === 'Domingo' && UNIDADES_SIN_DOMINGO.has(claveUnidad(r.area))) continue
     const rut = norm(r.rut_trabajador)
     if (!rut) continue
     const turno = norm(r.turno)
@@ -470,6 +480,23 @@ if (globalThis.process?.argv?.[1]?.endsWith('bonosAdicionales.js')) {
   a(colacionMovilizacion([...recurrente,
     marca('1-9', '22/8/2026', '08:00-18:00', '2026/08/22 08:00:00', '2026/08/22 18:00:00')], q)
     .length === 3, 'el periodo recorta al 15')
+
+  // PLANTA SECADO 2: el domingo no paga, pero el sábado y el festivo sí.
+  const unidad = (rut, dia, area, ini, fin) => ({ ...marca(rut, dia, '08:00-18:00', ini, fin), area })
+  const planta = resumenFinde(colacionMovilizacion([
+    unidad('7-7', '1/8/2026', 'Planta Secado 2', '2026/08/01 08:00:00', '2026/08/01 18:00:00'), // sáb
+    unidad('7-7', '2/8/2026', 'Planta Secado 2', '2026/08/02 08:00:00', '2026/08/02 18:00:00'), // dom
+  ], q))[0]
+  a(planta['Sábados'] === 1 && planta['Domingos'] === 0, 'en Planta Secado 2 el domingo no cuenta')
+  a(planta['Total asignaciones'] === 2, 'solo el sábado genera asignaciones')
+  // El festivo que cae domingo sí paga (se cuenta como festivo, no como domingo).
+  a(colacionMovilizacion([
+    unidad('7-7', '19/9/2026', 'PLANTA SECADO 2', '2026/09/19 08:00:00', '2026/09/19 18:00:00'),
+  ], qSep).length === 1, 'el festivo del 19 paga aunque sea en Planta Secado 2')
+  // Otra unidad conserva su domingo.
+  a(resumenFinde(colacionMovilizacion([
+    unidad('8-8', '2/8/2026', 'Bodega', '2026/08/02 08:00:00', '2026/08/02 18:00:00'),
+  ], q))[0]['Domingos'] === 1, 'otras unidades mantienen el domingo')
 
   // Contratista: una asignación por semana, mes calendario completo.
   a(mesCompleto('2026-07').desde === '2026-07-01' && mesCompleto('2026-07').hasta === '2026-07-31', 'julio')
