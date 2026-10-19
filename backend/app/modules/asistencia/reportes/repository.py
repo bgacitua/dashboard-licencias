@@ -48,6 +48,8 @@ incidencias_clasificadas AS (
             )
             OR (ci.type_permission IN ('permiso_con_goce', 'permiso') AND ci.day_percent = '0.5')
       )
+      -- Las incidencias rechazadas no cuentan (IS DISTINCT FROM conserva los NULL).
+      AND ci.status IS DISTINCT FROM 'rejected'
 ),
 ausencias_mes AS (
     SELECT
@@ -129,6 +131,8 @@ WHERE (
         )
         OR (ci.type_permission IN ('permiso_con_goce', 'permiso') AND ci.day_percent = '0.5')
   )
+  -- Las incidencias rechazadas no cuentan (IS DISTINCT FROM conserva los NULL).
+  AND ci.status IS DISTINCT FROM 'rejected'
   AND em.name_role IN (
         'Auxiliar de Laboratorio', 'Operario de Lavandería', 'Analista De Control De Calidad',
         'Analista Control De Calidad Muestras', 'Analista De Microbiología', 'Asistente De Laboratorio',
