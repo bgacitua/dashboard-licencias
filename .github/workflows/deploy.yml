@@ -38,6 +38,17 @@ jobs:
         service: [backend, frontend]
     steps:
       - uses: actions/checkout@v4
+      # El contenedor del act_runner (catthehacker) no trae el CLI de docker, que
+      # login-action, setup-buildx y build-push necesitan. En GitHub venía con el
+      # runner; acá se instala el binario estático. El daemon es el del host, que
+      # el act_runner inyecta por docker.sock.
+      - name: Instalar docker CLI
+        run: |
+          set -e
+          DOCKER_VER=28.0.4
+          curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VER}.tgz" \
+            | tar -xz -C /usr/local/bin --strip-components=1 docker/docker
+          docker --version
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
