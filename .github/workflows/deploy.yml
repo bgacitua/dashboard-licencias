@@ -49,7 +49,11 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: [self-hosted, vps]
+    # Solo el label `vps`: Gitea Actions no expone el label implícito `self-hosted`
+    # que sí tiene todo runner self-hosted en GitHub, así que `[self-hosted, vps]`
+    # no matchea ningún runner en Gitea y el job queda encolado. `vps` a secas
+    # matchea el act_runner de Gitea y también el runner self-hosted de GitHub.
+    runs-on: vps
     # Ruta del checkout del repo en la VPS: ahí viven compose.yml y backend/.env.
     defaults:
       run:
