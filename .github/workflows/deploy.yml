@@ -16,7 +16,11 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_BASE: ghcr.io/${{ github.repository }}
+  # Fijo, no derivado de github.repository: en Gitea el repo se llama distinto
+  # (plataforma-personas) y las imágenes saldrían con otro nombre, pero compose.yml
+  # pide ghcr.io/bgacitua/dashboard-licencias-*. Pinearlo hace que GitHub y Gitea
+  # publiquen y consuman exactamente la misma imagen.
+  IMAGE_BASE: ghcr.io/bgacitua/dashboard-licencias
 
 jobs:
   build:
