@@ -1,11 +1,16 @@
-# Build fuera de la VPS, deploy dentro. El downtime deja de ser el tiempo de build
-# (minutos: ODBC + Playwright/Chromium) y pasa a ser el de recrear el contenedor
-# con la imagen ya descargada (segundos).
+# Build empuja imágenes a GHCR; deploy solo las baja y recrea los contenedores.
+# El downtime es el de recrear con la imagen ya descargada (segundos), no el del
+# build (minutos: ODBC + Playwright/Chromium).
 #
-# Requisitos en la VPS, una sola vez:
-#   1. Runner self-hosted con label `vps` (Settings > Actions > Runners > New self-hosted).
-#      La VPS es solo red interna: el runner sale hacia GitHub, GitHub nunca entra.
-#   2. El runner debe correr en el directorio del repo o tener acceso a él (ver `working-directory`).
+# Ambos jobs corren en el act_runner containerizado (label `ubuntu-latest`), que
+# inyecta el docker.sock del host: el deploy controla el docker del host a través
+# de ese socket, sin depender de un checkout en la VPS. compose.yml llega por el
+# checkout del job; backend/.env por el secret DASHBOARD_ENV; los datos (/app/data,
+# ms_token.json) viven en un named volume, no en un bind al host.
+#
+# Secrets del repo (una sola vez):
+#   - GHCR_TOKEN   PAT de GitHub con write:packages (en GitHub cae al automático).
+#   - DASHBOARD_ENV  contenido COMPLETO de backend/.env de producción.
 
 name: deploy
 
@@ -57,25 +62,42 @@ jobs:
 
   deploy:
     needs: build
-    # Solo el label `vps`: Gitea Actions no expone el label implícito `self-hosted`
-    # que sí tiene todo runner self-hosted en GitHub, así que `[self-hosted, vps]`
-    # no matchea ningún runner en Gitea y el job queda encolado. `vps` a secas
-    # matchea el act_runner de Gitea y también el runner self-hosted de GitHub.
-    runs-on: vps
-    # Ruta del checkout del repo en la VPS: ahí viven compose.yml y backend/.env.
-    defaults:
-      run:
-        working-directory: /opt/etl-bd/proyectos-rrhh/dashboard-licencias
+    runs-on: ubuntu-latest
+    # El job corre en un contenedor con el docker.sock del host inyectado por el
+    # act_runner, así controla el docker del host sin depender de un checkout en
+    # la VPS: compose.yml llega por el checkout del job y backend/.env por secret.
+    # NO montar el sock acá (el runner ya lo inyecta: hacerlo de nuevo da
+    # "Duplicate mount point"). node:20 trae git + curl para el checkout.
+    container:
+      image: node:20-bookworm
     env:
       TAG: ${{ github.sha }}
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar docker CLI + compose
+        run: |
+          set -e
+          DOCKER_VER=28.0.4
+          curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VER}.tgz" \
+            | tar -xz -C /usr/local/bin --strip-components=1 docker/docker
+          mkdir -p /usr/local/lib/docker/cli-plugins
+          COMPOSE_VER=v2.33.1
+          curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
+            "https://github.com/docker/compose/releases/download/${COMPOSE_VER}/docker-compose-linux-x86_64"
+          chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+          docker version
+          docker compose version
+
       - name: Login a GHCR
         run: echo "${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      # El repo de la VPS sigue siendo la fuente de compose.yml y del .env (que no está en git).
-      - name: Actualizar compose y migraciones
-        # checkout -B en vez de reset --hard: deja la VPS EN la rama main, no solo
-        # con su contenido sobre la rama que estuviera activa.
-        run: git fetch origin main && git checkout -B main origin/main
+
+      # backend/.env ya no vive en el host: lo reconstruye el secret en cada deploy.
+      - name: Preparar backend/.env desde el secret
+        run: |
+          mkdir -p backend
+          printf '%s' "${{ secrets.DASHBOARD_ENV }}" > backend/.env
+
       # El tag de lo que está corriendo AHORA, para poder volver si el deploy falla.
       - name: Anotar versión actual
         id: actual
