@@ -34,7 +34,11 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # En GitHub el GITHUB_TOKEN automático basta para GHCR; en Gitea ese
+          # token es de su propia API y no sirve, así que ahí se usa el PAT
+          # GHCR_TOKEN (write:packages). El `||` toma GHCR_TOKEN si existe y cae
+          # al automático si no, así el mismo workflow corre en ambos.
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
           context: ./${{ matrix.service }}
@@ -62,7 +66,7 @@ jobs:
       TAG: ${{ github.sha }}
     steps:
       - name: Login a GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: echo "${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       # El repo de la VPS sigue siendo la fuente de compose.yml y del .env (que no está en git).
       - name: Actualizar compose y migraciones
         # checkout -B en vez de reset --hard: deja la VPS EN la rama main, no solo
