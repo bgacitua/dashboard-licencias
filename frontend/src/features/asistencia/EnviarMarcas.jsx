@@ -9,6 +9,7 @@ import {
   motivoPorDefecto,
 } from './correccion'
 import ResultadoMarcas from './ResultadoMarcas'
+import { useDialogo } from '../../components/Dialogos'
 
 /**
  * Confirmación del registro de marcas.
@@ -34,11 +35,19 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
   // los cambios se guardan acá como parche por índice en vez de mutarla.
   const [parches, setParches] = useState(new Map())
   const [editando, setEditando] = useState(null)
+  const { avisar } = useDialogo()
 
   const filas = marcas.map((m, i) => ({ ...m, ...(parches.get(i) ?? {}) }))
 
   const parchear = (i, patch) =>
     setParches((prev) => new Map(prev).set(i, { ...(prev.get(i) ?? {}), ...patch }))
+
+  // Al cerrar la edición de una fila, un toast confirma que el ajuste quedó
+  // tomado —solo si de verdad se tocó algo, no al abrir y cerrar sin cambios.
+  const terminarEdicion = (i) => {
+    setEditando(null)
+    if (parches.has(i)) avisar('Fila actualizada', { tipo: 'ok', duracion: 3000 })
+  }
 
   const motivoDe = (marca, i) =>
     motivos.get(i) ??
@@ -85,7 +94,9 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
           onClick={() => !enviando && cerrar()}
         >
           <div
-            className="bg-white rounded-xl w-full max-w-5xl max-h-[90vh] flex flex-col"
+            className={`bg-white rounded-xl w-full max-h-[90vh] flex flex-col transition-[max-width] duration-200 ${
+              editando !== null ? 'max-w-7xl' : 'max-w-5xl'
+            }`}
             role="dialog"
             aria-modal="true"
             aria-label="Registrar marcas"
@@ -228,7 +239,7 @@ const EnviarMarcas = ({ marcas, obra, obraId, enviando, onEnviar }) => {
                         <td className="py-2 pl-2">
                           <button
                             type="button"
-                            onClick={() => setEditando(edit ? null : i)}
+                            onClick={() => (edit ? terminarEdicion(i) : setEditando(i))}
                             title={edit ? 'Listo' : 'Editar esta fila'}
                             aria-label={edit ? 'Terminar de editar la fila' : 'Editar la fila'}
                             className="text-app-muted hover:text-app-ink"
