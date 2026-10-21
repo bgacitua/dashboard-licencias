@@ -9,6 +9,10 @@ networks:
   proxy:
     external: true
 
+volumes:
+  # Persistencia de /app/data (ms_token.json). Nombre real: dashboard-licencias_data.
+  data:
+
 services:
   backend:
     # TAG lo fija el workflow al SHA del commit, para poder volver a la imagen anterior
@@ -21,7 +25,11 @@ services:
     restart: unless-stopped
     env_file: ./backend/.env
     volumes:
-      - ./data:/app/data
+      # Named volume en vez de bind al host: el deploy corre desde un contenedor
+      # efímero, así que `./data` del checkout no sirve para persistir. El volumen
+      # `dashboard-licencias_data` guarda /app/data (ms_token.json) y lo gestiona
+      # el daemon del host, desacoplado de la ruta del repo.
+      - data:/app/data
     # host.docker.internal: alcanzar el PostgreSQL instalado directamente en la VPS.
     # n8n.cramer.cl: el DNS interno no llega al contenedor, y usar la IP en la URL
     # rompe la validación del certificado del webhook.
