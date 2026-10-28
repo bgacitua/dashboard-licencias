@@ -12,5 +12,14 @@ export const getNiveles = (estudio_id, cargos) =>
     .get(`${BASE}/niveles`, { params: { estudio_id, cargos }, paramsSerializer: { indexes: null } })
     .then((r) => r.data)
 
-export const postResultado = (analisisId, body) =>
-  axios.post(`${BASE}/analisis/${analisisId}/resultado`, body).then((r) => r.data)
+export const postResultado = (body) => axios.post(`${BASE}/resultado`, body).then((r) => r.data)
+
+export const postAnalisis = (body) => axios.post(`${BASE}/analisis`, body).then((r) => r.data)
+
+export const deleteAnalisis = (id) => axios.delete(`${BASE}/analisis/${id}`)
+
+export const getHistorial = (estudio_id) =>
+  axios.get(`${BASE}/analisis`, { params: { estudio_id } }).then((r) => r.data)
+
+export const getCargosEmpresa = (estudio_id) =>
+  axios.get(`${BASE}/cargos-empresa`, { params: { estudio_id } }).then((r) => r.data)

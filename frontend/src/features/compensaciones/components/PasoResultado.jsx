@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-const LOCALE = { CL: 'es-CL', PE: 'es-PE', BR: 'pt-BR' }
+export const LOCALE = { CL: 'es-CL', PE: 'es-PE', BR: 'pt-BR' }
 const MEDIDAS = [['COMP1', 'Sueldo base'], ['COMP3_REAL', 'Compensación total']]
 const ESTADISTICAS = ['p25', 'mediana', 'promedio', 'p75']
 

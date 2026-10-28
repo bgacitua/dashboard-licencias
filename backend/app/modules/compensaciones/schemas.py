@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -31,7 +33,6 @@ class Candidato(BaseModel):
 
 
 class MatchOut(BaseModel):
-    analisis_id: int
     fuente: str  # "gpt" | "coseno"
     candidatos: list[Candidato]
 
@@ -42,12 +43,42 @@ class Nivel(BaseModel):
 
 
 class ResultadoIn(BaseModel):
+    estudio_id: int
     cargos: list[str] = Field(min_length=1)
     nivel: str
 
 
+class AnalisisIn(ResultadoIn, MatchIn):
+    candidatos: list[Candidato]
+    cargo_empresa_id: int | None = None  # homologación de un cargo de la empresa (solo admin)
+
+
+class Analisis(AnalisisIn):
+    id: int
+    nivel_nombre: str
+    creado_por: str
+    created_at: datetime
+
+
+class CargoEmpresaOut(BaseModel):
+    id: int
+    code: str
+    name: str
+    description: str | None
+    requirements: str | None
+    descriptor: str | None  # description + títulos CBO (BR), lo que va al match
+    # Homologación vigente; todo None si el cargo aún no está homologado.
+    analisis_id: int | None
+    cargos: list[str] | None
+    titulos: list[str] | None
+    nivel: str | None
+    nivel_nombre: str | None
+    creado_por: str | None
+    created_at: datetime | None
+
+
 class FilaMercado(BaseModel):
-    tipo: str  # "cargo" | "hibrido" | "subfamilia"
+    tipo: str  # "cargo" | "hibrido" | "subfamilia" | "promedio_subfamilias"
     cargo_codigo: str | None
     titulo: str
     medida_codigo: str  # "COMP1" | "COMP3_REAL"

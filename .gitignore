@@ -49,3 +49,12 @@ tokens.json
 
 # Documentacion local (screenshots y pagina de prueba). No se versiona.
 docs-local/
+
+# Prototipo "match" (reemplazado por compensaciones) y salidas locales de Claude. No se versionan.
+backend/app/modules/match/
+frontend/src/features/match/
+backend/tests/test_match.py
+backend/migrations/026_create_match_module.sql
+backend/migrations/027_trs_perfil_mercado.sql
+*.sql.bak
+Claude outputs/

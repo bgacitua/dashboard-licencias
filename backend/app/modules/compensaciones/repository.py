@@ -17,13 +17,6 @@ def get_estudio(db: Session, estudio_id: int):
     """), {"id": estudio_id}).mappings().first()
 
 
-def get_analisis(db: Session, analisis_id: int):
-    return db.execute(
-        text("SELECT id, estudio_id FROM compensaciones.analisis WHERE id = :id"),
-        {"id": analisis_id},
-    ).mappings().first()
-
-
 def candidatos(db: Session, estudio_id: int, q: str, umbral: float, limite: int):
     """Consulta 1: top cargos por coseno. `q` es el embedding como '[v1,v2,...]'."""
     return db.execute(text("""
@@ -88,24 +81,72 @@ def hibrido(db: Session, estudio_id: int, nivel: str, cargos: list[str]):
     """), {"estudio_id": estudio_id, "nivel": nivel, "cargos": cargos}).mappings().all()
 
 
-def crear_analisis(db: Session, estudio_id: int, cargo_nombre: str, descriptor: str | None,
-                   candidatos_json: str, usuario: str) -> int:
-    """Consulta 5 (INSERT)."""
+def guardar_analisis(db: Session, a: dict, usuario: str) -> int:
+    """Consulta 5: guarda el análisis completo (solo cuando el usuario lo pide)."""
     id_ = db.execute(text("""
-        INSERT INTO compensaciones.analisis (estudio_id, cargo_nombre, descriptor, candidatos, creado_por)
-        VALUES (:estudio_id, :cargo_nombre, :descriptor, CAST(:candidatos AS jsonb), :usuario)
+        INSERT INTO compensaciones.analisis
+          (estudio_id, cargo_nombre, descriptor, candidatos, cargos_elegidos, nivel_codigo, creado_por, cargo_empresa_id)
+        VALUES (:estudio_id, :cargo_nombre, :descriptor, CAST(:candidatos AS jsonb), :cargos, :nivel, :usuario, :cargo_empresa_id)
         RETURNING id
-    """), {"estudio_id": estudio_id, "cargo_nombre": cargo_nombre, "descriptor": descriptor,
-           "candidatos": candidatos_json, "usuario": usuario}).scalar()
+    """), {**a, "usuario": usuario}).scalar()
     db.commit()
     return id_
 
 
-def elegir(db: Session, analisis_id: int, cargos: list[str], nivel: str) -> None:
-    """Consulta 5 (UPDATE)."""
-    db.execute(text("""
-        UPDATE compensaciones.analisis
-        SET cargos_elegidos = :cargos, nivel_codigo = :nivel
-        WHERE id = :analisis_id
-    """), {"cargos": cargos, "nivel": nivel, "analisis_id": analisis_id})
+def historial(db: Session, estudio_id: int, usuario: str | None):
+    """Análisis guardados del estudio, del más reciente; `usuario=None` trae todos."""
+    return db.execute(text("""
+        SELECT a.id, a.estudio_id, a.cargo_nombre, a.descriptor, a.candidatos,
+               a.cargos_elegidos AS cargos, a.nivel_codigo AS nivel, n.nombre AS nivel_nombre,
+               a.creado_por, a.created_at
+        FROM compensaciones.analisis a
+        JOIN compensaciones.nivel n ON n.codigo = a.nivel_codigo
+        WHERE a.estudio_id = :estudio_id
+          AND (CAST(:usuario AS text) IS NULL OR a.creado_por = :usuario)
+        ORDER BY a.created_at DESC LIMIT 200
+    """), {"estudio_id": estudio_id, "usuario": usuario}).mappings().all()
+
+
+def borrar_analisis(db: Session, id_: int, usuario: str | None) -> bool:
+    """Borra un análisis; `usuario=None` (admin) borra cualquiera, si no solo los propios."""
+    borrado = db.execute(text("""
+        DELETE FROM compensaciones.analisis
+        WHERE id = :id AND (CAST(:usuario AS text) IS NULL OR creado_por = :usuario)
+        RETURNING id
+    """), {"id": id_, "usuario": usuario}).scalar()
     db.commit()
+    return borrado is not None
+
+
+def cargo_del_pais_del_estudio(db: Session, cargo_empresa_id: int, estudio_id: int) -> bool:
+    """True si el cargo de la empresa existe y es del mismo país que el estudio."""
+    return db.execute(text("""
+        SELECT 1 FROM compensaciones.cargo_empresa ce
+        JOIN compensaciones.estudio e ON e.pais = ce.pais
+        WHERE ce.id = :cargo_empresa_id AND e.id = :estudio_id
+    """), {"cargo_empresa_id": cargo_empresa_id, "estudio_id": estudio_id}).first() is not None
+
+
+def cargos_empresa(db: Session, estudio_id: int):
+    """Cargos del país del estudio + su homologación vigente (la última)."""
+    return db.execute(text("""
+        SELECT ce.id, ce.code, ce.name, ce.description, ce.requirements,
+               -- descriptor del match: objetivos + los 10 primeros títulos CBO (solo BR)
+               nullif(left(concat_ws(chr(10), nullif(ce.description, ''), 'Ocupación CBO: '
+                 || array_to_string((string_to_array(cbo.titulos, ', '))[1:10], ', ')), 4000), '') AS descriptor,
+               h.id AS analisis_id, h.cargos_elegidos AS cargos, h.nivel_codigo AS nivel,
+               n.nombre AS nivel_nombre, h.creado_por, h.created_at,
+               (SELECT array_agg(DISTINCT p.titulo) FROM compensaciones.puesto p
+                 WHERE p.estudio_id = e.id AND p.cargo_codigo = ANY(h.cargos_elegidos)) AS titulos
+        FROM compensaciones.estudio e
+        JOIN compensaciones.cargo_empresa ce ON ce.pais = e.pais
+        LEFT JOIN LATERAL (
+          SELECT a.* FROM compensaciones.analisis a
+          WHERE a.estudio_id = e.id AND a.cargo_empresa_id = ce.id
+          ORDER BY a.created_at DESC, a.id DESC LIMIT 1) h ON true
+        LEFT JOIN compensaciones.nivel n ON n.codigo = h.nivel_codigo
+        LEFT JOIN compensaciones.cbo cbo ON ce.pais = 'BR'
+          AND cbo.codigo = lpad(regexp_replace(ce.code, '[^0-9]', '', 'g'), 6, '0')
+        WHERE e.id = :estudio_id
+        ORDER BY ce.name
+    """), {"estudio_id": estudio_id}).mappings().all()

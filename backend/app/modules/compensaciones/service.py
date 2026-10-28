@@ -1,6 +1,4 @@
-"""Lógica del módulo: match de un cargo y resultado de mercado."""
-import json
-
+"""Lógica del módulo: match de un cargo y resultado de mercado. No escribe en BD."""
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -21,7 +19,7 @@ def _score(m: dict | None, similitud: float) -> tuple[float, str | None]:
         return similitud * 100, None
 
 
-def match(db: Session, estudio_id: int, cargo_nombre: str, descriptor: str | None, usuario: str) -> dict:
+def match(db: Session, estudio_id: int, cargo_nombre: str, descriptor: str | None) -> dict:
     estudio = repo.get_estudio(db, estudio_id)
     if not estudio:
         raise HTTPException(404, "Estudio no encontrado")
@@ -42,30 +40,26 @@ def match(db: Session, estudio_id: int, cargo_nombre: str, descriptor: str | Non
         c["score"], c["justificacion"] = _score(por_numero.get(i), c["similitud"])
 
     candidatos.sort(key=lambda c: c["score"], reverse=True)
-    candidatos = candidatos[: settings.mostrar]
-
-    analisis_id = repo.crear_analisis(
-        db, estudio_id, cargo_nombre, descriptor, json.dumps(candidatos), usuario
-    )
     return {
-        "analisis_id": analisis_id,
         "fuente": "coseno" if matches is None else "gpt",
-        "candidatos": candidatos,
+        "candidatos": candidatos[: settings.mostrar],
     }
 
 
-def resultado(db: Session, analisis_id: int, cargos: list[str], nivel: str) -> dict:
-    analisis = repo.get_analisis(db, analisis_id)
-    if not analisis:
-        raise HTTPException(404, "Análisis no encontrado")
-    estudio_id = analisis["estudio_id"]
+def cargos_empresa(db: Session, estudio_id: int) -> list:
+    if not repo.get_estudio(db, estudio_id):
+        raise HTTPException(404, "Estudio no encontrado")
+    return repo.cargos_empresa(db, estudio_id)
+
+
+def resultado(db: Session, estudio_id: int, cargos: list[str], nivel: str) -> dict:
+    estudio = repo.get_estudio(db, estudio_id)
+    if not estudio:
+        raise HTTPException(404, "Estudio no encontrado")
 
     cargos = list(dict.fromkeys(cargos))
     if nivel not in {n["codigo"] for n in repo.niveles(db, estudio_id, cargos)}:
         raise HTTPException(400, "El nivel no tiene datos para todos los cargos elegidos")
-
-    repo.elegir(db, analisis_id, cargos, nivel)
-    estudio = repo.get_estudio(db, estudio_id)
 
     detalle = [dict(d) for d in repo.detalle(db, estudio_id, nivel, cargos)]
     filas = [d for d in detalle if d["tipo"] == "cargo"]
