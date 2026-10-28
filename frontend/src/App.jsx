@@ -35,6 +35,7 @@ const AdminPanel = lazy(() => import('./pages/admin/AdminPanel'));
 const Calculadora = lazy(() => import('./pages/Calculadora'));
 const ContractAlerts = lazy(() => import('./pages/ContractAlerts'));
 const Costos = lazy(() => import('./pages/Costos'));
+const Compensaciones = lazy(() => import('./features/compensaciones/pages/Compensaciones'));
 const RetornoSeguimiento = lazy(() => import('./pages/RetornoSeguimiento'));
 const Seleccion = lazy(() => import('./pages/Seleccion'));
 const HorasExtras = lazy(() => import('./pages/HorasExtras'));
@@ -210,6 +211,16 @@ function App() {
               element={
                 <ProtectedRoute requiredModule="costos">
                   <Costos />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Módulo Compensaciones */}
+            <Route
+              path="/compensaciones"
+              element={
+                <ProtectedRoute requiredModule="compensaciones">
+                  <Compensaciones />
                 </ProtectedRoute>
               }
             />

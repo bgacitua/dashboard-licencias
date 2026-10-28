@@ -114,3 +114,12 @@ if tickets_settings.enabled:
     api_router.include_router(tickets_router, prefix="/tickets", tags=["tickets"])
     api_router.include_router(tickets_portal, prefix="/tickets")
     api_router.include_router(tickets_archivos, prefix="/tickets")
+
+# === Módulo de compensaciones (benchmark de mercado) ===
+# Mismo patrón: import perezoso detrás del flag.
+from app.modules.compensaciones.config import settings as compensaciones_settings
+
+if compensaciones_settings.enabled:
+    from app.modules.compensaciones.router import router as compensaciones_router
+
+    api_router.include_router(compensaciones_router, prefix="/compensaciones", tags=["compensaciones"])

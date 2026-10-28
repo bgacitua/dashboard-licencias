@@ -7,6 +7,7 @@ const allMenuItems = [
   { icon: 'description',          label: 'Generador Finiquitos',   path: '/finiquitos',          module: 'finiquitos' },
   { icon: 'calculate',            label: 'Calculadora Sueldos',    path: '/calculadora',         module: 'calculadora' },
   { icon: 'wallet',               label: 'Costos por Área',        path: '/costos',              module: 'costos' },
+  { icon: 'query_stats',          label: 'Compensaciones',         path: '/compensaciones',      module: 'compensaciones' },
   { icon: 'notifications_active', label: 'Alertas de Contratos',   path: '/contract-alerts',     module: 'contract_alerts' },
   { icon: 'more_time',            label: 'Horas Extras',           path: '/dashboard/horas-extras', module: 'dashboard' },
   { icon: 'person_search',        label: 'Selección de Personal',  path: '/seleccion',           module: 'seleccion' },

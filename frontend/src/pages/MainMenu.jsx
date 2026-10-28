@@ -70,6 +70,14 @@ const menuItems = [
     moduleCode: 'asistencia',
   },
   {
+    id: 'compensaciones',
+    title: 'Compensaciones',
+    description: 'Compara un cargo con el mercado por nivel: sueldo base y compensación total',
+    path: '/compensaciones',
+    icon: 'query_stats',
+    moduleCode: 'compensaciones',
+  },
+  {
     id: 'formularios',
     title: 'Formularios',
     description: 'Crea formularios internos, envíalos a los trabajadores y revisa sus respuestas.',
