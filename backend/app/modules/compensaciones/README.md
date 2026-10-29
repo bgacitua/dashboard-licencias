@@ -6,19 +6,27 @@ viven en el schema `compensaciones` de `rh_cramer` (ver `docs/superpowers/specs/
 ## Flujo
 
 ```
-GET  /api/v1/compensaciones/estudios                    -> estudios cargados (país, moneda, factor mensual)
+GET  /api/v1/compensaciones/permisos                    -> {admin}: si el usuario es admin del módulo
+GET  /api/v1/compensaciones/estudios                    -> estudios de los países del usuario (país, moneda, factor mensual)
 POST /api/v1/compensaciones/match                       -> embedding + scoring GPT -> top 5 cargos Mercer
 GET  /api/v1/compensaciones/niveles?estudio_id&cargos=  -> niveles comunes con datos (COMP1.promedio)
 POST /api/v1/compensaciones/resultado                   -> COMP1 y COMP3_REAL de los cargos en el nivel
 POST /api/v1/compensaciones/analisis                    -> guarda el análisis (botón "Guardar análisis")
-GET  /api/v1/compensaciones/analisis?estudio_id         -> historial: los propios; el rol `admin` ve todos
-DELETE /api/v1/compensaciones/analisis/{id}            -> borra un análisis: los propios; `admin` cualquiera (404 si no)
+GET  /api/v1/compensaciones/analisis?estudio_id         -> historial: los propios; el admin ve todos
+DELETE /api/v1/compensaciones/analisis/{id}            -> borra un análisis: los propios; el admin cualquiera (404 si no)
 GET  /api/v1/compensaciones/cargos-empresa?estudio_id     -> cargos del país del estudio + homologación vigente
 ```
 
-`POST /analisis` acepta `cargo_empresa_id` (homologación): solo `admin` (403) y el cargo debe ser del país del estudio (400).
+`POST /analisis` acepta `cargo_empresa_id` (homologación): solo admin (403) y el cargo debe ser del país del estudio (400).
 Vigente = el último análisis por (estudio, cargo). `compensaciones.cargo_empresa` la llena n8n desde Snowflake (upsert, no borra).
 El descriptor que va al match es `description` + los 10 primeros títulos CBO del cargo (solo BR: `code` = código CBO, tabla `compensaciones.cbo`, migración 035).
+
+## Acceso
+
+Se maneja en la tabla `compensaciones.acceso` (migración 036), una fila por username:
+`admin = true` ve todos los países, homologa, usa la cola masiva y ve el historial
+de todos; `admin = false` ve solo los países de `paises`. Sin fila no ve estudios.
+Un estudio de otro país responde 404. Los cambios rigen sin reiniciar.
 
 Solo `POST /analisis` y `DELETE /analisis/{id}` escriben en BD: probar cargos y niveles no deja registros.
 Al abrir un análisis del historial el resultado se recalcula con el estudio.
@@ -33,7 +41,7 @@ Este paquete importa de la plataforma **solo**:
 | Import | Para qué |
 |---|---|
 | `app.core.security.require_module` | Autorización del router |
-| `app.core.security.get_current_active_user` | `creado_por` del análisis |
+| `app.core.security.get_current_active_user` | `creado_por` del análisis y acceso |
 | `app.db.deps.get_db` | Sesión SQLAlchemy contra PostgreSQL |
 | `app.core.logging_config.logger` | Logs |
 
@@ -61,6 +69,7 @@ HTTPS a `api.openai.com`.
 psql -d rh_cramer -f backend/migrations/033_create_compensaciones_module.sql
 psql -d rh_cramer -f backend/migrations/034_cargo_empresa.sql
 psql -d rh_cramer -f backend/migrations/035_cbo.sql
+psql -d rh_cramer -f backend/migrations/036_acceso.sql
 ```
 
 Idempotente. Crea el schema si falta, deja intactos los datos y da de alta el

@@ -178,12 +178,16 @@ def test_cargos_empresa_por_estudio_y_404():
         raise AssertionError("debió responder 404")
 
 
-def _guardar(rol, cargo_ok, cargo_empresa_id=5):
-    db = FakeSession({"FROM compensaciones.cargo_empresa ce": [{"x": 1}] if cargo_ok else []})
+ADMIN = router.Acceso("gabriel", True, None)
+ANALISTA = router.Acceso("gabriel", False, ["CL"])
+
+
+def _guardar(acc, cargo_ok, cargo_empresa_id=5):
+    db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO],
+                      "FROM compensaciones.cargo_empresa ce": [{"x": 1}] if cargo_ok else []})
     body = router.AnalisisIn(estudio_id=1, cargo_nombre="Operario", cargos=["SCN.03.017"], nivel="M20",
                              candidatos=[], cargo_empresa_id=cargo_empresa_id)
-    usuario = SimpleNamespace(username="gabriel", rol=SimpleNamespace(nombre=rol))
-    return db, lambda: router.guardar(body, db, usuario)
+    return db, lambda: router.guardar(body, db, acc)
 
 
 def _status(llamar):
@@ -194,20 +198,40 @@ def _status(llamar):
 
 
 def test_homologar_exige_admin_y_mismo_pais():
-    db, llamar = _guardar("analista", cargo_ok=True)
+    db, llamar = _guardar(ANALISTA, cargo_ok=True)
     assert _status(llamar) == 403 and "INSERT" not in db.sql
-    db, llamar = _guardar("admin", cargo_ok=False)
+    db, llamar = _guardar(ADMIN, cargo_ok=False)
     assert _status(llamar) == 400 and "INSERT" not in db.sql
-    db, llamar = _guardar("admin", cargo_ok=True)
+    db, llamar = _guardar(ADMIN, cargo_ok=True)
     assert llamar() == {"id": 7}
     assert db.llamadas[0][1] == {"cargo_empresa_id": 5, "estudio_id": 1}
     assert db.llamadas[-1][1]["cargo_empresa_id"] == 5
 
 
 def test_analisis_sin_cargo_empresa_no_exige_admin():
-    db, llamar = _guardar("analista", cargo_ok=False, cargo_empresa_id=None)
+    db, llamar = _guardar(ANALISTA, cargo_ok=False, cargo_empresa_id=None)
     assert llamar() == {"id": 7}
-    assert "cargo_empresa ce" not in db.sql and db.llamadas[0][1]["cargo_empresa_id"] is None
+    assert "cargo_empresa ce" not in db.sql and db.llamadas[-1][1]["cargo_empresa_id"] is None
+
+
+def test_acceso_por_pais():
+    admin = FakeSession({"FROM compensaciones.acceso": [{"admin": True, "paises": []}]})
+    assert router._acceso(admin, SimpleNamespace(username="gpavez")) == ("gpavez", True, None)
+    assert admin.llamadas[-1][1] == {"username": "gpavez"}
+    assert router._acceso(FakeSession({}), SimpleNamespace(username="nadie")) == ("nadie", False, [])
+    db = FakeSession({"FROM compensaciones.acceso": [{"admin": False, "paises": ["PE"]}]})
+    peru = router._acceso(db, SimpleNamespace(username="rrhh_pe"))
+    assert peru == ("rrhh_pe", False, ["PE"])
+
+    router.estudios(db, peru)
+    assert db.llamadas[-1][1] == {"paises": ["PE"]}
+    router.estudios(db, router.Acceso("gpavez", True, None))
+    assert db.llamadas[-1][1] == {"paises": None}
+
+    # estudio de Chile para un usuario de Perú: 404 antes de llamar a la IA; el admin pasa
+    db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO]})
+    assert _status(lambda: router.cargos_empresa(1, db, peru)) == 404 and "cargo_empresa ce" not in db.sql
+    router._permitir(db, router.Acceso("gpavez", True, None), 1)
 
 
 def main():
