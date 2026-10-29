@@ -2,6 +2,8 @@ import axios from 'axios'
 
 const BASE = '/api/v1/compensaciones'
 
+export const getPermisos = () => axios.get(`${BASE}/permisos`).then((r) => r.data)
+
 export const getEstudios = () => axios.get(`${BASE}/estudios`).then((r) => r.data)
 
 export const postMatch = (body) => axios.post(`${BASE}/match`, body).then((r) => r.data)

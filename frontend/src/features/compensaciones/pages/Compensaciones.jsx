@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import SidebarLayout from '../../../components/SidebarLayout'
-import { useAuth } from '../../../context/AuthContext'
 import PasoMatch from '../components/PasoMatch'
 import PasoResultado from '../components/PasoResultado'
 import Historial from '../components/Historial'
 import CargosEmpresa from '../components/CargosEmpresa'
 import ColaMasiva from '../components/ColaMasiva'
-import { getCargosEmpresa, getEstudios, getNiveles, postAnalisis, postResultado } from '../services/compensaciones'
+import { getCargosEmpresa, getEstudios, getPermisos, getNiveles, postAnalisis, postResultado } from '../services/compensaciones'
 
 const PAISES = [['CL', 'Chile'], ['PE', 'Perú'], ['BR', 'Brasil']]
 const NOMBRE_PAIS = Object.fromEntries(PAISES)
@@ -14,7 +13,7 @@ const link = 'text-sm text-app-muted hover:text-app-ink'
 const segmento = (activo) => `px-3 py-1.5 text-xs font-medium ${activo ? 'bg-app-brand text-white' : 'text-app-muted'}`
 
 export default function Compensaciones() {
-  const esAdmin = useAuth().hasRole('admin')
+  const [esAdmin, setEsAdmin] = useState(false) // admin del módulo (compensaciones.acceso)
   const [estudios, setEstudios] = useState(null)
   const [pais, setPais] = useState('CL')
   const [estudioId, setEstudioId] = useState(null)
@@ -33,7 +32,13 @@ export default function Compensaciones() {
   const [enCola, setEnCola] = useState(false) // el flujo se abrió desde la cola masiva
 
   useEffect(() => {
-    getEstudios().then(setEstudios).catch(() => setError('No se pudieron cargar los estudios.'))
+    getPermisos().then((p) => setEsAdmin(p.admin)).catch(() => {})
+    getEstudios()
+      .then((l) => {
+        setEstudios(l)
+        if (l.length && !l.some((e) => e.pais === 'CL')) setPais(l[0].pais) // usuario sin Chile
+      })
+      .catch(() => setError('No se pudieron cargar los estudios.'))
   }, [])
 
   const delPais = (estudios || []).filter((e) => e.pais === pais) // vienen del más reciente al más antiguo
@@ -133,7 +138,7 @@ export default function Compensaciones() {
             </div>
             <div className="flex items-center gap-2">
               <div className="inline-flex overflow-hidden rounded-md border border-app-line">
-                {PAISES.map(([codigo, etiqueta]) => (
+                {PAISES.filter(([c]) => (estudios || []).some((e) => e.pais === c)).map(([codigo, etiqueta]) => (
                   <button key={codigo} type="button" aria-pressed={pais === codigo}
                     onClick={() => { setPais(codigo); setEstudioId(null); setCargos(null); reiniciar() }}
                     className={segmento(pais === codigo)}>
@@ -164,7 +169,7 @@ export default function Compensaciones() {
           {!estudios ? (
             !error && <p className="text-sm text-app-muted">Cargando…</p>
           ) : !estudio ? (
-            <p className="text-sm text-app-muted">Sin estudio de mercado cargado para {NOMBRE_PAIS[pais]}.</p>
+            <p className="text-sm text-app-muted">{estudios.length ? `Sin estudio de mercado cargado para ${NOMBRE_PAIS[pais]}.` : 'No tienes países habilitados en Compensaciones.'}</p>
           ) : (
             <>
               {vista === 'historial' && <Historial key={estudio.id} estudio={estudio} onAbrir={abrir} />}

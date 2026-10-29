@@ -3,11 +3,21 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 
-def estudios(db: Session):
+def estudios(db: Session, paises: list[str] | None):
+    """`paises=None` (admin) trae todos."""
     return db.execute(text("""
         SELECT id, vista, pais, anio, moneda, factor_mensual
-        FROM compensaciones.estudio ORDER BY pais, anio DESC
-    """)).mappings().all()
+        FROM compensaciones.estudio
+        WHERE CAST(:paises AS text[]) IS NULL OR pais = ANY(CAST(:paises AS text[]))
+        ORDER BY pais, anio DESC
+    """), {"paises": paises}).mappings().all()
+
+
+def acceso(db: Session, username: str):
+    """{admin, paises} del usuario en el módulo; None si no tiene fila."""
+    return db.execute(text(
+        "SELECT admin, paises FROM compensaciones.acceso WHERE username = :username"
+    ), {"username": username}).mappings().first()
 
 
 def get_estudio(db: Session, estudio_id: int):
