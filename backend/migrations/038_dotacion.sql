@@ -18,7 +18,7 @@ WHERE e.status = 'activo'
 UNION ALL
 SELECT 'PE', e.id, e.document_number, e.full_name, e.role_id, e.name_role,
        a.first_level_name, COALESCE(e.cost_center, a.cost_center),
-       e.dni_boss, e.active_since, e.picture_url, e.base_wage
+       e.dni_boss, e.active_since, NULL::text, e.base_wage  -- rh_peru.employees no tiene picture_url
 FROM rh_peru.employees e LEFT JOIN rh_peru.areas a ON a.id = e.area_id
 WHERE e.status = 'activo' AND e.document_number NOT IN ('00000000', '11111111');
 
