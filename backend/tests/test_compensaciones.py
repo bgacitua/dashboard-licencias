@@ -178,6 +178,32 @@ def test_cargos_empresa_por_estudio_y_404():
         raise AssertionError("debió responder 404")
 
 
+def test_dotacion_por_estudio_y_404():
+    fila = {"employee_id": 3, "nombre": "Ana"}
+    db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO], "JOIN compensaciones.v_dotacion d": [fila]})
+    assert router.dotacion(1, db, router.Acceso("gpavez", False, ["CL"])) == [fila]
+    assert db.llamadas[-1][1] == {"estudio_id": 1}
+    assert "factor_mensual" in db.llamadas[-1][0] and "d.pais = 'CL'" in db.llamadas[-1][0]
+    try:
+        service.dotacion(FakeSession({}), 99)
+    except HTTPException as e:
+        assert e.status_code == 404
+    else:
+        raise AssertionError("debió responder 404")
+    db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO]})
+    peru = router.Acceso("rrhh_pe", False, ["PE"])
+    assert _status(lambda: router.dotacion(1, db, peru)) == 404 and "v_dotacion" not in db.sql
+    assert _status(lambda: router.historial_persona(1, 3, db, peru)) == 404 and "v_dotacion" not in db.sql
+
+
+def test_historial_binds():
+    db = FakeSession({})
+    assert router.historial_persona(1, 3, db, router.Acceso("gpavez", True, None)) == []
+    sql, params = db.llamadas[-1]
+    assert params == {"estudio_id": 1, "employee_id": 3}
+    assert "DATE '2022-06-01'" in sql and "v_dotacion" in sql
+
+
 ADMIN = router.Acceso("gabriel", True, None)
 ANALISTA = router.Acceso("gabriel", False, ["CL"])
 

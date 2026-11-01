@@ -21,8 +21,9 @@ from app.db.deps import get_db
 
 from . import repository as repo
 from . import service
-from .schemas import (Analisis, AnalisisIn, CargoEmpresaOut, Estudio, HayEntradas, HayEvaluacion, HayEvaluacionIn,
-                      HayResultado, MatchIn, MatchOut, Nivel, ResultadoIn, ResultadoOut)
+from .schemas import (Analisis, AnalisisIn, CambioOut, CargoEmpresaOut, Estudio, HayEntradas, HayEvaluacion,
+                      HayEvaluacionIn, HayResultado, MatchIn, MatchOut, Nivel, PersonaOut, ResultadoIn,
+                      ResultadoOut)
 
 router = APIRouter(dependencies=[Depends(require_module("compensaciones"))])
 
@@ -86,6 +87,19 @@ def resultado(body: ResultadoIn, db: Db, acc: Acc):
 def cargos_empresa(estudio_id: int, db: Db, acc: Acc):
     _permitir(db, acc, estudio_id)
     return service.cargos_empresa(db, estudio_id)
+
+
+@router.get("/dotacion", response_model=list[PersonaOut])
+def dotacion(estudio_id: int, db: Db, acc: Acc):
+    _permitir(db, acc, estudio_id)
+    return service.dotacion(db, estudio_id)
+
+
+@router.get("/dotacion/historial", response_model=list[CambioOut])
+def historial_persona(estudio_id: int, employee_id: int, db: Db, acc: Acc):
+    """[] si la persona no tiene cambios o no es de la dotación del país del estudio."""
+    _permitir(db, acc, estudio_id)
+    return repo.historial_persona(db, estudio_id, employee_id)
 
 
 @router.post("/analisis")

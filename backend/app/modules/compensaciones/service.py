@@ -52,6 +52,12 @@ def cargos_empresa(db: Session, estudio_id: int) -> list:
     return repo.cargos_empresa(db, estudio_id)
 
 
+def dotacion(db: Session, estudio_id: int) -> list:
+    if not repo.get_estudio(db, estudio_id):
+        raise HTTPException(404, "Estudio no encontrado")
+    return repo.dotacion(db, estudio_id)
+
+
 def resultado(db: Session, estudio_id: int, cargos: list[str], nivel: str) -> dict:
     estudio = repo.get_estudio(db, estudio_id)
     if not estudio:

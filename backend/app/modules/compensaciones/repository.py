@@ -164,6 +164,52 @@ def cargos_empresa(db: Session, estudio_id: int):
     """), {"estudio_id": estudio_id}).mappings().all()
 
 
+def dotacion(db: Session, estudio_id: int):
+    """Personas activas del país del estudio + homologación, mercado mensual (COMP1 ÷ factor), HAY y último cambio de sueldo (CL)."""
+    return db.execute(text("""
+        SELECT d.employee_id, d.documento, d.nombre, d.cargo_buk, d.empresa, d.centro_costo, d.jefe,
+               d.fecha_ingreso, d.url_picture, d.base_wage,
+               ce.id AS cargo_empresa_id, ce.name AS cargo, h.cargos_elegidos AS cargos,
+               h.nivel_codigo AS nivel, n.nombre AS nivel_nombre,
+               hv.grado AS hay_grado, hv.puntos_total AS hay_puntos,
+               m.p25 / e.factor_mensual AS p25, m.mediana / e.factor_mensual AS mediana,
+               m.promedio / e.factor_mensual AS promedio, m.p75 / e.factor_mensual AS p75,
+               ea.sueldo_base_anterior, ea.variacion_sueldo_pct, ea.fecha_cambio_sueldo
+        FROM compensaciones.estudio e
+        JOIN compensaciones.v_dotacion d ON d.pais = e.pais
+        LEFT JOIN compensaciones.cargo_empresa ce ON ce.pais = d.pais AND ce.id_origen = d.role_id
+        LEFT JOIN compensaciones.v_homologacion_vigente h ON h.estudio_id = e.id AND h.cargo_empresa_id = ce.id
+        LEFT JOIN compensaciones.nivel n ON n.codigo = h.nivel_codigo
+        -- híbrido: promedio simple; un estadístico solo si todos los cargos lo tienen (sin homologación: fila NULL)
+        LEFT JOIN LATERAL (
+          SELECT CASE WHEN count(v.p25)      = count(*) THEN avg(v.p25)      END AS p25,
+                 CASE WHEN count(v.mediana)  = count(*) THEN avg(v.mediana)  END AS mediana,
+                 CASE WHEN count(v.promedio) = count(*) THEN avg(v.promedio) END AS promedio,
+                 CASE WHEN count(v.p75)      = count(*) THEN avg(v.p75)      END AS p75
+          FROM compensaciones.v_mercado v
+          WHERE v.estudio_id = e.id AND v.nivel_codigo = h.nivel_codigo
+            AND v.cargo_codigo = ANY(h.cargos_elegidos) AND NOT v.es_core AND v.medida_codigo = 'COMP1'
+        ) m ON true
+        LEFT JOIN compensaciones.v_hay_vigente hv ON hv.cargo_empresa_id = ce.id
+        -- historial: las vistas rh.* son de Chile; los id de Perú no deben cruzarse con ellas
+        LEFT JOIN rh.vw_employees_anterior ea ON d.pais = 'CL' AND ea.employee_id = d.employee_id
+        WHERE e.id = :estudio_id
+        ORDER BY d.nombre
+    """), {"estudio_id": estudio_id}).mappings().all()
+
+
+def historial_persona(db: Session, estudio_id: int, employee_id: int):
+    """Cambios desde 2022-06 (antes: migración a BUK) de una persona activa del país del estudio; [] si no."""
+    return db.execute(text("""
+        SELECT c.fecha_cambio, c.tipo_cambio, c.valor_anterior, c.valor_nuevo, c.variacion_pct
+        FROM compensaciones.estudio e
+        JOIN compensaciones.v_dotacion d ON d.pais = e.pais AND d.employee_id = :employee_id
+        JOIN rh.vw_job_history_cambios c ON d.pais = 'CL' AND c.employee_id = d.employee_id
+        WHERE e.id = :estudio_id AND c.fecha_cambio >= DATE '2022-06-01'
+        ORDER BY c.fecha_cambio DESC
+    """), {"estudio_id": estudio_id, "employee_id": employee_id}).mappings().all()
+
+
 # ---------------------------------------------------------------- HAY
 def hay_tablas(db: Session) -> dict:
     """Las 5 tablas de referencia HAY como dicts {clave: puntos}; grados como [(grado, min, max)]."""

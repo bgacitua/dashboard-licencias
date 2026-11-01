@@ -19,6 +19,8 @@ GET  /api/v1/compensaciones/hay/opciones                 -> combinaciones válid
 POST /api/v1/compensaciones/hay/calcular                 -> puntos por factor, total y grado (no escribe)
 POST /api/v1/compensaciones/hay/evaluacion               -> guarda la evaluación de un cargo (solo admin; recalcula en el servidor)
 GET  /api/v1/compensaciones/hay/evaluacion?cargo_empresa_id -> historial HAY del cargo (la primera es la vigente)
+GET  /api/v1/compensaciones/dotacion?estudio_id          -> personas activas del país con mercado mensual, HAY y último cambio de sueldo
+GET  /api/v1/compensaciones/dotacion/historial?estudio_id&employee_id -> cambios desde 2022-06 (solo CL; [] si no hay)
 ```
 
 `POST /analisis` acepta `cargo_empresa_id` (homologación): solo admin (403) y el cargo debe ser del país del estudio (400).
@@ -33,6 +35,13 @@ son las mismas para CL, PE y BR y las carga `carga_hay.py referencias`, fuera de
 las deja en memoria: **tras recargarlas, reiniciar el backend**. Cada evaluación guarda las entradas y un snapshot del
 resultado en `hay_evaluacion`; vigente = la última por cargo (`v_hay_vigente`). La carga inicial desde el Excel queda
 con `origen='excel'`.
+
+## Dotación
+
+Pestaña con la dotación activa (`v_dotacion`, migración 038) frente al mercado (diseño: `docs/superpowers/specs/2026-11-01-compensaciones-dotacion-design.md`).
+Cruce: persona → `role_id` → `cargo_empresa` → homologación vigente (`v_homologacion_vigente`) → `v_mercado` COMP1 ÷ factor
++ `v_hay_vigente` + (CL) `rh.vw_employees_anterior`. Filtros, KPIs, compa-ratio y cuartil se calculan en el navegador.
+**`rh.vw_employees_anterior` y `rh.vw_job_history_cambios` las mantiene el ETL (`create.py`), no el repo.**
 
 ## Acceso
 
@@ -84,6 +93,7 @@ psql -d rh_cramer -f backend/migrations/034_cargo_empresa.sql
 psql -d rh_cramer -f backend/migrations/035_cbo.sql
 psql -d rh_cramer -f backend/migrations/036_acceso.sql
 psql -d rh_cramer -f backend/migrations/037_compensaciones_hay.sql
+psql -d rh_cramer -f backend/migrations/038_dotacion.sql
 ```
 
 Idempotente. Crea el schema si falta, deja intactos los datos y da de alta el

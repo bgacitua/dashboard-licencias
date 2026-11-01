@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -78,6 +78,43 @@ class CargoEmpresaOut(BaseModel):
     # Evaluación HAY vigente; None si el cargo no está evaluado.
     hay_grado: int | None
     hay_puntos: int | None
+
+
+class PersonaOut(BaseModel):
+    """Persona activa; mercado en sueldo mensual (COMP1 ÷ factor). None si falta el dato."""
+    employee_id: int
+    documento: str
+    nombre: str
+    cargo_buk: str | None
+    empresa: str | None
+    centro_costo: str | None
+    jefe: str | None  # documento del jefe
+    fecha_ingreso: date | None
+    url_picture: str | None
+    base_wage: float | None
+    cargo_empresa_id: int | None
+    cargo: str | None
+    cargos: list[str] | None
+    nivel: str | None
+    nivel_nombre: str | None
+    hay_grado: int | None
+    hay_puntos: int | None
+    p25: float | None
+    mediana: float | None
+    promedio: float | None
+    p75: float | None
+    # Último cambio de sueldo (solo CL)
+    sueldo_base_anterior: float | None
+    variacion_sueldo_pct: float | None  # en %, p. ej. 5.0
+    fecha_cambio_sueldo: date | None
+
+
+class CambioOut(BaseModel):
+    fecha_cambio: date
+    tipo_cambio: str  # sueldo_base, cargo, centro_costo, area, jefatura
+    valor_anterior: str | None
+    valor_nuevo: str | None
+    variacion_pct: float | None
 
 
 class FilaMercado(BaseModel):
