@@ -8,7 +8,10 @@
 -- van aquí: las mantiene el ETL (create.py).
 -- ============================================================================
 
-CREATE OR REPLACE VIEW compensaciones.v_dotacion AS
+-- Reemplaza una v_dotacion previa creada a mano con otras columnas (CREATE OR REPLACE no puede
+-- renombrarlas). Sin CASCADE: si algo depende de ella, falla sin borrar nada.
+DROP VIEW IF EXISTS compensaciones.v_dotacion;
+CREATE VIEW compensaciones.v_dotacion AS
 SELECT 'CL' AS pais, e.id AS employee_id, e.rut AS documento, e.full_name AS nombre, e.role_id,
        e.name_role AS cargo_buk, a.first_level_name AS empresa,
        COALESCE(e.cost_center, a.cost_center) AS centro_costo,
