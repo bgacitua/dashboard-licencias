@@ -147,7 +147,8 @@ def cargos_empresa(db: Session, estudio_id: int):
                h.id AS analisis_id, h.cargos_elegidos AS cargos, h.nivel_codigo AS nivel,
                n.nombre AS nivel_nombre, h.creado_por, h.created_at,
                (SELECT array_agg(DISTINCT p.titulo) FROM compensaciones.puesto p
-                 WHERE p.estudio_id = e.id AND p.cargo_codigo = ANY(h.cargos_elegidos)) AS titulos
+                 WHERE p.estudio_id = e.id AND p.cargo_codigo = ANY(h.cargos_elegidos)) AS titulos,
+               hv.grado AS hay_grado, hv.puntos_total AS hay_puntos
         FROM compensaciones.estudio e
         JOIN compensaciones.cargo_empresa ce ON ce.pais = e.pais
         LEFT JOIN LATERAL (
@@ -155,8 +156,56 @@ def cargos_empresa(db: Session, estudio_id: int):
           WHERE a.estudio_id = e.id AND a.cargo_empresa_id = ce.id
           ORDER BY a.created_at DESC, a.id DESC LIMIT 1) h ON true
         LEFT JOIN compensaciones.nivel n ON n.codigo = h.nivel_codigo
+        LEFT JOIN compensaciones.v_hay_vigente hv ON hv.cargo_empresa_id = ce.id
         LEFT JOIN compensaciones.cbo cbo ON ce.pais = 'BR'
           AND cbo.codigo = lpad(regexp_replace(ce.code, '[^0-9]', '', 'g'), 6, '0')
         WHERE e.id = :estudio_id
         ORDER BY ce.name
     """), {"estudio_id": estudio_id}).mappings().all()
+
+
+# ---------------------------------------------------------------- HAY
+def hay_tablas(db: Session) -> dict:
+    """Las 5 tablas de referencia HAY como dicts {clave: puntos}; grados como [(grado, min, max)]."""
+    def q(sql):
+        return db.execute(text(sql)).all()
+    return {
+        "kh": {tuple(r[:5]): r[5] for r in q(
+            "SELECT tecnica, signo_tecnica, gestion, signo_gestion, rrhh, puntos FROM compensaciones.hay_know_how")},
+        "sp_pct": {tuple(r[:3]): r[3] for r in q(
+            "SELECT marco, complejidad, signo, porcentaje FROM compensaciones.hay_sp_porcentaje")},
+        "sp_pts": {tuple(r[:2]): r[2] for r in q(
+            "SELECT porcentaje, puntos_kh, puntos FROM compensaciones.hay_sp_puntos")},
+        "resp": {tuple(r[:4]): r[4] for r in q(
+            "SELECT libertad, signo, magnitud, impacto, puntos FROM compensaciones.hay_responsabilidad")},
+        "grados": [tuple(r) for r in q(
+            "SELECT grado, puntos_min, puntos_max FROM compensaciones.hay_grado ORDER BY puntos_min")],
+    }
+
+
+def guardar_hay(db: Session, h: dict, usuario: str):
+    """Inserta entradas + snapshot; None si el cargo no existe."""
+    fila = db.execute(text("""
+        INSERT INTO compensaciones.hay_evaluacion
+          (cargo_empresa_id, tecnica, signo_tecnica, gestion, signo_gestion, rrhh, marco, complejidad,
+           signo_complejidad, libertad, signo_libertad, magnitud, impacto, puntos_kh, porcentaje_sp,
+           puntos_sp, puntos_resp, puntos_total, grado, comentario, creado_por)
+        SELECT id, :tecnica, :signo_tecnica, :gestion, :signo_gestion, :rrhh, :marco, :complejidad,
+               :signo_complejidad, :libertad, :signo_libertad, :magnitud, :impacto, :puntos_kh, :porcentaje_sp,
+               :puntos_sp, :puntos_resp, :puntos_total, :grado, :comentario, :usuario
+        FROM compensaciones.cargo_empresa WHERE id = :cargo_empresa_id
+        RETURNING *
+    """), {**h, "usuario": usuario}).mappings().first()
+    db.commit()
+    return fila
+
+
+def hay_historial(db: Session, cargo_empresa_id: int, paises: list[str] | None):
+    """Evaluaciones del cargo, de la más reciente (la vigente) a la más antigua; `paises=None` sin filtro."""
+    return db.execute(text("""
+        SELECT h.* FROM compensaciones.hay_evaluacion h
+        JOIN compensaciones.cargo_empresa ce ON ce.id = h.cargo_empresa_id
+        WHERE h.cargo_empresa_id = :cargo_empresa_id
+          AND (CAST(:paises AS text[]) IS NULL OR ce.pais = ANY(CAST(:paises AS text[])))
+        ORDER BY h.created_at DESC, h.id DESC
+    """), {"cargo_empresa_id": cargo_empresa_id, "paises": paises}).mappings().all()

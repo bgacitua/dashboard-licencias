@@ -75,6 +75,9 @@ class CargoEmpresaOut(BaseModel):
     nivel_nombre: str | None
     creado_por: str | None
     created_at: datetime | None
+    # Evaluación HAY vigente; None si el cargo no está evaluado.
+    hay_grado: int | None
+    hay_puntos: int | None
 
 
 class FilaMercado(BaseModel):
@@ -94,3 +97,40 @@ class ResultadoOut(BaseModel):
     moneda: str
     factor_mensual: float
     filas: list[FilaMercado]
+
+
+class HayEntradas(BaseModel):
+    """Factores HAY. Signo: '-', '' o '+'. Un valor fuera de las tablas da 400 al calcular."""
+    tecnica: str
+    signo_tecnica: str = ""
+    gestion: str
+    signo_gestion: str = ""
+    rrhh: int
+    marco: str
+    complejidad: int
+    signo_complejidad: str = ""
+    libertad: str
+    signo_libertad: str = ""
+    magnitud: str
+    impacto: str
+
+
+class HayResultado(BaseModel):
+    puntos_kh: int
+    porcentaje_sp: int
+    puntos_sp: int
+    puntos_resp: int
+    puntos_total: int
+    grado: int
+
+
+class HayEvaluacionIn(HayEntradas):
+    cargo_empresa_id: int
+    comentario: str | None = Field(None, max_length=1000)
+
+
+class HayEvaluacion(HayEvaluacionIn, HayResultado):
+    id: int
+    origen: str  # "excel" | "ui"
+    creado_por: str
+    created_at: datetime

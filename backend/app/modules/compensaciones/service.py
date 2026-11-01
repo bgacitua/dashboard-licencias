@@ -1,4 +1,4 @@
-"""Lógica del módulo: match de un cargo y resultado de mercado. No escribe en BD."""
+"""Lógica del módulo: match de un cargo, resultado de mercado y cálculo HAY. No escribe en BD."""
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -89,3 +89,40 @@ def resultado(db: Session, estudio_id: int, cargos: list[str], nivel: str) -> di
             })
 
     return {"moneda": estudio["moneda"], "factor_mensual": estudio["factor_mensual"], "filas": filas}
+
+
+# ---------------------------------------------------------------- HAY
+_tablas_hay: dict | None = None
+
+
+def tablas_hay(db: Session) -> dict:
+    """Tablas de referencia en memoria: tras recargarlas con `carga_hay.py referencias`, reiniciar el backend."""
+    global _tablas_hay
+    if _tablas_hay is None:
+        t = repo.hay_tablas(db)
+        if not all(t.values()):
+            raise HTTPException(503, "Tablas HAY sin cargar")
+        _tablas_hay = t
+    return _tablas_hay
+
+
+def calcular_hay(e: dict, t: dict) -> dict:
+    """Puntos y grado HAY (misma lógica que la Calculadora.xlsx). 400 con el factor que falla."""
+    kh = t["kh"].get((e["tecnica"], e["signo_tecnica"], e["gestion"], e["signo_gestion"], e["rrhh"]))
+    if kh is None:
+        raise HTTPException(400, "Know-How: combinación no válida")
+    pct = t["sp_pct"].get((e["marco"], e["complejidad"], e["signo_complejidad"]))
+    if pct is None:
+        raise HTTPException(400, "Solución de problemas: combinación no válida")
+    sp = t["sp_pts"].get((pct, kh))
+    if sp is None:
+        raise HTTPException(400, f"Solución de problemas: sin puntaje para {pct}% × {kh} KH")
+    resp = t["resp"].get((e["libertad"], e["signo_libertad"], e["magnitud"], e["impacto"]))
+    if resp is None:
+        raise HTTPException(400, "Responsabilidad: combinación no válida (magnitud N va con impacto I–VI; 1–4 con R/C/S/P)")
+    total = kh + sp + resp
+    grado = next((g for g, mn, mx in t["grados"] if mn <= total <= mx), None)
+    if grado is None:
+        raise HTTPException(400, f"Total {total} fuera de la tabla de grados")
+    return {"puntos_kh": kh, "porcentaje_sp": pct, "puntos_sp": sp, "puntos_resp": resp,
+            "puntos_total": total, "grado": grado}

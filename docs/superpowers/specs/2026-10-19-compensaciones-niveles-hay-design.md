@@ -40,7 +40,7 @@ editar las tablas de referencia desde la UI.
 Una combinación que no está en la tabla es inválida y el error indica el factor ("Know-How: combinación no válida").
 En KH hay 464 combinaciones válidas de 1.080: A–C solo T/I, D–E hasta II y F–H sin T.
 
-## Migración `035_compensaciones_hay.sql` (idempotente)
+## Migración `037_compensaciones_hay.sql` (idempotente; 035 y 036 quedaron para CBO y acceso)
 
 Signo = `text NOT NULL DEFAULT ''` (`'-'`, `''`, `'+'`), para que pueda ir en la PK.
 

@@ -25,3 +25,13 @@ export const getHistorial = (estudio_id) =>
 
 export const getCargosEmpresa = (estudio_id) =>
   axios.get(`${BASE}/cargos-empresa`, { params: { estudio_id } }).then((r) => r.data)
+
+// ---- HAY
+export const getHayOpciones = () => axios.get(`${BASE}/hay/opciones`).then((r) => r.data)
+
+export const postHayCalcular = (body) => axios.post(`${BASE}/hay/calcular`, body).then((r) => r.data)
+
+export const postHayEvaluacion = (body) => axios.post(`${BASE}/hay/evaluacion`, body).then((r) => r.data)
+
+export const getHayHistorial = (cargo_empresa_id) =>
+  axios.get(`${BASE}/hay/evaluacion`, { params: { cargo_empresa_id } }).then((r) => r.data)

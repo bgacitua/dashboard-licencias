@@ -234,6 +234,47 @@ def test_acceso_por_pais():
     router._permitir(db, router.Acceso("gpavez", True, None), 1)
 
 
+# Tablas HAY mínimas: (A, '', T, '', 1) = 50 KH; marco A·1 = 10 % -> 6 puntos; libertad A·N·I = 14.
+HAY = {"kh": {("A", "", "T", "", 1): 50, ("H", "+", "IV", "+", 3): 3000},
+       "sp_pct": {("A", 1, ""): 10}, "sp_pts": {(10, 50): 6, (10, 3000): 300},
+       "resp": {("A", "", "N", "I"): 14}, "grados": [(8, 50, 69), (9, 70, 89)]}
+ENTRADAS = {"tecnica": "A", "signo_tecnica": "", "gestion": "T", "signo_gestion": "", "rrhh": 1, "marco": "A",
+            "complejidad": 1, "signo_complejidad": "", "libertad": "A", "signo_libertad": "", "magnitud": "N",
+            "impacto": "I"}
+
+
+def test_calcular_hay():
+    assert service.calcular_hay(ENTRADAS, HAY) == {"puntos_kh": 50, "porcentaje_sp": 10, "puntos_sp": 6,
+                                                    "puntos_resp": 14, "puntos_total": 70, "grado": 9}
+    for cambio, factor in (({"gestion": "I"}, "Know-How"), ({"complejidad": 2}, "Solución"),
+                           ({"impacto": "R"}, "Responsabilidad"),
+                           ({"tecnica": "H", "signo_tecnica": "+", "gestion": "IV", "signo_gestion": "+", "rrhh": 3},
+                            "fuera de la tabla")):
+        try:
+            service.calcular_hay({**ENTRADAS, **cambio}, HAY)
+        except HTTPException as e:
+            assert e.status_code == 400 and factor in e.detail, e.detail
+        else:
+            raise AssertionError(f"debió responder 400 ({factor})")
+
+
+def test_hay_guardar_solo_admin_y_recalcula():
+    service._tablas_hay = HAY
+    body = router.HayEvaluacionIn(cargo_empresa_id=5, **ENTRADAS)
+    db = FakeSession({})
+    assert _status(lambda: router.hay_guardar(body, db, ANALISTA)) == 403 and "INSERT" not in db.sql
+    db = FakeSession({"INSERT INTO compensaciones.hay_evaluacion": [{"id": 1}]})
+    assert router.hay_guardar(body, db, ADMIN) == {"id": 1}
+    p = db.llamadas[-1][1]
+    assert p["puntos_total"] == 70 and p["grado"] == 9 and p["usuario"] == "gabriel" and p["cargo_empresa_id"] == 5
+    assert _status(lambda: router.hay_guardar(body, FakeSession({}), ADMIN)) == 404  # cargo inexistente
+
+    db = FakeSession({})
+    router.hay_historial(5, db, ANALISTA)
+    assert db.llamadas[-1][1] == {"cargo_empresa_id": 5, "paises": ["CL"]}
+    service._tablas_hay = None
+
+
 def main():
     fallos = 0
     for nombre, fn in sorted(globals().items()):

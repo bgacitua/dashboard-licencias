@@ -21,7 +21,8 @@ from app.db.deps import get_db
 
 from . import repository as repo
 from . import service
-from .schemas import Analisis, AnalisisIn, CargoEmpresaOut, Estudio, MatchIn, MatchOut, Nivel, ResultadoIn, ResultadoOut
+from .schemas import (Analisis, AnalisisIn, CargoEmpresaOut, Estudio, HayEntradas, HayEvaluacion, HayEvaluacionIn,
+                      HayResultado, MatchIn, MatchOut, Nivel, ResultadoIn, ResultadoOut)
 
 router = APIRouter(dependencies=[Depends(require_module("compensaciones"))])
 
@@ -118,3 +119,33 @@ def borrar(analisis_id: int, db: Db, acc: Acc):
 def _dueno(acc: Acceso) -> str | None:
     """None para el admin (sin filtro); si no, el username."""
     return None if acc.admin else acc.username
+
+
+@router.get("/hay/opciones")
+def hay_opciones(db: Db):
+    """Combinaciones válidas por bloque, para deshabilitar opciones en los selectores."""
+    t = service.tablas_hay(db)
+    return {"know_how": list(t["kh"]), "solucion": list(t["sp_pct"]), "responsabilidad": list(t["resp"])}
+
+
+@router.post("/hay/calcular", response_model=HayResultado)
+def hay_calcular(body: HayEntradas, db: Db):
+    return service.calcular_hay(body.model_dump(), service.tablas_hay(db))
+
+
+@router.post("/hay/evaluacion", response_model=HayEvaluacion)
+def hay_guardar(body: HayEvaluacionIn, db: Db, acc: Acc):
+    """Solo admin. El resultado se recalcula aquí: no se confía en el cliente."""
+    if not acc.admin:
+        raise HTTPException(403, "Solo un administrador puede guardar evaluaciones HAY")
+    h = body.model_dump()
+    fila = repo.guardar_hay(db, {**h, **service.calcular_hay(h, service.tablas_hay(db))}, acc.username)
+    if not fila:
+        raise HTTPException(404, "Cargo no encontrado")
+    return fila
+
+
+@router.get("/hay/evaluacion", response_model=list[HayEvaluacion])
+def hay_historial(cargo_empresa_id: int, db: Db, acc: Acc):
+    """Historial del cargo (la primera es la vigente), solo de los países del usuario."""
+    return repo.hay_historial(db, cargo_empresa_id, acc.paises)

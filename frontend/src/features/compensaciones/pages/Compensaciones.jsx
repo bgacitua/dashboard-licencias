@@ -180,7 +180,8 @@ export default function Compensaciones() {
                     onListo={(id, m) => setPreparados((p) => ({ ...p, [id]: m }))} onRevisar={revisar} />
                 )}
                 <CargosEmpresa key={estudio.id} estudio={estudio} cargos={cargos} esAdmin={esAdmin}
-                  onEditar={(c) => abrirCargo(c, undefined, false)} />
+                  onEditar={(c) => abrirCargo(c, undefined, false)}
+                  onHay={(id, h) => setCargos((l) => l.map((c) => (c.id === id ? { ...c, hay_grado: h.grado, hay_puntos: h.puntos_total } : c)))} />
               </div>
               {/* El flujo queda montado al ir al historial, para no perder lo que se estaba probando */}
               <div hidden={vista !== 'nuevo'}>

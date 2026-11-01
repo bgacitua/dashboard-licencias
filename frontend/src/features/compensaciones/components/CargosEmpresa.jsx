@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { postResultado } from '../services/compensaciones'
 import { LOCALE } from './PasoResultado'
+import EvaluacionHay from './EvaluacionHay'
 
 const ESTADISTICAS = [['p25', 'P25'], ['mediana', 'Mediana'], ['promedio', 'Promedio'], ['p75', 'P75']]
 
 // Cifras de la homologación vigente: COMP1 mensual (cargos / híbrido) y COMP3_REAL anual (subfamilia / promedio).
-function Detalle({ c, estudio }) {
+function Detalle({ c, estudio, esAdmin, onHay }) {
   const [r, setR] = useState(null)
+  const [hay, setHay] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -38,11 +40,15 @@ function Detalle({ c, estudio }) {
           </div>
         </div>
       ))}
+      <button type="button" onClick={() => setHay(!hay)} className="text-xs font-medium text-app-muted hover:text-app-ink">
+        {hay ? '▾' : '▸'} Evaluación HAY
+      </button>
+      {hay && <EvaluacionHay c={c} esAdmin={esAdmin} onGuardado={(h) => onHay(c.id, h)} />}
     </div>
   )
 }
 
-function Fila({ c, estudio, esAdmin, onEditar }) {
+function Fila({ c, estudio, esAdmin, onEditar, onHay }) {
   const [abierto, setAbierto] = useState(false)
   return (
     <div>
@@ -53,6 +59,10 @@ function Fila({ c, estudio, esAdmin, onEditar }) {
         <span className={`text-xs ${c.cargos ? 'text-app-ink' : 'text-app-muted'}`}>
           {c.cargos ? `${(c.titulos || c.cargos).join(' + ')} · ${c.nivel}` : 'Sin homologar'}
         </span>
+        <span title={c.hay_grado != null ? `${c.hay_puntos} puntos HAY` : 'Sin evaluación HAY'}
+          className={`w-14 text-right text-xs ${c.hay_grado != null ? 'text-app-ink' : 'text-app-muted'}`}>
+          {c.hay_grado != null ? `HAY ${c.hay_grado}` : 'HAY –'}
+        </span>
         {esAdmin && (
           <button type="button" onClick={(e) => { e.stopPropagation(); onEditar(c) }}
             className="rounded-lg border border-app-line px-3 py-1 text-xs font-medium text-app-ink hover:border-app-ink">
@@ -60,12 +70,12 @@ function Fila({ c, estudio, esAdmin, onEditar }) {
           </button>
         )}
       </div>
-      {abierto && <Detalle c={c} estudio={estudio} />}
+      {abierto && <Detalle c={c} estudio={estudio} esAdmin={esAdmin} onHay={onHay} />}
     </div>
   )
 }
 
-export default function CargosEmpresa({ estudio, cargos, esAdmin, onEditar }) {
+export default function CargosEmpresa({ estudio, cargos, esAdmin, onEditar, onHay }) {
   const [q, setQ] = useState('')
   if (!cargos) return <p className="text-sm text-app-muted">Cargando…</p>
 
@@ -80,7 +90,7 @@ export default function CargosEmpresa({ estudio, cargos, esAdmin, onEditar }) {
         <p className="text-sm text-app-muted">No hay cargos para mostrar.</p>
       ) : (
         <div className="divide-y divide-app-line rounded-xl border border-app-line bg-white text-sm">
-          {lista.map((c) => <Fila key={c.id} c={c} estudio={estudio} esAdmin={esAdmin} onEditar={onEditar} />)}
+          {lista.map((c) => <Fila key={c.id} c={c} estudio={estudio} esAdmin={esAdmin} onEditar={onEditar} onHay={onHay} />)}
         </div>
       )}
     </div>
