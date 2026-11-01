@@ -29,9 +29,9 @@ Maqueta: artifact "Maqueta Dotación Compensaciones" (https://claude.ai/artifact
 | Jefatura | CL `rut_boss`, PE `dni_boss` | OK (árbol en el navegador) |
 | Grado HAY / persona | `v_hay_vigente`, `full_name` | OK |
 | Fecha de ingreso | `active_since` | OK en CL y PE |
-| Foto | `picture_url` (expuesta como `url_picture` en `v_dotacion`) | URL de S3 de BUK; si falla, iniciales |
+| Foto | `picture_url`, solo CL (expuesta como `url_picture` en `v_dotacion`; PE sin foto) | URL de S3 de BUK; si falla, iniciales |
 | Cargo empresa / HAY / mercado | `role_id` → `cargo_empresa` → homologación → `v_mercado`; `v_hay_vigente` | OK: `role_id` lleno en 597/597 activos CL y 78/78 PE (2026-11-01) |
-| Historial de sueldo y movimientos | `rh.vw_employees_anterior`, `rh.vw_job_history_cambios` | Existen en la BD (solo CL); `employee_id` = `rh.employees.id`; `variacion_sueldo_pct` en % (5,0); `variacion_pct` de los cambios se asume igual (confirmar). **No están en el ETL** |
+| Historial de sueldo y movimientos | `rh.vw_employees_anterior`, `rh.vw_job_history_cambios` | Existen en la BD (solo CL); `employee_id` = `rh.employees.id`; `variacion_sueldo_pct` y `variacion_pct` en % (5,0). **No están en el ETL** |
 | Zoom, hover, doble clic, cascada | ECharts + JS | OK |
 | Banda salarial | — | No existe: diseño pendiente |
 
