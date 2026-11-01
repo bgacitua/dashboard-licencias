@@ -35,3 +35,10 @@ export const postHayEvaluacion = (body) => axios.post(`${BASE}/hay/evaluacion`, 
 
 export const getHayHistorial = (cargo_empresa_id) =>
   axios.get(`${BASE}/hay/evaluacion`, { params: { cargo_empresa_id } }).then((r) => r.data)
+
+// ---- Dotación
+export const getDotacion = (estudio_id) =>
+  axios.get(`${BASE}/dotacion`, { params: { estudio_id } }).then((r) => r.data)
+
+export const getHistorialPersona = (estudio_id, employee_id) =>
+  axios.get(`${BASE}/dotacion/historial`, { params: { estudio_id, employee_id } }).then((r) => r.data)

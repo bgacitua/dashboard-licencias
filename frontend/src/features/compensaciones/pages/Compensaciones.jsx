@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { Suspense, lazy, useEffect, useState } from 'react'
 import SidebarLayout from '../../../components/SidebarLayout'
 import PasoMatch from '../components/PasoMatch'
 import PasoResultado from '../components/PasoResultado'
@@ -6,6 +6,9 @@ import Historial from '../components/Historial'
 import CargosEmpresa from '../components/CargosEmpresa'
 import ColaMasiva from '../components/ColaMasiva'
 import { getCargosEmpresa, getEstudios, getPermisos, getNiveles, postAnalisis, postResultado } from '../services/compensaciones'
+
+// ECharts solo entra al bundle al abrir la pestaña Dotación
+const Dotacion = lazy(() => import('../components/Dotacion'))
 
 const PAISES = [['CL', 'Chile'], ['PE', 'Perú'], ['BR', 'Brasil']]
 const NOMBRE_PAIS = Object.fromEntries(PAISES)
@@ -17,7 +20,7 @@ export default function Compensaciones() {
   const [estudios, setEstudios] = useState(null)
   const [pais, setPais] = useState('CL')
   const [estudioId, setEstudioId] = useState(null)
-  const [vista, setVista] = useState('nuevo') // nuevo | historial | cargos
+  const [vista, setVista] = useState('nuevo') // nuevo | historial | cargos | dotacion
   const [paso, setPaso] = useState('match') // match | nivel | resultado
   const [reinicio, setReinicio] = useState(0)
   const [inicial, setInicial] = useState(null) // análisis del historial que restaura PasoMatch
@@ -156,7 +159,7 @@ export default function Compensaciones() {
           </div>
 
           <div className="mb-4 inline-flex overflow-hidden rounded-md border border-app-line">
-            {[['nuevo', 'Buscar cargo'], ['historial', 'Historial'], ['cargos', 'Cargos empresa']].map(([valor, etiqueta]) => (
+            {[['nuevo', 'Buscar cargo'], ['historial', 'Historial'], ['cargos', 'Cargos empresa'], ['dotacion', 'Dotación']].map(([valor, etiqueta]) => (
               <button key={valor} type="button" aria-pressed={vista === valor} onClick={() => setVista(valor)}
                 className={segmento(vista === valor)}>
                 {etiqueta}
@@ -173,6 +176,11 @@ export default function Compensaciones() {
           ) : (
             <>
               {vista === 'historial' && <Historial key={estudio.id} estudio={estudio} onAbrir={abrir} />}
+              {vista === 'dotacion' && (
+                <Suspense fallback={<p className="text-sm text-app-muted">Cargando…</p>}>
+                  <Dotacion key={estudio.id} estudio={estudio} />
+                </Suspense>
+              )}
               {/* La cola queda montada al ir al flujo: sigue preparando mientras se revisa */}
               <div hidden={vista !== 'cargos'} className="space-y-4">
                 {esAdmin && (
