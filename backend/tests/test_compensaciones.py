@@ -169,13 +169,41 @@ def test_cargos_empresa_por_estudio_y_404():
     db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO], "JOIN compensaciones.cargo_empresa ce": [fila]})
     assert service.cargos_empresa(db, 1) == [fila]
     assert db.llamadas[-1][1] == {"estudio_id": 1}
-    assert "LATERAL" in db.sql
+    assert "LATERAL" in db.sql and "v_dotacion" in db.sql  # n° de personas activas por cargo
     try:
         service.cargos_empresa(FakeSession({}), 99)
     except HTTPException as e:
         assert e.status_code == 404
     else:
         raise AssertionError("debió responder 404")
+
+
+def test_dotacion_por_estudio_y_404():
+    fila = {"employee_id": 3, "nombre": "Ana"}
+    db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO], "JOIN compensaciones.v_dotacion d": [fila]})
+    assert router.dotacion(1, db, router.Acceso("gpavez", False, ["CL"])) == [fila]
+    assert db.llamadas[-1][1] == {"estudio_id": 1}
+    assert "factor_mensual" in db.llamadas[-1][0] and "d.pais = 'CL'" in db.llamadas[-1][0]
+    assert "v_banda b ON b.pais = e.pais AND b.grado = hv.grado" in db.llamadas[-1][0]
+    assert "ORDER BY (x.p25 IS NOT NULL AND x.p75 IS NOT NULL) DESC, x.es_core" in db.llamadas[-1][0]
+    try:
+        service.dotacion(FakeSession({}), 99)
+    except HTTPException as e:
+        assert e.status_code == 404
+    else:
+        raise AssertionError("debió responder 404")
+    db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO]})
+    peru = router.Acceso("rrhh_pe", False, ["PE"])
+    assert _status(lambda: router.dotacion(1, db, peru)) == 404 and "v_dotacion" not in db.sql
+    assert _status(lambda: router.historial_persona(1, 3, db, peru)) == 404 and "v_dotacion" not in db.sql
+
+
+def test_historial_binds():
+    db = FakeSession({})
+    assert router.historial_persona(1, 3, db, router.Acceso("gpavez", True, None)) == []
+    sql, params = db.llamadas[-1]
+    assert params == {"estudio_id": 1, "employee_id": 3}
+    assert "DATE '2022-06-01'" in sql and "v_dotacion" in sql
 
 
 ADMIN = router.Acceso("gabriel", True, None)
@@ -232,6 +260,47 @@ def test_acceso_por_pais():
     db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO]})
     assert _status(lambda: router.cargos_empresa(1, db, peru)) == 404 and "cargo_empresa ce" not in db.sql
     router._permitir(db, router.Acceso("gpavez", True, None), 1)
+
+
+# Tablas HAY mínimas: (A, '', T, '', 1) = 50 KH; marco A·1 = 10 % -> 6 puntos; libertad A·N·I = 14.
+HAY = {"kh": {("A", "", "T", "", 1): 50, ("H", "+", "IV", "+", 3): 3000},
+       "sp_pct": {("A", 1, ""): 10}, "sp_pts": {(10, 50): 6, (10, 3000): 300},
+       "resp": {("A", "", "N", "I"): 14}, "grados": [(8, 50, 69), (9, 70, 89)]}
+ENTRADAS = {"tecnica": "A", "signo_tecnica": "", "gestion": "T", "signo_gestion": "", "rrhh": 1, "marco": "A",
+            "complejidad": 1, "signo_complejidad": "", "libertad": "A", "signo_libertad": "", "magnitud": "N",
+            "impacto": "I"}
+
+
+def test_calcular_hay():
+    assert service.calcular_hay(ENTRADAS, HAY) == {"puntos_kh": 50, "porcentaje_sp": 10, "puntos_sp": 6,
+                                                    "puntos_resp": 14, "puntos_total": 70, "grado": 9}
+    for cambio, factor in (({"gestion": "I"}, "Know-How"), ({"complejidad": 2}, "Solución"),
+                           ({"impacto": "R"}, "Responsabilidad"),
+                           ({"tecnica": "H", "signo_tecnica": "+", "gestion": "IV", "signo_gestion": "+", "rrhh": 3},
+                            "fuera de la tabla")):
+        try:
+            service.calcular_hay({**ENTRADAS, **cambio}, HAY)
+        except HTTPException as e:
+            assert e.status_code == 400 and factor in e.detail, e.detail
+        else:
+            raise AssertionError(f"debió responder 400 ({factor})")
+
+
+def test_hay_guardar_solo_admin_y_recalcula():
+    service._tablas_hay = HAY
+    body = router.HayEvaluacionIn(cargo_empresa_id=5, **ENTRADAS)
+    db = FakeSession({})
+    assert _status(lambda: router.hay_guardar(body, db, ANALISTA)) == 403 and "INSERT" not in db.sql
+    db = FakeSession({"INSERT INTO compensaciones.hay_evaluacion": [{"id": 1}]})
+    assert router.hay_guardar(body, db, ADMIN) == {"id": 1}
+    p = db.llamadas[-1][1]
+    assert p["puntos_total"] == 70 and p["grado"] == 9 and p["usuario"] == "gabriel" and p["cargo_empresa_id"] == 5
+    assert _status(lambda: router.hay_guardar(body, FakeSession({}), ADMIN)) == 404  # cargo inexistente
+
+    db = FakeSession({})
+    router.hay_historial(5, db, ANALISTA)
+    assert db.llamadas[-1][1] == {"cargo_empresa_id": 5, "paises": ["CL"]}
+    service._tablas_hay = None
 
 
 def main():

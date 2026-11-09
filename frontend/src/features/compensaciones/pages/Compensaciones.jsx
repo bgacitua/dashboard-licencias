@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { Suspense, lazy, useEffect, useState } from 'react'
 import SidebarLayout from '../../../components/SidebarLayout'
 import PasoMatch from '../components/PasoMatch'
 import PasoResultado from '../components/PasoResultado'
@@ -6,6 +6,9 @@ import Historial from '../components/Historial'
 import CargosEmpresa from '../components/CargosEmpresa'
 import ColaMasiva from '../components/ColaMasiva'
 import { getCargosEmpresa, getEstudios, getPermisos, getNiveles, postAnalisis, postResultado } from '../services/compensaciones'
+
+// ECharts solo entra al bundle al abrir la pestaña Dotación
+const Dotacion = lazy(() => import('../components/Dotacion'))
 
 const PAISES = [['CL', 'Chile'], ['PE', 'Perú'], ['BR', 'Brasil']]
 const NOMBRE_PAIS = Object.fromEntries(PAISES)
@@ -17,7 +20,7 @@ export default function Compensaciones() {
   const [estudios, setEstudios] = useState(null)
   const [pais, setPais] = useState('CL')
   const [estudioId, setEstudioId] = useState(null)
-  const [vista, setVista] = useState('nuevo') // nuevo | historial | cargos
+  const [vista, setVista] = useState('nuevo') // nuevo | historial | cargos | dotacion
   const [paso, setPaso] = useState('match') // match | nivel | resultado
   const [reinicio, setReinicio] = useState(0)
   const [inicial, setInicial] = useState(null) // análisis del historial que restaura PasoMatch
@@ -30,6 +33,7 @@ export default function Compensaciones() {
   const [cargos, setCargos] = useState(null) // cargos de la empresa del estudio
   const [preparados, setPreparados] = useState({}) // cargo_empresa_id -> /match (cola masiva, en memoria)
   const [enCola, setEnCola] = useState(false) // el flujo se abrió desde la cola masiva
+  const [soloActivos, setSoloActivos] = useState(true) // Cargos empresa: solo cargos con personas activas
 
   useEffect(() => {
     getPermisos().then((p) => setEsAdmin(p.admin)).catch(() => {})
@@ -43,6 +47,8 @@ export default function Compensaciones() {
 
   const delPais = (estudios || []).filter((e) => e.pais === pais) // vienen del más reciente al más antiguo
   const estudio = delPais.find((e) => e.id === estudioId) || delPais[0]
+
+  const visibles = cargos && (soloActivos ? cargos.filter((c) => c.personas > 0) : cargos)
 
   // Cargos de la empresa: se recargan al entrar a la pestaña (trae la homologación vigente).
   useEffect(() => {
@@ -89,7 +95,7 @@ export default function Compensaciones() {
       .then(() => {
         setGuardado(true)
         if (!resto.cargo_empresa_id || !enCola) return
-        const sig = cargos.find((c) => c.id !== resto.cargo_empresa_id && !c.analisis_id && preparados[c.id])
+        const sig = visibles.find((c) => c.id !== resto.cargo_empresa_id && !c.analisis_id && preparados[c.id])
         if (sig) revisar(sig)
         else setVista('cargos') // cola terminada
         setCargos((l) => l.map((c) => (c.id === resto.cargo_empresa_id ? { ...c, analisis_id: -1 } : c)))
@@ -156,7 +162,7 @@ export default function Compensaciones() {
           </div>
 
           <div className="mb-4 inline-flex overflow-hidden rounded-md border border-app-line">
-            {[['nuevo', 'Buscar cargo'], ['historial', 'Historial'], ['cargos', 'Cargos empresa']].map(([valor, etiqueta]) => (
+            {[['nuevo', 'Buscar cargo'], ['historial', 'Historial'], ['cargos', 'Cargos empresa'], ['dotacion', 'Dotación']].map(([valor, etiqueta]) => (
               <button key={valor} type="button" aria-pressed={vista === valor} onClick={() => setVista(valor)}
                 className={segmento(vista === valor)}>
                 {etiqueta}
@@ -173,14 +179,21 @@ export default function Compensaciones() {
           ) : (
             <>
               {vista === 'historial' && <Historial key={estudio.id} estudio={estudio} onAbrir={abrir} />}
+              {vista === 'dotacion' && (
+                <Suspense fallback={<p className="text-sm text-app-muted">Cargando…</p>}>
+                  <Dotacion key={estudio.id} estudio={estudio} />
+                </Suspense>
+              )}
               {/* La cola queda montada al ir al flujo: sigue preparando mientras se revisa */}
               <div hidden={vista !== 'cargos'} className="space-y-4">
                 {esAdmin && (
-                  <ColaMasiva key={`cola-${estudio.id}`} estudio={estudio} cargos={cargos || []} preparados={preparados}
+                  <ColaMasiva key={`cola-${estudio.id}`} estudio={estudio} cargos={visibles || []} preparados={preparados}
                     onListo={(id, m) => setPreparados((p) => ({ ...p, [id]: m }))} onRevisar={revisar} />
                 )}
-                <CargosEmpresa key={estudio.id} estudio={estudio} cargos={cargos} esAdmin={esAdmin}
-                  onEditar={(c) => abrirCargo(c, undefined, false)} />
+                <CargosEmpresa key={estudio.id} estudio={estudio} cargos={visibles} todos={cargos} esAdmin={esAdmin}
+                  soloActivos={soloActivos} onSoloActivos={setSoloActivos}
+                  onEditar={(c) => abrirCargo(c, undefined, false)}
+                  onHay={(id, h) => setCargos((l) => l.map((c) => (c.id === id ? { ...c, hay_grado: h.grado, hay_puntos: h.puntos_total } : c)))} />
               </div>
               {/* El flujo queda montado al ir al historial, para no perder lo que se estaba probando */}
               <div hidden={vista !== 'nuevo'}>

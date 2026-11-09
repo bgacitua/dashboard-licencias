@@ -21,7 +21,9 @@ from app.db.deps import get_db
 
 from . import repository as repo
 from . import service
-from .schemas import Analisis, AnalisisIn, CargoEmpresaOut, Estudio, MatchIn, MatchOut, Nivel, ResultadoIn, ResultadoOut
+from .schemas import (Analisis, AnalisisIn, CambioOut, CargoEmpresaOut, Estudio, HayEntradas, HayEvaluacion,
+                      HayEvaluacionIn, HayResultado, MatchIn, MatchOut, Nivel, PersonaOut, ResultadoIn,
+                      ResultadoOut)
 
 router = APIRouter(dependencies=[Depends(require_module("compensaciones"))])
 
@@ -87,6 +89,19 @@ def cargos_empresa(estudio_id: int, db: Db, acc: Acc):
     return service.cargos_empresa(db, estudio_id)
 
 
+@router.get("/dotacion", response_model=list[PersonaOut])
+def dotacion(estudio_id: int, db: Db, acc: Acc):
+    _permitir(db, acc, estudio_id)
+    return service.dotacion(db, estudio_id)
+
+
+@router.get("/dotacion/historial", response_model=list[CambioOut])
+def historial_persona(estudio_id: int, employee_id: int, db: Db, acc: Acc):
+    """[] si la persona no tiene cambios o no es de la dotación del país del estudio."""
+    _permitir(db, acc, estudio_id)
+    return repo.historial_persona(db, estudio_id, employee_id)
+
+
 @router.post("/analisis")
 def guardar(body: AnalisisIn, db: Db, acc: Acc):
     """Con `cargo_empresa_id` es una homologación: solo admin, y el cargo debe ser del país del estudio."""
@@ -118,3 +133,33 @@ def borrar(analisis_id: int, db: Db, acc: Acc):
 def _dueno(acc: Acceso) -> str | None:
     """None para el admin (sin filtro); si no, el username."""
     return None if acc.admin else acc.username
+
+
+@router.get("/hay/opciones")
+def hay_opciones(db: Db):
+    """Combinaciones válidas por bloque, para deshabilitar opciones en los selectores."""
+    t = service.tablas_hay(db)
+    return {"know_how": list(t["kh"]), "solucion": list(t["sp_pct"]), "responsabilidad": list(t["resp"])}
+
+
+@router.post("/hay/calcular", response_model=HayResultado)
+def hay_calcular(body: HayEntradas, db: Db):
+    return service.calcular_hay(body.model_dump(), service.tablas_hay(db))
+
+
+@router.post("/hay/evaluacion", response_model=HayEvaluacion)
+def hay_guardar(body: HayEvaluacionIn, db: Db, acc: Acc):
+    """Solo admin. El resultado se recalcula aquí: no se confía en el cliente."""
+    if not acc.admin:
+        raise HTTPException(403, "Solo un administrador puede guardar evaluaciones HAY")
+    h = body.model_dump()
+    fila = repo.guardar_hay(db, {**h, **service.calcular_hay(h, service.tablas_hay(db))}, acc.username)
+    if not fila:
+        raise HTTPException(404, "Cargo no encontrado")
+    return fila
+
+
+@router.get("/hay/evaluacion", response_model=list[HayEvaluacion])
+def hay_historial(cargo_empresa_id: int, db: Db, acc: Acc):
+    """Historial del cargo (la primera es la vigente), solo de los países del usuario."""
+    return repo.hay_historial(db, cargo_empresa_id, acc.paises)

@@ -138,7 +138,7 @@ def cargo_del_pais_del_estudio(db: Session, cargo_empresa_id: int, estudio_id: i
 
 
 def cargos_empresa(db: Session, estudio_id: int):
-    """Cargos del país del estudio + su homologación vigente (la última)."""
+    """Cargos del país del estudio + su homologación vigente (la última) + n° de personas activas."""
     return db.execute(text("""
         SELECT ce.id, ce.code, ce.name, ce.description, ce.requirements,
                -- descriptor del match: objetivos + los 10 primeros títulos CBO (solo BR)
@@ -147,7 +147,10 @@ def cargos_empresa(db: Session, estudio_id: int):
                h.id AS analisis_id, h.cargos_elegidos AS cargos, h.nivel_codigo AS nivel,
                n.nombre AS nivel_nombre, h.creado_por, h.created_at,
                (SELECT array_agg(DISTINCT p.titulo) FROM compensaciones.puesto p
-                 WHERE p.estudio_id = e.id AND p.cargo_codigo = ANY(h.cargos_elegidos)) AS titulos
+                 WHERE p.estudio_id = e.id AND p.cargo_codigo = ANY(h.cargos_elegidos)) AS titulos,
+               hv.grado AS hay_grado, hv.puntos_total AS hay_puntos,
+               (SELECT count(*) FROM compensaciones.v_dotacion d
+                 WHERE d.pais = ce.pais AND d.role_id = ce.id_origen) AS personas
         FROM compensaciones.estudio e
         JOIN compensaciones.cargo_empresa ce ON ce.pais = e.pais
         LEFT JOIN LATERAL (
@@ -155,8 +158,114 @@ def cargos_empresa(db: Session, estudio_id: int):
           WHERE a.estudio_id = e.id AND a.cargo_empresa_id = ce.id
           ORDER BY a.created_at DESC, a.id DESC LIMIT 1) h ON true
         LEFT JOIN compensaciones.nivel n ON n.codigo = h.nivel_codigo
+        LEFT JOIN compensaciones.v_hay_vigente hv ON hv.cargo_empresa_id = ce.id
         LEFT JOIN compensaciones.cbo cbo ON ce.pais = 'BR'
           AND cbo.codigo = lpad(regexp_replace(ce.code, '[^0-9]', '', 'g'), 6, '0')
         WHERE e.id = :estudio_id
         ORDER BY ce.name
     """), {"estudio_id": estudio_id}).mappings().all()
+
+
+def dotacion(db: Session, estudio_id: int):
+    """Personas activas del país del estudio + homologación, mercado mensual (COMP1 ÷ factor), HAY, banda interna de su grado y último cambio de sueldo (CL)."""
+    return db.execute(text("""
+        SELECT d.employee_id, d.documento, d.nombre, d.cargo_buk, d.empresa, d.centro_costo, d.jefe,
+               d.fecha_ingreso, d.url_picture, d.base_wage,
+               ce.id AS cargo_empresa_id, ce.name AS cargo, h.cargos_elegidos AS cargos,
+               h.nivel_codigo AS nivel, n.nombre AS nivel_nombre,
+               hv.grado AS hay_grado, hv.puntos_total AS hay_puntos,
+               b.minimo AS banda_min, b.midpoint AS banda_mid, b.maximo AS banda_max,
+               m.p25 / e.factor_mensual AS p25, m.mediana / e.factor_mensual AS mediana,
+               m.promedio / e.factor_mensual AS promedio, m.p75 / e.factor_mensual AS p75,
+               ea.sueldo_base_anterior, ea.variacion_sueldo_pct, ea.fecha_cambio_sueldo
+        FROM compensaciones.estudio e
+        JOIN compensaciones.v_dotacion d ON d.pais = e.pais
+        LEFT JOIN compensaciones.cargo_empresa ce ON ce.pais = d.pais AND ce.id_origen = d.role_id
+        LEFT JOIN compensaciones.v_homologacion_vigente h ON h.estudio_id = e.id AND h.cargo_empresa_id = ce.id
+        LEFT JOIN compensaciones.nivel n ON n.codigo = h.nivel_codigo
+        -- híbrido: promedio simple; un estadístico solo si todos los cargos lo tienen (sin homologación: fila NULL).
+        -- Si el cargo no tiene P25 y P75, se usa el juego completo de su(s) subfamilia(s) (core, promedio si son varias).
+        LEFT JOIN LATERAL (
+          SELECT x.p25, x.mediana, x.promedio, x.p75 FROM (
+            SELECT v.es_core,
+                   CASE WHEN count(v.p25)      = count(*) THEN avg(v.p25)      END AS p25,
+                   CASE WHEN count(v.mediana)  = count(*) THEN avg(v.mediana)  END AS mediana,
+                   CASE WHEN count(v.promedio) = count(*) THEN avg(v.promedio) END AS promedio,
+                   CASE WHEN count(v.p75)      = count(*) THEN avg(v.p75)      END AS p75
+            FROM compensaciones.v_mercado v
+            WHERE v.estudio_id = e.id AND v.nivel_codigo = h.nivel_codigo AND v.medida_codigo = 'COMP1'
+              AND (v.cargo_codigo = ANY(h.cargos_elegidos) AND NOT v.es_core
+                   OR v.es_core AND v.subfamilia_codigo IN (
+                        SELECT p.subfamilia_codigo FROM compensaciones.puesto p
+                        WHERE p.estudio_id = e.id AND p.cargo_codigo = ANY(h.cargos_elegidos)))
+            GROUP BY v.es_core
+          ) x
+          ORDER BY (x.p25 IS NOT NULL AND x.p75 IS NOT NULL) DESC, x.es_core
+          LIMIT 1
+        ) m ON true
+        LEFT JOIN compensaciones.v_hay_vigente hv ON hv.cargo_empresa_id = ce.id
+        LEFT JOIN compensaciones.v_banda b ON b.pais = e.pais AND b.grado = hv.grado
+        -- historial: las vistas rh.* son de Chile; los id de Perú no deben cruzarse con ellas
+        LEFT JOIN rh.vw_employees_anterior ea ON d.pais = 'CL' AND ea.employee_id = d.employee_id
+        WHERE e.id = :estudio_id
+        ORDER BY d.nombre
+    """), {"estudio_id": estudio_id}).mappings().all()
+
+
+def historial_persona(db: Session, estudio_id: int, employee_id: int):
+    """Cambios desde 2022-06 (antes: migración a BUK) de una persona activa del país del estudio; [] si no."""
+    return db.execute(text("""
+        SELECT c.fecha_cambio, c.tipo_cambio, c.valor_anterior, c.valor_nuevo, c.variacion_pct
+        FROM compensaciones.estudio e
+        JOIN compensaciones.v_dotacion d ON d.pais = e.pais AND d.employee_id = :employee_id
+        JOIN rh.vw_job_history_cambios c ON d.pais = 'CL' AND c.employee_id = d.employee_id
+        WHERE e.id = :estudio_id AND c.fecha_cambio >= DATE '2022-06-01'
+        ORDER BY c.fecha_cambio DESC
+    """), {"estudio_id": estudio_id, "employee_id": employee_id}).mappings().all()
+
+
+# ---------------------------------------------------------------- HAY
+def hay_tablas(db: Session) -> dict:
+    """Las 5 tablas de referencia HAY como dicts {clave: puntos}; grados como [(grado, min, max)]."""
+    def q(sql):
+        return db.execute(text(sql)).all()
+    return {
+        "kh": {tuple(r[:5]): r[5] for r in q(
+            "SELECT tecnica, signo_tecnica, gestion, signo_gestion, rrhh, puntos FROM compensaciones.hay_know_how")},
+        "sp_pct": {tuple(r[:3]): r[3] for r in q(
+            "SELECT marco, complejidad, signo, porcentaje FROM compensaciones.hay_sp_porcentaje")},
+        "sp_pts": {tuple(r[:2]): r[2] for r in q(
+            "SELECT porcentaje, puntos_kh, puntos FROM compensaciones.hay_sp_puntos")},
+        "resp": {tuple(r[:4]): r[4] for r in q(
+            "SELECT libertad, signo, magnitud, impacto, puntos FROM compensaciones.hay_responsabilidad")},
+        "grados": [tuple(r) for r in q(
+            "SELECT grado, puntos_min, puntos_max FROM compensaciones.hay_grado ORDER BY puntos_min")],
+    }
+
+
+def guardar_hay(db: Session, h: dict, usuario: str):
+    """Inserta entradas + snapshot; None si el cargo no existe."""
+    fila = db.execute(text("""
+        INSERT INTO compensaciones.hay_evaluacion
+          (cargo_empresa_id, tecnica, signo_tecnica, gestion, signo_gestion, rrhh, marco, complejidad,
+           signo_complejidad, libertad, signo_libertad, magnitud, impacto, puntos_kh, porcentaje_sp,
+           puntos_sp, puntos_resp, puntos_total, grado, comentario, creado_por)
+        SELECT id, :tecnica, :signo_tecnica, :gestion, :signo_gestion, :rrhh, :marco, :complejidad,
+               :signo_complejidad, :libertad, :signo_libertad, :magnitud, :impacto, :puntos_kh, :porcentaje_sp,
+               :puntos_sp, :puntos_resp, :puntos_total, :grado, :comentario, :usuario
+        FROM compensaciones.cargo_empresa WHERE id = :cargo_empresa_id
+        RETURNING *
+    """), {**h, "usuario": usuario}).mappings().first()
+    db.commit()
+    return fila
+
+
+def hay_historial(db: Session, cargo_empresa_id: int, paises: list[str] | None):
+    """Evaluaciones del cargo, de la más reciente (la vigente) a la más antigua; `paises=None` sin filtro."""
+    return db.execute(text("""
+        SELECT h.* FROM compensaciones.hay_evaluacion h
+        JOIN compensaciones.cargo_empresa ce ON ce.id = h.cargo_empresa_id
+        WHERE h.cargo_empresa_id = :cargo_empresa_id
+          AND (CAST(:paises AS text[]) IS NULL OR ce.pais = ANY(CAST(:paises AS text[])))
+        ORDER BY h.created_at DESC, h.id DESC
+    """), {"cargo_empresa_id": cargo_empresa_id, "paises": paises}).mappings().all()
