@@ -33,6 +33,7 @@ export default function Compensaciones() {
   const [cargos, setCargos] = useState(null) // cargos de la empresa del estudio
   const [preparados, setPreparados] = useState({}) // cargo_empresa_id -> /match (cola masiva, en memoria)
   const [enCola, setEnCola] = useState(false) // el flujo se abrió desde la cola masiva
+  const [soloActivos, setSoloActivos] = useState(true) // Cargos empresa: solo cargos con personas activas
 
   useEffect(() => {
     getPermisos().then((p) => setEsAdmin(p.admin)).catch(() => {})
@@ -46,6 +47,8 @@ export default function Compensaciones() {
 
   const delPais = (estudios || []).filter((e) => e.pais === pais) // vienen del más reciente al más antiguo
   const estudio = delPais.find((e) => e.id === estudioId) || delPais[0]
+
+  const visibles = cargos && (soloActivos ? cargos.filter((c) => c.personas > 0) : cargos)
 
   // Cargos de la empresa: se recargan al entrar a la pestaña (trae la homologación vigente).
   useEffect(() => {
@@ -92,7 +95,7 @@ export default function Compensaciones() {
       .then(() => {
         setGuardado(true)
         if (!resto.cargo_empresa_id || !enCola) return
-        const sig = cargos.find((c) => c.id !== resto.cargo_empresa_id && !c.analisis_id && preparados[c.id])
+        const sig = visibles.find((c) => c.id !== resto.cargo_empresa_id && !c.analisis_id && preparados[c.id])
         if (sig) revisar(sig)
         else setVista('cargos') // cola terminada
         setCargos((l) => l.map((c) => (c.id === resto.cargo_empresa_id ? { ...c, analisis_id: -1 } : c)))
@@ -184,10 +187,11 @@ export default function Compensaciones() {
               {/* La cola queda montada al ir al flujo: sigue preparando mientras se revisa */}
               <div hidden={vista !== 'cargos'} className="space-y-4">
                 {esAdmin && (
-                  <ColaMasiva key={`cola-${estudio.id}`} estudio={estudio} cargos={cargos || []} preparados={preparados}
+                  <ColaMasiva key={`cola-${estudio.id}`} estudio={estudio} cargos={visibles || []} preparados={preparados}
                     onListo={(id, m) => setPreparados((p) => ({ ...p, [id]: m }))} onRevisar={revisar} />
                 )}
-                <CargosEmpresa key={estudio.id} estudio={estudio} cargos={cargos} esAdmin={esAdmin}
+                <CargosEmpresa key={estudio.id} estudio={estudio} cargos={visibles} todos={cargos} esAdmin={esAdmin}
+                  soloActivos={soloActivos} onSoloActivos={setSoloActivos}
                   onEditar={(c) => abrirCargo(c, undefined, false)}
                   onHay={(id, h) => setCargos((l) => l.map((c) => (c.id === id ? { ...c, hay_grado: h.grado, hay_puntos: h.puntos_total } : c)))} />
               </div>

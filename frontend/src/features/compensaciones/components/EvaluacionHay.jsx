@@ -19,7 +19,8 @@ const sel = 'rounded-lg border border-app-line bg-white px-2 py-1.5 text-xs text
 let opcionesP = null // se piden una vez por sesión
 
 // Calculadora HAY de un cargo de la empresa: parte de la evaluación vigente, recalcula en vivo y el admin guarda.
-export default function EvaluacionHay({ c, esAdmin, onGuardado }) {
+// `evaluados`: cargos del país con HAY vigente, para copiar su evaluación (ej. de líder a jefe).
+export default function EvaluacionHay({ c, evaluados, esAdmin, onGuardado }) {
   const [opciones, setOpciones] = useState(null)
   const [historial, setHistorial] = useState([])
   const [e, setE] = useState(VACIO)
@@ -27,6 +28,7 @@ export default function EvaluacionHay({ c, esAdmin, onGuardado }) {
   const [r, setR] = useState(null)
   const [error, setError] = useState('')
   const [guardado, setGuardado] = useState(false)
+  const [copia, setCopia] = useState('')
 
   useEffect(() => {
     ;(opcionesP ||= getHayOpciones()).then(setOpciones).catch(() => { opcionesP = null; setError('No se pudieron cargar las tablas HAY.') })
@@ -53,6 +55,16 @@ export default function EvaluacionHay({ c, esAdmin, onGuardado }) {
     setE((a) => ({ ...a, [k]: x === '' && !k.startsWith('signo') ? null : numerico ? Number(x) : x }))
   }
 
+  const etiqueta = (x) => `${x.name} (${x.code}) · HAY ${x.hay_grado}`
+  const copiar = (texto) => {
+    setCopia(texto)
+    const o = evaluados.find((x) => x.id !== c.id && etiqueta(x) === texto)
+    if (!o) return
+    getHayHistorial(o.id)
+      .then((l) => { setE(entradas(l[0])); setGuardado(false); setComentario(`Copia de ${o.name} (${o.code})`); setCopia('') })
+      .catch(() => setError('No se pudo cargar la evaluación a copiar.'))
+  }
+
   const guardar = () =>
     postHayEvaluacion({ cargo_empresa_id: c.id, ...e, comentario: comentario.trim() || null })
       .then((h) => { setHistorial((l) => [h, ...l]); setGuardado(true); setComentario(''); onGuardado(h) })
@@ -60,6 +72,12 @@ export default function EvaluacionHay({ c, esAdmin, onGuardado }) {
 
   return (
     <div className="space-y-3 rounded-lg border border-app-line bg-white p-3">
+      <input list={`hay-copia-${c.id}`} value={copia} onChange={(ev) => copiar(ev.target.value)}
+        placeholder="Copiar la evaluación de otro cargo…"
+        className="w-full rounded-lg border border-app-line px-2 py-1.5 text-xs text-app-ink focus:border-app-ink focus:outline-none" />
+      <datalist id={`hay-copia-${c.id}`}>
+        {evaluados.filter((x) => x.id !== c.id).map((x) => <option key={x.id} value={etiqueta(x)} />)}
+      </datalist>
       {GRUPOS.map(([titulo, bloque, puntos, campos]) => (
         <div key={bloque} className="flex flex-wrap items-center gap-2">
           <span className="w-40 text-xs font-semibold text-app-ink">{titulo}</span>

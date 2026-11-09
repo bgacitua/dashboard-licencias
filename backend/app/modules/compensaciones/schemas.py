@@ -78,6 +78,7 @@ class CargoEmpresaOut(BaseModel):
     # Evaluación HAY vigente; None si el cargo no está evaluado.
     hay_grado: int | None
     hay_puntos: int | None
+    personas: int  # personas activas con este cargo (v_dotacion)
 
 
 class PersonaOut(BaseModel):
@@ -103,6 +104,10 @@ class PersonaOut(BaseModel):
     mediana: float | None
     promedio: float | None
     p75: float | None
+    # Banda interna del grado HAY (mensual, v_banda)
+    banda_min: float | None
+    banda_mid: float | None
+    banda_max: float | None
     # Último cambio de sueldo (solo CL)
     sueldo_base_anterior: float | None
     variacion_sueldo_pct: float | None  # en %, p. ej. 5.0

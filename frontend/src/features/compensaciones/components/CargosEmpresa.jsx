@@ -6,7 +6,7 @@ import EvaluacionHay from './EvaluacionHay'
 const ESTADISTICAS = [['p25', 'P25'], ['mediana', 'Mediana'], ['promedio', 'Promedio'], ['p75', 'P75']]
 
 // Cifras de la homologación vigente: COMP1 mensual (cargos / híbrido) y COMP3_REAL anual (subfamilia / promedio).
-function Detalle({ c, estudio, esAdmin, onHay }) {
+function Detalle({ c, estudio, evaluados, esAdmin, onHay }) {
   const [r, setR] = useState(null)
   const [hay, setHay] = useState(false)
   const [error, setError] = useState('')
@@ -40,15 +40,20 @@ function Detalle({ c, estudio, esAdmin, onHay }) {
           </div>
         </div>
       ))}
+      {r && (
+        <p className="flex flex-wrap gap-x-3 text-xs text-app-muted">
+          Homologado con:{c.cargos.map((k) => <span key={k} className="select-all font-mono text-app-ink">{k}.{c.nivel}</span>)}
+        </p>
+      )}
       <button type="button" onClick={() => setHay(!hay)} className="text-xs font-medium text-app-muted hover:text-app-ink">
         {hay ? '▾' : '▸'} Evaluación HAY
       </button>
-      {hay && <EvaluacionHay c={c} esAdmin={esAdmin} onGuardado={(h) => onHay(c.id, h)} />}
+      {hay && <EvaluacionHay c={c} evaluados={evaluados} esAdmin={esAdmin} onGuardado={(h) => onHay(c.id, h)} />}
     </div>
   )
 }
 
-function Fila({ c, estudio, esAdmin, onEditar, onHay }) {
+function Fila({ c, estudio, evaluados, esAdmin, onEditar, onHay }) {
   const [abierto, setAbierto] = useState(false)
   return (
     <div>
@@ -59,6 +64,7 @@ function Fila({ c, estudio, esAdmin, onEditar, onHay }) {
         <span className={`text-xs ${c.cargos ? 'text-app-ink' : 'text-app-muted'}`}>
           {c.cargos ? `${(c.titulos || c.cargos).join(' + ')} · ${c.nivel}` : 'Sin homologar'}
         </span>
+        <span className={`w-14 text-right text-xs ${c.personas ? 'text-app-ink' : 'text-app-muted'}`}>{c.personas} pers.</span>
         <span title={c.hay_grado != null ? `${c.hay_puntos} puntos HAY` : 'Sin evaluación HAY'}
           className={`w-14 text-right text-xs ${c.hay_grado != null ? 'text-app-ink' : 'text-app-muted'}`}>
           {c.hay_grado != null ? `HAY ${c.hay_grado}` : 'HAY –'}
@@ -70,27 +76,40 @@ function Fila({ c, estudio, esAdmin, onEditar, onHay }) {
           </button>
         )}
       </div>
-      {abierto && <Detalle c={c} estudio={estudio} esAdmin={esAdmin} onHay={onHay} />}
+      {abierto && <Detalle c={c} estudio={estudio} evaluados={evaluados} esAdmin={esAdmin} onHay={onHay} />}
     </div>
   )
 }
 
-export default function CargosEmpresa({ estudio, cargos, esAdmin, onEditar, onHay }) {
+export default function CargosEmpresa({ estudio, cargos, todos, esAdmin, soloActivos, onSoloActivos, onEditar, onHay }) {
   const [q, setQ] = useState('')
   if (!cargos) return <p className="text-sm text-app-muted">Cargando…</p>
 
   const t = q.trim().toLowerCase()
   const lista = cargos.filter((c) => !t || `${c.name} ${c.code}`.toLowerCase().includes(t))
+  const sinHay = cargos.filter((c) => c.hay_grado == null)
+  const evaluados = todos.filter((c) => c.hay_grado != null) // fuente para copiar HAY: todos, no solo los visibles
+  const suma = (l) => l.reduce((n, c) => n + c.personas, 0)
 
   return (
     <div className="space-y-3">
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cargo de la empresa"
         className="w-full rounded-lg border border-app-line px-3 py-2 text-[13px] text-app-ink focus:border-app-ink focus:outline-none" />
+      <div className="flex flex-wrap items-center gap-3 text-xs text-app-muted">
+        <label className="flex cursor-pointer items-center gap-2 text-app-ink">
+          <input type="checkbox" role="switch" checked={soloActivos} onChange={(e) => onSoloActivos(e.target.checked)}
+            className="h-4 w-4 accent-app-brand" />
+          Solo cargos con personas activas
+        </label>
+        <span className="ml-auto">
+          {cargos.length} cargos ({suma(cargos)} personas) · {cargos.filter((c) => !c.cargos).length} sin homologar · {sinHay.length} sin HAY ({suma(sinHay)} personas)
+        </span>
+      </div>
       {lista.length === 0 ? (
         <p className="text-sm text-app-muted">No hay cargos para mostrar.</p>
       ) : (
         <div className="divide-y divide-app-line rounded-xl border border-app-line bg-white text-sm">
-          {lista.map((c) => <Fila key={c.id} c={c} estudio={estudio} esAdmin={esAdmin} onEditar={onEditar} onHay={onHay} />)}
+          {lista.map((c) => <Fila key={c.id} c={c} estudio={estudio} evaluados={evaluados} esAdmin={esAdmin} onEditar={onEditar} onHay={onHay} />)}
         </div>
       )}
     </div>

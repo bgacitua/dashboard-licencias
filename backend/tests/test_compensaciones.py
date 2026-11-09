@@ -169,7 +169,7 @@ def test_cargos_empresa_por_estudio_y_404():
     db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO], "JOIN compensaciones.cargo_empresa ce": [fila]})
     assert service.cargos_empresa(db, 1) == [fila]
     assert db.llamadas[-1][1] == {"estudio_id": 1}
-    assert "LATERAL" in db.sql
+    assert "LATERAL" in db.sql and "v_dotacion" in db.sql  # n° de personas activas por cargo
     try:
         service.cargos_empresa(FakeSession({}), 99)
     except HTTPException as e:
@@ -184,6 +184,8 @@ def test_dotacion_por_estudio_y_404():
     assert router.dotacion(1, db, router.Acceso("gpavez", False, ["CL"])) == [fila]
     assert db.llamadas[-1][1] == {"estudio_id": 1}
     assert "factor_mensual" in db.llamadas[-1][0] and "d.pais = 'CL'" in db.llamadas[-1][0]
+    assert "v_banda b ON b.pais = e.pais AND b.grado = hv.grado" in db.llamadas[-1][0]
+    assert "ORDER BY (x.p25 IS NOT NULL AND x.p75 IS NOT NULL) DESC, x.es_core" in db.llamadas[-1][0]
     try:
         service.dotacion(FakeSession({}), 99)
     except HTTPException as e:

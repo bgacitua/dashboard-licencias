@@ -138,7 +138,7 @@ def cargo_del_pais_del_estudio(db: Session, cargo_empresa_id: int, estudio_id: i
 
 
 def cargos_empresa(db: Session, estudio_id: int):
-    """Cargos del país del estudio + su homologación vigente (la última)."""
+    """Cargos del país del estudio + su homologación vigente (la última) + n° de personas activas."""
     return db.execute(text("""
         SELECT ce.id, ce.code, ce.name, ce.description, ce.requirements,
                -- descriptor del match: objetivos + los 10 primeros títulos CBO (solo BR)
@@ -148,7 +148,9 @@ def cargos_empresa(db: Session, estudio_id: int):
                n.nombre AS nivel_nombre, h.creado_por, h.created_at,
                (SELECT array_agg(DISTINCT p.titulo) FROM compensaciones.puesto p
                  WHERE p.estudio_id = e.id AND p.cargo_codigo = ANY(h.cargos_elegidos)) AS titulos,
-               hv.grado AS hay_grado, hv.puntos_total AS hay_puntos
+               hv.grado AS hay_grado, hv.puntos_total AS hay_puntos,
+               (SELECT count(*) FROM compensaciones.v_dotacion d
+                 WHERE d.pais = ce.pais AND d.role_id = ce.id_origen) AS personas
         FROM compensaciones.estudio e
         JOIN compensaciones.cargo_empresa ce ON ce.pais = e.pais
         LEFT JOIN LATERAL (
@@ -165,13 +167,14 @@ def cargos_empresa(db: Session, estudio_id: int):
 
 
 def dotacion(db: Session, estudio_id: int):
-    """Personas activas del país del estudio + homologación, mercado mensual (COMP1 ÷ factor), HAY y último cambio de sueldo (CL)."""
+    """Personas activas del país del estudio + homologación, mercado mensual (COMP1 ÷ factor), HAY, banda interna de su grado y último cambio de sueldo (CL)."""
     return db.execute(text("""
         SELECT d.employee_id, d.documento, d.nombre, d.cargo_buk, d.empresa, d.centro_costo, d.jefe,
                d.fecha_ingreso, d.url_picture, d.base_wage,
                ce.id AS cargo_empresa_id, ce.name AS cargo, h.cargos_elegidos AS cargos,
                h.nivel_codigo AS nivel, n.nombre AS nivel_nombre,
                hv.grado AS hay_grado, hv.puntos_total AS hay_puntos,
+               b.minimo AS banda_min, b.midpoint AS banda_mid, b.maximo AS banda_max,
                m.p25 / e.factor_mensual AS p25, m.mediana / e.factor_mensual AS mediana,
                m.promedio / e.factor_mensual AS promedio, m.p75 / e.factor_mensual AS p75,
                ea.sueldo_base_anterior, ea.variacion_sueldo_pct, ea.fecha_cambio_sueldo
@@ -180,17 +183,28 @@ def dotacion(db: Session, estudio_id: int):
         LEFT JOIN compensaciones.cargo_empresa ce ON ce.pais = d.pais AND ce.id_origen = d.role_id
         LEFT JOIN compensaciones.v_homologacion_vigente h ON h.estudio_id = e.id AND h.cargo_empresa_id = ce.id
         LEFT JOIN compensaciones.nivel n ON n.codigo = h.nivel_codigo
-        -- híbrido: promedio simple; un estadístico solo si todos los cargos lo tienen (sin homologación: fila NULL)
+        -- híbrido: promedio simple; un estadístico solo si todos los cargos lo tienen (sin homologación: fila NULL).
+        -- Si el cargo no tiene P25 y P75, se usa el juego completo de su(s) subfamilia(s) (core, promedio si son varias).
         LEFT JOIN LATERAL (
-          SELECT CASE WHEN count(v.p25)      = count(*) THEN avg(v.p25)      END AS p25,
-                 CASE WHEN count(v.mediana)  = count(*) THEN avg(v.mediana)  END AS mediana,
-                 CASE WHEN count(v.promedio) = count(*) THEN avg(v.promedio) END AS promedio,
-                 CASE WHEN count(v.p75)      = count(*) THEN avg(v.p75)      END AS p75
-          FROM compensaciones.v_mercado v
-          WHERE v.estudio_id = e.id AND v.nivel_codigo = h.nivel_codigo
-            AND v.cargo_codigo = ANY(h.cargos_elegidos) AND NOT v.es_core AND v.medida_codigo = 'COMP1'
+          SELECT x.p25, x.mediana, x.promedio, x.p75 FROM (
+            SELECT v.es_core,
+                   CASE WHEN count(v.p25)      = count(*) THEN avg(v.p25)      END AS p25,
+                   CASE WHEN count(v.mediana)  = count(*) THEN avg(v.mediana)  END AS mediana,
+                   CASE WHEN count(v.promedio) = count(*) THEN avg(v.promedio) END AS promedio,
+                   CASE WHEN count(v.p75)      = count(*) THEN avg(v.p75)      END AS p75
+            FROM compensaciones.v_mercado v
+            WHERE v.estudio_id = e.id AND v.nivel_codigo = h.nivel_codigo AND v.medida_codigo = 'COMP1'
+              AND (v.cargo_codigo = ANY(h.cargos_elegidos) AND NOT v.es_core
+                   OR v.es_core AND v.subfamilia_codigo IN (
+                        SELECT p.subfamilia_codigo FROM compensaciones.puesto p
+                        WHERE p.estudio_id = e.id AND p.cargo_codigo = ANY(h.cargos_elegidos)))
+            GROUP BY v.es_core
+          ) x
+          ORDER BY (x.p25 IS NOT NULL AND x.p75 IS NOT NULL) DESC, x.es_core
+          LIMIT 1
         ) m ON true
         LEFT JOIN compensaciones.v_hay_vigente hv ON hv.cargo_empresa_id = ce.id
+        LEFT JOIN compensaciones.v_banda b ON b.pais = e.pais AND b.grado = hv.grado
         -- historial: las vistas rh.* son de Chile; los id de Perú no deben cruzarse con ellas
         LEFT JOIN rh.vw_employees_anterior ea ON d.pais = 'CL' AND ea.employee_id = d.employee_id
         WHERE e.id = :estudio_id

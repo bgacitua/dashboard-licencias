@@ -12,6 +12,10 @@ export const posicion = (p) =>
 const cuartil = (p) =>
   p.p25 == null || p.mediana == null || p.p75 == null ? '—'
     : p.base_wage < p.p25 ? 'Q1' : p.base_wage < p.mediana ? 'Q2' : p.base_wage <= p.p75 ? 'Q3' : 'Q4'
+// Posición frente a la banda interna del grado HAY (80%–120% del midpoint, v_banda)
+export const BANDA = { bajo: 'Bajo banda', dentro: 'En banda', sobre: 'Sobre banda', sinref: 'Sin banda' }
+export const posBanda = (p) =>
+  p.banda_mid == null ? 'sinref' : p.base_wage < p.banda_min ? 'bajo' : p.base_wage > p.banda_max ? 'sobre' : 'dentro'
 export const decimal = (x) => (x == null ? '—' : x.toFixed(2).replace('.', ','))
 
 const TIPOS = {
@@ -21,6 +25,25 @@ const TIPOS = {
 const dia = (s) => new Date(`${s}T00:00`)
 const atipico = (c) => c.tipo_cambio === 'sueldo_base' && (c.variacion_pct < 0 || c.variacion_pct > 30)
 const signo = (x) => `${x > 0 ? '+' : ''}${String(Math.round(x * 10) / 10).replace('.', ',')}%`
+
+// Regla horizontal: rango [desde, hasta] con marca en medio y la persona como punto
+function Regla({ desde, medio, hasta, valor, color, tono, nombres, dinero }) {
+  const lo = Math.min(desde, valor) * 0.92, hi = Math.max(hasta, valor) * 1.06
+  const x = (v) => `${((v - lo) / (hi - lo)) * 100}%`
+  return (
+    <>
+      <div className="relative h-8">
+        <div className="absolute inset-x-0 top-3 h-1.5 rounded bg-app-line" />
+        <div className="absolute top-2.5 h-2.5 rounded border" style={{ left: x(desde), width: `calc(${x(hasta)} - ${x(desde)})`, borderColor: tono, background: `${tono}22` }} />
+        {medio != null && <div className="absolute top-1.5 h-4 w-0.5" style={{ left: x(medio), background: tono }} />}
+        <div className="absolute top-1.5 -ml-2 h-4 w-4 rounded-full border-2 border-white" style={{ left: x(valor), background: color }} />
+      </div>
+      <div className="flex justify-between text-[11px] text-app-muted">
+        {[desde, medio, hasta].map((v, i) => <span key={i}>{nombres[i]} {dinero(v)}</span>)}
+      </div>
+    </>
+  )
+}
 
 function Historial({ p, estudio, fmt, fecha }) {
   const [cambios, setCambios] = useState(null)
@@ -83,6 +106,7 @@ function Historial({ p, estudio, fmt, fecha }) {
 
 export default function FichaPersona({ p, personas, estudio, colores, onCerrar }) {
   const [sinFoto, setSinFoto] = useState(false)
+  const [verHistorial, setVerHistorial] = useState(false) // se carga al abrir el desplegable
 
   useEffect(() => {
     const esc = (e) => e.key === 'Escape' && onCerrar()
@@ -99,25 +123,16 @@ export default function FichaPersona({ p, personas, estudio, colores, onCerrar }
   const pos = posicion(p)
   const c = compa(p)
   const porPromedio = c != null && p.mediana == null ? ' (ref. promedio)' : ''
-  const x = (v) => {
-    const lo = Math.min(p.p25, p.base_wage) * 0.92, hi = Math.max(p.p75, p.base_wage) * 1.06
-    return `${((v - lo) / (hi - lo)) * 100}%`
-  }
+  const pb = posBanda(p)
   const datos = [
     ['Fecha de ingreso', p.fecha_ingreso ? `${fecha(p.fecha_ingreso)} (${anios < 1 ? `${Math.round(anios * 12)} meses` : `${anios.toFixed(1).replace('.', ',')} años`})` : '—'],
     ['Nivel Mercer', p.nivel ? `${p.nivel} · ${p.nivel_nombre}` : 'Sin homologar'],
     ['Grado HAY', p.hay_grado != null ? `${p.hay_grado} (${p.hay_puntos} pts)` : '—'],
     ['Sueldo base', dinero(p.base_wage)],
-    ['Último cambio de sueldo', p.fecha_cambio_sueldo
-      ? `${dinero(p.sueldo_base_anterior)} → ${dinero(p.base_wage)}${p.variacion_sueldo_pct != null ? ` (${signo(p.variacion_sueldo_pct)})` : ''} desde ${fecha(p.fecha_cambio_sueldo)}` : '—'],
+    ['Último cambio de sueldo', p.fecha_cambio_sueldo ? fecha(p.fecha_cambio_sueldo) : '—'],
     ['Promedio interno del cargo', pares.length ? `${dinero(pares.reduce((a, q) => a + q.base_wage, 0) / pares.length)} (${pares.length} pers.)` : '—'],
     ['Promedio de mercado del cargo', dinero(p.promedio)],
-    ['Posición en mercado', (
-      <span className="rounded-full border px-2 py-0.5 text-[11px] font-semibold" style={{ color: colores[pos] }}>
-        {pos !== 'sinref' ? POS[pos] : p.nivel ? 'Mercer no publica P25/P75 para este nivel' : 'Cargo sin homologar'}
-      </span>
-    )],
-    ['Compa-ratio · cuartil', `${decimal(c)}${porPromedio} · ${cuartil(p)}`],
+    ['Midpoint del nivel', dinero(p.banda_mid)],
   ]
   const titulo = 'mb-1 text-[11px] font-medium uppercase tracking-wide text-app-muted'
 
@@ -140,32 +155,42 @@ export default function FichaPersona({ p, personas, estudio, colores, onCerrar }
           {datos.map(([t, v]) => <React.Fragment key={t}><dt className="text-app-muted">{t}</dt><dd className="text-right text-app-ink">{v}</dd></React.Fragment>)}
         </dl>
 
-        {p.p25 != null && p.p75 != null && (
-          <div>
-            <p className={titulo}>Mercado del cargo (mensual)</p>
-            <div className="relative h-8">
-              <div className="absolute inset-x-0 top-3 h-1.5 rounded bg-app-line" />
-              <div className="absolute top-2.5 h-2.5 rounded border" style={{ left: x(p.p25), width: `calc(${x(p.p75)} - ${x(p.p25)})`, borderColor: colores.dentro, background: `${colores.dentro}22` }} />
-              {p.mediana != null && <div className="absolute top-1.5 h-4 w-0.5" style={{ left: x(p.mediana), background: colores.dentro }} />}
-              <div className="absolute top-1.5 -ml-2 h-4 w-4 rounded-full border-2 border-white" style={{ left: x(p.base_wage), background: colores[pos] }} />
-            </div>
-            <div className="flex justify-between text-[11px] text-app-muted">
-              <span>P25 {dinero(p.p25)}</span><span>Mediana {dinero(p.mediana)}</span><span>P75 {dinero(p.p75)}</span>
-            </div>
-          </div>
-        )}
-
         <div>
-          <p className={titulo}>Historial</p>
-          <Historial p={p} estudio={estudio} fmt={fmt} fecha={fecha} />
+          <p className={titulo}>Posición en mercado{p.nivel && ` · nivel ${p.nivel}`}</p>
+          {pos === 'sinref' ? (
+            <p className="text-xs text-app-muted">{p.nivel ? 'Mercer no publica P25/P75 para este nivel.' : 'Cargo sin homologar.'}</p>
+          ) : (
+            <>
+              <p className="mb-1 flex items-center justify-between text-xs">
+                <span className="rounded-full border px-2 py-0.5 font-semibold" style={{ color: colores[pos] }}>{POS[pos]}</span>
+                <span className="text-app-muted">Compa-ratio · cuartil <b className="text-app-ink">{decimal(c)}{porPromedio} · {cuartil(p)}</b></span>
+              </p>
+              <Regla desde={p.p25} medio={p.mediana} hasta={p.p75} valor={p.base_wage} color={colores[pos]} tono={colores.dentro}
+                nombres={['P25', 'Mediana', 'P75']} dinero={dinero} />
+            </>
+          )}
         </div>
 
         <div>
-          <p className={titulo}>Banda salarial de la empresa</p>
-          <p className="rounded-lg border border-dashed border-app-outline px-3 py-2 text-xs text-app-muted">
-            Pendiente: se mostrará la posición en la banda de su grado cuando las bandas estén definidas.
-          </p>
+          <p className={titulo}>Posición en nivel interno{p.banda_mid != null && ` · grado ${p.hay_grado}`}</p>
+          {p.banda_mid == null ? (
+            <p className="text-xs text-app-muted">{p.hay_grado == null ? 'Sin banda: el cargo no tiene evaluación HAY.' : 'Sin banda para este grado.'}</p>
+          ) : (
+            <>
+              <p className="mb-1 flex items-center justify-between text-xs">
+                <span className="rounded-full border px-2 py-0.5 font-semibold" style={{ color: colores[pb] }}>{BANDA[pb]}</span>
+                <span className="text-app-muted">Compa-ratio interno <b className="text-app-ink">{decimal(p.base_wage / p.banda_mid)}</b></span>
+              </p>
+              <Regla desde={p.banda_min} medio={p.banda_mid} hasta={p.banda_max} valor={p.base_wage} color={colores[pb]} tono={colores.dentro}
+                nombres={['Mínimo 80%', 'Midpoint', 'Máximo 120%']} dinero={dinero} />
+            </>
+          )}
         </div>
+
+        <details onToggle={(e) => setVerHistorial(e.currentTarget.open)}>
+          <summary className={`${titulo} cursor-pointer`}>Historial</summary>
+          {verHistorial && <Historial p={p} estudio={estudio} fmt={fmt} fecha={fecha} />}
+        </details>
 
         <div className="text-right">
           <button type="button" autoFocus onClick={onCerrar}

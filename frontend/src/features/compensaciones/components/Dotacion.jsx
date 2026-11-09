@@ -2,12 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { getDotacion } from '../services/compensaciones'
 import { LOCALE } from './PasoResultado'
-import FichaPersona, { POS, compa, decimal, posicion } from './FichaPersona'
+import FichaPersona, { BANDA, POS, compa, decimal, posBanda, posicion } from './FichaPersona'
 
 const grado = (p) => (p.hay_grado == null ? 'Sin HAY' : String(p.hay_grado))
 const porGrado = (a, b) => (a === 'Sin HAY') - (b === 'Sin HAY') || a - b
 const uniq = (a, orden) => [...new Set(a.filter(Boolean))].sort(orden)
-const etiqueta = (p) => `${p.nombre} · ${p.cargo ?? p.cargo_buk ?? 'sin cargo'}`
+const cargo = (p) => p.cargo ?? p.cargo_buk
+const etiqueta = (p) => `${p.nombre} · ${cargo(p) ?? 'sin cargo'}`
 const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : '—')
 // Desplazamiento horizontal determinístico (±0,25) para que no se tapen los del mismo grado
 const jitter = (doc) => ([...doc].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 1000, 7) / 1000 - 0.5) * 0.5
@@ -16,9 +17,10 @@ const campo = 'rounded-lg border border-app-line bg-white px-2 py-1.5 text-[13px
 export default function Dotacion({ estudio }) {
   const [personas, setPersonas] = useState(null)
   const [error, setError] = useState('')
-  const [sel, setSel] = useState({}) // valor elegido por filtro
-  const [texto, setTexto] = useState({}) // lo escrito en los buscadores (Jefatura y Persona)
+  const [sel, setSel] = useState({}) // valores elegidos por filtro (dentro de un filtro suman, entre filtros se encadenan)
+  const [texto, setTexto] = useState({}) // lo escrito en cada buscador antes de elegir
   const [ficha, setFicha] = useState(null)
+  const [modo, setModo] = useState('mercado') // color de los puntos: posición en mercado o en la banda interna
   const grafico = useRef(null)
 
   useEffect(() => {
@@ -39,35 +41,33 @@ export default function Dotacion({ estudio }) {
 
   // Cascada de mayor a menor alcance: cada filtro ofrece solo lo que dejan los de arriba y aplica su valor a los de abajo
   const FILTROS = [
-    { k: 'empresa', titulo: 'Empresa', todos: 'Todas', valores: (b) => uniq(b.map((p) => p.empresa)), cumple: (p, v) => p.empresa === v },
-    { k: 'cc', titulo: 'Centro de costo', todos: 'Todos', valores: (b) => uniq(b.map((p) => p.centro_costo)), cumple: (p, v) => p.centro_costo === v },
-    { k: 'jefe', titulo: 'Jefatura (toda su línea)', lista: true,
+    { k: 'empresa', titulo: 'Empresa', valores: (b) => uniq(b.map((p) => p.empresa)), cumple: (p, v) => p.empresa === v },
+    { k: 'cc', titulo: 'Centro de costo', valores: (b) => uniq(b.map((p) => p.centro_costo)), cumple: (p, v) => p.centro_costo === v },
+    { k: 'jefe', titulo: 'Jefatura (toda su línea)',
       valores: (b) => { const d = new Set(b.map((p) => p.documento)); return jefes.filter((j) => [...linea(j.documento)].some((x) => d.has(x))).map(etiqueta) },
       cumple: (p, v) => linea(jefes.find((j) => etiqueta(j) === v).documento).has(p.documento) },
-    { k: 'grado', titulo: 'Grado HAY', todos: 'Todos', valores: (b) => uniq(b.map(grado), porGrado), cumple: (p, v) => grado(p) === v },
-    { k: 'persona', titulo: 'Persona', lista: true, valores: (b) => b.map(etiqueta).sort(), cumple: (p, v) => etiqueta(p) === v },
+    { k: 'grado', titulo: 'Grado HAY', valores: (b) => uniq(b.map(grado), porGrado), cumple: (p, v) => grado(p) === v },
+    { k: 'cargo', titulo: 'Cargo', valores: (b) => uniq(b.map(cargo)), cumple: (p, v) => cargo(p) === v },
+    { k: 'persona', titulo: 'Persona', valores: (b) => b.map(etiqueta).sort(), cumple: (p, v) => etiqueta(p) === v },
   ]
   let lista = personas || []
   const opciones = {}, vigente = {}
   for (const f of FILTROS) {
     opciones[f.k] = f.valores(lista)
-    vigente[f.k] = opciones[f.k].includes(sel[f.k]) ? sel[f.k] : ''
-    if (vigente[f.k]) lista = lista.filter((p) => f.cumple(p, vigente[f.k]))
+    vigente[f.k] = (sel[f.k] || []).filter((v) => opciones[f.k].includes(v))
+    if (vigente[f.k].length) lista = lista.filter((p) => vigente[f.k].some((v) => f.cumple(p, v)))
   }
 
-  // Un cambio arriba que deja inválido un valor de abajo lo limpia
-  const invalidos = FILTROS.filter((f) => sel[f.k] && !vigente[f.k]).map((f) => f.k)
-  useEffect(() => {
-    if (!invalidos.length) return
-    const sin = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => !invalidos.includes(k)))
-    setSel(sin)
-    setTexto(sin)
-  }, [invalidos.join()])
+  // Un cambio arriba que deja inválidos valores de abajo los quita
+  const hayInvalidos = FILTROS.some((f) => (sel[f.k] || []).length !== vigente[f.k].length)
+  useEffect(() => { if (hayInvalidos) setSel(vigente) }, [hayInvalidos])
 
   const buscar = (f, v) => {
-    setTexto((t) => ({ ...t, [f.k]: v }))
-    if (!v || opciones[f.k].includes(v)) setSel((s) => ({ ...s, [f.k]: v })) // solo cuenta un valor de la lista
+    if (!opciones[f.k].includes(v)) return setTexto((t) => ({ ...t, [f.k]: v })) // solo cuenta un valor de la lista
+    setSel((s) => ({ ...s, [f.k]: [...new Set([...(s[f.k] || []), v])] }))
+    setTexto((t) => ({ ...t, [f.k]: '' }))
   }
+  const quitar = (f, v) => setSel((s) => ({ ...s, [f.k]: s[f.k].filter((x) => x !== v) }))
   const limpiar = () => {
     setSel({})
     setTexto({})
@@ -85,6 +85,10 @@ export default function Dotacion({ estudio }) {
   const compacto = new Intl.NumberFormat(locale, { notation: 'compact' })
 
   const enGrafico = lista.filter((p) => p.hay_grado != null && p.base_wage != null)
+  const [grupos, ubicar] = modo === 'banda' ? [BANDA, posBanda] : [POS, posicion]
+  // Una banda por grado presente en el gráfico (todas las personas del grado traen la misma)
+  const bandas = [...new Map(enGrafico.filter((p) => p.banda_mid != null).map((p) => [p.hay_grado, p])).values()]
+    .sort((a, b) => a.hay_grado - b.hay_grado)
   const comps = lista.map(compa).filter((x) => x != null).sort((a, b) => a - b)
   const fuera = lista.filter((p) => p.hay_grado == null).length
   const kpis = [
@@ -117,35 +121,44 @@ export default function Dotacion({ estudio }) {
       { type: 'slider', xAxisIndex: 0, filterMode: 'none', height: 16, bottom: 6, labelFormatter: (v) => Math.round(v) },
       { type: 'slider', yAxisIndex: 0, filterMode: 'none', width: 14, right: 8, showDetail: false },
     ],
-    series: Object.entries(POS).map(([k, nombre]) => ({
+    series: [...Object.entries(grupos).map(([k, nombre]) => ({
       name: nombre, type: 'scatter', symbolSize: 9,
       itemStyle: k === 'sinref' ? { color: 'transparent', borderColor: colores.sinref, borderWidth: 1.5 } : { color: colores[k], opacity: 0.85 },
       emphasis: { scale: 1.8, itemStyle: { borderColor: ink, borderWidth: 1.5 } },
-      data: enGrafico.filter((p) => posicion(p) === k).map((p) => ({ value: [p.hay_grado + jitter(p.documento), p.base_wage], p })),
-    })),
+      data: enGrafico.filter((p) => ubicar(p) === k).map((p) => ({ value: [p.hay_grado + jitter(p.documento), p.base_wage], p })),
+    })), {
+      // Franja 80%–120% por grado y línea del midpoint; se oculta desde la leyenda
+      name: 'Banda interna', type: 'line', symbol: 'none', silent: true, z: 1,
+      lineStyle: { color: muted, type: 'dashed', width: 1 }, itemStyle: { color: muted },
+      data: bandas.map((p) => [p.hay_grado, p.banda_mid]),
+      markArea: { silent: true, itemStyle: { color: muted, opacity: 0.12 },
+        data: bandas.map((p) => [{ xAxis: p.hay_grado - 0.35, yAxis: p.banda_min }, { xAxis: p.hay_grado + 0.35, yAxis: p.banda_max }]) },
+    }],
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-app-line bg-white p-3">
+      <div className="flex flex-wrap items-start gap-3 rounded-xl border border-app-line bg-white p-3">
         {FILTROS.map((f) => (
           <label key={f.k} className="grid gap-1 text-[11px] font-medium uppercase tracking-wide text-app-muted">
             {f.titulo}
-            {f.lista ? (
-              <>
-                <input list={`dl-${f.k}`} value={texto[f.k] ?? ''} onChange={(e) => buscar(f, e.target.value)}
-                  placeholder="Buscar…" autoComplete="off" className={campo} />
-                <datalist id={`dl-${f.k}`}>{opciones[f.k].map((v) => <option key={v} value={v} />)}</datalist>
-              </>
-            ) : (
-              <select value={vigente[f.k]} onChange={(e) => setSel((s) => ({ ...s, [f.k]: e.target.value }))} className={campo}>
-                <option value="">{f.todos}</option>
-                {opciones[f.k].map((v) => <option key={v}>{v}</option>)}
-              </select>
+            <input list={`dl-${f.k}`} value={texto[f.k] ?? ''} onChange={(e) => buscar(f, e.target.value)}
+              placeholder="Buscar…" autoComplete="off" className={campo} />
+            <datalist id={`dl-${f.k}`}>{opciones[f.k].filter((v) => !vigente[f.k].includes(v)).map((v) => <option key={v} value={v} />)}</datalist>
+            {vigente[f.k].length > 0 && (
+              <span className="flex max-w-56 flex-wrap gap-1">
+                {vigente[f.k].map((v) => (
+                  <button key={v} type="button" onClick={() => quitar(f, v)} title={`Quitar ${v}`}
+                    className="flex max-w-full gap-1 rounded-full border border-app-line px-2 py-0.5 text-[11px] normal-case tracking-normal text-app-ink hover:border-app-ink">
+                    <span className="truncate">{v}</span>×
+                  </button>
+                ))}
+              </span>
             )}
           </label>
         ))}
-        <button type="button" onClick={limpiar} className="py-1.5 text-xs font-medium text-app-brand">Limpiar filtros</button>
+        {/* espacio del título para quedar a la altura de los buscadores */}
+        <div className="grid gap-1 text-[11px]">&nbsp;<button type="button" onClick={limpiar} className="inline-flex h-8 items-center rounded-lg border border-app-brand bg-app-brand px-3 text-xs font-semibold text-white hover:bg-app-brand/90">Limpiar filtros</button></div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -160,6 +173,12 @@ export default function Dotacion({ estudio }) {
       <div className="rounded-xl border border-app-line bg-white p-3">
         <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-app-ink">Sueldo base mensual vs grado HAY</h2>
+          <span className="flex items-center gap-1 text-xs text-app-muted">Colorear por
+            {[['mercado', 'Mercado'], ['banda', 'Banda interna']].map(([k, t]) => (
+              <button key={k} type="button" onClick={() => setModo(k)}
+                className={`rounded-full border px-2 py-0.5 ${modo === k ? 'border-app-ink text-app-ink' : 'border-app-line'}`}>{t}</button>
+            ))}
+          </span>
           <span className="text-xs text-app-muted">Rueda: acercar · Arrastrar: mover · Lupa: seleccionar un área · Doble clic en un punto: ficha</span>
         </div>
         <ReactECharts ref={grafico} option={option} style={{ height: 520 }}
