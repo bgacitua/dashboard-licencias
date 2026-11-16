@@ -40,15 +40,26 @@ function Detalle({ c, estudio, evaluados, esAdmin, onHay }) {
           </div>
         </div>
       ))}
-      {r && (
-        <p className="flex flex-wrap gap-x-3 text-xs text-app-muted">
-          Homologado con:{c.cargos.map((k) => <span key={k} className="select-all font-mono text-app-ink">{k}.{c.nivel}</span>)}
-        </p>
+      {c.cargos && ( // descriptores Mercer con los que se hizo match, uno por código
+        <details className="text-xs text-app-muted">
+          <summary className="cursor-pointer">
+            Homologado con:{c.cargos.map((k) => <span key={k} className="ml-3 select-all font-mono text-app-ink">{k}.{c.nivel}</span>)}
+          </summary>
+          {c.descriptores?.map((d) => (
+            <div key={d.codigo} className="mt-2 border-l-2 border-app-line pl-3">
+              <p><span className="font-mono text-app-ink">{d.codigo}</span> · {estudio.vista}</p>
+              <p className="font-semibold text-app-ink">{d.titulo}</p>
+              <p className="whitespace-pre-line">{d.descripcion || 'Sin descriptor en el estudio.'}</p>
+            </div>
+          ))}
+        </details>
       )}
-      <button type="button" onClick={() => setHay(!hay)} className="text-xs font-medium text-app-muted hover:text-app-ink">
-        {hay ? '▾' : '▸'} Evaluación HAY
-      </button>
-      {hay && <EvaluacionHay c={c} evaluados={evaluados} esAdmin={esAdmin} onGuardado={(h) => onHay(c.id, h)} />}
+      {esAdmin && ( // la calculadora HAY es solo del admin; el resto ve el grado en la fila
+        <button type="button" onClick={() => setHay(!hay)} className="text-xs font-medium text-app-muted hover:text-app-ink">
+          {hay ? '▾' : '▸'} Evaluación HAY
+        </button>
+      )}
+      {hay && <EvaluacionHay c={c} evaluados={evaluados} onGuardado={(h) => onHay(c.id, h)} />}
     </div>
   )
 }
@@ -60,10 +71,10 @@ function Fila({ c, estudio, evaluados, esAdmin, onEditar, onHay }) {
       <div onClick={() => setAbierto(!abierto)} className="flex cursor-pointer items-center gap-3 px-4 py-2 hover:bg-app-surface">
         <div className="min-w-0 flex-1">
           <span className="font-semibold text-app-ink">{c.name}</span> <span className="text-xs text-app-muted">{c.code}</span>
+          <p className={`text-xs ${c.cargos ? 'text-app-ink' : 'text-app-muted'}`}>
+            {c.cargos ? `${(c.titulos || c.cargos).join(' + ')} · ${c.nivel}` : 'Sin homologar'}
+          </p>
         </div>
-        <span className={`text-xs ${c.cargos ? 'text-app-ink' : 'text-app-muted'}`}>
-          {c.cargos ? `${(c.titulos || c.cargos).join(' + ')} · ${c.nivel}` : 'Sin homologar'}
-        </span>
         <span className={`w-14 text-right text-xs ${c.personas ? 'text-app-ink' : 'text-app-muted'}`}>{c.personas} pers.</span>
         <span title={c.hay_grado != null ? `${c.hay_puntos} puntos HAY` : 'Sin evaluación HAY'}
           className={`w-14 text-right text-xs ${c.hay_grado != null ? 'text-app-ink' : 'text-app-muted'}`}>
@@ -83,10 +94,13 @@ function Fila({ c, estudio, evaluados, esAdmin, onEditar, onHay }) {
 
 export default function CargosEmpresa({ estudio, cargos, todos, esAdmin, soloActivos, onSoloActivos, onEditar, onHay }) {
   const [q, setQ] = useState('')
+  const [orden, setOrden] = useState('') // '' original | desc | asc por grado HAY
   if (!cargos) return <p className="text-sm text-app-muted">Cargando…</p>
 
   const t = q.trim().toLowerCase()
   const lista = cargos.filter((c) => !t || `${c.name} ${c.code}`.toLowerCase().includes(t))
+  // Sin HAY siempre al final; a igual grado se mantiene el orden original (sort estable)
+  if (orden) lista.sort((a, b) => (a.hay_grado == null) - (b.hay_grado == null) || (orden === 'asc' ? 1 : -1) * ((a.hay_grado ?? 0) - (b.hay_grado ?? 0)))
   const sinHay = cargos.filter((c) => c.hay_grado == null)
   const evaluados = todos.filter((c) => c.hay_grado != null) // fuente para copiar HAY: todos, no solo los visibles
   const suma = (l) => l.reduce((n, c) => n + c.personas, 0)
@@ -101,6 +115,12 @@ export default function CargosEmpresa({ estudio, cargos, todos, esAdmin, soloAct
             className="h-4 w-4 accent-app-brand" />
           Solo cargos con personas activas
         </label>
+        <select value={orden} onChange={(e) => setOrden(e.target.value)}
+          className="rounded-lg border border-app-line bg-white px-2 py-1 text-xs text-app-ink">
+          <option value="">Orden original</option>
+          <option value="desc">HAY mayor a menor</option>
+          <option value="asc">HAY menor a mayor</option>
+        </select>
         <span className="ml-auto">
           {cargos.length} cargos ({suma(cargos)} personas) · {cargos.filter((c) => !c.cargos).length} sin homologar · {sinHay.length} sin HAY ({suma(sinHay)} personas)
         </span>

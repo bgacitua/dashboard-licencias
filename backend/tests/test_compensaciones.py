@@ -181,10 +181,10 @@ def test_cargos_empresa_por_estudio_y_404():
 def test_dotacion_por_estudio_y_404():
     fila = {"employee_id": 3, "nombre": "Ana"}
     db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO], "JOIN compensaciones.v_dotacion d": [fila]})
-    assert router.dotacion(1, db, router.Acceso("gpavez", False, ["CL"])) == [fila]
+    assert router.dotacion(1, db, router.Acceso("gpavez", True, None)) == [fila]
     assert db.llamadas[-1][1] == {"estudio_id": 1}
     assert "factor_mensual" in db.llamadas[-1][0] and "d.pais = 'CL'" in db.llamadas[-1][0]
-    assert "v_banda b ON b.pais = e.pais AND b.grado = hv.grado" in db.llamadas[-1][0]
+    assert "compensaciones.banda b ON b.pais = e.pais AND b.grado = hv.grado" in db.llamadas[-1][0]
     assert "ORDER BY (x.p25 IS NOT NULL AND x.p75 IS NOT NULL) DESC, x.es_core" in db.llamadas[-1][0]
     try:
         service.dotacion(FakeSession({}), 99)
@@ -193,9 +193,9 @@ def test_dotacion_por_estudio_y_404():
     else:
         raise AssertionError("debió responder 404")
     db = FakeSession({"FROM compensaciones.estudio WHERE": [ESTUDIO]})
-    peru = router.Acceso("rrhh_pe", False, ["PE"])
-    assert _status(lambda: router.dotacion(1, db, peru)) == 404 and "v_dotacion" not in db.sql
-    assert _status(lambda: router.historial_persona(1, 3, db, peru)) == 404 and "v_dotacion" not in db.sql
+    chile = router.Acceso("rrhh_cl", False, ["CL"])  # Dotación es solo del admin, aunque tenga el país
+    assert _status(lambda: router.dotacion(1, db, chile)) == 403 and "v_dotacion" not in db.sql
+    assert _status(lambda: router.historial_persona(1, 3, db, chile)) == 403 and "v_dotacion" not in db.sql
 
 
 def test_historial_binds():
@@ -236,10 +236,15 @@ def test_homologar_exige_admin_y_mismo_pais():
     assert db.llamadas[-1][1]["cargo_empresa_id"] == 5
 
 
-def test_analisis_sin_cargo_empresa_no_exige_admin():
+def test_analisis_e_historial_solo_admin():
     db, llamar = _guardar(ANALISTA, cargo_ok=False, cargo_empresa_id=None)
+    assert _status(llamar) == 403 and "INSERT" not in db.sql
+    db, llamar = _guardar(ADMIN, cargo_ok=False, cargo_empresa_id=None)
     assert llamar() == {"id": 7}
     assert "cargo_empresa ce" not in db.sql and db.llamadas[-1][1]["cargo_empresa_id"] is None
+    db = FakeSession({})
+    assert _status(lambda: router.historial(1, db, ANALISTA)) == 403
+    assert _status(lambda: router.borrar(7, db, ANALISTA)) == 403 and not db.llamadas
 
 
 def test_acceso_por_pais():
@@ -298,8 +303,9 @@ def test_hay_guardar_solo_admin_y_recalcula():
     assert _status(lambda: router.hay_guardar(body, FakeSession({}), ADMIN)) == 404  # cargo inexistente
 
     db = FakeSession({})
-    router.hay_historial(5, db, ANALISTA)
-    assert db.llamadas[-1][1] == {"cargo_empresa_id": 5, "paises": ["CL"]}
+    assert _status(lambda: router.hay_historial(5, db, ANALISTA)) == 403 and not db.llamadas
+    router.hay_historial(5, db, ADMIN)
+    assert db.llamadas[-1][1] == {"cargo_empresa_id": 5, "paises": None}
     service._tablas_hay = None
 
 

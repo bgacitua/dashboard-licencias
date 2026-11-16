@@ -12,7 +12,7 @@ export const posicion = (p) =>
 const cuartil = (p) =>
   p.p25 == null || p.mediana == null || p.p75 == null ? '—'
     : p.base_wage < p.p25 ? 'Q1' : p.base_wage < p.mediana ? 'Q2' : p.base_wage <= p.p75 ? 'Q3' : 'Q4'
-// Posición frente a la banda interna del grado HAY (80%–120% del midpoint, v_banda)
+// Posición frente a la banda interna del grado HAY (tabla banda, cargada desde el Excel del país)
 export const BANDA = { bajo: 'Bajo banda', dentro: 'En banda', sobre: 'Sobre banda', sinref: 'Sin banda' }
 export const posBanda = (p) =>
   p.banda_mid == null ? 'sinref' : p.base_wage < p.banda_min ? 'bajo' : p.base_wage > p.banda_max ? 'sobre' : 'dentro'
