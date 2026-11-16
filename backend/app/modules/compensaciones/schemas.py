@@ -71,6 +71,7 @@ class CargoEmpresaOut(BaseModel):
     analisis_id: int | None
     cargos: list[str] | None
     titulos: list[str] | None
+    descriptores: list[dict] | None  # [{codigo, titulo, descripcion}] de Mercer por cargo homologado
     nivel: str | None
     nivel_nombre: str | None
     creado_por: str | None
@@ -104,7 +105,7 @@ class PersonaOut(BaseModel):
     mediana: float | None
     promedio: float | None
     p75: float | None
-    # Banda interna del grado HAY (mensual, v_banda)
+    # Banda interna del grado HAY (mensual, tabla banda)
     banda_min: float | None
     banda_mid: float | None
     banda_max: float | None

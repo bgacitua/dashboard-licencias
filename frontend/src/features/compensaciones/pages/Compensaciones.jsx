@@ -5,7 +5,8 @@ import PasoResultado from '../components/PasoResultado'
 import Historial from '../components/Historial'
 import CargosEmpresa from '../components/CargosEmpresa'
 import ColaMasiva from '../components/ColaMasiva'
-import { getCargosEmpresa, getEstudios, getPermisos, getNiveles, postAnalisis, postResultado } from '../services/compensaciones'
+import useFiltros from '../components/Filtros'
+import { getCargosEmpresa, getDotacion, getEstudios, getPermisos, getNiveles, postAnalisis, postResultado } from '../services/compensaciones'
 
 // ECharts solo entra al bundle al abrir la pestaña Dotación
 const Dotacion = lazy(() => import('../components/Dotacion'))
@@ -34,6 +35,7 @@ export default function Compensaciones() {
   const [preparados, setPreparados] = useState({}) // cargo_empresa_id -> /match (cola masiva, en memoria)
   const [enCola, setEnCola] = useState(false) // el flujo se abrió desde la cola masiva
   const [soloActivos, setSoloActivos] = useState(true) // Cargos empresa: solo cargos con personas activas
+  const [personas, setPersonas] = useState(null) // dotación para los filtros de Cargos empresa (solo admin)
 
   useEffect(() => {
     getPermisos().then((p) => setEsAdmin(p.admin)).catch(() => {})
@@ -48,12 +50,17 @@ export default function Compensaciones() {
   const delPais = (estudios || []).filter((e) => e.pais === pais) // vienen del más reciente al más antiguo
   const estudio = delPais.find((e) => e.id === estudioId) || delPais[0]
 
-  const visibles = cargos && (soloActivos ? cargos.filter((c) => c.personas > 0) : cargos)
+  // Filtros de Dotación: con alguno activo quedan los cargos de las personas filtradas (también para la cola masiva)
+  const [filtradas, filtros, filtrando] = useFiltros(personas)
+  const ids = new Set(filtradas.map((p) => p.cargo_empresa_id))
+  const visibles = cargos && cargos.filter((c) => (!soloActivos || c.personas > 0) && (!filtrando || ids.has(c.id)))
 
   // Cargos de la empresa: se recargan al entrar a la pestaña (trae la homologación vigente).
   useEffect(() => {
-    if (vista === 'cargos' && estudio) getCargosEmpresa(estudio.id).then(setCargos).catch(() => setError('No se pudieron cargar los cargos de la empresa.'))
-  }, [vista, estudio?.id])
+    if (vista !== 'cargos' || !estudio) return
+    getCargosEmpresa(estudio.id).then(setCargos).catch(() => setError('No se pudieron cargar los cargos de la empresa.'))
+    if (esAdmin) getDotacion(estudio.id).then(setPersonas).catch(() => setError('No se pudo cargar la dotación para los filtros.'))
+  }, [vista, estudio?.id, esAdmin])
 
   const reiniciar = () => {
     setPaso('match')
@@ -146,7 +153,7 @@ export default function Compensaciones() {
               <div className="inline-flex overflow-hidden rounded-md border border-app-line">
                 {PAISES.filter(([c]) => (estudios || []).some((e) => e.pais === c)).map(([codigo, etiqueta]) => (
                   <button key={codigo} type="button" aria-pressed={pais === codigo}
-                    onClick={() => { setPais(codigo); setEstudioId(null); setCargos(null); reiniciar() }}
+                    onClick={() => { setPais(codigo); setEstudioId(null); setCargos(null); setPersonas(null); reiniciar() }}
                     className={segmento(pais === codigo)}>
                     {etiqueta}
                   </button>
@@ -162,7 +169,9 @@ export default function Compensaciones() {
           </div>
 
           <div className="mb-4 inline-flex overflow-hidden rounded-md border border-app-line">
-            {[['nuevo', 'Buscar cargo'], ['historial', 'Historial'], ['cargos', 'Cargos empresa'], ['dotacion', 'Dotación']].map(([valor, etiqueta]) => (
+            {[['nuevo', 'Buscar cargo'], ['historial', 'Historial'], ['cargos', 'Cargos empresa'], ['dotacion', 'Dotación']]
+              .filter(([valor]) => esAdmin || valor === 'nuevo' || valor === 'cargos') // Historial y Dotación: solo admin
+              .map(([valor, etiqueta]) => (
               <button key={valor} type="button" aria-pressed={vista === valor} onClick={() => setVista(valor)}
                 className={segmento(vista === valor)}>
                 {etiqueta}
@@ -186,6 +195,7 @@ export default function Compensaciones() {
               )}
               {/* La cola queda montada al ir al flujo: sigue preparando mientras se revisa */}
               <div hidden={vista !== 'cargos'} className="space-y-4">
+                {esAdmin && filtros}
                 {esAdmin && (
                   <ColaMasiva key={`cola-${estudio.id}`} estudio={estudio} cargos={visibles || []} preparados={preparados}
                     onListo={(id, m) => setPreparados((p) => ({ ...p, [id]: m }))} onRevisar={revisar} />
@@ -224,10 +234,12 @@ export default function Compensaciones() {
                     <div className="flex items-center gap-4">
                       <button type="button" className={link} onClick={() => setPaso('nivel')}>← Volver</button>
                       <button type="button" className={link} onClick={reiniciar}>Nuevo análisis</button>
-                      <button type="button" disabled={guardado} onClick={guardar}
-                        className="ml-auto inline-flex h-9 items-center rounded-lg bg-app-brand px-4 text-[13px] font-semibold text-white hover:bg-app-brand/90 disabled:opacity-50">
-                        {guardado ? 'Análisis guardado' : 'Guardar análisis'}
-                      </button>
+                      {esAdmin && (
+                        <button type="button" disabled={guardado} onClick={guardar}
+                          className="ml-auto inline-flex h-9 items-center rounded-lg bg-app-brand px-4 text-[13px] font-semibold text-white hover:bg-app-brand/90 disabled:opacity-50">
+                          {guardado ? 'Análisis guardado' : 'Guardar análisis'}
+                        </button>
+                      )}
                     </div>
                     <PasoResultado resultado={resultado} pais={estudio.pais} nivel={nivel} />
                   </div>

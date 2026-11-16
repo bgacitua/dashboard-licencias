@@ -55,6 +55,12 @@ def _permitir(db: Session, acc: Acceso, estudio_id: int) -> None:
             raise HTTPException(404, "Estudio no encontrado")
 
 
+def _solo_admin(acc: Acceso) -> None:
+    """Historial, Dotación, guardar análisis y la evaluación HAY son solo del admin del módulo."""
+    if not acc.admin:
+        raise HTTPException(403, "Solo un administrador del módulo")
+
+
 @router.get("/permisos")
 def permisos(acc: Acc):
     return {"admin": acc.admin}
@@ -91,26 +97,23 @@ def cargos_empresa(estudio_id: int, db: Db, acc: Acc):
 
 @router.get("/dotacion", response_model=list[PersonaOut])
 def dotacion(estudio_id: int, db: Db, acc: Acc):
-    _permitir(db, acc, estudio_id)
+    _solo_admin(acc)
     return service.dotacion(db, estudio_id)
 
 
 @router.get("/dotacion/historial", response_model=list[CambioOut])
 def historial_persona(estudio_id: int, employee_id: int, db: Db, acc: Acc):
     """[] si la persona no tiene cambios o no es de la dotación del país del estudio."""
-    _permitir(db, acc, estudio_id)
+    _solo_admin(acc)
     return repo.historial_persona(db, estudio_id, employee_id)
 
 
 @router.post("/analisis")
 def guardar(body: AnalisisIn, db: Db, acc: Acc):
-    """Con `cargo_empresa_id` es una homologación: solo admin, y el cargo debe ser del país del estudio."""
-    _permitir(db, acc, body.estudio_id)
-    if body.cargo_empresa_id is not None:
-        if not acc.admin:
-            raise HTTPException(403, "Solo un administrador puede homologar cargos de la empresa")
-        if not repo.cargo_del_pais_del_estudio(db, body.cargo_empresa_id, body.estudio_id):
-            raise HTTPException(400, "El cargo de la empresa no corresponde al país del estudio")
+    """Con `cargo_empresa_id` es una homologación: el cargo debe ser del país del estudio."""
+    _solo_admin(acc)
+    if body.cargo_empresa_id is not None and not repo.cargo_del_pais_del_estudio(db, body.cargo_empresa_id, body.estudio_id):
+        raise HTTPException(400, "El cargo de la empresa no corresponde al país del estudio")
     a = body.model_dump(exclude={"candidatos"})
     a["candidatos"] = json.dumps([c.model_dump() for c in body.candidatos])
     return {"id": repo.guardar_analisis(db, a, acc.username)}
@@ -118,21 +121,15 @@ def guardar(body: AnalisisIn, db: Db, acc: Acc):
 
 @router.get("/analisis", response_model=list[Analisis])
 def historial(estudio_id: int, db: Db, acc: Acc):
-    """El admin ve los análisis de todos; el resto, solo los suyos."""
-    _permitir(db, acc, estudio_id)
-    return repo.historial(db, estudio_id, _dueno(acc))
+    _solo_admin(acc)
+    return repo.historial(db, estudio_id, None)
 
 
 @router.delete("/analisis/{analisis_id}", status_code=204)
 def borrar(analisis_id: int, db: Db, acc: Acc):
-    """Misma regla que el historial: el admin borra cualquiera; el resto, solo los suyos."""
-    if not repo.borrar_analisis(db, analisis_id, _dueno(acc)):
+    _solo_admin(acc)
+    if not repo.borrar_analisis(db, analisis_id, None):
         raise HTTPException(404, "Análisis no encontrado")
-
-
-def _dueno(acc: Acceso) -> str | None:
-    """None para el admin (sin filtro); si no, el username."""
-    return None if acc.admin else acc.username
 
 
 @router.get("/hay/opciones")
@@ -161,5 +158,6 @@ def hay_guardar(body: HayEvaluacionIn, db: Db, acc: Acc):
 
 @router.get("/hay/evaluacion", response_model=list[HayEvaluacion])
 def hay_historial(cargo_empresa_id: int, db: Db, acc: Acc):
-    """Historial del cargo (la primera es la vigente), solo de los países del usuario."""
+    """Historial del cargo (la primera es la vigente). Solo admin: la calculadora no se muestra al resto."""
+    _solo_admin(acc)
     return repo.hay_historial(db, cargo_empresa_id, acc.paises)

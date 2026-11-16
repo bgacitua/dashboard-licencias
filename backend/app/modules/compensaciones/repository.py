@@ -148,6 +148,13 @@ def cargos_empresa(db: Session, estudio_id: int):
                n.nombre AS nivel_nombre, h.creado_por, h.created_at,
                (SELECT array_agg(DISTINCT p.titulo) FROM compensaciones.puesto p
                  WHERE p.estudio_id = e.id AND p.cargo_codigo = ANY(h.cargos_elegidos)) AS titulos,
+               -- descriptor Mercer de cada cargo homologado (el del nivel elegido; si no existe, otro nivel)
+               (SELECT json_agg(json_build_object('codigo', x.codigo, 'titulo', x.titulo, 'descripcion', x.descripcion)
+                                ORDER BY x.codigo)
+                FROM (SELECT DISTINCT ON (p.cargo_codigo) p.codigo, p.titulo, p.descripcion
+                      FROM compensaciones.puesto p
+                      WHERE p.estudio_id = e.id AND p.cargo_codigo = ANY(h.cargos_elegidos)
+                      ORDER BY p.cargo_codigo, p.nivel_codigo = h.nivel_codigo DESC) x) AS descriptores,
                hv.grado AS hay_grado, hv.puntos_total AS hay_puntos,
                (SELECT count(*) FROM compensaciones.v_dotacion d
                  WHERE d.pais = ce.pais AND d.role_id = ce.id_origen) AS personas
@@ -204,7 +211,7 @@ def dotacion(db: Session, estudio_id: int):
           LIMIT 1
         ) m ON true
         LEFT JOIN compensaciones.v_hay_vigente hv ON hv.cargo_empresa_id = ce.id
-        LEFT JOIN compensaciones.v_banda b ON b.pais = e.pais AND b.grado = hv.grado
+        LEFT JOIN compensaciones.banda b ON b.pais = e.pais AND b.grado = hv.grado
         -- historial: las vistas rh.* son de Chile; los id de Perú no deben cruzarse con ellas
         LEFT JOIN rh.vw_employees_anterior ea ON d.pais = 'CL' AND ea.employee_id = d.employee_id
         WHERE e.id = :estudio_id

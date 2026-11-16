@@ -12,18 +12,18 @@ POST /api/v1/compensaciones/match                       -> embedding + scoring G
 GET  /api/v1/compensaciones/niveles?estudio_id&cargos=  -> niveles comunes con datos (COMP1.promedio)
 POST /api/v1/compensaciones/resultado                   -> COMP1 y COMP3_REAL de los cargos en el nivel
 POST /api/v1/compensaciones/analisis                    -> guarda el análisis (botón "Guardar análisis")
-GET  /api/v1/compensaciones/analisis?estudio_id         -> historial: los propios; el admin ve todos
-DELETE /api/v1/compensaciones/analisis/{id}            -> borra un análisis: los propios; el admin cualquiera (404 si no)
-GET  /api/v1/compensaciones/cargos-empresa?estudio_id     -> cargos del país del estudio + homologación y grado HAY vigentes + n° de personas activas (v_dotacion)
+GET  /api/v1/compensaciones/analisis?estudio_id         -> historial de todos (solo admin, 403)
+DELETE /api/v1/compensaciones/analisis/{id}            -> borra un análisis (solo admin, 403; 404 si no existe)
+GET  /api/v1/compensaciones/cargos-empresa?estudio_id     -> cargos del país del estudio + homologación (con descriptores Mercer por código) y grado HAY vigentes + n° de personas activas (v_dotacion)
 GET  /api/v1/compensaciones/hay/opciones                 -> combinaciones válidas de Know-How, Solución y Responsabilidad
 POST /api/v1/compensaciones/hay/calcular                 -> puntos por factor, total y grado (no escribe)
 POST /api/v1/compensaciones/hay/evaluacion               -> guarda la evaluación de un cargo (solo admin; recalcula en el servidor)
-GET  /api/v1/compensaciones/hay/evaluacion?cargo_empresa_id -> historial HAY del cargo (la primera es la vigente)
-GET  /api/v1/compensaciones/dotacion?estudio_id          -> personas activas del país con mercado mensual, HAY y último cambio de sueldo
-GET  /api/v1/compensaciones/dotacion/historial?estudio_id&employee_id -> cambios desde 2022-06 (solo CL; [] si no hay)
+GET  /api/v1/compensaciones/hay/evaluacion?cargo_empresa_id -> historial HAY del cargo (solo admin; la primera es la vigente)
+GET  /api/v1/compensaciones/dotacion?estudio_id          -> personas activas del país con mercado mensual, HAY y último cambio de sueldo (solo admin)
+GET  /api/v1/compensaciones/dotacion/historial?estudio_id&employee_id -> cambios desde 2022-06 (solo admin; solo CL; [] si no hay)
 ```
 
-`POST /analisis` acepta `cargo_empresa_id` (homologación): solo admin (403) y el cargo debe ser del país del estudio (400).
+`POST /analisis` es solo admin (403); con `cargo_empresa_id` (homologación) el cargo debe ser del país del estudio (400).
 Vigente = el último análisis por (estudio, cargo). `compensaciones.cargo_empresa` la llena n8n desde Snowflake (upsert, no borra).
 El descriptor que va al match es `description` + los 10 primeros títulos CBO del cargo (solo BR: `code` = código CBO, tabla `compensaciones.cbo`, migración 035).
 
@@ -45,16 +45,18 @@ Si el cargo (o híbrido) no tiene P25 y P75 en el nivel, se usa el juego complet
 subfamilia (core `.000`, promedio simple si son varias); no se marca en pantalla.
 **`rh.vw_employees_anterior` y `rh.vw_job_history_cambios` las mantiene el ETL (`create.py`), no el repo.**
 
-Bandas internas (`v_banda`, migración 039, igual a la hoja `bandas` de CHILE.xlsx, en vivo): mediana del sueldo base
-por país y grado HAY → recta `ln(mediana) = a + b·grado` con los grados de ≥ 3 personas → midpoint `e^(a + b·grado)`,
-banda 80%–120%. Llega en `/dotacion` como `banda_min/mid/max`; el gráfico las dibuja como franjas por grado
+Bandas internas (tabla `banda`, migración 040; reemplaza la vista en vivo `v_banda` de la 039): una fila por país y
+grado HAY con mínimo, midpoint y máximo mensuales, copiados de la "Tabla Ajustada" de la hoja `bandas` del Excel del
+país con `carga_bandas.py` (fuera del repo). **No cambian con la dotación**: solo al volver a cargarlas.
+Llegan en `/dotacion` como `banda_min/mid/max`; el gráfico las dibuja como franjas por grado
 (colorear por mercado o por banda) y la ficha muestra la posición y el compa-ratio interno.
 
 ## Acceso
 
 Se maneja en la tabla `compensaciones.acceso` (migración 036), una fila por username:
-`admin = true` ve todos los países, homologa, usa la cola masiva y ve el historial
-de todos; `admin = false` ve solo los países de `paises`. Sin fila no ve estudios.
+`admin = true` ve todos los países, homologa, usa la cola masiva, guarda análisis
+y ve Historial y Dotación; `admin = false` solo usa Buscar cargo (sin guardar) y
+Cargos empresa en lectura (sin la calculadora HAY), en los países de `paises`. Sin fila no ve estudios.
 Un estudio de otro país responde 404. Los cambios rigen sin reiniciar.
 
 Solo `POST /analisis`, `DELETE /analisis/{id}` y `POST /hay/evaluacion` escriben en BD: probar cargos y niveles no deja registros.
@@ -102,6 +104,7 @@ psql -d rh_cramer -f backend/migrations/036_acceso.sql
 psql -d rh_cramer -f backend/migrations/037_compensaciones_hay.sql
 psql -d rh_cramer -f backend/migrations/038_dotacion.sql
 psql -d rh_cramer -f backend/migrations/039_bandas.sql
+psql -d rh_cramer -f backend/migrations/040_bandas_fijas.sql
 ```
 
 Idempotente. Crea el schema si falta, deja intactos los datos y da de alta el

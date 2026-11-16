@@ -18,9 +18,9 @@ const entradas = (h) => Object.fromEntries(CAMPOS.map((k) => [k, h[k]]))
 const sel = 'rounded-lg border border-app-line bg-white px-2 py-1.5 text-xs text-app-ink'
 let opcionesP = null // se piden una vez por sesión
 
-// Calculadora HAY de un cargo de la empresa: parte de la evaluación vigente, recalcula en vivo y el admin guarda.
+// Calculadora HAY de un cargo de la empresa (solo admin): parte de la evaluación vigente, recalcula en vivo y guarda.
 // `evaluados`: cargos del país con HAY vigente, para copiar su evaluación (ej. de líder a jefe).
-export default function EvaluacionHay({ c, evaluados, esAdmin, onGuardado }) {
+export default function EvaluacionHay({ c, evaluados, onGuardado }) {
   const [opciones, setOpciones] = useState(null)
   const [historial, setHistorial] = useState([])
   const [e, setE] = useState(VACIO)
@@ -95,16 +95,14 @@ export default function EvaluacionHay({ c, evaluados, esAdmin, onGuardado }) {
       {error && <p className="text-xs text-red-600">{error}</p>}
       {r && <p className="text-sm text-app-ink">Total <b>{r.puntos_total}</b> puntos · Grado HAY <b>{r.grado}</b></p>}
 
-      {esAdmin && (
-        <div className="flex items-center gap-2">
-          <input value={comentario} onChange={(ev) => setComentario(ev.target.value)} maxLength={1000} placeholder="Comentario (opcional)"
-            className="flex-1 rounded-lg border border-app-line px-2 py-1.5 text-xs text-app-ink focus:border-app-ink focus:outline-none" />
-          <button type="button" disabled={!r || guardado} onClick={guardar}
-            className="inline-flex h-8 items-center rounded-lg bg-app-brand px-3 text-xs font-semibold text-white hover:bg-app-brand/90 disabled:opacity-50">
-            {guardado ? 'Evaluación guardada' : 'Guardar evaluación'}
-          </button>
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        <input value={comentario} onChange={(ev) => setComentario(ev.target.value)} maxLength={1000} placeholder="Comentario (opcional)"
+          className="flex-1 rounded-lg border border-app-line px-2 py-1.5 text-xs text-app-ink focus:border-app-ink focus:outline-none" />
+        <button type="button" disabled={!r || guardado} onClick={guardar}
+          className="inline-flex h-8 items-center rounded-lg bg-app-brand px-3 text-xs font-semibold text-white hover:bg-app-brand/90 disabled:opacity-50">
+          {guardado ? 'Evaluación guardada' : 'Guardar evaluación'}
+        </button>
+      </div>
 
       {historial.length > 0 && (
         <div className="border-t border-app-line pt-2 text-xs text-app-muted">
